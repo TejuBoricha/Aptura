@@ -1,0 +1,30 @@
+# OS / editor noise
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+*~
+*.swp
+*.swo
+
+# Recovery/scratch artifacts from editing sessions
+*.bak
+*.CORRUPTED.*
+*_RECON*.md
+*.tmp
+
+# Build-phase artifacts (this repo is spec-only today; keeps future
+# accidental commits of build output out of the history)
+.gradle/
+build/
+*.apk
+*.aab
+*.ap_
+local.properties
+.kotlin/
+.cxx/
+
+# IDE
+.idea/
+*.iml
+.vscode/

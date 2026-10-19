@@ -1,0 +1,12 @@
+# Markdown documents in this repository are the product of the engagement.
+# Normalize to LF in the repository so that diffs are readable and stable
+# across machines, while allowing Windows checkouts to keep working.
+* text=auto eol=lf
+
+*.md  text eol=lf
+*.txt text eol=lf
+
+# Binary-ish artifacts that must never be normalized
+*.png binary
+*.jpg binary
+*.pdf binary
