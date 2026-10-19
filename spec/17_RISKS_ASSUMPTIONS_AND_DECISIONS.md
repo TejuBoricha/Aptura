@@ -1,6 +1,6 @@
 # 17 — Consolidated Registers, DoR/DoD, and Change Process
 
-**Version:** 0.2 (draft; v0.2 adds RSK-015 and the doc 02A question pointers)
+**Version:** 0.3 (draft; v0.3 adds **§1.3 — the industry-practice-first decision rule** with the classification of the current decision set; v0.2 added RSK-015 and the doc 02A question pointers)
 **Date:** 2026-10-19
 **Status:** Draft — **this document is the canonical home** for the DEC / ASM / RSK / DEP registers and for the Definition of Ready/Done. Where earlier documents hold originals (00 §3, 08, 16 §3), this register supersedes for lookup while preserving the original context. IDs are frozen; nothing is silently renumbered (change rules §7).
 **Consumes:** every prior document.
@@ -49,6 +49,49 @@ Pointer table (details, alternatives, consequences in doc 08; several are *provi
 | ADR-011 | No network stack at all in R1 | Settled (mirrors DEC-012) |
 | ADR-012 | Packaged flags; no remote config | Settled |
 | ADR-013 | WorkManager for batch work | Settled |
+
+### 1.3 Decision rule: industry practice first
+
+**Rule (standing — binds every future decision).** Before a behaviour, default, interaction, or mechanism is designed from first principles, establish what shipping products in this category do and why. If practice is settled and our constraints do not conflict, **adopt it**. That is the default path, not a compromise, and it does not need further justification. If we deviate, the deviation is recorded with (a) the practice, (b) why it does not suit us, (c) who accepted it. Designing from scratch is legitimate only when practice is **absent**, **contradictory**, or **demonstrably worse** — and the entry must say which of the three applies.
+
+**Why this rule exists.** It was adopted after the opposite approach produced two avoidable errors in one engagement:
+
+1. **Auto-advance (Part 24).** The end-of-item default was set to *stop* by a reversibility argument. Research found every comparable product defaults auto-advance **ON** with a cancellable countdown, and that the one comparable which defaulted OFF reports the OFF default generates support load. The reasoning was not wrong in spirit — it applied the reversibility instinct to the wrong lever. See `research/autoplay_defaults.md`.
+2. **Decoder labels (Part 26).** Q13 framed the question as technical *or* outcome language. Practice shows it is neither: every vendor pairs a technical term with a when-to-use sentence, and the one vendor shipping bare tokens carries a documented support cost. See `research/decoder_label_practice.md`.
+
+**Method — how to establish "the practice" (desk-only, cheap):**
+1. The vendor's **own help centre / official docs** `[V1]` — settings trees, option semantics, and, most importantly, **defaults**.
+2. **Source, changelogs, prior art** `[V2]`.
+3. **Reviews and forums** `[R]` — evidence of pain, never proof of behaviour.
+4. Read the **option tree and its defaults**, not the marketing page.
+5. **Count the vendor's own support burden.** If a vendor maintains support articles explaining its own labels, or third parties publish explainers, that is evidence *against* the pattern — not merely neutral.
+
+**Deviation protocol.** A deviation is not a defect, but it must be classified and visible. Use the table below; a deviation of material cost becomes an owner decision rather than a silent choice.
+
+**Scope note — "best suited" ≠ "most common".** Where our constraints genuinely differ (licensing, Play policy, privacy posture, no-account architecture), copying practice would be wrong. The rule requires that the *conflict be named*, not that practice always win.
+
+#### Classification of the current decision set
+
+Reviewed 2026-10-19 against docs 02/02A and the W1–W7 research notes. "Deviating" rows are deliberate and are rechecked at each release gate.
+
+| Decision | What shipping products do | Our choice | Classification |
+|---|---|---|---|
+| DEC-001 R1 = local-file player | VLC, Just, mpv-android, Nova are all local-first | same | **Aligned** |
+| DEC-003 Media3 + self-built FFmpeg **audio** ext | Just Player ships exactly this stack (Media3 + FFmpeg audio extension) `[V1]` | same | **Aligned** (existence proof) |
+| DEC-004 free / no ads | VLC, Just, Nova: free, no ads, donation-funded in this niche | same | **Aligned** |
+| DEC-005 phones + tablets; TV out of R1 | VLC, mpv-android, Nova and Just all ship Android TV/box builds | deferred to R1.x | **Deviating — sequenced** (input model + test-matrix discipline; not refused) |
+| DEC-008 no telemetry | VLC and Just position on "no ads, tracking or permissions" | stronger (no upload path at all) | **Aligned — exceeds** |
+| DEC-011 MediaStore + SAF; never `MANAGE_EXTERNAL_STORAGE` | mpv-android ships a separate `allstorage` APK using it and keeps it off Play; Nova's all-files history is the cautionary case | never request it | **Deviating — justified** (Play policy + documented incumbent cost) |
+| DEC-012 no `INTERNET` permission in R1 | VLC/Just include it for network playback | omitted entirely | **Deviating — deliberate differentiator** (verifiable trust proof) |
+| DEC-013 store-only at R1; no sideload channel | This niche ships multi-channel (Play + F-Droid + GitHub + IzzyOnDroid + others) | Play only at R1 | **Deviating — sequenced** (DEC-009 defers the FOSS build; revisit at R1.x, see RSK-005) |
+| FR-CTRL-017 end-of-item default | Auto-advance **ON** with cancellable countdown, scoped to a queue | adopted (Part 24) | **Aligned** (was deviating) |
+| FR-LIB-015 resume semantics | Tri-state documented by Just Player; VLC ships an equivalent "Resume played videos" three-option setting `[V1]` | tri-state, Always default | **Aligned** |
+| FR-PLAY-003 decoder labelling | Technical term **+** when-to-use description; `Auto` default; global setting + per-item override | adopted (Part 26) | **Aligned** (was open) |
+| FR-PLAY-003 bounded fallback + restore | VLC does exactly this — one automatic fallback, previous setting restored | same | **Aligned** |
+| File delete of user media | Just Player documents *delete file* as a post-playback action `[V1]` | R2 only; R1 is non-destructive | **Deviating — justified** (destructive capability deferred; R1 keeps "remove from library"; the ENDED surface keeps the action reachable per FR-CTRL-017) |
+| FR-LIB-011 article-ignoring sort | Nova documents it | adopted, off by default | **Aligned** |
+
+**Reading of the table:** every *how* decision is aligned or openly justified; the deviations are **scope sequencing** (TV, distribution, destructive file ops) rather than behaviour. No unresolved deviation requires an owner decision at this time — each is already sequenced in docs 15/16 and revisited at R1.x gates.
 
 ---
 
@@ -131,7 +174,7 @@ Detail lives in each source document; this index is for navigation. **Owner deci
 
 Full sets: doc 04 Q1–Q13 · doc 05 NQ1–NQ6 · doc 06 U1–U6 · doc 07 C1–C6 · doc 08 T1–T5 · doc 09 A1–A6 · doc 10 S1–S6 · doc 11 OQ-1…5 · doc 12 Q12-1…6 · doc 13 Q13-1…6 · doc 14 Q14-1…5 · doc 15 OQ15-1…5 · doc 16 Q16-1…5 · doc 02A CS-1…CS-7.
 
-**Behavioural questions raised by W5 that are *not* owner decisions** (they need evidence, not preference): **Q13** decoder label language (doc 04 §5) and **CS-1…CS-7** (doc 02A §14). **Q12 is closed** — the auto-advance default was settled against six shipping products (`research/autoplay_defaults.md`, doc 04 FR-CTRL-017). Q13 must be settled before the advanced-sheet copy is finalised.
+**Behavioural questions raised by W5 that are *not* owner decisions** (they need evidence, not preference): **CS-1, CS-2, CS-3, CS-5, CS-6, CS-7** (doc 02A §14). **Q12 and Q13 are both closed** — auto-advance was settled against six shipping products (`research/autoplay_defaults.md`, FR-CTRL-017), and decoder labelling against five (`research/decoder_label_practice.md`, FR-PLAY-003, which also resolves CS-4). Neither required an owner decision, because in both cases practice was settled and our constraints did not conflict (§1.3).
 
 ---
 

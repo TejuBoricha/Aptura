@@ -1,6 +1,6 @@
 # 06 — UX, Screen, and State Specification
 
-**Version:** 0.2 (draft; v0.2 adds SCR-010f/g/h and the Ended/Compatibility player states)
+**Version:** 0.3 (draft; v0.3 sharpens SCR-010e decoder copy to the industry-settled labelling pattern — Auto/Hardware/Software each with a when-to-use description; v0.2 added SCR-010f/g/h and the Ended/Compatibility player states)
 **Date:** 2026-10-19
 **Status:** Draft. Text wireframes and tables only — **no visual mockups exist in this spec phase**; a designer will translate this into visuals during the build phase without changing structure. Every screen maps to FR requirements (doc 04) and inherits NFR-A11Y (doc 05). Claims and copy obey doc 07 §13 (no forbidden phrasing).
 **Consumes:** 03 (journeys), 04 (FRs), 05 (NFRs), 07 (claims/messaging), 09 (architecture states).
@@ -71,7 +71,7 @@ Navigation model: single-activity; bottom navigation with **Library / Folders / 
 | SCR-010b | Speed sheet | Rate control | Player controls | Presets + custom; pitch note where applicable | FR-CTRL-004 |
 | SCR-010c | Subtitle panel | Everything subtitles | Player; Settings shortcut | Track list w/ labels, style controls, sync offset, encoding override, per-video reset | FR-SUB-001…009 |
 | SCR-010d | Audio panel | Track/delay | Player | Track list, delay stepper, passthrough/effected labels (factual) | FR-AUD-001/003 |
-| SCR-010e | Advanced sheet | Power tools | Player ⋮ | Decode override (hw/sw), stats overlay toggle, A-B repeat, sleep timer | FR-PLAY-003, FR-CTRL-009/010, FR-DIAG-001 |
+| SCR-010e | Advanced sheet | Power tools | Player ⋮ | Decode override — **Auto / Hardware / Software, each with a when-to-use description** (never bare HW/SW tokens); stats overlay toggle, A-B repeat, sleep timer | FR-PLAY-003, FR-CTRL-009/010, FR-DIAG-001 |
 | SCR-010f | Play-mode sheet | What happens next | Player overlay (mode chip); auto-advance prompt | Single/Folder/Queue/Repeat one/Repeat all, shuffle; auto-advance toggle + delay; visible in overlay | FR-CTRL-017 |
 | SCR-010g | Up next / ended surface | End-of-item clarity | `ENDED` with a queue | Next item card, play-next, back-to-library, delete-from-library, **10 s cancellable countdown ring**; no countdown when no queue or after 2 h inactivity (Up next pre-selected) | FR-CTRL-017, FR-LIB-015 |
 | SCR-010h | Compatibility-mode notice | Honest degradation | Fallback engaged | Dismissible chip "Playing in compatibility mode" + "Why?" sheet naming failed class and chosen path | FR-PLAY-003, FR-PLAY-004 |

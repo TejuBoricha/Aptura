@@ -1,8 +1,8 @@
 # 02A — Competitor Case Studies (Deep Dive)
 
-**Version:** 0.2 · **Date:** 2026-10-19 (sources accessed 2026-10-19 unless noted)
+**Version:** 0.3 (v0.3 resolves **CS-4** against documented practice — decoder labelling settled as technical name + when-to-use description; see `research/decoder_label_practice.md`) · **Date:** 2026-10-19 (sources accessed 2026-10-19 unless noted)
 **Status:** Companion to `02_MARKET_AND_COMPETITOR_RESEARCH.md`. Doc 02 remains the synthesis and scoring layer; this document is the **anatomy layer** — what each app provides, which options it exposes, how the playback stack works, and how the UI/UX is structured.
-**Adopted into the spec:** §12's implications were folded into doc 04 (FR-CTRL-017 new; FR-PLAY-003, FR-LIB-015, FR-LIB-011, FR-SUB-001, FR-SUB-004, FR-PLAY-011 sharpened; Q12/Q13 opened), doc 06 (SCR-010f/g/h + two player states), doc 12 (TST-QUEUE) and doc 18 (FR-CTRL count 17). See doc 04 §5 Q12–Q13 and doc 00 Part 22 for the change record.
+**Adopted into the spec:** §12's implications were folded into doc 04 (FR-CTRL-017 new; FR-PLAY-003, FR-LIB-015, FR-LIB-011, FR-SUB-001, FR-SUB-004, FR-PLAY-011 sharpened; Q12 and Q13 both opened here and both **subsequently closed by research** — W6 `autoplay_defaults.md`, W7 `decoder_label_practice.md`), doc 06 (SCR-010f/g/h + two player states), doc 12 (TST-QUEUE) and doc 18 (FR-CTRL count 17). See doc 04 §5, doc 17 §1.3, and doc 00 Parts 22/24/26 for the change record.
 **Consumes:** `research/competitors.md` (W1), plus primary docs fetched for this pass (official docs, repos, support pages, store listings).
 **Feeds:** 04 (FR refinement), 06 (UX patterns), 07 (compat claims), 08 (decoder/engine design), 15 (monetization contrast).
 
@@ -472,7 +472,7 @@ These are the concrete changes/additions this study justifies. Each is tied to a
 - Confirm **gesture count** stays at the documented five plus optional two-finger play/pause; do not add zone-based speed gestures.
 
 ### 12.5 What this changes in doc 07/08
-**Status: pending** — recommended edits to docs 07 and 08 are not yet applied; they need the spike results to be worth writing.
+**Status: ✅ applied (Part 23)** — doc 07 §13 now carries the "competitor format lists are not evidence" rules (container ≠ codec; the decoder path matters more than the format name), and doc 08 §6.1 carries the prior-art notes for RQ-01/03/05/06/12.
 - Doc 07: add a footnote that MX's and KMPlayer's published format lists are vendor claims and contain internal errors — reinforces the "documented ≠ validated" rule.
 - Doc 08: cite Next Player's fallback table as prior art in RQ-01/RQ-03; cite Just Player's Media3 1.11.1 + FFmpeg-audio stack as existence proof for DEC-003; cite mpv's HDR/hwdec failure and Nova's DV caveats in RQ-12/DH-8.
 
@@ -498,7 +498,7 @@ These are the concrete changes/additions this study justifies. Each is tied to a
 | CS-1 | Does MX's "HW+" actually play files that Media3 cannot, or is it a decoder-wrapping claim? | Would change RQ-01's comparison baseline | Device corpus test (spike) |
 | CS-2 | Is MX's subtitle *management* (sync/encoding/font folder) actually usable at speed, or is it buried? | Determines how much of the panel we must redesign vs. copy | Moderated usability test on MX |
 | CS-3 | How often does ASS styling materially differ between libass and Media3? | Sets RQ-06's pass/fail threshold and whether "fidelity" is a real claim | Scripted subtitle corpus (RQ-06) |
-| CS-4 | Do users understand "HW/SW/Auto" decoder labels, or do they need outcome language ("Best quality / Most compatible")? | Directly shapes FR-PLAY-003 UI | 5–8 participant comprehension test |
+| CS-4 | Do users understand "HW/SW/Auto" decoder labels, or do they need outcome language ("Best quality / Most compatible")? | Directly shapes FR-PLAY-003 UI | **Resolved 2026-10-19 — the dichotomy was false.** Every vendor pairs a technical name with a when-to-use description, and the one shipping bare tokens carries a documented support cost (`research/decoder_label_practice.md`). FR-PLAY-003 + SCR-010e now specify that pattern. The residual test is narrowed to the *wording quality of our own descriptions*, not to the technical-vs-outcome choice |
 | CS-5 | Is dual-subtitle demand large enough for R2, or is it a loud minority? | Prioritization | Review mining + survey |
 | CS-6 | Does a scan-progress surface reduce abandonment on 10k+ libraries? | Justifies the UX addition | Prototype test with large library |
 | CS-7 | Would a "why did it fall back?" explanation reduce support contacts? | Justifies diagnostics work (doc 14) | Support-deflection estimate; later A/B |
