@@ -1,6 +1,6 @@
 # 12 — QA Strategy, Test Plan, and Acceptance Criteria
 
-**Version:** 0.3 (draft; v0.3 cross-references `08B` §3/§3.5 as the procurement plan that **closes toward** this document's §6 matrix — the B0 lab is a subset of it, not a separate fleet (Part 32, D-23); v0.2 adds the TST-QUEUE end-of-item suite)
+**Version:** 0.4 (draft; v0.4 points §5/§7 at `12A_B0_INSTRUMENTATION.md` — the B0.0 **build order** (fixture manifests, harness contracts, done criteria) that operates under this document's rules; v0.3 cross-references `08B` §3/§3.5 as the procurement plan that **closes toward** this document's §6 matrix — the B0 lab is a subset of it, not a separate fleet (Part 32, D-23); v0.2 adds the TST-QUEUE end-of-item suite)
 **Date:** 2026-10-19
 **Status:** Draft. **Nothing in this document has been executed.** No test results exist; no device or benchmark claims are made anywhere in this package. All numeric budgets marked `[T]` are provisional QA targets to be ratified at Gate A (doc 18). This document defines *what the suites cited across docs 04/05/10 actually are* and how quality is proven before release.
 **Consumes:** 04 (FRs + TST refs), 05 (NFRs + verification methods), 07 (tier matrix — testing gates every claim), 09 (states/architecture), 10 (privacy proofs, threat register), 11 (license CI gate).
@@ -116,6 +116,8 @@ Case IDs allocate inside these suites exactly as already cited (e.g. `TST-SCAN-0
 | Metadata bombs | Multi-MB tag values, huge embedded artwork, long/confusable filenames | Parsing bounded; UI never drops into jank |
 | Corpus governance | Versioned + checksummed; stored in build-phase repo/lfs with license manifest; growth driven by bug regressions | No personal media in CI, ever (doc 10) |
 
+**Build order:** the per-cell manifests, counts, identification scheme and manifest-file fields for every corpus above are specified in **`12A_B0_INSTRUMENTATION.md` §2** — which operates under this section's rules; where they disagree, this section wins.
+
 ---
 
 ## 6. Device & environment matrix
@@ -146,6 +148,8 @@ The concrete device list + purchase budget is locked in the build phase (doc 16 
 5. **Fault injection:** storage revocation mid-operation, read-only media, low space (thumbnail pause banner), clock skew, battery saver, thermal soak (protocol via doc 13).
 6. **Accessibility:** scripted TalkBack journeys per screen class; token contrast audit; 200% font sweep; reduce-motion; keyboard/remote path for all core controls (TST-A11Y).
 7. **Copy & claims audit (TST-VIS):** string sweep vs doc 07 §13 and doc 06 §7; store listing & screenshots; debug strings/leaks check in R8 builds; license notices presence (doc 11).
+
+**Build order:** the harness **contracts** for programmes 1–4 (inputs, output artifacts and field shapes, statistics, adjudication links) are specified in **`12A_B0_INSTRUMENTATION.md` §3**; this section remains authoritative for ownership and intent.
 
 ---
 

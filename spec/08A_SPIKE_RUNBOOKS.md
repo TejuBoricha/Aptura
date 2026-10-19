@@ -1,6 +1,6 @@
 # 08A — Spike Runbooks (RQ-01…RQ-16)
 
-**Version:** 0.2 (draft — **nothing in this document has been executed**); v0.2 applies the Part 32 audit fixes (device-requirement derivation in §3/§5, class-representative D1 procurement in RQ-03, metric-set and legal-dependency corrections, the refresh-rate orphan note, fleet-vs-matrix distinction) — **no pass/fail criterion changed**
+**Version:** 0.3 (draft — **nothing in this document has been executed**); v0.3 **corrects v0.2's RQ-12 orphan note** (the D-31 claim was wrong — FR-PLAY-012 owns refresh-rate alignment; the residual kill-switch-form question is kept) and points the B0.0 table at `12A_B0_INSTRUMENTATION.md` as the build order; v0.2 applied the Part 32 audit fixes (device-requirement derivation in §3/§5, class-representative D1 procurement in RQ-03, metric-set and legal-dependency corrections, fleet-vs-matrix distinction) — **no pass/fail criterion changed, then or now**
 **Date:** 2026-10-19
 **Status:** Draft, docs-only. **No spike has been run, no measurement exists, and no result is claimed.** This document is *procedure*: it converts doc 08 §6's spike definitions (hypothesis, method, pass/fail) into runnable instructions, and it is the artifact the build phase executes from. Doc 08 remains **authoritative for what each spike decides and what counts as pass or fail**; 08A is authoritative for **how a run is conducted, recorded and adjudicated**.
 **Companion status:** numbered `08A` deliberately, following the `02A` precedent — the master prompt's deliverable set is 00–18 and this document does not alter it (doc 18 §22 audit remains 24/24).
@@ -42,7 +42,9 @@ B0 therefore has an **unlisted stage zero**, which should be planned and named:
 | **Seek & first-frame harness** | Input→correct-frame timing at pinned positions, keyframe/non-keyframe split (doc 13 MB-07) | 12 (impl) / 13 (method) | RQ-01, RQ-03 |
 | **AV-sync harness** | Screen/audio capture rig per doc 12 §7.1 (acquisition is open question doc 13 Q13-5) | 12/16 | RQ-01 (bounded), doc 13 MB-08 |
 | **State-restoration matrix** | The ≥12 kill points of doc 12 §7.3 with defined expected restore states | 12 | RQ-07 |
-| **Device lab** | DEP-005 — see §5 | owner | 11 of 16 spikes |
+| **Device lab** | DEP-005 — see §5 | owner | the 11 device-dependent spikes (§3 derivation) |
+
+**Build order.** Each item above is now specified in `12A_B0_INSTRUMENTATION.md` — corpus manifests with per-artifact counts and identification (§2), harness contracts with output artifacts and adjudication links (§3), and B0.0 done criteria (§4). `12A` operates under doc 12 §5/§7's rules and doc 07's tier definitions; where they disagree, doc 12 wins.
 
 **Consequence for planning.** B0 cannot start with RQ-01. It starts with B0.0, and B0.0 is not free: the corpus and the seek harness are themselves multi-week engineering artifacts `[E]`. Any B0 schedule that begins at "run RQ-01" on day one is wrong.
 
@@ -234,11 +236,11 @@ Each card follows the same shape: what it unblocks, its binding prerequisite, it
 **Procedure:**
 1. On HDR-declaring devices, play HDR fixtures and check for colour corruption and tone-mapping (FR-PLAY-013) — qualitatively, and against the declared-versus-actual attributes.
 2. Play VFR fixtures and check cadence/A-V behaviour.
-3. Enable the refresh-rate switch candidate and determine whether the kill-switch is required in practice; record the conditions under which it misbehaves. **Orphan-candidate note (Part 32, D-31):** no requirement in doc 04 currently owns a refresh-rate or display-mode switch — this spike tests a *candidate*. If the outcome says the switch is needed, an FR is added through the change process (doc 17 §7); it must not appear in the product by default.
+3. Enable the refresh-rate alignment path per **FR-PLAY-012** (feature-flagged safe-list; the AC's kill-switch "disables switching app-wide") and determine whether the kill-switch is required in practice — i.e. whether switching causes visible judder regressions on real devices, which is the SHOULD's own condition; record the devices and conditions where it misbehaves. **Correction (Part 34):** v0.2 called this an *orphan candidate* with no owning requirement (D-31). **That was wrong** — FR-PLAY-012 exists (SHOULD · R1 · P2; AC plus `TST-RATE-01…04`) and doc 07 §9's C-tier cell references it. The error came from a case-sensitive search of doc 04 that missed a capitalised heading; the claim is withdrawn. **Residual ask (small, real):** FR-PLAY-012 does not state the kill-switch's *form*, and with no network in R1 (DEC-012) a remote kill-switch is impossible — it must be a shipped safe-list and/or a local control. Doc 06's settings spec carries no row for a user-visible one (re-verified case-insensitively). This spike should therefore end with an explicit decision: **shipped safe-list only, or a user-visible control** — if the latter, the doc 06 row is added through the change process like any requirement.
 4. Confirm DH-8's honest path renders correctly when the device *declares* HDR but the content cannot be handled well — there must be a real UI home (SCR-010h), not just a log line.
 **Capture:** HDR/VFR observations per device; refresh-switch behaviour and its failure conditions; the honesty-path UI state.
 **Pass / fail (doc 08):** PASS = no colour corruption (FR-PLAY-013) and a validated refresh-switch kill-switch.
-**If inconclusive:** default to shipping the kill-switch **on** (i.e. feature off) — the conservative reading of "works for free" being unproven (doc 08 §6.1 note on RQ-12).
+**If inconclusive:** default to the safe state — **switching disabled app-wide** (the kill-switch engaged, which is FR-PLAY-012's own AC semantics) — since "works for free" is unproven (doc 08 §6.2 note on RQ-12). This is a SHOULD; an unvalidated path ships disabled, not hopeful.
 
 ---
 
