@@ -1,21 +1,21 @@
-# 11A — Legal Briefs (L1, L2) — prepared for counsel
+# 11A — Legal Briefs (L1–L8) — prepared for counsel
 
-**Version:** 0.1 (draft — **not legal advice**, and no position below has been reviewed by a lawyer)
+**Version:** 0.2 (draft — **not legal advice**, and no position below has been reviewed by a lawyer); v0.1 contained L1–L2 only; v0.2 adds the **batch-B** briefs **L3–L8** (§4) in the same sendable format and updates the engagement notes
 **Date:** 2026-10-19
 **Status:** Draft, docs-only. These are **briefs to send to counsel**, written so that answering them is cheap: the facts first, our reading second (stated so it can be corrected), then numbered questions each with the decision it changes. Companion to doc 11, numbered `11A` following the `02A`/`08A` precedent (the §22 deliverable set 00–18 is unchanged).
-**Consumes:** 11 §1.2/§2/§3/§5 (component + patent registers, LGPL process, L1–L8), 04 (FR-AUD-007, FR-SET-008), 10 §6.3 (mirrored legal list), `research/licensing.md` (W3).
+**Consumes:** 11 §1.2/§2/§3/§5 (component + patent registers, LGPL process, L1–L8), 04 (FR-AUD-007, FR-SET-008), 10 §4.1/§6.2/§6.3 (data inventory, statutes, mirrored legal list), 15 (store-listing step, its S3), 08B (OD-6 — the name decision L6 depends on), `research/licensing.md` (W3).
 **Feeds:** doc 11 register verdicts, the build-phase license CI gate, doc 00 §5 / L-item statuses.
-**Scope of this document:** **L1 and L2 only** — the two items that gate a *product* capability (L3–L8 are copy, statute and naming matters, handled separately; §5).
+**Scope of this document:** **L1–L8 in full.** L1/L2 (§2–§3) are the capability gates, sendable as-is since v0.1. **Batch B (§4)** adds the copy, statute and naming briefs: L3 DTS/TrueHD wording · L4 Dolby brand usage in UI text · L5 statute applicability · L6 name clearance and copycat response · L7 app-licence/distribution model · L8 store-copy claims policy. None of batch B gates a capability; the two owner-decision dependencies are named where they bind (OD-5 sharpens L5; OD-6 starts L6).
 
 ---
 
 ## 0. How to use this document
 
-1. **Send §2 and §3 to counsel** as they stand (or after trimming §2.1's build detail, which is written for a lawyer who does not need to read FFmpeg's configure flags — but which does establish exactly what we ship).
+1. **Send in two batches.** **Batch A — §2 and §3** — as they stand (or after trimming §2.1's build detail, which is written for a lawyer who does not need to read FFmpeg's configure flags — but which does establish exactly what we ship): these gate capabilities. **Batch B — §4** — when convenient: L3/L4/L7/L8 can go immediately, L5 benefits from the launch-region answer (OD-5), and L6 cannot *start* without candidate names (OD-6), though its process questions can be answered now.
 2. **What we are asking for is deliberately small:** a written position we can act on, not a full legal opinion. A short memo answering the numbered questions is sufficient for every decision below.
 3. **Every question carries "what changes on the answer"** so counsel can see the stakes and skip anything immaterial.
 4. **Our readings are hypotheses.** Where this document says "we read §6 as…", that is *our* reading for correction — not a claim about what the licence says.
-5. **Both items have a safe fallback already designed in** (§2.6, §3.5). Neither is on the R1 critical path (doc 16 §7). Say that to counsel: it changes the advice from "urgent" to "correct", and good counsel will price it accordingly.
+5. **Every item has a designed posture if the answer narrows it** (L1 §2.6, L2 §3.5, each batch-B brief's closing note). **None of L1–L8 is on the R1 critical path** (doc 16 §7). Say that to counsel: it changes the advice from "urgent" to "correct", and good counsel will price it accordingly.
 
 **Two facts to keep in front of any reader:**
 
@@ -137,20 +137,197 @@ The default posture (platform-only for AC-3/E-AC-3) **already excludes bundled d
 
 ---
 
-## 4. Engagement notes
+## 4. Batch B — the copy, statute and naming briefs (L3–L8)
 
-| Item | Detail |
+Sent when the moment is right rather than urgently: **none of these gates a capability**, and two gain precision from owner decisions — **L5** from the launch-region answer (OD-5; our provisional set is India, Brazil, SE Asia, MENA + US/EU, ASM-009) and **L6** from candidate names (OD-6). They are written now so nothing has to be drafted under time pressure, and so the copy they govern (doc 06 §7, doc 15's listing) is never written twice.
+
+| # | Brief | Gates | Ready to send? |
+|---|---|---|---|
+| L3 | DTS/TrueHD passthrough copy | doc 07 §7/§13 copy; doc 06 §7 strings | **Now** |
+| L4 | Dolby brand usage in UI text | doc 06 §7 copy; doc 15 listing | **Now** |
+| L5 | Statute applicability notes | Privacy page, store forms, doc 10 §6.2 statuses | Now on the provisional region set; sharpen after OD-5 |
+| L6 | Name/trademark clearance + copycat response | doc 15 listing, `applicationId` pinning | **Process questions now; clearance waits for OD-6 names** |
+| L7 | Own-app licence & distribution (F-Droid) | OQ-1 (decision support) | Now — explicitly lowest priority |
+| L8 | Store-copy claims policy | doc 15 S3 gate; TST-VIS | Now — as a scoping question; may need no counsel at all |
+
+### 4.1 Brief L3 — DTS / TrueHD passthrough wording, and why we never decode them
+
+**Priority: medium** (doc 11 §5). **Gates:** the copy that doc 07 §7/§13 and doc 06 §7 will freeze. **Applies to:** DTS/DTS-HD and TrueHD. (AC-3/E-AC-3 are L2's subject and are *not* covered here.)
+
+**The facts**
+
+| Fact | Detail |
 |---|---|
-| **Deliverable we need** | A short written position answering the numbered questions, with a clear yes/no/"depends on X" per question. A memo is enough; no opinion letter required for either item |
-| **Priority order** | **L1 before L2** (doc 11 §5) — L1 gates a build decision; L2 gates an optional add-back with a working default |
-| **What we explicitly do not need** | A general survey of open-source licensing, or a comparison of how other players resolve §6. Our questions are specific and the fallbacks are already designed |
-| **Facts that will age** | Everything in §3.2 is `recheck`-flagged; the patent rows are re-verified at every release gate (doc 11 §2). Do not treat any date in this brief as settled |
-| **Follow-on items (not in this brief)** | L3 DTS/TrueHD passthrough wording · L4 Dolby brand usage in UI copy · L5 statute applicability (GDPR/DPDP/LGPD/EAA/COPPA) · L6 name/trademark clearance (needs OD-6) · L7 own-app licence/distribution model · L8 per-release store-copy audit |
+| The policy we would freeze | DTS/DTS-HD and TrueHD audio are **passthrough-only** in our product; **bundled decode of either is permanently excluded (X)** in the plan (doc 07 §7) — no app-side licence path was found for DTS `[U]`, and TrueHD is Dolby-branded |
+| What happens at play time (FR-AUD-007) | (a) try platform decode; (b) if absent, route **bitstream passthrough** where device + route support it (the route matrix is RQ-04's open engineering item); (c) otherwise an honest error class + "play video without audio" |
+| What the user would see | A track line naming the audio format, the honest outcome, and help text explaining device dependence. We never show brand logos; we never say the app "supports" or "decodes" DTS/TrueHD |
+| Where our uncertainty is | We treat *factual codec naming* as acceptable descriptive use, but we cannot certify that judgment ourselves. We also need the rule for **Atmos** — a carriage label over E-AC-3/TrueHD — which we currently never mention anywhere, deliberately |
+
+**Our reading (for correction).** Passthrough is a *device and route* capability that we merely route to; the app makes no decoding claim and no promotional use of any brand. Factual, non-promotional naming of the format a file *is* should be nominative-descriptive use; the line we must not cross is any wording implying the app provides the capability. We would rather agree the copy rule once — with your approval — than litigate strings at each release.
+
+**Questions for counsel**
+
+| # | Question | What changes on the answer |
+|---|---|---|
+| Q1 | Confirm the **passthrough-only, never-decode** posture for DTS/DTS-HD/TrueHD — and that the AC-3/E-AC-3 question is properly separate (L2) | Freezes doc 07 §7's rows; gives RQ-04's policy table its legal shape |
+| Q2 | May our UI **name the codec factually** ("DTS", "Dolby TrueHD") in track info, error and help text — no licence, no logo/badge, no marketing — or must we use a neutral descriptor (e.g. "high-definition audio (not decodable on this device)")? | Chooses the copy pattern for doc 06 §7 and the help pages; a "no names" answer costs clarity (doc 14's troubleshooting flows) but no capability |
+| Q3 | Is **Atmos** ever sayable in our surfaces (it appears in file metadata and users may search for it) — or does the safe rule remain "never in our strings", including playback stats? | Confirms or changes the doc 07 §13 banned list and the stats-surface silence rule |
+| Q4 | For settings/help text describing passthrough availability ("your device or receiver may decode or pass through this format…"), is any qualifier or disclaimer expected, or is neutrality enough? | Settles the help-page template (written once, reused in error states) |
+| Q5 | If a future release (R1.x+) added a **licensed** decode path (none planned), what changes then — marks, notices, royalty flow? | Not needed now; keeps the option priced if the owner ever asks |
+
+**Posture if the answer narrows us.** Worst case (no codec names at all) costs clarity, not capability: playback behaviour is unchanged; only track-info and error wording changes, and the descriptor scheme is a single copy pass. Nothing here is on the launch critical path **as long as the question is answered before doc 06's copy freeze** (Release Gate B).
+
+### 4.2 Brief L4 — Dolby brand usage in UI text
+
+**Priority: medium** (doc 11 §5). **Gates:** doc 06 §7 copy strings and the doc 15 store listing. **Interacts with:** L2 (if AC-3/E-AC-3 add-back ever ships) and L3 (codec naming).
+
+**The facts**
+
+| Fact | Detail |
+|---|---|
+| Labels at stake | "Dolby", "Dolby Digital", "Dolby Digital Plus", "Dolby Vision", "Dolby Atmos" |
+| Where they *could* appear in our surfaces | Playback stats / diagnostics (actual decode path), HDR honesty messaging (Dolby Vision is tier C — device/profile-dependent), track info, error/help text, store listing, support articles |
+| What we never do | Decode DV or Atmos ourselves; show Dolby logos or badges; market "Dolby Vision/Atmos support" — already on the banned-claims list (doc 07 §13; doc 02 §7 #2) |
+| The tension | Our honesty commitment (DH-8: explain what actually happened — no false HDR badge, no fake capability) collides with the safest reading of brand rules, which is *silence*. The boundary should be drawn by someone qualified, once |
+| User content | A file's own metadata/title strings may contain "Dolby" — displayed verbatim as the user's content |
+
+**Our reading (for correction).** Trademark questions are about *use in commerce implying authorisation*, so the sharp edge sits where we look authoritative: a compatibility table, a store listing, a badge. A stats line stating what the device's own path did is closer to a factual report about the device than a claim by us — but "closer" is exactly the kind of judgement we are not qualified to make, which is why this brief exists.
+
+**Questions for counsel**
+
+| # | Question | What changes on the answer |
+|---|---|---|
+| Q1 | For each surface, may Dolby format names appear factually and without a licence: (a) in-app stats/diagnostics; (b) error/help text; (c) the store listing; (d) support articles? Answer per surface | Decides four copy surfaces at once — the most specific thing we need |
+| Q2 | Are there mandatory non-use rules to encode (never adjacent to our logo, never as a badge, never in the listing title/screenshots, …)? | Produces a lint list for doc 07 §13 / doc 06 §7 |
+| Q3 | File metadata containing "Dolby" (titles, track names) — display verbatim, or filter? (We assume verbatim: it is the user's content.) | Prevents a filter that would harm the library experience |
+| Q4 | Our honesty layer wants to say "Dolby Vision playback depends on your device" — is that sayable, or is generic "HDR" silence required? | Resolves honesty-vs-silence explicitly; picks the stats/HDR copy |
+| Q5 | If L2 ever clears AC-3/E-AC-3 decode, does codec naming in an audio settings surface change (any notice/mark obligations)? | Pre-answers the R1.x add-back's copy cost |
+
+**Posture if the answer is "silence".** Brand names leave *our* strings (never the user's metadata): stats say "dynamic HDR (device path)"; help text describes capability without formats. The honesty stance survives in substance — the user still learns what happened — at some cost in clarity and searchability. No capability is affected.
+
+### 4.3 Brief L5 — statute applicability notes
+
+**Priority: medium** (doc 11 §5). **Gates:** the privacy page, store forms (data safety, rating), doc 10 §6.2's status column. **Dependency:** answerable now on the provisional region set (India, Brazil, SE Asia, MENA + US/EU — ASM-009, provisional; OD-5 pending); refresh if that changes.
+
+**The facts**
+
+| Fact | Detail |
+|---|---|
+| Architecture | Offline-only: **no `INTERNET` permission in the shipping configuration**, no accounts, no backend, no analytics or crash SDKs, no ad IDs (DEC-012, ADR-007) |
+| Data that exists (doc 10 §4.1 — the authoritative inventory) | On-device only: media files (read-only), an app-private library DB (names/paths/durations/codec info), watch history, favorites/playlists, thumbnails, settings, a ≤7-day log ring, and **user-initiated** diagnostics bundles that are redacted and shared only by user action |
+| What never exists | Transfers to us, identifiers, accounts, contacts/location, ad data, media content or subtitle text in any external artifact |
+| Regimes flagged (doc 10 §6.2, all ⚖️ review) | GDPR; CCPA/CPRA; India DPDP (Rules phasing to 2027-05-13); LGPD; COPPA; EAA (microenterprise caveats noted); anti-circumvention and export controls — the last two already resolved by design |
+| What we plan to publish | An in-app privacy page mirroring the inventory; a Play data-safety form matching it exactly; a permission-rationale screen. What we do **not** know is whether any of this is *legally required* for our shape of app, or merely trust-and-formality |
+
+**Our reading (for correction).** With no server and no identifiers, most of this register looks like "applicability low, statement still wise". But that is a research-level judgement (W4), and several regimes turn on definitions we are not qualified to apply — controller/processor, children-directed, consumer-facing, microenterprise. We ask for an **applicability memo**, not a compliance build-out.
+
+**Questions for counsel**
+
+| # | Question | What changes on the answer |
+|---|---|---|
+| Q1 | GDPR: with fully on-device processing and no transfers, does controller/processor analysis apply at all — and is any record-keeping or DPIA wording expected? | Decides whether our privacy page is a legal artifact or a trust artifact (we believe trust + store consistency) |
+| Q2 | India DPDP: for an offline app, which phased duties (notice/consent, children's provisions) attach at R1, and does the phasing timeline change our launch posture? | Permission-rationale and privacy-text wording; possibly nothing |
+| Q3 | LGPD: is a Portuguese privacy text needed at launch, given Brazil is in the provisional first set? | Localization gate in doc 15 |
+| Q4 | COPPA/rating: we plan "not directed to children", truthful IARC answers, no UGC, no ads. Any affirmative duty we are missing for a player that *can* display any local video? | Listing/rating posture; possibly nothing |
+| Q5 | EAA: does the microenterprise carve-out plausibly apply to a free app with no revenue, and is any accessibility *statement* required — or do our accessibility commitments stay purely product policy? | Statement template in doc 15 (we keep the commitments either way) |
+| Q6 | CCPA/CPRA: confirm no sale/share notices are needed, and whether a privacy policy is required or merely advised for store-form consistency | Store forms and privacy page |
+| Q7 | What record should we keep of these applicability determinations, and at what cadence should they be revisited (per release? per region expansion?)? | doc 10's maintenance model and the release-gate checklist |
+
+**Posture.** Every possible answer is cheap: the product's data posture does not change; only the paperwork and wording do. This brief's output is also the answer to doc 10 §8 S5 (privacy-page language for the DPDP/GDPR interplay).
+
+### 4.4 Brief L6 — name/trademark clearance and copycat response
+
+**Priority: medium** (doc 11 §5). **Gates:** the store listing and `applicationId` pinning (08B OD-6: changing the id later means a **new listing** — installs, reviews and ranking lost). **Dependency:** the process questions can be answered now; **clearance waits for OD-6's two-or-three candidate names.**
+
+**The facts**
+
+| Fact | Detail |
+|---|---|
+| Where the name is used | Play listing (title/subtitle), app icon, in-app About, support articles, a future FOSS channel (L7) |
+| Timeline pressure | Name freeze pins `applicationId`; a later rename is a relaunch in practice (08B OD-6) |
+| Search budget assumed | None formal; this brief asks what "enough" buys and costs, so the owner can decide |
+| Copycat context | doc 10 §8 S6 (response playbook) is an open item; we would use Play's complaint routes, whose strength usually tracks a registered right |
+
+**Our reading (for correction).** For a free app at R1, the realistic package is: (1) a **knockout clearance** per finalist (store search plus right-checks on the classes an app occupies) so a name can be frozen; (2) a registered mark only if the owner wants a durable complaint lever; (3) an evidence folder assembled *before* a copycat appears (listing URLs, screenshots, icon comparison, first-use dates) so complaints are one-hour jobs. We are unsure which classes and jurisdictions matter for an app-only product distributed from Play.
+
+**Questions for counsel**
+
+| # | Question | What changes on the answer |
+|---|---|---|
+| Q1 | For two or three finalists (supplied under OD-6), what search scope do you advise — jurisdictions, classes, depth — and will you run it or should we commission a search house? | Selects the search package, its price and the name-freeze date |
+| Q2 | Is registration (which marks/classes/locations) worth doing *before* launch for a free app, or is a later filing on traction the better buy? | Adds or removes a filing budget line; sets copycat-lever strength |
+| Q3 | What is the response ladder for a copycat listing (report → IP complaint → escalation), and what evidence should we pre-assemble? | Produces the doc 10 S6 playbook skeleton |
+| Q4 | Does anything beyond the word mark need clearance — icon style, store subtitle phrasing? | Scopes the search to visual/wordmark aspects |
+| Q5 | If a finalist touches another product's mark in an adjacent category (media tools), what risk threshold should trigger a rename *before* we publish? | Gives the owner a go/no-go rule at name freeze |
+
+**Posture.** If every finalist fails clearance, the fallback is a descriptive/generic name (weaker mark, faster clearance) — an owner decision made with numbers, not hope. This item gates no engineering work except `applicationId` pinning.
+
+### 4.5 Brief L7 — own-app licence and distribution model (incl. F-Droid)
+
+**Priority: low** (doc 11 §5 — post-spec). **Gates:** OQ-1 only. **Decision support, not a gate:** R1 is Play-only (DEC-009).
+
+**The facts**
+
+| Fact | Detail |
+|---|---|
+| The open decision (OQ-1) | Proprietary vs FOSS (e.g. Apache-2.0) vs copyleft (GPLv3) — or a sequence (proprietary first, FOSS later) |
+| The one bundled third-party library | The FFmpeg **audio** extension — LGPL-2.1, dynamically linked — compatible with a proprietary app *if L1's mechanics hold*; also compatible with a FOSS app |
+| F-Droid (deferred channel) | Requires a FOSS app licence, FOSS-clean dependencies and reproducible builds; our no-`INTERNET`, no-analytics profile is friendly to it. Whether our own LGPL build satisfies F-Droid's criteria is exactly what we have not verified |
+| What an app licence does *not* change | The L1–L6 analyses (bundled-library compliance, patents, brand copy, statutes, name) are invariant under the choice |
+
+**Our reading (for correction).** This is primarily an owner strategy decision (community, contribution, trust) with legal consequences, not a legal question. Counsel's value is a short compatibility matrix plus a warning list (copyleft interactions with future proprietary ambitions; contributor and licence-header hygiene).
+
+**Questions for counsel**
+
+| # | Question | What changes on the answer |
+|---|---|---|
+| Q1 | For each option (proprietary / Apache-2.0 / GPLv3 / sequence), what constraints arise with the LGPL audio extension and Play distribution? | The OQ-1 decision matrix for the owner |
+| Q2 | F-Droid: what would our LGPL extension require there (build provenance, reproducibility, source distribution), and does shipping there create obligations back to Play users? | Whether F-Droid stays deferred or gets costed now |
+| Q3 | If we accept outside contributions later, what should exist *before* the first one (licence headers, CLA or DCO, licence clarity)? | Contribution hygiene — cheap now, expensive later |
+| Q4 | Does a FOSS release affect name/trademark posture (forks, modified builds using the name) — interacting with L6? | Whether a trademark policy ships alongside the code licence |
+| Q5 | Does open-sourcing change any L5 conclusion? (We believe not — the data flows are identical.) | Closes the loop; prevents double work |
+
+**Posture.** No shipping consequence either way; the brief can wait until the owner wants OQ-1 decided. If it is never sent, nothing in R1 changes.
+
+### 4.6 Brief L8 — store-copy claims policy (and why this may not be a counsel brief at all)
+
+**Priority: gate-each-release** (doc 11 §5). **Gates:** doc 15's store-listing step (its S3 claims audit; TST-VIS in doc 12). **Honest scope note:** most of L8 is *our* audit process — doc 07 §13's claims discipline (banned list, name-the-cell rule, container ≠ codec) is already product policy. The only legal content is whether any claim *categories* need counsel's blessing once.
+
+**The facts**
+
+| Fact | Detail |
+|---|---|
+| Existing discipline | doc 07 §13: copy consumes validated tiers only; banned patterns list; "no data collection" not usable as a slogan; comparative claims excluded |
+| Existing process | doc 15 S3: listing copy audited against doc 07 §13 before submission (Release Gate B); screenshots from real UI; TST-VIS covers in-app and store |
+| The legal residual | Claim wording that could be challenged: the "no data collection / works offline" class, pricing/"free" wording, anything comparative. One review of the *policy* would let the per-release audit stay internal |
+
+**Questions for counsel**
+
+| # | Question | What changes on the answer |
+|---|---|---|
+| Q1 | Would you review the **claims policy once** (doc 07 §13 + doc 15's checklist) and bless the categories, so per-release audits remain internal? (Our preferred model.) | Sets whether every release needs counsel — this item's entire cost model |
+| Q2 | Are there claim classes we have not flagged (pricing/"free" wording, offline/privacy slogans, accessibility claims, platform-compatibility phrasing) that deserve standing rules? | Adds lint rules to doc 15 / doc 07 §13 |
+| Q3 | Is the Play **data-safety form's** "no data collected" wording something you want to approve once (same claim family)? | Assigns that gate's ownership |
+| Q4 | If a claim is ever challenged, what evidence record should we have kept (doc 13's internal-claims evidence cells)? | Links claims discipline to evidence retention |
+
+**Posture.** If the answer is "this is entirely your audit, we see no legal issue", that is a useful, on-the-record result — the gate stays internal with a counsel-blessed policy.
 
 ---
 
-## 5. Boundaries
+## 5. Engagement notes
+
+| Item | Detail |
+|---|---|
+| **Deliverable we need** | A short written position answering the numbered questions, with a clear yes/no/"depends on X" per question. A memo is enough; no opinion letter required for any item |
+| **Priority order** | **Batch A: L1 before L2** (doc 11 §5) — L1 gates a build decision; L2 gates an optional add-back with a working default. **Batch B (§4) is not urgent** — L3/L4 must land before doc 06's copy freeze, L5 sharpens after OD-5, L6 *starts* at OD-6, L7/L8 are cheap now and annoying later; none gates launch. If a single engagement is simpler, send §2–§4 together and let counsel triage |
+| **What we explicitly do not need** | A general survey of open-source licensing, or a comparison of how other players resolve §6. Our questions are specific and the fallbacks are already designed |
+| **Facts that will age** | Everything in §3.2 is `recheck`-flagged; the patent rows are re-verified at every release gate (doc 11 §2). Do not treat any date in this brief as settled |
+| **Coverage** | **Nothing is unbriefed.** v0.1 listed L3–L8 as follow-on items; v0.2 briefs them all (§4). Remaining dependencies are owner-side: **OD-5** (launch regions) sharpens L5; **OD-6** (candidate names) starts L6 |
+
+---
+
+## 6. Boundaries
 
 - **This document is not legal advice**, and nothing in it has been reviewed by a qualified lawyer. Its readings exist to be corrected — that is why they are written down rather than assumed.
-- **Nothing here changes a shipping decision.** Both items have a designed fallback; the register's verdicts (doc 11 §1) remain **Conditional ⚖️** until counsel answers.
+- **Nothing here changes a shipping decision.** L1/L2 have designed fallbacks (§2.6, §3.5); the batch-B items cost wording, forms or paperwork — never product behaviour. The register's verdicts (doc 11 §1) remain **Conditional ⚖️** until counsel answers.
 - **No expiry date or pool statement is treated as established fact**; where our research is secondary or silent, it is labelled `[R]`/`[U]` and carried as a question rather than a premise.

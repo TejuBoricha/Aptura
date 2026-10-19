@@ -138,7 +138,7 @@ Filenames/paths excluded by default; opt-in attach of one specific filename requ
 | Export/crypto | No custom cryptography | Platform APIs only | Resolved by design |
 
 ### 6.3 Consolidated legal-review list (⚖️ — mirrored in doc 11)
-LGPL relinking mechanics for bundled FFmpeg `.so`; AC-3/E-AC-3 decode add-back; DTS/TrueHD policy wording; Dolby-brand usage in UI text; statute applicability notes above; trademark/name clearance (OD-6); store copy wording from doc 07 §13.
+LGPL relinking mechanics for bundled FFmpeg `.so`; AC-3/E-AC-3 decode add-back; DTS/TrueHD policy wording; Dolby-brand usage in UI text; statute applicability notes above; trademark/name clearance (OD-6); store copy wording from doc 07 §13. **All eight items are now briefed for counsel in `11A` v0.2 (L1–L8, sendable form).**
 
 ---
 

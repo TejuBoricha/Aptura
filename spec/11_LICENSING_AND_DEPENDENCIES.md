@@ -1,6 +1,6 @@
 # 11 — Licensing, Patents, and Dependency Register
 
-**Version:** 0.2 (draft; v0.2 adds the sendable counsel briefs pointer in §5 — see `11A_LEGAL_BRIEFS.md`)
+**Version:** 0.3 (draft; v0.3: §5 status updated — **all of L1–L8 are now briefed in sendable form** in `11A` v0.2; v0.2 adds the sendable counsel briefs pointer in §5 — see `11A_LEGAL_BRIEFS.md`)
 **Date:** 2026-10-19
 **Status:** Draft. Built on `research/licensing.md` (W3, accessed 2026-10-18). **Nothing in this register has received legal sign-off.** Items marked ⚖️ require qualified legal review before any shipping decision; rate/date-sensitive facts are marked "recheck". This register is the **only** authority for "may we ship this component/codec" questions — product copy defers to doc 07 §13.
 **Consumes:** 07 (compat tiers), 08 (ADRs), 09 (architecture), W3 research.
@@ -108,7 +108,7 @@ The build phase must maintain, per release:
 | L7 | Own-app license/distribution model incl. F-Droid implications | Low (post-spec) | OQ-1 |
 | L8 | Store-copy wording audit vs doc 07 §13 (claims discipline) | Gate-each-release | doc 15 checklist |
 
-**Briefs ready to send:** `11A_LEGAL_BRIEFS.md` contains **L1 and L2 in sendable form** — the facts as they will ship, our readings stated explicitly so counsel can correct them, numbered questions each with the decision its answer changes, the compliance package we propose to implement, the assets we can hand over, and the designed fallbacks. L3–L8 are not yet briefed (they are copy, statute and naming matters and are handled with those documents).
+**Briefs ready to send:** `11A_LEGAL_BRIEFS.md` (v0.2) contains **L1–L8 in sendable form** — L1/L2 (§2–§3) as the two capability gates, and **batch B** (§4): L3 DTS/TrueHD copy, L4 Dolby brand usage, L5 statute applicability, L6 name clearance, L7 app-licence/F-Droid, L8 store-copy claims policy. Each brief carries the facts as they will ship, our readings stated explicitly so counsel can correct them, numbered questions each with the decision its answer changes, and the posture if the answer narrows us. Send in two batches: **A (§2–§3)** now; **B (§4)** when convenient — L6's clearance waits on OD-6 (candidate names), L5 sharpens after OD-5, and none of L3–L8 gates the launch.
 
 ## 6. Open questions
 
