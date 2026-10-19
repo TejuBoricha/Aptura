@@ -1,8 +1,8 @@
 # 16 — Roadmap, Dependencies, Roles, and Estimates
 
-**Version:** 0.1 (draft)
+**Version:** 0.2 (draft; v0.2 restates de-scope item 3 by **window width** — "the 840dp+ two-pane layout" — instead of by device, consistent with doc 06 §3's breakpoint model, and adds **RQ-15** (adaptive layout) to the B0 phase within its existing range. v0.1: roadmap, release trains, phases, DEP register, roles, de-scope ladder)
 **Date:** 2026-10-19
-**Status:** Draft. **Planning ranges only — no calendar dates, no commitments.** Timeline and budget are unknown (ASM-006, OD-4 pending), so this document is phase-relative by design. Every size is an `[E]` estimate in dev-weeks with stated assumptions; calibration happens after the spike program (doc 08, RQ-01…14) replaces hypothesis with evidence.
+**Status:** Draft. **Planning ranges only — no calendar dates, no commitments.** Timeline and budget are unknown (ASM-006, OD-4 pending), so this document is phase-relative by design. Every size is an `[E]` estimate in dev-weeks with stated assumptions; calibration happens after the spike program (doc 08, RQ-01…15) replaces hypothesis with evidence.
 **Consumes:** 01 (scope fences), 08 (spikes/ADRs), 11 (legal gates), 12/13 (hardening/bench programs), 15 (launch ops).
 **Feeds:** 17 (dependency register consolidation), 18 (readiness).
 
@@ -27,7 +27,7 @@ Assumptions: 2–4 engineers (ASM-005), part-time design, spec package as input,
 
 | Phase | Contents | Key inputs | Size `[E]` |
 |---|---|---|---|
-| **B0 — Spikes** | RQ-01 (engine conformance), RQ-03 (HEVC/AV1 10-bit reality), RQ-05 (scan at scale), RQ-06 (ASS feasibility), RQ-07 (process-death), RQ-08 (billing offline), RQ-13 (Compose on D1), RQ-14 (ABI/splits); legal L1/L8 opened with counsel; long-lead store items S1/S2/S8 started | Doc 08 spike definitions; device lab minimum (≥1 device/class D1–D3) | 4–8 |
+| **B0 — Spikes** | RQ-01 (engine conformance), RQ-03 (HEVC/AV1 10-bit reality), RQ-05 (scan at scale), RQ-06 (ASS feasibility), RQ-07 (process-death), RQ-08 (billing offline), RQ-13 (Compose on D1), RQ-14 (ABI/splits), **RQ-15 (adaptive layout across breakpoint changes — added Part 28; absorbed within this range because it needs instrumentation, not additional device classes)**; legal L1/L8 opened with counsel; long-lead store items S1/S2/S8 started | Doc 08 spike definitions; device lab minimum (≥1 device/class D1–D3) | 4–8 |
 | **B1 — Foundations** | Repo/CI (incl. license deny-list gate), signing setup, module skeleton per doc 09, local crash plumbing, design tokens from doc 06, store accounts & verification | B0 ADR locks | 3–5 |
 | **B2 — Library & scan** | FR-LIB catalogue: MediaStore/SAF ingestion, scan pipeline, identity/reconciliation, thumbnails, browser UI (SCR-002…009, 011, 012) | B1; doc 09 data model | 6–10 |
 | **B3 — Player core** | FR-PLAY/FR-CTRL: Media3 integration, decode election + honest fallback, gestures, PiP, session machine, audio track election | B0 engine lock (ADR-001); licensing clearance for any bundled decode | 8–12 |
@@ -78,7 +78,7 @@ Assumptions: 2–4 engineers (ASM-005), part-time design, spec package as input,
 1. **Relative sizing** (dev-weeks, ranges) because calendar depends on OD-4; converting to dates requires owner input, then re-basing.
 2. **Cone discipline:** re-estimate at every phase exit; B0 is expected to *narrow* ranges, not widen scope.
 3. **No silent promises:** ranges quoted anywhere external must carry "estimate" framing; doc 15 changelog tone rules apply.
-4. **De-scope ladder (only with owner):** if R1 must shrink, documented cut order: (1) advanced playlist depth, (2) non-core settings surface breadth, (3) tablet two-pane, (4) ASS/libass tier → styled-subset, (5) playlist persistence. **Never cut:** core playback honesty paths, scan reliability, accessibility floor, privacy proofs, error taxonomy. (Cuts are recorded as scope changes per doc 17 change rules.)
+4. **De-scope ladder (only with owner):** if R1 must shrink, documented cut order: (1) advanced playlist depth, (2) non-core settings surface breadth, (3) the 840dp+ two-pane layout (compact single-pane remains fully functional), (4) ASS/libass tier → styled-subset, (5) playlist persistence. **Never cut:** core playback honesty paths, scan reliability, accessibility floor, privacy proofs, error taxonomy. (Cuts are recorded as scope changes per doc 17 change rules.)
 5. **Scope creep firewall:** the de-scope ladder runs downward only; new R1 wishes go to the R1.x candidate table (§6), not into the train.
 
 ---

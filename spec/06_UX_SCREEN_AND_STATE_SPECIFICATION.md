@@ -1,6 +1,6 @@
 # 06 — UX, Screen, and State Specification
 
-**Version:** 0.4 (draft; v0.4 aligns the auto-hide default to Media3's 5 s and the wireframe seek steps to the symmetric ±10 s default; v0.3 sharpened SCR-010e decoder copy to the industry-settled labelling pattern — Auto/Hardware/Software each with a when-to-use description; v0.2 added SCR-010f/g/h and the Ended/Compatibility player states)
+**Version:** 0.5 (draft; v0.5 replaces **device-based layout with Material breakpoints by window width** — navigation component and list-detail pane counts per class, M3 margins/gutters, and Android's documented state-preservation rules across breakpoint changes — and closes U1; v0.4 aligns the auto-hide default to Media3's 5 s and the wireframe seek steps to the symmetric ±10 s default; v0.3 sharpened SCR-010e decoder copy to the industry-settled labelling pattern — Auto/Hardware/Software each with a when-to-use description; v0.2 added SCR-010f/g/h and the Ended/Compatibility player states)
 **Date:** 2026-10-19
 **Status:** Draft. Text wireframes and tables only — **no visual mockups exist in this spec phase**; a designer will translate this into visuals during the build phase without changing structure. Every screen maps to FR requirements (doc 04) and inherits NFR-A11Y (doc 05). Claims and copy obey doc 07 §13 (no forbidden phrasing).
 **Consumes:** 03 (journeys), 04 (FRs), 05 (NFRs), 07 (claims/messaging), 09 (architecture states).
@@ -49,7 +49,7 @@ Settings
 └── Help & About (error-code lookup, licenses, privacy page, version)
 ```
 
-Navigation model: single-activity; bottom navigation with **Library / Folders / Playlists / Search** (Settings via top-level affordance); player always fullscreen modal; details as bottom sheet. Tablet: two-pane (list ↔ detail) where stated; effects none differently.
+Navigation model: single-activity; destinations **Library / Folders / Playlists / Search** (Settings via top-level affordance); player always fullscreen modal; details as bottom sheet. **Navigation and panes are expressed in Material breakpoints by window width — never by device class.** "Tablet" is not a breakpoint: a phone in landscape is *expanded*, and a tablet in split-screen is *compact*. **Compact <600dp** = navigation **bar**, 1 pane. **Medium 600–839dp** = navigation **bar** (two-pane) or **rail**, 1 pane recommended. **Expanded 840–1199dp** = **rail**, 2 panes for list-detail. Large/extra-large (1200dp+/1600dp+) = rail. Screen margins/gutters follow M3 (16/8dp compact; 24/16dp medium and expanded). Fixed pane 360dp by default; supporting pane 50/50 at medium and **30/70 at expanded**. Runtime breakpoint changes MUST follow Android's documented list-detail preservation rules — narrowing keeps the *detail* pane visible and hides the list; widening with only the list visible shows the list plus a **placeholder** detail pane; widening with an item open shows both panes and marks the item selected (`research/platform_constants.md` §1).
 
 ---
 
@@ -106,7 +106,7 @@ Every list screen must define these states (implementation via doc 09 observable
 | Ended (with queue) | Stops on last frame; Up next card + **10 s cancellable countdown ring** (configurable); replay/next/delete all reachable; no countdown after 2 h inactivity (Up next pre-selected); never starts from background | FR-CTRL-017, SCR-010g |
 | Compatibility mode | Persistent dismissible chip while a fallback decode path is active; "Why?" sheet on demand | FR-PLAY-003, SCR-010h |
 
-Cross-cutting variants every screen must handle: RTL mirroring; 200% font scale; dark/light/system; landscape where allowed; tablet pane layout; TalkBack traversal.
+Cross-cutting variants every screen must handle: RTL mirroring; 200% font scale; dark/light/system; landscape where allowed; medium/expanded pane layout (breakpoint-driven, doc 06 §3); TalkBack traversal.
 
 ---
 
@@ -228,7 +228,7 @@ Cross-cutting variants every screen must handle: RTL mirroring; 200% font scale;
 
 | # | Question | Owner |
 |---|---|---|
-| U1 | Bottom-nav vs drawer at tablet widths (two-pane feasibility test) | build phase design |
+| U1 | ~~Bottom-nav vs drawer at tablet widths (two-pane feasibility test)~~ **Resolved (Part 28)** — navigation is breakpoint-based by window width, not device: bar at compact, bar-or-rail at medium, rail at expanded+; list-detail two-pane at 840dp+ (M3 breakpoints + Android canonical layouts, `research/platform_constants.md` §1). Residual *implementation* risk only (foldable/multi-window behaviour) — belongs to the build, not to design | closed |
 | U2 | Dynamic color (Material You) default on/off | brand decision (OD-6) |
 | U3 | Player overlay micro-layout on small-landscape (≤5") | design |
 | U4 | Whether speed-hold (long-press) ships in R1 or R2 | FR-CTRL-016 review |

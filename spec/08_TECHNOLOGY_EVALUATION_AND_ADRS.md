@@ -1,6 +1,6 @@
 # 08 — Technology Evaluation and Architecture Decision Records
 
-**Version:** 0.2 (draft; all choices are provisional hypotheses gated by the spike program in §6; v0.2 adds §6.1 prior-art notes from doc 02A)
+**Version:** 0.3 (draft; all choices are provisional hypotheses gated by the spike program in §6; v0.3 adds **RQ-15** — adaptive layout across breakpoint changes (rotation, foldable, split-screen), the empirical half of the now-breakpoint-based layout spec — and bumps the spike set to RQ-01…15; v0.2 adds §6.1 prior-art notes from doc 02A)
 **Date:** 2026-10-19
 **Status:** Draft. No technology has been tested, benchmarked, or integrated by us. Scores below are **reasoned comparisons** labeled `[I/E]`, built on `research/platform.md` and `research/licensing.md` evidence; the spike program (§6) decides for real in the build phase. **No spike has been run.**
 **Consumes:** 01 (scope/platform), 05 (NFRs), 07 (compatibility tiers), `research/platform.md`, `research/licensing.md`.
@@ -158,6 +158,7 @@ Context: scan/thumbnail scheduling (FR-LIB-004/009). Decision: constrained jobs,
 | RQ-12 | HDR/VFR/refresh-rate behaviors "for free" vs to-build | Platform gives tone-mapping + VFR tolerance; refresh alignment is feature-flag territory | Fixture matrix on HDR-declaring devices; measure correctness qualitatively | PASS: no color corruption (FR-PLAY-013); refresh switch kill-switch validated | Doc 07 §9 tiers |
 | RQ-13 | Compose performance on D1/API 26 | Targets achievable with baseline profiles + disciplined composables; else hybrid | Macrobenchmark suite on D1 devices | PASS: NFR-PERF-001/007 D1 targets | ADR-002 |
 | RQ-14 | 32-bit ABI demand vs size cost | arm64-only acceptable for target fleet | Crash/device telemetry (store dashboards) + size analysis | PASS either way with documented tradeoff | ADR-009, NFR-COMP-002 |
+| RQ-15 | Adaptive layout across breakpoint changes — rotation, foldable fold/unfold, split-screen, free-form windows | M3's breakpoint model + Android's canonical-layout state rules hold in practice; the 840dp+ two-pane layout loses no state and duplicates no pane | Instrumented UI tests across window-size transitions (compact↔medium↔expanded, mid-playback rotation, fold/unfold, split-screen resize), plus PiP entry/exit from a two-pane screen | PASS: layout follows the documented component/pane per class with no state loss and no lost selection; PiP enters correctly from every class. FAIL: any class loses state or renders a broken pane → fix before the pane layout ships (this is the empirical half of the doc 16 de-scope item 3) | Doc 06 §3, FR-CTRL-013, U1 residual risk |
 
 ### 6.1 Prior art the spike owner should read first (from doc 02A)
 

@@ -1,6 +1,6 @@
 # 18 — Traceability, Gap Audit, and Readiness Verdict
 
-**Version:** 0.2 (draft — final review artifact; v0.2 adds the Gate C post-audit delta review for doc 04 v0.3)
+**Version:** 0.3 (draft — final review artifact; v0.3 adds **Gate C post-audit delta 2** for doc 04 v0.7 (Parts 24–28, D-10…D-15) and confirms the verdict; v0.2 added the Gate C post-audit delta review for doc 04 v0.3)
 **Date:** 2026-10-19
 **Status:** Final deliverable of the specification engagement. **The verdict at the end of this document is the package's readiness verdict.** This review was performed against the master prompt's §21 (failure-mode review), §22 (deliverables), §23 (quality gates), and §24 (execution order), on all documents at their recorded versions (01–17 v0.1, 02/04 v0.2 at audit time; doc 04 is now v0.3 — see the Gate C post-audit delta in §3). No app code exists; no benchmark was run; no device was tested — those claims would be false and are not made.
 **Consumes:** every document 00–17.
@@ -143,6 +143,21 @@ The audit above was performed against doc 04 **v0.2**. A subsequent evidence pas
 
 **Risk created by the delta — since resolved.** FR-CTRL-017's auto-advance default was initially set by preference (stop-at-end) with thin evidence. It has since been **re-decided against documented industry practice** in six shipping products (Netflix, YouTube, Plex, Emby, Infuse, MX Player) plus one instructive counter-example (Swiftfin, whose OFF default generated support load). The default is now **ON when a next item exists**, with a 10 s cancellable countdown and a 2 h inactivity guard — see `research/autoplay_defaults.md` and the revised FR-CTRL-017. Q12 is **closed**; the residual risk is now only about tuning the two borrowed values (RSK-015), not about the direction of the decision.
 
+### Spec Gate C — post-audit delta 2 (doc 04 **v0.7**, after Parts 24–28)
+
+Parts 24–28 changed doc 04 four more times (v0.4 → v0.7), and docs 05/06/16/17 with it. The delta was re-reviewed against the same Gate C criteria rather than assuming the earlier PASS still holds:
+
+| # | Delta | Gate C question | Result |
+|---|---|---|---|
+| D-10 | FR-CTRL-017 end-of-item default reversed (Part 24) | Was the reversal evidence-led, or preference again? | **Evidence-led** — six comparable products default auto-advance ON with a cancellable countdown, and the one counter-example reports support load for OFF. Independent of the earlier reasoning for the opposite choice, which is named in 17 §1.3 |
+| D-11 | FR-PLAY-003 decoder labelling changed (Part 26) | Does the new copy make a capability claim? | **No** — "technical name + when-to-use description" describes *selection*, not supported formats; doc 07 §13 forbidden-phrasing rules still bind |
+| D-12 | Interface constants changed: seek ±10 s, auto-hide 5 s, speed ladder, sleep-timer ladder (Part 27) | Is any of this a silent behaviour change? | **No** — each constant is recorded against its source (Media3 / YouTube / competitor practice) in `research/interface_defaults.md`, and the one internal contradiction found (FR-PLAY-005 vs FR-CTRL-002, two requirements disagreeing about the same control) was resolved rather than papered over |
+| D-13 | FR-PLAT-001 now mandates `VideoPlaybackPictureInPicture` and the PiP platform contract (Part 28) | Does mandating one API over-constrain the build, or add an unsourced claim? | **Neither** — it is the platform vendor's own purpose-built implementation for video PiP, and every constraint listed is quoted from the Android SDK reference; the requirement adds no promise about behaviour on any OEM skin |
+| D-14 | Layout restated by breakpoint instead of device (Part 28) | Scope expansion, or correction? | **Correction** — the requirement set already asserted adapted layouts; only the trigger was wrong. "Tablet" is not a breakpoint and does not survive rotation, folding or split-screen. No new requirement, no new screen |
+| D-15 | FR-LIB-011 gains default sort + density; FR-CTRL-002 gains the 3 s previous-item boundary; FR-PLAY-005 names `SeekParameters` (Part 28) | Do any of these contradict an existing requirement or NFR? | **No** — all three fill absences. The sort default is recorded *together with* the platform constant that contradicts it, which is the opposite of an unsourced claim |
+
+**Gate C remains PASS** across delta 2. No contradiction, no untestable requirement, no fabricated target. **Verdict (§7) unchanged: READY FOR TECHNICAL SPIKES**, with doc 04 **v0.7** authoritative.
+
 ---
 
 ## 4. Failure-mode review (§21)
@@ -201,7 +216,7 @@ Canonical index: doc 17 §5 (all Q-sets by document). The five that matter for t
 
 > # ✅ **READY FOR TECHNICAL SPIKES**
 
-**Rationale.** The package is internally consistent (Spec Gate C pass with findings resolved or registered), complete against the §22 checklist, and honest about its provisional content. The designed next step per the master prompt (§19: "technical feasibility spikes after specification approval") is the spike program, which is fully specified in doc 08 (RQ-01…14 with hypotheses, thresholds, conditions, and the decisions each unblocks). Estimation may start **in parallel** on doc 16's ranges; implementation planning should wait for spike results and the owner conclusions of OD-1…OD-4.
+**Rationale.** The package is internally consistent (Spec Gate C pass with findings resolved or registered), complete against the §22 checklist, and honest about its provisional content. The designed next step per the master prompt (§19: "technical feasibility spikes after specification approval") is the spike program, which is fully specified in doc 08 (RQ-01…15 with hypotheses, thresholds, conditions, and the decisions each unblocks). Estimation may start **in parallel** on doc 16's ranges; implementation planning should wait for spike results and the owner conclusions of OD-1…OD-4.
 
 **What this verdict does NOT mean:** it is not READY FOR IMPLEMENTATION PLANNING (spike outcomes and legal L1/L2 are still open), and it is not a claim that production will be easy — it is a claim that a competent team can now *start correctly* and will not have to invent major requirements.
 

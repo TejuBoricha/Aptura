@@ -18,14 +18,14 @@
 
 | # | Item | Status |
 |---|---|---|
-| 00–18 | All 19 specification documents (vision, market, personas, FRs, NFRs, UX, compatibility, tech/ADRs, architecture/data, security/privacy, licensing, QA, benchmarking, diagnostics, ops, roadmap, registers, traceability) | ✅ Drafted (02A v0.2, 04 v0.4, 05/06/07/08/09/12/17/18 v0.2, rest v0.1) |
-| research/ | W1 competitors · W2 platform · W3 licensing · W4 market/compliance — sourced, dated, evidence-labeled | ✅ Complete (accessed 2026-10-18, synthesized 2026-10-19) |
-| 00 | Ledger, ID conventions, part log (Parts 1–23), OD table, first-response §3 | ✅ Closed for this phase |
+| 00–18 | All 19 specification documents (vision, market, personas, FRs, NFRs, UX, compatibility, tech/ADRs, architecture/data, security/privacy, licensing, QA, benchmarking, diagnostics, ops, roadmap, registers, traceability) | ✅ Drafted — current versions in the version map below |
+| research/ | W1 competitors · W2 platform · W3 licensing · W4 market/compliance · W5 case studies (02A) · W6 autoplay defaults · W7 decoder labels · W8 interface constants · **W9 platform constants** — sourced, dated, evidence-labeled | ✅ Complete (W1–W4 accessed 2026-10-18; W5–W9 2026-10-19) |
+| 00 | Ledger, ID conventions, part log (Parts 1–28), OD table, first-response §3 | ✅ Closed for this phase |
 | 18 | Traceability matrices, §22 deliverable audit (24/24), §23 Spec Gates A/B/C review (findings C-1…C-10) + Gate C post-audit delta (D-1…D-9), §21 failure-mode review | ✅ Verdict issued |
 | 17 | Canonical registers: DEC-001…013, ASM-001…013, RSK-001…015 (+RSK-08-01…04 in doc 08), DEP-001…012, DoR/DoD, change process | ✅ |
 | Constraints honored | No code, no scaffolding, no deps, no prototype, no execution claims | ✅ |
 
-**Version map:** doc **04 = v0.6**, doc **06 = v0.4**, doc **17 = v0.4**, docs **05, 02A = v0.3**; docs **07, 08, 09, 12, 18 = v0.2**; doc **02 = v0.2**; everything else = v0.1.
+**Version map:** doc **04 = v0.7**; docs **06, 17 = v0.5**; docs **05, 02A, 08, 18 = v0.3**; docs **02, 07, 09, 12, 16 = v0.2**; everything else = v0.1.
 
 ---
 
@@ -48,7 +48,7 @@ L1 LGPL §6 relinking (highest priority; blocks only the optional bundled audio 
 
 ### 2C. Technical spikes (B0) — the designed next step (definitions + thresholds: doc 08)
 
-RQ-01 Media3(+FFmpeg audio ext) vs. incumbent-engine conformance · RQ-02 royalty-safe FFmpeg build config · RQ-03 HEVC-10/AV1 hardware-decode coverage on target classes · RQ-04 Dolby handling feasibility · RQ-05 SAF/MediaStore performance at 10k+ libraries · RQ-06 ASS/libass fidelity inside Media3 · RQ-07 process-death/state restoration · RQ-08 Play Billing offline without backend · RQ-09 iOS viability gate · RQ-10 privacy-preserving diagnostics viability · RQ-11 DB + thumbnail architecture at scale · RQ-12 VFR/HDR/refresh-rate behaviors · RQ-13 Compose performance on D1 class · RQ-14 ABI/split strategy.
+RQ-01 Media3(+FFmpeg audio ext) vs. incumbent-engine conformance · RQ-02 royalty-safe FFmpeg build config · RQ-03 HEVC-10/AV1 hardware-decode coverage on target classes · RQ-04 Dolby handling feasibility · RQ-05 SAF/MediaStore performance at 10k+ libraries · RQ-06 ASS/libass fidelity inside Media3 · RQ-07 process-death/state restoration · RQ-08 Play Billing offline without backend · RQ-09 iOS viability gate · RQ-10 privacy-preserving diagnostics viability · RQ-11 DB + thumbnail architecture at scale · RQ-12 VFR/HDR/refresh-rate behaviors · RQ-13 Compose performance on D1 class · RQ-14 ABI/split strategy · **RQ-15 adaptive layout across breakpoint changes** (rotation/foldable/split-screen; added Part 28).
 **Note:** spikes execute in a *build* environment; this was a docs-only engagement. Spike *runbooks* can be written as documents if requested.
 
 ### 2D. Build-phase artifacts deliberately deferred (registered, not omissions — doc 18 §2)
@@ -65,13 +65,13 @@ S1 Play Console + signing · S2 developer verification (regional rollout per W4;
 |---|---|---|
 | Doc 03 → v0.2 | Apply W4 evidence: persona segment signals, DH-3 validation, Q1/Q2 updates (its status line still says "W2–W4 pending") | W4 market content already lives in docs 02 v0.2/15/10; doc 03 is internally consistent without it |
 | Doc 02A → v0.3 | ✅ **done 2026-10-19** — v0.3 resolves **CS-4** (decoder labelling) from documented practice. Remaining **CS-1/2/3/5/6/7** need device or user testing | Those six are spike / user-test work, not desk research — v0.3 does not wait on them |
-| Doc 08 → v0.3 | Fold spike outcomes when they exist | Requires executed spikes |
+| Doc 08 → v0.4 | Fold spike outcomes when they exist | Requires executed spikes. (v0.3 is now taken by Part 28's **RQ-15** — the adaptive-layout/breakpoint spike) |
 | Q13 → doc 04 | ✅ **CLOSED 2026-10-19** — settled from documented practice rather than a test: technical name + when-to-use description, `Auto` default, global setting *and* per-item override; bare HW/SW tokens forbidden (`research/decoder_label_practice.md`) | No longer blocking — advanced-sheet copy can be finalised. **Q12 also closed** (`research/autoplay_defaults.md`) |
-| Q14 → doc 04/06 | Decide the **default library sort order and view density** — practice is genuinely contradictory across vendors, so this is a design call, not a research question (`research/interface_defaults.md` §7) | Small, but it blocks the library screens. FR-LIB-011 deliberately states no default |
+| Q14 → doc 04/06 | ✅ **CLOSED 2026-10-19 (Part 28)** — the platform settles it by *contradicting itself*: legacy `MediaStore.Video.Media.DEFAULT_SORT_ORDER` = `"title"`, modern `QUERY_ARG_MEDIA_STANDARD_SORT_ORDER` = `DATE_ADDED` descending. Default = **most-recently-added first** (the modern path we query) with the contradicting constant recorded; density from M3's canonical feed layout (1/2/3/4 columns) (`research/platform_constants.md` §6) | No longer blocking the library screens. FR-LIB-011 now states both defaults |
 | All docs | Version bumps + ledger rows on any future change | Process is ready (17 §7) |
 
 ### 2G. Full open-questions index
-Per-document Q-sets: doc 04 Q1–Q14 (**Q12 and Q13 closed; Q14 open** — default library sort order / view density, the one constant practice does not settle) · 05 NQ1–6 · 06 U1–6 · 07 C1–6 · 08 T1–5 · 09 A1–6 · 10 S1–6 · 11 OQ-1…5 · 12 Q12-1…6 · 13 Q13-1…6 · 14 Q14-1…5 · 15 OQ15-1…5 · 16 Q16-1…5 · 02A **CS-4 resolved**, CS-1/2/3/5/6/7 open (priority stack: doc 17 §5).
+Per-document Q-sets: doc 04 Q1–Q14 (**Q12, Q13, Q14 all closed**) · 05 NQ1–6 · 06 U1–6 (**U1 closed**) · 07 C1–6 · 08 T1–5 · 09 A1–6 · 10 S1–6 · 11 OQ-1…5 · 12 Q12-1…6 · 13 Q13-1…6 · 14 Q14-1…5 · 15 OQ15-1…5 · 16 Q16-1…5 · 02A **CS-4 resolved**, CS-1/2/3/5/6/7 open (priority stack: doc 17 §5).
 
 ---
 
@@ -105,13 +105,13 @@ Per-document Q-sets: doc 04 Q1–Q14 (**Q12 and Q13 closed; Q14 open** — defau
 | `18_TRACEABILITY_AND_READINESS_CHECKLIST.md` | Verdict, audits, failure review, kickoff checklist | Always second |
 | `01_PRODUCT_VISION_AND_SCOPE.md` | Vision, boundary types A–E, scope fences | Scope questions |
 | `02_MARKET_AND_COMPETITOR_RESEARCH.md` (v0.2) | Competitor matrix/profiles/SWOT, monetization anchors | Positioning questions |
-| `02A_COMPETITOR_CASE_STUDIES.md` (v0.2) | Deep case studies: feature + settings catalogues, UI anatomy, gestures, decode/subtitle internals, adoption status | "How does app X actually do it?" |
+| `02A_COMPETITOR_CASE_STUDIES.md` (v0.3) | Deep case studies: feature + settings catalogues, UI anatomy, gestures, decode/subtitle internals, adoption status | "How does app X actually do it?" |
 | `03_PERSONAS_JOURNEYS_AND_STRATEGY.md` | Personas, JTBD, journeys, KPIs | User-value questions |
-| `04_PRD_AND_FUNCTIONAL_REQUIREMENTS.md` (v0.4) | All FRs w/ acceptance criteria (incl. FR-CTRL-017 queue/end-of-item) | Feature questions |
+| `04_PRD_AND_FUNCTIONAL_REQUIREMENTS.md` (v0.7) | All FRs w/ acceptance criteria (incl. FR-CTRL-017 queue/end-of-item, FR-PLAT-001 PiP contract, FR-LIB-011 defaults) | Feature questions |
 | `05_NON_FUNCTIONAL_REQUIREMENTS.md` | NFR targets (provisional `[T]`) | Quality-target questions |
 | `06_UX_SCREEN_AND_STATE_SPECIFICATION.md` | SCR-001…018, states, design system, wireflows | UI questions / design work |
 | `07_MEDIA_COMPATIBILITY.md` | A–X tier matrix, claims discipline | Format/claims questions |
-| `08_TECHNOLOGY_EVALUATION_AND_ADRS.md` | Stack evaluation, ADR-001…013, RQ-01…14 spike defs | Before any tech work |
+| `08_TECHNOLOGY_EVALUATION_AND_ADRS.md` (v0.3) | Stack evaluation, ADR-001…013, RQ-01…15 spike defs | Before any tech work |
 | `09_ARCHITECTURE_AND_DATA.md` | Modules, threading, data model, no-backend rationale | Before any build work |
 | `10_SECURITY_PRIVACY_AND_COMPLIANCE.md` | THR-001…015, privacy inventory, compliance register | Privacy/security/store-form questions |
 | `11_LICENSING_AND_DEPENDENCIES.md` | Component/patent registers, LGPL process, L1–L8 | Before adding ANY dependency |
@@ -129,5 +129,5 @@ Per-document Q-sets: doc 04 Q1–Q14 (**Q12 and Q13 closed; Q14 open** — defau
 
 - **Industry practice first — standing rule.** Before designing a behaviour, default, interaction, mechanism **or constant** from first principles, establish what shipping products do and why; adopt it when practice is settled and our constraints do not conflict; record deviations with the practice, the reason and who accepted them. Full rule, method and the classification of the current decision set: **17 §1.3**. Three rounds of this engagement have now found spec values that were invented rather than looked up — see Parts 24, 26 and 27 in doc 00 §7.
 - **Version control:** the workspace **is** a git repository (initialized 2026-10-19, branch `main`). All **28** markdown files (21 documents + 7 research notes) are committed and byte-identical to the working tree (verified by blob-hash comparison). Commit `d7671ad` is the initial import of the package. **Commit before starting any revision.** Note the constraint nuance: this repository versions the *documents*; it is not application repository scaffolding — no app code, project files, or dependencies exist (see Part 25 in doc 00 §7).
-- **Dates:** research accessed 2026-10-18; synthesis and all doc v0.1 drafting 2026-10-19; W5 case studies, the propagation pass, W6 (auto-advance), W7 (decoder labelling) and W8 (interface constants) 2026-10-19. Recheck-flagged facts age — see "recheck before release" items before any launch-related decision.
-- **Part counter:** last logged = **Part 27**; next continuation = **Part 28**. Log it.
+- **Dates:** research accessed 2026-10-18; synthesis and all doc v0.1 drafting 2026-10-19; W5 case studies, the propagation pass, W6 (auto-advance), W7 (decoder labelling), W8 (interface constants) and W9 (platform constants) 2026-10-19. Recheck-flagged facts age — see "recheck before release" items before any launch-related decision.
+- **Part counter:** last logged = **Part 28**; next continuation = **Part 29**. Log it.
