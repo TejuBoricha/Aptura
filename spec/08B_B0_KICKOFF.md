@@ -1,6 +1,6 @@
 # 08B — B0 Kickoff Pack (Owner Decisions, Device Procurement, Week One)
 
-**Version:** 0.1 (draft — nothing ordered, nothing decided, nothing executed)
+**Version:** 0.2 (draft — nothing ordered, nothing decided, nothing executed); v0.2 applies the Part 32 audit fixes: D1 restated from doc 05 §1's class definition (not an invented RAM figure or API era), OS-band coverage aligned to doc 12 §6's six bands, the **B0 lab vs. matrix-fleet distinction** made explicit, farm authority narrowed to match doc 12 §6, the OD-2 size comparison corrected, and the device count now derived rather than asserted
 **Date:** 2026-10-19
 **Status:** Draft, docs-only. This is the **action layer** for the spike program: it converts the pending owner decisions (doc 00 §5), the device-lab dependency (DEP-005) and the first week of B0 into things a person can actually do on a Monday morning. It decides nothing itself.
 **Companion status:** numbered `08B` alongside `08A`, following the `02A` precedent — the master prompt's deliverable set (00–18) is unchanged and doc 18's §22 audit remains 24/24.
@@ -18,7 +18,7 @@
 | A **week-one sequence** derived from the B0.0 finding (08A §2) | A schedule. Calendar conversion needs OD-4 |
 | A place to record answers that already have defaults | A re-opening of decisions already made and defaulted |
 
-**The honest situation:** the specification is complete and audited; the spike program is written and runnable; **neither hardware nor answers exist yet.** Two things block B0, and both are outside engineering: **OD-4** (which decides whether the 4–8 dev-week B0 range is even reachable — Q16-7) and **DEP-005** (which gates 11 of 16 spikes). Everything else in B0 can be prepared while those are pending.
+**The honest situation:** the specification is complete and audited; the spike program is written and runnable; **neither hardware nor answers exist yet.** Two things block B0, and both are outside engineering: **OD-4** (which decides whether the 4–8 dev-week B0 range is even reachable — Q16-7) and **DEP-005** (which gates the 11 device-dependent spikes — the count is *derived*, not asserted: 08A §3). Everything else in B0 can be prepared while those are pending.
 
 ---
 
@@ -47,7 +47,7 @@ Each brief states the question, why it is being asked *now* rather than later, t
 ### OD-2 — R1 boundary: local-only, or include network playback (SMB/NAS/HTTP)
 **Default in force:** local-only; network is an R2 candidate (DEC-001).
 
-**Why now:** this is the single largest scope decision in the package — doc 16 sizes SMB/NAS/HTTP at `10–20 dev-weeks` `[E]`, comparable to the entire R1 player. It also has *non-size* consequences that are easy to miss:
+**Why now:** this is the largest scope decision in the package — doc 16 sizes SMB/NAS/HTTP at `10–20 dev-weeks` `[E]`, **comparable to the player core and subtitle depth combined (B3+B4 = 12–19 `[E]`), not to R1 as a whole (34–56)**. It also has *non-size* consequences that are easy to miss:
 
 - **It breaks a standing constraint.** Network playback needs `INTERNET`, which R1 currently does not request at all (DEC-012). The privacy posture, the data-safety form, and the "nothing leaves your device" claim are all built on its absence.
 - **It adds a permanent security surface** (doc 10 §6 threat register) and a support burden (credentials, share discovery, permission failures on NAS boxes).
@@ -120,19 +120,26 @@ The four things actually needed — a rough answer beats a careful one:
 
 **Principle: buy the *edges* of the supported envelope, not the middle.** Mid-range phones are the easiest devices to borrow; the low end and the outliers are the ones that fail, and they are the reason RQ-13 and RQ-03 exist at all.
 
+**Two layering rules that make §3.1 readable (Part 32, D-21/D-27):**
+
+1. **Doc 05 §1 defines the device classes. This section adds procurement requirements on top — it does not redefine them.** Where a row below states a capability (decode support, refresh rate, HDR), that is a requirement *we impose when buying*, not part of the class definition. Where it repeats doc 05's hardware-era figures, those figures are doc 05's, quoted.
+2. **Never buy a device for a decode deficiency.** RQ-03's hypothesis is that the D1 class fails HEVC 10-bit gracefully; selecting a device *because* it cannot decode Main10 would manufacture that result. Class-representative devices only — the spike records what the class actually does.
+
 ### 3.1 Minimum fleet (capability requirements, derived from 08A §5)
 
 | # | Role | Capability requirement | Why this device, and not another | Spikes served |
 |---|---|---|---|---|
-| 1 | **D1 — the floor** | API 26–28 class; ~2 GB RAM class; **H.264 hw decode only** (no HEVC Main10 hw, no AV1); 720p-class display | This device *is* RQ-13's entire question (does Compose hold on the floor?) and RQ-03's honesty path | RQ-01, RQ-03, **RQ-13**, RQ-15 |
+| 1 | **D1 — the floor** (class per doc 05 §1: ~2019–2021 mid-range SoC, **3–4 GB RAM**, eMMC or slow UFS, 60 Hz 720–1080p) | Class-representative hardware, **plus**: no capability assumptions — the device's decode support is *probed at intake*, never assumed and never selected for a deficiency (D-27) | This device *is* RQ-13's entire question (does Compose hold on the floor?) and RQ-03's honesty path | RQ-01, RQ-03, **RQ-13**, RQ-15 |
 | 2 | **D2 — the mainstream** | API 30–33 class; HEVC Main10 hw decode; 1080p; ≥6 GB | Most users live here; all D2-targeted NFR pass/fail is judged here | RQ-01, RQ-03, RQ-05, RQ-11, RQ-15 |
 | 3 | **D3 — the frontier** | API 34–36 class; AV1 hw decode; HDR-declaring | Establishes what the *good* case looks like and whether D1's failures are device class or app design | RQ-01, RQ-03, RQ-12, RQ-15 |
 | 4 | **SD-bearing** | microSD slot, supporting **portable** (and ideally adoptable) use | Slow-storage realism cannot be emulated; **verify the slot exists before buying — many flagship-class devices no longer have one** | RQ-05, RQ-11 |
 | 5 | **High-refresh** | ≥90 Hz display (may coincide with #3) | Refresh-alignment behaviour is unmeasurable otherwise | RQ-12 |
 | 6 | **OEM-skinned ×2** | At least two manufacturer skins (e.g. Samsung-class and Xiaomi-class, may coincide with #2/#3) | Gesture, notification and PiP variance is a **skin** property, not an OS property — RQ-16's whole point | **RQ-16**, RQ-15, RQ-01 |
-| 7 | **OS-band coverage** | At least one device in each band: 26–28 / 29–31 / 32–33 / 34+ | doc 12 §6 matrix; behaviour changes cluster at band boundaries | all |
+| 7 | **OS-band coverage** | At least one device in each of doc 12 §6's **six** bands: 26/27 · 28–29 · 30–32 · 33 · 34–35 · 36 | doc 12 §6 matrix; behaviour changes cluster at band boundaries. **Class and OS band are separate axes** — a D1-class device may run a newer OS | all |
 
-**Minimum realistic purchase:** 3–4 devices if roles coincide (D1 + D2 + D3/HDR/high-refresh + one different-skin device **with an SD slot**), 6 if they do not. The D1 device is non-negotiable and is usually the cheapest item on the list.
+**Minimum realistic purchase for B0:** 3–4 devices if roles coincide (D1 + D2 + D3/HDR/high-refresh + one different-skin device **with an SD slot**), 6 if they do not. The D1 device is non-negotiable and is usually the cheapest item on the list.
+
+**But the B0 lab is not the whole fleet — plan one fleet that grows (Part 32, D-23).** Doc 12 §6's matrix requires, for release-time `TST-CMPT` work: **six OS bands**, internal + portable + adoptable SD, 60 Hz *and* ≥90 Hz, cutout/notch, HDR-declaring and one DV-declaring device, **three** OEM slants (AOSP-like, Samsung-class, Xiaomi-class), and a locale set including RTL, CJK and Devanagari. A 3–4 device B0 purchase cannot satisfy that matrix, and buying twice pays lead time twice. See §3.5.
 
 ### 3.2 Selection criteria — and why no models are named here
 
@@ -157,13 +164,26 @@ We deliberately do **not** name specific models. Three reasons, and they are the
 
 Farms are a **supplement, never a substitute** (doc 16 §3). Concretely:
 
-- **Farms may answer** "does this file play on this device class?" — fleet-coverage questions (RQ-03 breadth).
+- **Farms may generate signals, never answers.** A farm may tell us *where to look* — "this file misbehaves on this class" is a **hypothesis generator**. Doc 12 §6 is explicit that a farm is "still not codec authority", so **a farm result can never close RQ-03**, promote a doc 07 tier, or appear in a claim.
 - **Farms may not answer** anything about **timing, power, thermal or gesture/notification behaviour** — M1 requires physical, thermal-state-recorded devices for those, and virtual devices have different clocks, thermals and input paths (doc 13 M1, doc 12 §6).
 - **Every result must name how it was obtained.** A farm result presented as a lab result is exactly the failure mode §1 S8 exists to prevent.
 
 **Intake protocol (per device, before it counts as lab equipment):** record model, build number, firmware, region variant, display refresh capability, decode capabilities as *probed* (not as published), storage topology (internal/SD, portable/adoptable), and thermal behaviour under a fixed load. Freeze this as the device's lab-matrix record; every spike result cites it rather than restating it (08A §1 S8).
 
 **Budget:** **no prices were researched for this document** `[U]` — cost is region- and timing-dependent, and inflating a number here would be exactly the kind of invented constant the standing rule forbids (17 §1.3). The cost *drivers* are: the D1 device is the cheapest and the most load-bearing; HDR/high-refresh and any foldable are the expensive outliers; SD-capable devices are cheap but must be verified, not assumed.
+
+### 3.5 Fleet growth: the B0 subset → the doc 12 §6 matrix
+
+**The mistake this section exists to prevent (Part 32, D-23):** procuring a small B0 lab and later discovering that release testing needs a different, larger set — and paying a second lead time at the worst possible moment.
+
+| Stage | Coverage required | Indicative devices | When |
+|---|---|---|---|
+| **B0** | The 11 device-dependent spikes: one D1 (class-representative), one D2, one D3/HDR/high-refresh, one different-skin device **with SD** | 3–4 | Day one of B0 |
+| **B0 top-up** | doc 12 §6's six OS bands not already covered; a second OEM slant; adoptable SD | +1–3 | **Order with the B0 set if the ceiling allows** — ordering later costs a second lead time |
+| **B6 matrix** | Full doc 12 §6 coverage: bands, storage modes, display set incl. a DV-declaring device, three OEM slants, locale set | +2–4 | Before `TST-CMPT` runs |
+| **Borrow or rent — never buy** | Foldable (unless RQ-15 needs one), DV-declaring device (unless RQ-04 needs it), cast/TV hardware (T4 pending), farm access for breadth | 0 | On demand |
+
+**Selection rule:** when two candidates both satisfy a B0 requirement, prefer the one that also closes an uncovered item of doc 12 §6's matrix. It costs nothing at purchase time and saves a procurement round later. One fleet that grows — not two purchases.
 
 ---
 
@@ -177,7 +197,7 @@ Derived from the B0.0 finding (08A §2). The order matters: **device order and l
 | Day 1 | Answer **OD-2** and **OD-3** | owner | Both have safe defaults; answering removes them from the open list |
 | Day 1 | **Order the device lab** (§3) | owner | 11 of 16 spikes are blocked without it; external lead time |
 | Day 1 | **Open L1 and L2 with counsel** (briefs: `11A_LEGAL_BRIEFS.md`) | owner | L1 is the highest-priority legal item (doc 11 §5); both have safe fallbacks, so this is not on R1's critical path |
-| Day 1–2 | Open Play Console (§15 S1), start developer verification (S2), open the **test track early** for RQ-08 | owner | Store elapsed time dominates RQ-08, not engineering |
+| Day 1–2 | Open Play Console (doc 15 S1), start developer verification (S2), open the **test track early** for RQ-08 | owner | Store elapsed time dominates RQ-08, not engineering |
 | Day 2–3 | Begin **B0.0**: fixture corpus v1 + adversarial and scale corpora (doc 12 §5) | eng | Prerequisite of most spikes; do not wait for hardware to start this |
 | Day 2–3 | Write the **capability probe** and intake record (§3.4) | eng | Needed the day the first device arrives |
 | Week 1, in parallel | **RQ-09** (iOS viability — no device needed) and **RQ-02** (toolchain — build machine only); paper half of **RQ-14** | eng | The three spikes that are not blocked by hardware or corpus |
@@ -206,6 +226,7 @@ Fill the right-hand columns and return; the ledger (doc 00 §5) and doc 17's sta
 ## 6. Boundaries
 
 - **Nothing here is executed, ordered, or decided.** No device has been bought, no counsel engaged, no decision taken beyond the defaults already recorded in doc 00 §5.
+- **No claim that the B0 device subset satisfies the release matrix.** The B0 lab is a *subset* of doc 12 §6's coverage; §3.5 is the plan to close the gap, and until it is closed, `TST-CMPT` runs on the doc 12 §6 matrix only (doc 12 §6).
 - **No prices, no models, no benchmarks.** §3.1 specifies *capabilities to verify*, not products; §3.4's farm policy exists so that a cheap fleet result can never be presented as a lab result.
 - **No claim that answering the ODs unblocks launch.** They unblock **B0 scheduling**. The build/launch decision remains the owner's separate gate.
 - **Legal briefs are inputs to counsel, not legal advice** — `11A_LEGAL_BRIEFS.md` states our reading so it can be corrected, which is the point of sending it.

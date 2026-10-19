@@ -1,10 +1,10 @@
 # 08A — Spike Runbooks (RQ-01…RQ-16)
 
-**Version:** 0.1 (draft — **nothing in this document has been executed**)
+**Version:** 0.2 (draft — **nothing in this document has been executed**); v0.2 applies the Part 32 audit fixes (device-requirement derivation in §3/§5, class-representative D1 procurement in RQ-03, metric-set and legal-dependency corrections, the refresh-rate orphan note, fleet-vs-matrix distinction) — **no pass/fail criterion changed**
 **Date:** 2026-10-19
 **Status:** Draft, docs-only. **No spike has been run, no measurement exists, and no result is claimed.** This document is *procedure*: it converts doc 08 §6's spike definitions (hypothesis, method, pass/fail) into runnable instructions, and it is the artifact the build phase executes from. Doc 08 remains **authoritative for what each spike decides and what counts as pass or fail**; 08A is authoritative for **how a run is conducted, recorded and adjudicated**.
 **Companion status:** numbered `08A` deliberately, following the `02A` precedent — the master prompt's deliverable set is 00–18 and this document does not alter it (doc 18 §22 audit remains 24/24).
-**Consumes:** 08 (§6 spike definitions, RQ-01…16; ADRs each unblocks), 12 (§5 fixture corpora, §6 device matrix, §7 harnesses and special programs, §3 test levels), 13 (M1–M10 measurement principles, MB-* metric catalogue, §5 statistical protocol), 05 (NFR-* targets, all `[T]`), 11 (L1/L2 licensing items), 16 (B0 phase and DEP register), 17 (§1.3 rule; §5 question stack).
+**Consumes:** 08 (§6 spike definitions, RQ-01…16; ADRs each unblocks), 12 (§5 fixture corpora, §6 device matrix, §7 harnesses and special programs, §3 test levels), 13 (M1–M10 measurement principles, MB-* metric catalogue, §5 statistical protocol), 05 (NFR-* targets and device classes D1–D3, all `[T]`), 11 (L1–L4 licensing items; sendable briefs in `11A`), 16 (B0 phase and DEP register), 17 (§1.3 rule; §5 question stack).
 **Feeds:** 16 (B0 sizing reality-check, §6 of this document), DEP-005 procurement scope, doc 18 (spike evidence registry), doc 08 (each ADR lock).
 
 ---
@@ -36,7 +36,7 @@ B0 therefore has an **unlisted stage zero**, which should be planned and named:
 
 | B0.0 item | What it is | Owned by | Needed by |
 |---|---|---|---|
-| **Fixture corpus v1** | The doc 12 §5 media matrix — generated, checksummed, license-noted (own recordings + CC0/CC-BY only), covering doc 07's A/B-tier cells at ≥3 files per validated cell `[T]` | 12 | RQ-01, RQ-03, RQ-04, RQ-05, RQ-06, RQ-12, RQ-13 |
+| **Fixture corpus v1** | The doc 12 §5 media matrix — generated, checksummed, license-noted (own recordings + CC0/CC-BY only), covering doc 07's A/B-tier cells at ≥3 files per validated cell `[T]`. **Composition authority is doc 12 §5**; doc 08's "30-file fixture corpus" is a v0 sizing that this plan supersedes (Part 32, D-29) | 12 | RQ-01, RQ-03, RQ-04, RQ-05, RQ-06, RQ-12, RQ-13 |
 | **Adversarial corpora v1** | Truncated/zero-byte/absurd-duration/backwards-timestamp/storm files; malformed and mixed-encoding subtitle sets (doc 12 §5) | 12 | RQ-01, RQ-06, RQ-10 |
 | **Scan-at-scale corpora** | Synthetic libraries at 1k / 10k / 50k items `[T]` (doc 12 §7.2) | 12 | RQ-05, RQ-11 |
 | **Seek & first-frame harness** | Input→correct-frame timing at pinned positions, keyframe/non-keyframe split (doc 13 MB-07) | 12 (impl) / 13 (method) | RQ-01, RQ-03 |
@@ -52,16 +52,18 @@ B0 therefore has an **unlisted stage zero**, which should be planned and named:
 
 Spikes are grouped by their *binding prerequisite*, because that determines what can run concurrently and what the critical path actually is.
 
-| Group | Binding prerequisite | Spikes | Can start |
-|---|---|---|---|
-| **A — analysis only** | None (no device, no harness) | RQ-09; the paper half of RQ-14 | **Immediately**, alongside B0.0 |
-| **B — build machine** | Toolchain, no device | RQ-02 | Immediately |
-| **C — corpus + harness** | B0.0 | RQ-01, RQ-03, RQ-05, RQ-06, RQ-10, RQ-11, RQ-12, RQ-13 | After B0.0 (RQ-10 can start on the adversarial corpora alone) |
-| **D — device lab** | DEP-005 (one device per class D1–D3, plus an SD device, an HDR/DV device, a ≥90 Hz device) | RQ-04, RQ-07, RQ-15, RQ-16 (+ RQ-03, RQ-12, RQ-13 which also need specific device capabilities) | After B0.0 **and** lab arrival |
-| **E — console/account** | Play Console internal test track, closed-testing enrolment | RQ-08 | Can be prepared early; elapsed time is dominated by store review, not engineering |
-| **F — counsel** | Legal brief L1/L2 (doc 11) | RQ-04 (Dolby), RQ-02 (license sign-off) | Engaged in parallel; **elapsed time is counsel's, not ours** |
+| Group | Binding prerequisite | Device needed? | Spikes | Can start |
+|---|---|---|---|---|
+| **A — analysis only** | None | **No** | RQ-09; the paper half of RQ-14 | **Immediately**, alongside B0.0 |
+| **B — build machine** | Toolchain | **No** | RQ-02 | Immediately |
+| **C — corpus + harness, then the lab** | B0.0 **and** the lab (RQ-10 excepted) | **Yes** — RQ-01, 03, 05, 06, 11, 12, 13; **no** — RQ-10 | RQ-01, RQ-03, RQ-05, RQ-06, RQ-10, RQ-11, RQ-12, RQ-13 | RQ-10 after the adversarial corpora alone; the rest after B0.0 **and** lab arrival |
+| **D — device lab** | DEP-005 | **Yes** | RQ-04, RQ-07, RQ-15, RQ-16 | After B0.0 **and** lab arrival |
+| **E — console/account** | Play Console internal test track, closed-testing enrolment | **Yes — but any real device** (a signed-in phone on the test track suffices; no fleet capability required) | RQ-08 | Can be prepared early; elapsed time is dominated by store review, not engineering |
+| **F — counsel** | Legal briefs L1/L2/L3/L4 (doc 11 §5; sendable briefs in `11A`) | — | RQ-04 (Dolby/DTS/TrueHD), RQ-02 (licence sign-off) | Engaged in parallel; **elapsed time is counsel's, not ours** |
 
-**Critical path.** Groups D and E are the only ones whose *elapsed* time is outside our control. DEP-005 is therefore on the B0 critical path, and the store track for RQ-08 should be opened long before the engineering work is finished.
+**The "N of 16" figure is derived here, not asserted** (it was asserted in v0.1 — Part 32, D-26). Groups are by *binding* prerequisite, and "needs no device" is true of exactly four spikes: **RQ-02, RQ-09, RQ-10, RQ-14**. **RQ-08** needs a real device but no fleet capability. The remaining **11** (RQ-01, 03, 04, 05, 06, 07, 11, 12, 13, 15, 16) need capabilities that only the intended fleet provides — D1-class hardware, SD, HDR/≥90 Hz, an OEM skin, audio routing — and **those 11 are what DEP-005 gates**. Note also that group C is *not* device-free: for seven of its eight spikes the binding prerequisite is B0.0 **followed by** the lab, so a plan that reads "group C can start after the corpus" will stall one step later.
+
+**Critical path.** Groups C/D and E carry the *elapsed* time that is outside our control (procurement is external lead time; the store clock is review time). DEP-005 blocks more spikes than any other prerequisite in this table, and the store track for RQ-08 should be opened long before the engineering work is finished.
 
 ---
 
@@ -79,7 +81,7 @@ Each card follows the same shape: what it unblocks, its binding prerequisite, it
 1. Freeze and checksum the fixture list; declare it in the run record before playback (S1).
 2. Per device class D1/D2/D3, play every fixture through the candidate stack; classify the observed outcome against doc 07's tier definitions — **not** against expectation.
 3. For every non-A outcome, record the exact failure mode and whether our error taxonomy (TST-ERR) reaches the right state, or a spinner.
-4. Measure first-frame latency (MB-01-adjacent, NFR-PERF-003) and seek latency (MB-07, NFR-PERF-004) on A-tier cells only, N≥5 runs, median + p95 + CV (doc 13 §5).
+4. Measure first-frame latency (NFR-PERF-003) and seek latency (MB-07, NFR-PERF-004) on A-tier cells only; N≥5 runs, median + p95 + CV (doc 13 §5).
 5. Re-adjudicate per S6 and close with a decision (S10).
 **Capture:** per-cell outcome table; failure-mode list; timing distributions with conditions; the emitted error state per failure; harness raw output.
 **Pass / fail (doc 08):** PASS = all A cells play, ≥99% of sessions reach first frame, seeks within NFR targets on D2. FAIL = systematic A-cell failure → engine fallback review.
@@ -105,6 +107,7 @@ Each card follows the same shape: what it unblocks, its binding prerequisite, it
 ### RQ-03 — HEVC 10-bit / AV1 coverage on D1–D3, and behaviour with software decode only
 **Unblocks:** doc 07 profile tiers, FR-PLAY-014 messaging · **Prereq:** Group D (needs HDR/10-bit-capable devices) · **Timebox:** 1.5–2 wk `[E]`
 **Hypothesis:** coverage concentrates on newer devices; D1 fails Main10 gracefully.
+**Procurement rule (Part 32, D-27 — read before buying anything):** the D1 device is selected to **represent the class** (doc 05 §1), **never for a decode deficiency**. Buying a device *because* it cannot decode HEVC 10-bit would manufacture the expected result of this spike and tell us nothing about the real D1 population — which, for a 2019–2021 mid-range device, may well decode Main10. The spike records what the class actually does, as probed. **If Main10 works across the class, the hypothesis is falsified — that is a result, not a problem.**
 **Procedure:**
 1. Probe codec capabilities per device (documented capability query), then play the 10-bit/AV1 fixtures — capability claims and observed playback are recorded separately, because they disagree.
 2. For every software-decode path, record battery and thermal behaviour during a timed run (MB-09/MB-10), N≥5.
@@ -121,7 +124,7 @@ Each card follows the same shape: what it unblocks, its binding prerequisite, it
 **Hypothesis:** passthrough-first works where routes exist; bundled audio is legal only per doc 11.
 **Procedure:**
 1. Build the route matrix: device speaker, wired, Bluetooth, (cast/HDMI path noted as out of R1 scope where applicable). For each route × each codec, record what the platform will decode, what it will pass through, and what it will silently refuse.
-2. **Set the legal posture from counsel's L2 answer first (doc 11)** — the engineering matrix must be filtered through the legal outcome, not reported alongside it as if independent.
+2. **Set the legal posture from counsel's answers first — L2 (AC-3/E-AC-3 confirmations), L3 (DTS/TrueHD passthrough wording), L4 (Dolby brand usage in UI copy)** — the engineering matrix must be filtered through the legal outcome, not reported alongside it as if independent.
 3. For every combination that cannot work, verify the UX says so honestly (FR-AUD-007) instead of offering a control that does nothing.
 **Capture:** route × codec matrix; counsel's written position; the UI state for each non-working combination.
 **Pass / fail (doc 08):** PASS = policy table frozen **with legal sign-off**, honest UX for all outcomes. FAIL = an unclassifiable combination, or an offer that implies capability we do not have.
@@ -231,7 +234,7 @@ Each card follows the same shape: what it unblocks, its binding prerequisite, it
 **Procedure:**
 1. On HDR-declaring devices, play HDR fixtures and check for colour corruption and tone-mapping (FR-PLAY-013) — qualitatively, and against the declared-versus-actual attributes.
 2. Play VFR fixtures and check cadence/A-V behaviour.
-3. Enable the refresh-rate switch candidate and determine whether the kill-switch is required in practice; record the conditions under which it misbehaves.
+3. Enable the refresh-rate switch candidate and determine whether the kill-switch is required in practice; record the conditions under which it misbehaves. **Orphan-candidate note (Part 32, D-31):** no requirement in doc 04 currently owns a refresh-rate or display-mode switch — this spike tests a *candidate*. If the outcome says the switch is needed, an FR is added through the change process (doc 17 §7); it must not appear in the product by default.
 4. Confirm DH-8's honest path renders correctly when the device *declares* HDR but the content cannot be handled well — there must be a real UI home (SCR-010h), not just a log line.
 **Capture:** HDR/VFR observations per device; refresh-switch behaviour and its failure conditions; the honesty-path UI state.
 **Pass / fail (doc 08):** PASS = no colour corruption (FR-PLAY-013) and a validated refresh-switch kill-switch.
@@ -299,12 +302,13 @@ Each card follows the same shape: what it unblocks, its binding prerequisite, it
 | Portable **and** adoptable SD | RQ-05, RQ-11, TST-SDCARD | Slow-storage realism cannot be emulated |
 | HDR-declaring device; one DV-declaring device | RQ-03, RQ-12, TST-HDR | Used **only** for honest-path tests, per doc 12 §6 |
 | ≥90 Hz display device | RQ-12 | Refresh-alignment work is unmeasurable without it |
-| ≥1 OEM-skinned device (Samsung-class and Xiaomi-class minimum) | RQ-16, RQ-15 | Gesture and notification variance is an OEM property, not an OS property |
-| OS-band coverage across 26 → 36 | doc 12 §6 | At least one device per band |
+| ≥1 OEM-skinned device (**AOSP-like + Samsung-class + Xiaomi-class minimum**, per doc 12 §6) | RQ-16, RQ-15 | Gesture and notification variance is an OEM property, not an OS property |
+| OS-band coverage across 26 → 36 | doc 12 §6 | At least one device per band — **six** bands in doc 12 §6, not four; class and OS band are separate axes |
+| **Fleet scope must close toward the doc 12 §6 matrix** | B6 `TST-CMPT`, doc 13 benchmarks | **The B0 lab is a subset of doc 12 §6's matrix coverage**, not a separate fleet (Part 32, D-23). Plan **one fleet that grows into matrix coverage**, or B6 pays for a second procurement round — see `08B` §3.5 |
 
 **Two scheduling corrections this runbook set surfaces.**
 
-1. **DEP-005 is on the B0 critical path, not a parallel long lead.** Doc 16 lists device procurement among "off-path but launch-relevant long leads" (doc 16 §"Off-path", line 107), while its own B0 row requires "device lab minimum (≥1 device/class D1–D3)". Both are true of *different paths*: procurement does not gate store submission (the launch path), but it **does** gate 11 of the 16 spikes (the B0 path). It should be ordered on day one of B0, not treated as something that can drift to B6.
+1. **DEP-005 is on the B0 critical path, not a parallel long lead.** Doc 16 lists device procurement among "off-path but launch-relevant long leads" (doc 16 §"Off-path", line 107), while its own B0 row requires "device lab minimum (≥1 device/class D1–D3)". Both are true of *different paths*: procurement does not gate store submission (the launch path), but it **does** gate the 11 device-dependent spikes (§3's derived count). It should be ordered on day one of B0, not treated as something that can drift to B6.
 
 2. **B0's 4–8 dev-week range only holds with concurrency.** Summed sequentially, the timeboxes in §4 total roughly **18 dev-weeks `[E]`** — before B0.0's corpus and harness work. The doc 16 range therefore implicitly assumes either several engineers running spikes concurrently, or substantial reuse from B0.0. **If one engineer owns B0, the range is not achievable and doc 16's estimate should be re-based rather than quietly missed.** This is flagged rather than asserted: the timeboxes here are `[E]` estimates and are themselves uncalibrated until the first three spikes close (at which point the remaining estimates should be re-derived from actuals).
 
@@ -349,3 +353,4 @@ Every spike files one record. Ten fields; any missing field makes the result ina
 | RB-4 | Who is the independent re-adjudicator (S6), and is that role staffed? | Results lose their adversarial layer | owner / 12 |
 | RB-5 | Is the ASS "agreed quality bar" (RQ-06) written down before the spike runs? | RQ-06 has no pass criterion until it is | 07 / 06 |
 | RB-6 | Screen/audio capture rig: acquire or rent (doc 13 Q13-5)? | RQ-01's sync half and MB-08 are blocked | 12/16 |
+| RB-7 | Does the fleet close toward doc 12 §6's full matrix coverage, or does B6 need a second procurement round? (Part 32, D-23) | A second purchase round costs lead time at the worst moment | 16/12 |

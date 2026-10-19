@@ -21,14 +21,14 @@
 | 00–18 | All 19 specification documents (vision, market, personas, FRs, NFRs, UX, compatibility, tech/ADRs, architecture/data, security/privacy, licensing, QA, benchmarking, diagnostics, ops, roadmap, registers, traceability) | ✅ Drafted — current versions in the version map below |
 | research/ | W1 competitors · W2 platform · W3 licensing · W4 market/compliance · W5 case studies (02A) · W6 autoplay defaults · W7 decoder labels · W8 interface constants · W9 platform constants · **W10 permissions, gestures, captions** — sourced, dated, evidence-labeled | ✅ Complete (W1–W4 accessed 2026-10-18; W5–W10 2026-10-19) |
 | 00 | Ledger, ID conventions, part log (Parts 1–30), OD table, first-response §3 | ✅ Closed for this phase |
-| 18 | Traceability matrices, §22 deliverable audit (24/24), §23 Spec Gates A/B/C review (findings C-1…C-10) + Gate C post-audit delta (D-1…D-9), §21 failure-mode review | ✅ Verdict issued |
+| 18 | Traceability matrices, §22 deliverable audit (24/24), §23 Spec Gates A/B/C review (findings C-1…C-10) + **four** Gate C post-audit deltas (D-1…D-32, the latest auditing the Part 30–31 companions), §21 failure-mode review | ✅ Verdict issued, re-confirmed after delta 4 |
 | 17 | Canonical registers: DEC-001…013, ASM-001…013, RSK-001…015 (+RSK-08-01…04 in doc 08), DEP-001…012, DoR/DoD, change process | ✅ |
 | Constraints honored | No code, no scaffolding, no deps, no prototype, no execution claims | ✅ |
 | 08A | **Spike runbooks** (companion to doc 08): operating rules S1–S10, the **B0.0 instrumentation prerequisite**, scheduling map by binding prerequisite, a runbook card for every spike RQ-01…16, lab/procurement scope, result-artifact template, RB-1…RB-6 | ✅ Written (docs-only) — **nothing executed** |
 | 08B | **B0 kickoff pack** (action layer): OD-1…OD-6 decision briefs, DEP-005 procurement specification (capability rows, selection criteria, farm policy, intake protocol), week-one sequence, fill-in answer sheet | ✅ Written — **no device ordered, no counsel engaged, nothing decided** |
 | 11A | **Counsel briefs L1/L2** in sendable form: facts as shipped, our readings for correction, numbered questions with what each answer changes, fallbacks, assets to hand over | ✅ Written — **not legal advice; not yet reviewed by a lawyer** |
 
-**Version map:** doc **04 = v0.8**; doc **17 = v0.6**; docs **06, 08 = v0.5**; docs **05, 16, 18 = v0.4**; doc **02A = v0.3**; docs **02, 07, 09, 11, 12 = v0.2**; everything else = v0.1 (the new companions **08A, 08B, 11A = v0.1**).
+**Version map:** doc **04 = v0.8**; docs **17 = v0.6**, **08 = v0.6**; docs **06, 16, 18 = v0.5**; doc **05 = v0.4**; docs **02A, 12 = v0.3**; docs **02, 07, 09, 11, 08A, 08B = v0.2**; everything else = v0.1 (**11A**, docs 00/01/03/10/13/14/15).
 
 ---
 
@@ -75,7 +75,7 @@ S1 Play Console + signing · S2 developer verification (regional rollout per W4;
 | All docs | Version bumps + ledger rows on any future change | Process is ready (17 §7) |
 
 ### 2G. Full open-questions index
-Per-document Q-sets: doc 04 Q1–Q14 (**Q12, Q13, Q14 all closed**) · 05 NQ1–6 · 06 U1–6 (**U1 closed**) · 07 C1–6 · 08 T1–6 (**T6 new**: RQ-06 has no pass criterion until the ASS quality bar is written down) · 09 A1–6 · 10 S1–6 · 11 OQ-1…5 · 12 Q12-1…6 · 13 Q13-1…6 · 14 Q14-1…5 · 15 OQ15-1…5 · 16 Q16-1…7 (**Q16-6/Q16-7 new**: is B0.0 inside the B0 range; how many engineers run B0 concurrently) · 02A **CS-4 resolved**, CS-1/2/3/5/6/7 open (priority stack: doc 17 §5) · **08A RB-1…RB-6 open** (B0.0 in-range vs additive · B0 concurrency · DEP-005 day-one order · independent re-adjudicator staffing · ASS quality bar before RQ-06 · capture rig acquire-vs-rent).
+Per-document Q-sets: doc 04 Q1–Q14 (**Q12, Q13, Q14 all closed**) · 05 NQ1–6 · 06 U1–6 (**U1 closed**) · 07 C1–6 · 08 T1–6 (**T6 new**: RQ-06 has no pass criterion until the ASS quality bar is written down) · 09 A1–6 · 10 S1–6 · 11 OQ-1…5 · 12 Q12-1…6 · 13 Q13-1…6 · 14 Q14-1…5 · 15 OQ15-1…5 · 16 Q16-1…7 (**Q16-6/Q16-7 new**: is B0.0 inside the B0 range; how many engineers run B0 concurrently) · 02A **CS-4 resolved**, CS-1/2/3/5/6/7 open (priority stack: doc 17 §5) · **08A RB-1…RB-7 open** (B0.0 in-range vs additive · B0 concurrency · DEP-005 day-one order · independent re-adjudicator staffing · ASS quality bar before RQ-06 · capture rig acquire-vs-rent · **RB-7: does the fleet close to the doc 12 §6 matrix or does B6 need a second purchase round**).
 
 ---
 
@@ -108,7 +108,7 @@ Per-document Q-sets: doc 04 Q1–Q14 (**Q12, Q13, Q14 all closed**) · 05 NQ1–
 | File | What it is | Open when |
 |---|---|---|
 | `00_INDEX_AND_STATUS.md` | Master ledger, IDs, ODs, part log | Always first |
-| `18_TRACEABILITY_AND_READINESS_CHECKLIST.md` | Verdict, audits, failure review, kickoff checklist | Always second |
+| `18_TRACEABILITY_AND_READINESS_CHECKLIST.md` (v0.5) | Verdict, audits, four Gate C post-audit deltas, failure review, kickoff checklist | Always second |
 | `01_PRODUCT_VISION_AND_SCOPE.md` | Vision, boundary types A–E, scope fences | Scope questions |
 | `02_MARKET_AND_COMPETITOR_RESEARCH.md` (v0.2) | Competitor matrix/profiles/SWOT, monetization anchors | Positioning questions |
 | `02A_COMPETITOR_CASE_STUDIES.md` (v0.3) | Deep case studies: feature + settings catalogues, UI anatomy, gestures, decode/subtitle internals, adoption status | "How does app X actually do it?" |
@@ -117,18 +117,18 @@ Per-document Q-sets: doc 04 Q1–Q14 (**Q12, Q13, Q14 all closed**) · 05 NQ1–
 | `05_NON_FUNCTIONAL_REQUIREMENTS.md` | NFR targets (provisional `[T]`) | Quality-target questions |
 | `06_UX_SCREEN_AND_STATE_SPECIFICATION.md` | SCR-001…018, states, design system, wireflows | UI questions / design work |
 | `07_MEDIA_COMPATIBILITY.md` | A–X tier matrix, claims discipline | Format/claims questions |
-| `08_TECHNOLOGY_EVALUATION_AND_ADRS.md` (v0.5) | Stack evaluation, ADR-001…013, RQ-01…16 spike defs (+ the authority split with 08A) | Before any tech work |
-| `08A_SPIKE_RUNBOOKS.md` (v0.1) | **Spike runbooks:** S1–S10 operating rules, B0.0 instrumentation, scheduling map, per-spike cards, result template, RB-1…RB-6 | Immediately before **any** B0 work — including procurement and corpus building |
-| `08B_B0_KICKOFF.md` (v0.1) | **B0 kickoff pack:** OD decision briefs, DEP-005 device-lab specification, week-one sequence, owner answer sheet | When asking the owner for decisions, or buying the device lab |
+| `08_TECHNOLOGY_EVALUATION_AND_ADRS.md` (v0.6) | Stack evaluation, ADR-001…013, RQ-01…16 spike defs (+ the authority split with 08A; §6.2 Part 32 notes) | Before any tech work |
+| `08A_SPIKE_RUNBOOKS.md` (v0.2) | **Spike runbooks:** S1–S10 operating rules, B0.0 instrumentation, scheduling map with derived device requirement, per-spike cards, result template, RB-1…RB-7 | Immediately before **any** B0 work — including procurement and corpus building |
+| `08B_B0_KICKOFF.md` (v0.2) | **B0 kickoff pack:** OD decision briefs, DEP-005 device-lab specification (§3.5 fleet growth), week-one sequence, owner answer sheet | When asking the owner for decisions, or buying the device lab |
 | `09_ARCHITECTURE_AND_DATA.md` | Modules, threading, data model, no-backend rationale | Before any build work |
 | `10_SECURITY_PRIVACY_AND_COMPLIANCE.md` | THR-001…015, privacy inventory, compliance register | Privacy/security/store-form questions |
 | `11_LICENSING_AND_DEPENDENCIES.md` (v0.2) | Component/patent registers, LGPL process, L1–L8 | Before adding ANY dependency |
 | `11A_LEGAL_BRIEFS.md` (v0.1) | **Counsel briefs L1/L2** — sendable as-is: facts, readings for correction, numbered questions, fallbacks | When engaging counsel for L1/L2 |
-| `12_QA_AND_TEST_STRATEGY.md` | TST suites, fixtures, device matrix, Release Gates | Any test planning |
+| `12_QA_AND_TEST_STRATEGY.md` (v0.3) | TST suites, fixtures, device matrix, Release Gates | Any test planning |
 | `13_PERFORMANCE_BENCHMARKING.md` | MB-01…12, claim policy | Any performance claim/question |
 | `14_ANALYTICS_AND_SUPPORT.md` | EV registry, report bundles, support workflow | Diagnostics/support work |
 | `15_MONETIZATION_AND_OPERATIONS.md` | Monetization A–E, S1–S10, rollout, maintenance, EOL | Store/monetization/ops work |
-| `16_ROADMAP_AND_ESTIMATES.md` (v0.4) | Trains, phases B0–B7 `[E]`, B0 sizing flag, DEP register, roles | Planning/sizing questions |
+| `16_ROADMAP_AND_ESTIMATES.md` (v0.5) | Trains, phases B0–B7 `[E]`, B0 sizing flag, DEP register, roles | Planning/sizing questions |
 | `17_RISKS_ASSUMPTIONS_AND_DECISIONS.md` | Canonical registers + DoR/DoD + change process | Any change; status lookups |
 | `research/*.md` | W1–W4 raw sourced evidence | When a claim needs its source |
 
@@ -139,5 +139,5 @@ Per-document Q-sets: doc 04 Q1–Q14 (**Q12, Q13, Q14 all closed**) · 05 NQ1–
 - **Industry practice first — standing rule.** Before designing a behaviour, default, interaction, mechanism **or constant** from first principles, establish what shipping products do and why; adopt it when practice is settled and our constraints do not conflict; record deviations with the practice, the reason and who accepted them. Full rule, method and the classification of the current decision set: **17 §1.3**. Three rounds of this engagement have now found spec values that were invented rather than looked up — see Parts 24, 26 and 27 in doc 00 §7.
 - **Version control:** the workspace **is** a git repository (initialized 2026-10-19, branch `main`). All **33** markdown files (24 documents + 9 research notes) plus `.gitignore`/`.gitattributes` are tracked and committed. Every part ends with a commit; **commit before starting any revision** so a revert is always one command away. Note the constraint nuance: this repository versions the *documents*; it is not application repository scaffolding — no app code, project files, or dependencies exist (see Part 25 in doc 00 §7).
 - **Dates:** research accessed 2026-10-18; synthesis and all doc v0.1 drafting 2026-10-19; W5 case studies, the propagation pass, W6 (auto-advance), W7 (decoder labelling), W8 (interface constants), W9 (platform constants) and W10 (permissions, gesture exclusion, caption standards) 2026-10-19. Recheck-flagged facts age — see "recheck before release" items before any launch-related decision.
-- **Part counter:** last logged = **Part 31**; next continuation = **Part 32**. Log it.
-- **B0 is not "just run the spikes".** Three prerequisites must exist first, and two of them are absent from doc 08's spike table: the **device lab** (DEP-005 — order on day one; 11 of 16 spikes cannot run without it), the **B0.0 instrumentation** (fixture corpus + harnesses, doc 12 §5/§7), and the **ASS quality bar** that is RQ-06's pass criterion (08A RB-5, doc 08 T6). Authority: `08A_SPIKE_RUNBOOKS.md`; sizing consequences: doc 16 v0.3 §2 (B0 sizing flag) with Q16-6/Q16-7.
+- **Part counter:** last logged = **Part 32**; next continuation = **Part 33**. Log it.
+- **B0 is not "just run the spikes".** Three prerequisites must exist first, and two of them are absent from doc 08's spike table: the **device lab** (DEP-005 — order on day one; 11 of 16 spikes cannot run without it), the **B0.0 instrumentation** (fixture corpus + harnesses, doc 12 §5/§7), and the **ASS quality bar** that is RQ-06's pass criterion (08A RB-5, doc 08 T6). Authority: `08A_SPIKE_RUNBOOKS.md`; sizing consequences: doc 16 v0.5 §2 (B0 sizing flag) with Q16-6/Q16-7. **Two rules this engagement learned the hard way, both from Part 32:** never buy a device *for* a decode deficiency (it manufactures the spike's expected result — D-27), and the B0 lab is a **subset** of doc 12 §6's matrix fleet, procured as one fleet that grows (`08B` §3.5 — D-23).

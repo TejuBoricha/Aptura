@@ -1,6 +1,6 @@
 # 12 — QA Strategy, Test Plan, and Acceptance Criteria
 
-**Version:** 0.2 (draft; v0.2 adds the TST-QUEUE end-of-item suite)
+**Version:** 0.3 (draft; v0.3 cross-references `08B` §3/§3.5 as the procurement plan that **closes toward** this document's §6 matrix — the B0 lab is a subset of it, not a separate fleet (Part 32, D-23); v0.2 adds the TST-QUEUE end-of-item suite)
 **Date:** 2026-10-19
 **Status:** Draft. **Nothing in this document has been executed.** No test results exist; no device or benchmark claims are made anywhere in this package. All numeric budgets marked `[T]` are provisional QA targets to be ratified at Gate A (doc 18). This document defines *what the suites cited across docs 04/05/10 actually are* and how quality is proven before release.
 **Consumes:** 04 (FRs + TST refs), 05 (NFRs + verification methods), 07 (tier matrix — testing gates every claim), 09 (states/architecture), 10 (privacy proofs, threat register), 11 (license CI gate).
@@ -133,7 +133,7 @@ Case IDs allocate inside these suites exactly as already cited (e.g. `TST-SCAN-0
 | Emulator roles | API grid for logic/instrumented only; **never the authority for playback/codec claims** (no codec claims from emulators) |
 | Farm | Commercial device farm MAY supplement breadth; still not codec authority |
 
-The concrete device list + purchase budget is locked in the build phase (doc 16 footing); `TST-CMPT` runs happen on the §6 matrix, not on borrowed devices.
+The concrete device list + purchase budget is locked in the build phase (doc 16 footing); `TST-CMPT` runs happen on the §6 matrix, not on borrowed devices. **Procurement is specified in `08B` §3 as one fleet that grows into this matrix:** B0 buys a subset (the 11 device-dependent spikes), and later purchases must close uncovered matrix items rather than start a second fleet (Part 32, D-23).
 
 ---
 
