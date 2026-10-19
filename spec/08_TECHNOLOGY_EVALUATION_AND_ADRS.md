@@ -1,6 +1,6 @@
 # 08 — Technology Evaluation and Architecture Decision Records
 
-**Version:** 0.4 (draft; all choices are provisional hypotheses gated by the spike program in §6; v0.4 adds **RQ-16** — verify on retail builds that the **media-session notification exemption** and **gesture exclusion rects** behave as documented, the two platform assumptions the specification now depends on — bumping the set to RQ-01…16; v0.3 adds **RQ-15** — adaptive layout across breakpoint changes (rotation, foldable, split-screen), the empirical half of the now-breakpoint-based layout spec; v0.2 adds §6.1 prior-art notes from doc 02A)
+**Version:** 0.5 (draft; all choices are provisional hypotheses gated by the spike program in §6; v0.5 adds the **procedure layer** — `08A_SPIKE_RUNBOOKS.md`: operating rules S1–S10, the B0.0 instrumentation prerequisite, the scheduling map, per-spike runbook cards RQ-01…16, procurement implications and the result template; v0.4 adds **RQ-16** — verify on retail builds that the **media-session notification exemption** and **gesture exclusion rects** behave as documented, the two platform assumptions the specification now depends on — bumping the set to RQ-01…16; v0.3 adds **RQ-15** — adaptive layout across breakpoint changes (rotation, foldable, split-screen), the empirical half of the now-breakpoint-based layout spec; v0.2 adds §6.1 prior-art notes from doc 02A)
 **Date:** 2026-10-19
 **Status:** Draft. No technology has been tested, benchmarked, or integrated by us. Scores below are **reasoned comparisons** labeled `[I/E]`, built on `research/platform.md` and `research/licensing.md` evidence; the spike program (§6) decides for real in the build phase. **No spike has been run.**
 **Consumes:** 01 (scope/platform), 05 (NFRs), 07 (compatibility tiers), `research/platform.md`, `research/licensing.md`.
@@ -142,6 +142,8 @@ Context: scan/thumbnail scheduling (FR-LIB-004/009). Decision: constrained jobs,
 
 **Governance:** each spike is timeboxed, has the hypothesis/pass-fail below, produces an evidence artifact (results table + fixtures) filed under doc 13/18, and its decision is recorded in the ADR + doc 17. **A spike is not allowed to become a product milestone silently.**
 
+**How a spike is run:** `08A_SPIKE_RUNBOOKS.md` is the procedure layer for this section — operating rules S1–S10 (fixtures pinned before the run, timebox expiry means *inconclusive*, independent re-adjudication, conditions recorded with every figure), the **B0.0 prerequisite stage** (the fixture corpus and measurement harnesses this table assumes but never lists), the scheduling map by binding prerequisite, a runbook card per spike, the lab/procurement implications, and the result-artifact template. **Division of authority:** this document is authoritative for *what* each spike decides and *what counts as pass or fail*; 08A is authoritative for *how a run is conducted, recorded and adjudicated*. Where 08A sharpened a criterion to make it runnable, the amendment belongs here.
+
 | ID | Question (from 00 §3.4) | Hypothesis | Method (build phase) | Pass/Fail thresholds (provisional) | Unblocks |
 |---|---|---|---|---|---|
 | RQ-01 | Media3(+audio ext) conformance on the personal-library corpus | PASS expected on doc 07 A-tier cells; degradation only in B/C | 30-file fixture corpus per doc 12 across D1–D3; classify per FR-PLAY-004; measure NFR-PERF-003/004/006 | PASS: all A cells play; ≥99% sessions reach first frame; seeks within NFR targets on D2. FAIL: systematic A-cell failure → engine fallback review | ADR-001, doc 07 promotions |
@@ -179,3 +181,4 @@ These are **documented competitor behaviours**, not measurements — they tell t
 | T3 | Tunneling-mode playback implications for PiP/stats overlay on Media3 | 09 |
 | T4 | Whether Chromecast/HDMI-out testing belongs to doc 12 matrix (out-of-scope vs cheap win) | 12 |
 | T5 | Gradle/CI environment reproducibility spec (exact toolchain pins) | 15/16 |
+| T6 | **RQ-06 has no pass criterion until the ASS "agreed quality bar" is written down** — an undefined bar is not a threshold (08A RB-5). Must exist *before* the comparison runs | 07/06 |

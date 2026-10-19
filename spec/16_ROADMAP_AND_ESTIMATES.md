@@ -1,8 +1,8 @@
 # 16 — Roadmap, Dependencies, Roles, and Estimates
 
-**Version:** 0.2 (draft; v0.2 restates de-scope item 3 by **window width** — "the 840dp+ two-pane layout" — instead of by device, consistent with doc 06 §3's breakpoint model, and adds **RQ-15** (adaptive layout) and **RQ-16** (notification exemption + gesture exclusion) to the B0 phase within its existing range. v0.1: roadmap, release trains, phases, DEP register, roles, de-scope ladder)
+**Version:** 0.3 (draft; v0.3 adds **B0.0 — instrumentation** as the named prerequisite stage of the spike program and corrects DEP-005's path classification (it gates most of B0, so it is on the *B0* critical path even though it is off the *launch* path) — both surfaced by `08A_SPIKE_RUNBOOKS.md` §2/§5; v0.2 restates de-scope item 3 by **window width** — "the 840dp+ two-pane layout" — instead of by device, consistent with doc 06 §3's breakpoint model, and adds **RQ-15** (adaptive layout) and **RQ-16** (notification exemption + gesture exclusion) to the B0 phase within its existing range. v0.1: roadmap, release trains, phases, DEP register, roles, de-scope ladder)
 **Date:** 2026-10-19
-**Status:** Draft. **Planning ranges only — no calendar dates, no commitments.** Timeline and budget are unknown (ASM-006, OD-4 pending), so this document is phase-relative by design. Every size is an `[E]` estimate in dev-weeks with stated assumptions; calibration happens after the spike program (doc 08, RQ-01…15) replaces hypothesis with evidence.
+**Status:** Draft. **Planning ranges only — no calendar dates, no commitments.** Timeline and budget are unknown (ASM-006, OD-4 pending), so this document is phase-relative by design. Every size is an `[E]` estimate in dev-weeks with stated assumptions; calibration happens after the spike program (doc 08 definitions + `08A_SPIKE_RUNBOOKS.md` procedures, RQ-01…16) replaces hypothesis with evidence.
 **Consumes:** 01 (scope fences), 08 (spikes/ADRs), 11 (legal gates), 12/13 (hardening/bench programs), 15 (launch ops).
 **Feeds:** 17 (dependency register consolidation), 18 (readiness).
 
@@ -27,7 +27,7 @@ Assumptions: 2–4 engineers (ASM-005), part-time design, spec package as input,
 
 | Phase | Contents | Key inputs | Size `[E]` |
 |---|---|---|---|
-| **B0 — Spikes** | RQ-01 (engine conformance), RQ-03 (HEVC/AV1 10-bit reality), RQ-05 (scan at scale), RQ-06 (ASS feasibility), RQ-07 (process-death), RQ-08 (billing offline), RQ-13 (Compose on D1), RQ-14 (ABI/splits), **RQ-15 (adaptive layout across breakpoint changes — added Part 28; absorbed within this range because it needs instrumentation, not additional device classes)**, **RQ-16 (media-session notification exemption + gesture exclusion on retail builds — added Part 29; absorbed, as it runs on the lab devices already in scope)**; legal L1/L8 opened with counsel; long-lead store items S1/S2/S8 started | Doc 08 spike definitions; device lab minimum (≥1 device/class D1–D3) | 4–8 |
+| **B0 — Spikes** | RQ-01 (engine conformance), RQ-03 (HEVC/AV1 10-bit reality), RQ-05 (scan at scale), RQ-06 (ASS feasibility), RQ-07 (process-death), RQ-08 (billing offline), RQ-13 (Compose on D1), RQ-14 (ABI/splits), **RQ-15 (adaptive layout across breakpoint changes — added Part 28; absorbed within this range because it needs instrumentation, not additional device classes)**, **RQ-16 (media-session notification exemption + gesture exclusion on retail builds — added Part 29; absorbed, as it runs on the lab devices already in scope)**; legal L1/L8 opened with counsel; long-lead store items S1/S2/S8 started | Doc 08 spike definitions + 08A runbooks; **B0.0 instrumentation first** (fixture corpus + adversarial/scale corpora + seek and state-restoration harnesses — a prerequisite the spike list did not contain; 08A §2); device lab minimum (≥1 device/class D1–D3) **ordered on day one** (see B0 sizing flag) | 4–8 (⚠ see B0 sizing flag) |
 | **B1 — Foundations** | Repo/CI (incl. license deny-list gate), signing setup, module skeleton per doc 09, local crash plumbing, design tokens from doc 06, store accounts & verification | B0 ADR locks | 3–5 |
 | **B2 — Library & scan** | FR-LIB catalogue: MediaStore/SAF ingestion, scan pipeline, identity/reconciliation, thumbnails, browser UI (SCR-002…009, 011, 012) | B1; doc 09 data model | 6–10 |
 | **B3 — Player core** | FR-PLAY/FR-CTRL: Media3 integration, decode election + honest fallback, gestures, PiP, session machine, audio track election | B0 engine lock (ADR-001); licensing clearance for any bundled decode | 8–12 |
@@ -37,6 +37,11 @@ Assumptions: 2–4 engineers (ASM-005), part-time design, spec package as input,
 | **B7 — Launch ops** | Staged rollout (doc 15 §5), vitals watch, hotfix readiness, support live | Gate B passed; Gate C thresholds armed | 2–3 |
 
 **R1 total `[E]`: ≈34–56 dev-weeks** (not elapsed time — divide by effective parallel engineer count; design/legal/support are parallel tracks, not counted). Calibration rules: re-estimate at every phase exit; B0 outcomes are the biggest uncertainty killer; ranges never silently become promises (doc 17 DoD).
+
+**B0 sizing flag (surfaced by 08A §5 — must be resolved before B0 is scheduled as a plan).** This range was set before the spikes existed as procedures. Two corrections follow from writing them out:
+
+1. **B0 has an unlisted stage zero.** Nearly every spike's method depends on the fixture corpus (doc 12 §5) and the measurement harnesses (doc 12 §7). Neither exists yet and neither is a spike output, so **B0.0 — instrumentation** precedes all spike runs (08A §2). Whether B0.0 sits *inside* the 4–8 window or is additive to it is not stated anywhere; until answered, the range is ambiguous by the size of the corpus-plus-harness work `[E]` (Q16-6).
+2. **The range assumes concurrency.** Summed sequentially, 08A §4's per-spike timeboxes total ≈**18 dev-weeks `[E]`**, before B0.0. The 4–8 range is therefore only achievable with several engineers running spikes in parallel (and with B0.0 amortised). **With a single engineer on B0 the range is not achievable and should be re-based rather than quietly missed** (Q16-7, owner input OD-4). The timeboxes themselves are `[E]` and uncalibrated until the first three spikes close, at which point the remainder should be re-derived from actuals.
 
 **Parallel tracks (not in phase sizes):** legal L1–L8 (doc 11), design translation of doc 06, device-lab procurement (long lead — start in B0), community/support standing setup, privacy-policy hosting.
 
@@ -50,7 +55,7 @@ Assumptions: 2–4 engineers (ASM-005), part-time design, spec package as input,
 | DEP-002 | Legal L1: LGPL §6 relinking verdict | Bundled FFmpeg audio ext inclusion | owner + counsel | Fallback = ship without ext (doc 11 §3.5); no launch dependency |
 | DEP-003 | Legal L2: AC-3/E-AC-3 confirmations | FR-AUD-007 add-back (R1.x) | counsel | Default posture already excludes bundled decode |
 | DEP-004 | OD-4 (team/budget/time) | Calendar conversion of all sizes; device-lab scope | owner | Ranges stand alone meanwhile |
-| DEP-005 | Device lab procurement (≥1/class + SD + HDR device) | B6 benchmarks; TST-CMPT runs | owner | Order in B0; farm as supplement not substitute |
+| DEP-005 | Device lab procurement (≥1/class **D1–D3** + SD-bearing + HDR-declaring + ≥90 Hz + OEM-skinned devices; exact scope in 08A §5) | **11 of the 16 B0 spikes** (08A §3 groups C/D) **plus** B6 benchmarks and TST-CMPT runs | owner | **Order on day one of B0.** It is on the ***B0* critical path** (spike elapsed time) even though it is off the *launch* path (§7); farm as supplement not substitute; interim borrow strategy = Q16-5 |
 | DEP-006 | Privacy-policy hosting + support channel (Q14-1/2) | Store listing S4/S6 | owner | Static page, no-analytics provider (OQ15-3) |
 | DEP-007 | Developer verification (S2) completion | Distribution availability | owner | Start early; regional rollout documented (W4) |
 | DEP-008 | Closed-testing recruitment (12 testers/14 days if required) | Production launch | owner | Beta cohort doubles as signal source (doc 14 §7) |
@@ -104,7 +109,7 @@ Assumptions: 2–4 engineers (ASM-005), part-time design, spec package as input,
 
 **Spikes (B0) → ADR-001 engine lock → Player core (B3) → Subtitles depth (B4) → Hardening/beta (B6) → Launch ops (B7).**
 
-Off-path but launch-relevant long leads: store verification (S2), closed-testing clock (S8), device procurement (DEP-005), privacy/support surfaces (DEP-006). Legal L1/L2 is *not* on the R1 critical path — the design deliberately survives its failure (doc 11 §3.5).
+Off the launch path but still long-lead and time-sensitive: store verification (S2), closed-testing clock (S8), privacy/support surfaces (DEP-006). **DEP-005 (device lab) is a special case and must not be read as parallel-to-B0:** it is off the *launch* path, but it is on the ***B0* critical path** — 11 of the 16 spikes cannot run without it (08A §3/§5) — so it is ordered on day one of B0, not at B6. Legal L1/L2 is *not* on the R1 critical path — the design deliberately survives its failure (doc 11 §3.5).
 
 ---
 
@@ -126,3 +131,5 @@ Off-path but launch-relevant long leads: store verification (S2), closed-testing
 | Q16-3 | Support staffing model at launch (Q14-5) | Owner |
 | Q16-4 | Whether the open-testing stage (doc 15 §5) is worth the extra clock vs. closed→staged | 15/16 |
 | Q16-5 | Device-lab interim strategy before DEP-005 lands (borrow vs. farm-first) | 16/12 |
+| Q16-6 | Is **B0.0** (fixture corpus + measurement harnesses) inside the 4–8 dev-week B0 range, or additive to it? (08A RB-1) | 16/12 |
+| Q16-7 | How many engineers run B0 concurrently? The 4–8 range assumes concurrency; one engineer → re-base (08A RB-2, OD-4) | Owner |
