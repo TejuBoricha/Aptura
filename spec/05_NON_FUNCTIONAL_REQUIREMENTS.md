@@ -1,6 +1,6 @@
 # 05 — Non-Functional Requirements (NFRs)
 
-**Version:** 0.3 (draft; every target is provisional and unmeasured; v0.3 completes the Play vitals threshold context — wake locks, battery, bitmap memory, DEX optimisation — and records where our targets are deliberately stricter; v0.2 added the FR-CTRL-017 auto-advance clause)
+**Version:** 0.4 (draft; every target is provisional and unmeasured; v0.4 **removes the notification permission from NFR-PRIV-004** — Android documents media-session notifications as exempt from `POST_NOTIFICATIONS`, so requesting it would have spent a user prompt for nothing — and records the condition that preserves the exemption (R1 posts no non-media notifications); v0.3 completes the Play vitals threshold context — wake locks, battery, bitmap memory, DEX optimisation — and records where our targets are deliberately stricter; v0.2 added the FR-CTRL-017 auto-advance clause)
 **Date:** 2026-10-19
 **Status:** Draft. **No figure in this document is a measured result.** Every threshold is a provisional target (`[T]`), with rationale and verification method, to be validated or revised by doc 13 (benchmark protocol) and doc 12 (tests). Thresholds without direct evidence are additionally labeled `[E]`.
 **Consumes:** 01 (scope/platform), 04 (FRs), `research/platform.md`, `research/licensing.md`, `research/competitors.md` (via 02).
@@ -264,8 +264,8 @@ Each record: **ID — Title** (MUST/SHOULD, release) · **Statement** (normative
 **Verification:** design review + fixture tests when implemented.
 
 #### NFR-PRIV-004 — Permission minimalism
-**MUST · R1** · **Statement:** request only: media read (per OS band), and FGS/notification permissions when background audio is enabled; each with in-context explanation (FR-LIB-002); no location/contacts/identifiers beyond what stores require.
-**Verification:** manifest audit + onboarding tests.
+**MUST · R1** · **Statement:** request only: media read (per OS band) and the **foreground-service** permission(s) required for background audio; **no notification permission is requested or declared** — media-session notifications are exempt from `POST_NOTIFICATIONS` per Android's documented exemption list, and that exemption is preserved by the R1 rule that no non-media notification is ever posted (FR-PLAT-002). Each request carries an in-context explanation (FR-LIB-002); no location/contacts/identifiers beyond what stores require.
+**Verification:** manifest audit + onboarding tests, **including a negative check that no `POST_NOTIFICATIONS` declaration exists**.
 
 #### NFR-PRIV-005 — Children and family policy
 **MUST · R1** · **Statement:** product is not directed at children; no accounts/collection; store family-policy compliance reviewed in doc 10; content rating setup truthful (doc 15).

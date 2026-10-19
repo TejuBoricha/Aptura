@@ -1,6 +1,6 @@
 # 18 — Traceability, Gap Audit, and Readiness Verdict
 
-**Version:** 0.3 (draft — final review artifact; v0.3 adds **Gate C post-audit delta 2** for doc 04 v0.7 (Parts 24–28, D-10…D-15) and confirms the verdict; v0.2 added the Gate C post-audit delta review for doc 04 v0.3)
+**Version:** 0.4 (draft — final review artifact; v0.4 adds **Gate C post-audit delta 3** for doc 04 v0.8 / doc 05 v0.4 (Part 29, D-16…D-19) and confirms the verdict; v0.3 added **delta 2** for doc 04 v0.7 (Parts 24–28, D-10…D-15); v0.2 added the first post-audit delta for doc 04 v0.3)
 **Date:** 2026-10-19
 **Status:** Final deliverable of the specification engagement. **The verdict at the end of this document is the package's readiness verdict.** This review was performed against the master prompt's §21 (failure-mode review), §22 (deliverables), §23 (quality gates), and §24 (execution order), on all documents at their recorded versions (01–17 v0.1, 02/04 v0.2 at audit time; doc 04 is now v0.3 — see the Gate C post-audit delta in §3). No app code exists; no benchmark was run; no device was tested — those claims would be false and are not made.
 **Consumes:** every document 00–17.
@@ -157,6 +157,19 @@ Parts 24–28 changed doc 04 four more times (v0.4 → v0.7), and docs 05/06/16/
 | D-15 | FR-LIB-011 gains default sort + density; FR-CTRL-002 gains the 3 s previous-item boundary; FR-PLAY-005 names `SeekParameters` (Part 28) | Do any of these contradict an existing requirement or NFR? | **No** — all three fill absences. The sort default is recorded *together with* the platform constant that contradicts it, which is the opposite of an unsourced claim |
 
 **Gate C remains PASS** across delta 2. No contradiction, no untestable requirement, no fabricated target. **Verdict (§7) unchanged: READY FOR TECHNICAL SPIKES**, with doc 04 **v0.7** authoritative.
+
+### Spec Gate C — post-audit delta 3 (doc 04 **v0.8**, doc 05 **v0.4**, Part 29)
+
+One more pass over a previously unaudited layer (W10: permissions, gesture exclusion, caption presentation standards) changed two MUSTs and one NFR. Delta review:
+
+| # | Delta | Gate C question | Result |
+|---|---|---|---|
+| D-16 | FR-PLAT-002: no notification permission requested or declared; no non-media notifications in R1 | Does dropping a permission weaken an existing requirement, or create a silent failure? | **It strengthens NFR-PRIV-004 and DH-3** — Android documents the media-session exemption, so no prompt is needed and none should be shown. The residual risk is the *condition*, which is why the invariant is written into the requirement: posting any non-media notification breaks the exemption. A manifest-negative check and a non-media-notification check are now ACs |
+| D-17 | FR-PLAT-002: media controls are derived from `PlaybackState` on Android 13+ | Is this a new platform dependency that could fail? | **Documented platform behaviour**, not our mechanism — it is how the system renders controls for any app targeting 13+. Stating it removes a design assumption rather than adding a dependency. RQ-16 verifies it end-to-end |
+| D-18 | FR-CTRL-013: the blanket ban on controls in gesture zones is replaced by the documented exclusion-rect mechanism and its 200dp-per-side cap | Was the original ban a requirement, or an error? | **An error against documented practice** — the platform names "dragging a SeekBar thumb" as the case that *warrants* exclusion, so the ban forbade the platform's own solution for our single most precision-dependent control. Two narrower prohibitions remain, and both reflect real limits (mandatory insets are not excludable; tap targets gain nothing at the edge) |
+| D-19 | FR-SUB-008: "legibility-first" replaced by an explicit author-envelope rule, delegation to system captions as the default, and language-specific cps bands | Is this testable, and does it over-claim? | **More testable than before** — "42 characters fit on one line", "no re-wrapping", "no silent reset of a system caption override" are all checkable, and doc 13 already owns the method. It does **not** claim we enforce Netflix's guides: they are cited as evidence of the envelope authors compute against, and the requirement is only that our defaults do not invalidate it |
+
+**Gate C remains PASS** across delta 3. No contradiction, no untestable requirement, no fabricated target. **Verdict (§7) unchanged: READY FOR TECHNICAL SPIKES**, with doc 04 **v0.8** authoritative.
 
 ---
 
