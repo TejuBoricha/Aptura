@@ -1,6 +1,6 @@
 # 17 — Consolidated Registers, DoR/DoD, and Change Process
 
-**Version:** 0.3 (draft; v0.3 adds **§1.3 — the industry-practice-first decision rule** with the classification of the current decision set; v0.2 added RSK-015 and the doc 02A question pointers)
+**Version:** 0.4 (draft; v0.4 adds step 6 to the §1.3 method — **audit the specification's constants, not only its behaviours** — and records invented constants as the third class of error the rule exists to prevent; v0.3 added the rule and the decision-set classification; v0.2 added RSK-015 and the doc 02A question pointers)
 **Date:** 2026-10-19
 **Status:** Draft — **this document is the canonical home** for the DEC / ASM / RSK / DEP registers and for the Definition of Ready/Done. Where earlier documents hold originals (00 §3, 08, 16 §3), this register supersedes for lookup while preserving the original context. IDs are frozen; nothing is silently renumbered (change rules §7).
 **Consumes:** every prior document.
@@ -54,10 +54,11 @@ Pointer table (details, alternatives, consequences in doc 08; several are *provi
 
 **Rule (standing — binds every future decision).** Before a behaviour, default, interaction, or mechanism is designed from first principles, establish what shipping products in this category do and why. If practice is settled and our constraints do not conflict, **adopt it**. That is the default path, not a compromise, and it does not need further justification. If we deviate, the deviation is recorded with (a) the practice, (b) why it does not suit us, (c) who accepted it. Designing from scratch is legitimate only when practice is **absent**, **contradictory**, or **demonstrably worse** — and the entry must say which of the three applies.
 
-**Why this rule exists.** It was adopted after the opposite approach produced two avoidable errors in one engagement:
+**Why this rule exists.** It was adopted after the opposite approach produced three avoidable classes of error in one engagement:
 
 1. **Auto-advance (Part 24).** The end-of-item default was set to *stop* by a reversibility argument. Research found every comparable product defaults auto-advance **ON** with a cancellable countdown, and that the one comparable which defaulted OFF reports the OFF default generates support load. The reasoning was not wrong in spirit — it applied the reversibility instinct to the wrong lever. See `research/autoplay_defaults.md`.
 2. **Decoder labels (Part 26).** Q13 framed the question as technical *or* outcome language. Practice shows it is neither: every vendor pairs a technical term with a when-to-use sentence, and the one vendor shipping bare tokens carries a documented support cost. See `research/decoder_label_practice.md`.
+3. **Invented constants (Part 27).** The rule had been applied to behaviour and mechanism, but not to *numbers* — which is where it is easiest to skip, because a plausible value does not feel like an invention. An audit of every constant found four invented ones (asymmetric 10 s/30 s seek steps, which turn out to be **Hulu's** ad-break pattern rather than the category default; a 3 s auto-hide timeout that overrode the documented default of the library we had already chosen; an undefined speed ladder; an unnamed sleep-timer ladder) plus one requirement that contradicted another about the same control. See `research/interface_defaults.md`.
 
 **Method — how to establish "the practice" (desk-only, cheap):**
 1. The vendor's **own help centre / official docs** `[V1]` — settings trees, option semantics, and, most importantly, **defaults**.
@@ -65,6 +66,7 @@ Pointer table (details, alternatives, consequences in doc 08; several are *provi
 3. **Reviews and forums** `[R]` — evidence of pain, never proof of behaviour.
 4. Read the **option tree and its defaults**, not the marketing page.
 5. **Count the vendor's own support burden.** If a vendor maintains support articles explaining its own labels, or third parties publish explainers, that is evidence *against* the pattern — not merely neutral.
+6. **Audit our own constants, not just our behaviours.** The rule is easiest to skip on *numbers* — timeouts, step sizes, preset ladders, thresholds — because a plausible-looking value does not feel like an invention. Run a pass over every value in the specification (W8, Part 27: four were invented; one internally contradicted another requirement). The cheapest possible alignment is a number inherited from a stack we already chose: Media3's own `DEFAULT_SHOW_TIMEOUT_MS` is a better authority for our auto-hide timeout than any competitor's behaviour.
 
 **Deviation protocol.** A deviation is not a defect, but it must be classified and visible. Use the table below; a deviation of material cost becomes an owner decision rather than a silent choice.
 
@@ -72,7 +74,7 @@ Pointer table (details, alternatives, consequences in doc 08; several are *provi
 
 #### Classification of the current decision set
 
-Reviewed 2026-10-19 against docs 02/02A and the W1–W7 research notes. "Deviating" rows are deliberate and are rechecked at each release gate.
+Reviewed 2026-10-19 against docs 02/02A and the W1–W8 research notes. "Deviating" rows are deliberate and are rechecked at each release gate.
 
 | Decision | What shipping products do | Our choice | Classification |
 |---|---|---|---|
@@ -90,8 +92,13 @@ Reviewed 2026-10-19 against docs 02/02A and the W1–W7 research notes. "Deviati
 | FR-PLAY-003 bounded fallback + restore | VLC does exactly this — one automatic fallback, previous setting restored | same | **Aligned** |
 | File delete of user media | Just Player documents *delete file* as a post-playback action `[V1]` | R2 only; R1 is non-destructive | **Deviating — justified** (destructive capability deferred; R1 keeps "remove from library"; the ENDED surface keeps the action reachable per FR-CTRL-017) |
 | FR-LIB-011 article-ignoring sort | Nova documents it | adopted, off by default | **Aligned** |
+| FR-CTRL-001 auto-hide timeout | Media3 documents **5 s** (`DEFAULT_SHOW_TIMEOUT_MS`); other players do not publish theirs | now 5 s | **Aligned** (was deviating — Part 27) |
+| FR-CTRL-002 seek steps | Symmetric **±10 s** default (VLC, YouTube, Netflix, Disney+); preset ladder 5/10/15/20/30/60 s; multi-tap accumulation | adopted (Part 27) | **Aligned** (was deviating) |
+| FR-CTRL-004 playback speed | YouTube documents the 0.25–2× ladder; Netflix caps at 1.5× and resets per title | ladder adopted; our custom range runs to 4× | **Aligned — deliberately wider** (no creator-relations constraint applies to a local-file player; YouTube's own blog records user requests for 3–4×) |
+| FR-CTRL-009 sleep timer | YouTube: 10/15/20/30/45/60 min + end-of-item, with an **extend prompt** on expiry | adopted (Part 27) | **Aligned** (the ladder was missing) |
+| Default library sort order / view density | **Contradictory** across vendors; none publishes a rationale | not yet decided (**Q14**) | **Unsettled — named.** Designing is legitimate under this rule precisely because practice is contradictory, and it is recorded as a design call rather than dressed up as research |
 
-**Reading of the table:** every *how* decision is aligned or openly justified; the deviations are **scope sequencing** (TV, distribution, destructive file ops) rather than behaviour. No unresolved deviation requires an owner decision at this time — each is already sequenced in docs 15/16 and revisited at R1.x gates.
+**Reading of the table.** Every *how* decision and every audited constant is aligned, openly justified, or explicitly named as unsettled. The deviations are **scope sequencing** (TV, distribution, destructive file ops) rather than behaviour, so no deviation requires an owner decision at this time — each is already sequenced in docs 15/16 and revisited at R1.x gates. After Part 27 the only genuinely *unsettled* item is **Q14**, where a design call is the correct answer rather than more research.
 
 ---
 

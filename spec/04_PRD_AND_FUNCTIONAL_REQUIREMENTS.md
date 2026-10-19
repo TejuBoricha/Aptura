@@ -1,6 +1,6 @@
 # 04 — PRD and Functional Requirements Catalogue
 
-**Version:** 0.5 (Part E: **Q13 closed against industry practice** — FR-PLAY-003 decoder controls now specify the settled labelling pattern (technical name + when-to-use description, `Auto` as default, a global setting *and* a per-item override) and explicitly forbid bare HW/SW tokens as the only label; sourced in `research/decoder_label_practice.md`. Part D retained: Q12 auto-advance default ON with a 10 s cancellable countdown, 2 h inactivity guard, stop-only when no queue)
+**Version:** 0.6 (Part F: **interface constants audited against documented defaults** — FR-CTRL-002 seek steps changed to symmetric ±10 s with multi-tap accumulation; FR-CTRL-001 auto-hide 3 s → 5 s (Media3's own default); FR-CTRL-004 and FR-CTRL-009 preset ladders named; FR-PLAY-005 internal contradiction with FR-CTRL-002 fixed; Q14 opened for the one constant practice does not settle. Sourced in `research/interface_defaults.md`. Parts D–E retained: Q12 auto-advance ON with a 10 s cancellable countdown + 2 h inactivity guard; Q13 decoder labelling)
 **Date:** 2026-10-19
 **Status:** Draft. All requirements follow the convention below; priority/release tags are frozen per DEC-001…010 in doc 00 §3.3. Acceptance criteria are written to be testable; test IDs are placeholders finalized in doc 12.
 **Consumes:** 01 (scope), 03 (personas/journeys/KPIs), doc 00 registers.
@@ -278,7 +278,7 @@ Every requirement uses this compact record (all fields mandated by master prompt
 
 #### FR-PLAY-005 — Seeking
 **MUST · R1 · P0**
-**Statement:** Seeking MUST support relative steps (configurable ±5/10/30 s defaults), scrub-to-position with a preview where cheap, and MUST render the frame at the target within doc 05 budget; seeks during hw limitations (e.g., HEVC slow seek) MUST remap to nearest keyframe with UI honesty, then refine when accurate seeking is possible.
+**Statement:** Seeking MUST support relative steps (steps and defaults per **FR-CTRL-002** — symmetric ±10 s), scrub-to-position with a preview where cheap, and MUST render the frame at the target within doc 05 budget; seeks during hw limitations (e.g., HEVC slow seek) MUST remap to nearest keyframe with UI honesty, then refine when accurate seeking is possible.
 **Need/rationale:** JTBD-01; KPI-REL-04.
 **Errors/recovery:** Unseekable file (weird timestamps) → scrub disabled with explanation (FR-PLAY-019).
 **AC:** Given 10 file classes, When performing 20 seeks each, Then ≥ doc 05 target accuracy within budget and no session interruption.
@@ -387,7 +387,7 @@ Network playback and personalization/intelligence are specified only as **bounda
 #### FR-CTRL-001 — Core transport controls
 **MUST · R1 · P0**
 **Statement:** Tapping the video (or configured equivalent) MUST toggle the control overlay; the overlay MUST provide play/pause, ±seek steps, a position scrubber with time labels, and next/previous when a playlist/queue exists; controls MUST auto-hide per configured timeout and reappear on interaction.
-**Need/rationale:** JTBD-01/06; JRN-02. **States/persistence:** overlay visibility per session; timeout default 3 s (configurable 2–10 s or "never while locked").
+**Need/rationale:** JTBD-01/06; JRN-02. **States/persistence:** overlay visibility per session; timeout default **5 s** — the Media3 `PlayerControlView.DEFAULT_SHOW_TIMEOUT_MS` value, so the app inherits the tested behaviour of its own playback surface instead of overriding it with an invented number (configurable 2–10 s or "never while locked"; `research/interface_defaults.md` §3).
 **Errors/recovery:** Controls remain operable in error states (retry/exit). **Platform:** PiP uses system controls; hardware keys via MediaSession (FR-PLAT-002).
 **A11y/perf:** All controls exposed with roles/labels; targets ≥48 dp; overlay must not drop video frames (NFR-PERF).
 **AC:** Given playback, When tapping, Then controls appear within 100 ms and auto-hide after the configured timeout; near-edge incidental taps don't hide them.
@@ -395,7 +395,7 @@ Network playback and personalization/intelligence are specified only as **bounda
 
 #### FR-CTRL-002 — Seek steps and skip
 **MUST · R1 · P0**
-**Statement:** Configurable forward/back seek steps (defaults 10 s/30 s, per-direction), previous/next item, hold-to-repeat with acceleration (SHOULD); each action gives visible position feedback (time + delta).
+**Statement:** Configurable forward/back seek steps with a **symmetric ±10 s default** and per-direction override (preset ladder 5/10/15/20/30/60 s, plus custom), and the double-tap gesture MUST **accumulate across taps** (3 taps = 20 s, 4 taps = 30 s — the documented VLC and YouTube behaviour); previous/next item, hold-to-repeat with acceleration (SHOULD); each action gives visible position feedback (time + delta). **Symmetric is the settled category default** — VLC (a local-file player, our closest comparable), YouTube, Netflix and Disney+ are all ±10 s; the asymmetric −10/+30 default this requirement previously carried is **the Hulu pattern**, which exists to clear ad-break recaps and has no analogue here (`research/interface_defaults.md` §2).
 **AC:** Given configured 10/30, When skipping, Then position changes by exactly the step (within NFR-SEEK tolerance) with feedback; rapid repeats cannot desync the UI.
 **Tests:** TST-CTRL-06…08. **Confidence:** High.
 
@@ -407,7 +407,7 @@ Network playback and personalization/intelligence are specified only as **bounda
 
 #### FR-CTRL-004 — Playback speed
 **MUST · R1 · P1**
-**Statement:** Presets (0.25×–3×) plus custom entry (0.1×–4.0×); pitch-corrected audio where the platform supports it (disclose when not); speed resets to default on new items unless "remember" is set.
+**Statement:** Preset ladder **0.25 / 0.5 / 0.75 / 1 / 1.25 / 1.5 / 1.75 / 2×** (the documented YouTube set — 1.5× is the most-used speed on mobile per YouTube's own published usage data, then 2×, then 1.25×) plus **custom entry 0.1×–4.0×** for anything outside it; pitch-corrected audio where the platform supports it (disclose when not); speed resets to default on new items unless "remember" is set — which matches Netflix's documented per-title reset semantics ("members must choose to vary the speed each time they watch something new"), so a speed choice is never silently inherited (`research/interface_defaults.md` §4).
 **AC:** Given 2.0× with pitch correction available, Then speech intelligibility per listening protocol (doc 13) and position accuracy hold within tolerance.
 **Tests:** TST-CTRL-11…12. **Confidence:** Med (platform pitch behavior varies).
 
@@ -439,7 +439,7 @@ Network playback and personalization/intelligence are specified only as **bounda
 
 #### FR-CTRL-009 — Sleep timer
 **MUST · R1 · P2**
-**Statement:** Off / end-of-current-item / N minutes (with fade-out SHOULD); countdown visible on demand; timers survive background audio continuation; manual stop clears the timer.
+**Statement:** Off / end-of-current-item / preset durations **10 / 15 / 20 / 30 / 45 / 60 min** (the documented YouTube ladder) plus custom; **on expiry the timer MUST offer an extend affordance**, not only stop (already-shipped YouTube behaviour — a fired sleep timer that can only stop is a dead end); fade-out SHOULD; countdown visible on demand; timers survive background audio continuation; manual stop clears the timer (`research/interface_defaults.md` §5).
 **AC:** Given a 30-min timer, When elapsed, Then stop/pause per setting within ±5 s with fade if enabled.
 **Tests:** TST-CTRL-19. **Confidence:** High.
 
@@ -817,6 +817,7 @@ Network playback and personalization/intelligence are specified only as **bounda
 | Q11 | AC-3/E-AC-3 decode add-back after legal recheck ⚖️ | 11 |
 | Q12 | **CLOSED 2026-10-19** — auto-advance default settled by evidence: **ON when a next item exists**, 10 s cancellable countdown, 2 h inactivity guard, stop-only when no queue. See `research/autoplay_defaults.md` and FR-CTRL-017 | 02A / research W6 |
 | Q13 | **CLOSED 2026-10-19** — the framing was a false dichotomy. Practice is **technical name + when-to-use description**, `Auto` as default, a global setting *and* a per-item override; bare `HW/SW` tokens are forbidden as the only label. See `research/decoder_label_practice.md`, FR-PLAY-003, doc 06 SCR-010e | 02A CS-4 / research W7 |
+| Q14 | **Default library sort order and default view density.** Practice here is genuinely *contradictory* — vendors ship name-first, date-added-first, grid and list, and none publishes a rationale — so this is a legitimate design decision rather than a research question (doc 17 §1.3 covers exactly this case). Needs a one-line call, or a small comparison test, before the library screens are built. FR-LIB-011 deliberately does not state a default | 06 / research W8 §7 |
 
 ## 6. Sources
 

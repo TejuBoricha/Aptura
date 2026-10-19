@@ -25,7 +25,7 @@
 | 17 | Canonical registers: DEC-001…013, ASM-001…013, RSK-001…015 (+RSK-08-01…04 in doc 08), DEP-001…012, DoR/DoD, change process | ✅ |
 | Constraints honored | No code, no scaffolding, no deps, no prototype, no execution claims | ✅ |
 
-**Version map:** doc **04 = v0.5**, doc **06 = v0.3**, doc **02A = v0.3**, doc **17 = v0.3**; docs **05, 07, 08, 09, 12, 18 = v0.2**; doc **02 = v0.2**; everything else = v0.1.
+**Version map:** doc **04 = v0.6**, doc **06 = v0.4**, doc **17 = v0.4**, docs **05, 02A = v0.3**; docs **07, 08, 09, 12, 18 = v0.2**; doc **02 = v0.2**; everything else = v0.1.
 
 ---
 
@@ -67,10 +67,11 @@ S1 Play Console + signing · S2 developer verification (regional rollout per W4;
 | Doc 02A → v0.3 | ✅ **done 2026-10-19** — v0.3 resolves **CS-4** (decoder labelling) from documented practice. Remaining **CS-1/2/3/5/6/7** need device or user testing | Those six are spike / user-test work, not desk research — v0.3 does not wait on them |
 | Doc 08 → v0.3 | Fold spike outcomes when they exist | Requires executed spikes |
 | Q13 → doc 04 | ✅ **CLOSED 2026-10-19** — settled from documented practice rather than a test: technical name + when-to-use description, `Auto` default, global setting *and* per-item override; bare HW/SW tokens forbidden (`research/decoder_label_practice.md`) | No longer blocking — advanced-sheet copy can be finalised. **Q12 also closed** (`research/autoplay_defaults.md`) |
+| Q14 → doc 04/06 | Decide the **default library sort order and view density** — practice is genuinely contradictory across vendors, so this is a design call, not a research question (`research/interface_defaults.md` §7) | Small, but it blocks the library screens. FR-LIB-011 deliberately states no default |
 | All docs | Version bumps + ledger rows on any future change | Process is ready (17 §7) |
 
 ### 2G. Full open-questions index
-Per-document Q-sets: doc 04 Q1–Q13 (**Q12 and Q13 closed**) · 05 NQ1–6 · 06 U1–6 · 07 C1–6 · 08 T1–5 · 09 A1–6 · 10 S1–6 · 11 OQ-1…5 · 12 Q12-1…6 · 13 Q13-1…6 · 14 Q14-1…5 · 15 OQ15-1…5 · 16 Q16-1…5 · 02A **CS-4 resolved**, CS-1/2/3/5/6/7 open (priority stack: doc 17 §5).
+Per-document Q-sets: doc 04 Q1–Q14 (**Q12 and Q13 closed; Q14 open** — default library sort order / view density, the one constant practice does not settle) · 05 NQ1–6 · 06 U1–6 · 07 C1–6 · 08 T1–5 · 09 A1–6 · 10 S1–6 · 11 OQ-1…5 · 12 Q12-1…6 · 13 Q13-1…6 · 14 Q14-1…5 · 15 OQ15-1…5 · 16 Q16-1…5 · 02A **CS-4 resolved**, CS-1/2/3/5/6/7 open (priority stack: doc 17 §5).
 
 ---
 
@@ -126,7 +127,7 @@ Per-document Q-sets: doc 04 Q1–Q13 (**Q12 and Q13 closed**) · 05 NQ1–6 · 0
 
 ## 6. Housekeeping notes
 
-- **Industry practice first — standing rule.** Before designing a behaviour, default, interaction, or mechanism from first principles, establish what shipping products do and why; adopt it when practice is settled and our constraints do not conflict; record deviations with the practice, the reason and who accepted them. Full rule, method and the classification of the current decision set: **17 §1.3**. Two errors in this engagement came from skipping it — see Parts 24 and 26 in doc 00 §7.
-- **Version control:** the workspace **is** a git repository (initialized 2026-10-19, branch `main`). All **27** markdown files (21 documents + 6 research notes) are committed and byte-identical to the working tree (verified by blob-hash comparison). Commit `d7671ad` is the initial import of the package. **Commit before starting any revision.** Note the constraint nuance: this repository versions the *documents*; it is not application repository scaffolding — no app code, project files, or dependencies exist (see Part 25 in doc 00 §7).
-- **Dates:** research accessed 2026-10-18; synthesis and all doc v0.1 drafting 2026-10-19; W5 case studies, the propagation pass, W6 (auto-advance) and W7 (decoder labelling) 2026-10-19. Recheck-flagged facts age — see "recheck before release" items before any launch-related decision.
-- **Part counter:** last logged = **Part 26**; next continuation = **Part 27**. Log it.
+- **Industry practice first — standing rule.** Before designing a behaviour, default, interaction, mechanism **or constant** from first principles, establish what shipping products do and why; adopt it when practice is settled and our constraints do not conflict; record deviations with the practice, the reason and who accepted them. Full rule, method and the classification of the current decision set: **17 §1.3**. Three rounds of this engagement have now found spec values that were invented rather than looked up — see Parts 24, 26 and 27 in doc 00 §7.
+- **Version control:** the workspace **is** a git repository (initialized 2026-10-19, branch `main`). All **28** markdown files (21 documents + 7 research notes) are committed and byte-identical to the working tree (verified by blob-hash comparison). Commit `d7671ad` is the initial import of the package. **Commit before starting any revision.** Note the constraint nuance: this repository versions the *documents*; it is not application repository scaffolding — no app code, project files, or dependencies exist (see Part 25 in doc 00 §7).
+- **Dates:** research accessed 2026-10-18; synthesis and all doc v0.1 drafting 2026-10-19; W5 case studies, the propagation pass, W6 (auto-advance), W7 (decoder labelling) and W8 (interface constants) 2026-10-19. Recheck-flagged facts age — see "recheck before release" items before any launch-related decision.
+- **Part counter:** last logged = **Part 27**; next continuation = **Part 28**. Log it.

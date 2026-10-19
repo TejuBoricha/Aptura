@@ -1,6 +1,6 @@
 # 05 — Non-Functional Requirements (NFRs)
 
-**Version:** 0.2 (draft; every target is provisional and unmeasured; v0.2 adds the FR-CTRL-017 auto-advance clause)
+**Version:** 0.3 (draft; every target is provisional and unmeasured; v0.3 completes the Play vitals threshold context — wake locks, battery, bitmap memory, DEX optimisation — and records where our targets are deliberately stricter; v0.2 added the FR-CTRL-017 auto-advance clause)
 **Date:** 2026-10-19
 **Status:** Draft. **No figure in this document is a measured result.** Every threshold is a provisional target (`[T]`), with rationale and verification method, to be validated or revised by doc 13 (benchmark protocol) and doc 12 (tests). Thresholds without direct evidence are additionally labeled `[E]`.
 **Consumes:** 01 (scope/platform), 04 (FRs), `research/platform.md`, `research/licensing.md`, `research/competitors.md` (via 02).
@@ -32,7 +32,7 @@ Each record: **ID — Title** (MUST/SHOULD, release) · **Statement** (normative
 - **Storage contexts:** internal (baseline); SD/removable (Class A1/V30-class card) with relaxed targets (stated per NFR).
 - **Power/thermal contexts:** plugged + screen-off for batch work (scanning, thumbnails); battery-saver and thermally-throttled states tested for graceful degradation.
 - **Corpus:** the doc 12 fixture corpus (codec tiers per doc 07, subtitle formats, adversarial files).
-- **Play vitals context** (thresholds where Google flags apps `[V1 platform.md]`): user-perceived crash rate 1.09% / overall 8%; ANR 0.47% / 8%. Several NFR-REL targets below are deliberately stricter.
+- **Play vitals context** — the documented bad-behaviour thresholds at which Google reduces app visibility `[V1]` (re-verified 2026-10-19; `research/interface_defaults.md` §6): user-perceived crash rate **1.09%** overall / 8% per phone model; user-perceived ANR **0.47%** / 8%; excessive partial wake locks **5%**; excessive battery usage 1%; bitmap memory **200 MB** (foreground / user-perceived / background), 400 MB cached; DEX optimisation ≥**25%** mandatory for apps with >10 MB DEX code — satisfied by the R8 + shrinking build in doc 08, so R8 is a store requirement rather than a preference. Android vitals flags "emerging issues" after 7 days and allows 21 days to address them. Several NFR-REL and NFR-PERF targets below are deliberately **stricter** than these flags (notably NFR-PERF-008: 250–500 MB against a 2.00 GB foreground flag on a 4–6 GB device).
 
 ---
 

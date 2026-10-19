@@ -1,6 +1,6 @@
 # 06 — UX, Screen, and State Specification
 
-**Version:** 0.3 (draft; v0.3 sharpens SCR-010e decoder copy to the industry-settled labelling pattern — Auto/Hardware/Software each with a when-to-use description; v0.2 added SCR-010f/g/h and the Ended/Compatibility player states)
+**Version:** 0.4 (draft; v0.4 aligns the auto-hide default to Media3's 5 s and the wireframe seek steps to the symmetric ±10 s default; v0.3 sharpened SCR-010e decoder copy to the industry-settled labelling pattern — Auto/Hardware/Software each with a when-to-use description; v0.2 added SCR-010f/g/h and the Ended/Compatibility player states)
 **Date:** 2026-10-19
 **Status:** Draft. Text wireframes and tables only — **no visual mockups exist in this spec phase**; a designer will translate this into visuals during the build phase without changing structure. Every screen maps to FR requirements (doc 04) and inherits NFR-A11Y (doc 05). Claims and copy obey doc 07 §13 (no forbidden phrasing).
 **Consumes:** 03 (journeys), 04 (FRs), 05 (NFRs), 07 (claims/messaging), 09 (architecture states).
@@ -115,7 +115,7 @@ Cross-cutting variants every screen must handle: RTL mirroring; 200% font scale;
 - **Grid:** 4 dp base; spacing scale 4/8/12/16/24/32; corner radius 12 dp cards, 8 dp chips; elevation via tonal surfaces (M3) not shadows (calm).
 - **Color roles:** M3 role tokens; brand accent configurable at build; semantic: error red reserved for destructive/error; "scanning/limited/fallback" notices use neutral/tonal surfaces with icon + text (never color-only — NFR-A11Y-002). Dynamic color (Material You) MAY; brand palette fallback always present.
 - **Type:** system-relative scale honoring font override up to 200%; player overlay labels separate from subtitle typography (subtitle engine sizing per FR-SUB-006, not bound to system font scale).
-- **Motion:** ≤150 ms micro-transitions; auto-hide 3 s default; reduce-motion honored (no non-essential motion).
+- **Motion:** ≤150 ms micro-transitions; auto-hide **5 s** default (Media3 `DEFAULT_SHOW_TIMEOUT_MS`; player-configurable per FR-CTRL-001); reduce-motion honored (no non-essential motion).
 - **Iconography:** consistent outline set (Apache-2.0 sets only, doc 11); state icons: missing (dashed file), scanning (pulse), fallback-decode notice (chip in stats + one-time toast).
 - **Tile spec:** 16:9 thumbnail (rotation-correct), duration chip bottom-right, resume progress line, badges: watched, missing, in-playlist count; **no HDR/"8K"/"HQ" badges** — capability badges only where doc 07 says validation exists (honesty rule).
 - **Sheets:** bottom sheets for player panels (thumb-reachable); destructive confirmations centered dialogs.
@@ -132,7 +132,7 @@ Cross-cutting variants every screen must handle: RTL mirroring; 200% font scale;
 │                                             │
 │              [surface]                      │
 │                                             │
-│        ⏪10s   ⏯   ⏩30s                    │  center transport cluster
+│        ⏪10s   ⏯   ⏩10s                    │  center transport cluster
 │                                             │
 │  00:12:04 ━━━━━●━━━━━━━━━ 01:32:10          │  scrubber (time labels both ends)
 │  [Lock] [Subs] [Audio] [Speed] [⋮]          │  bottom action row
