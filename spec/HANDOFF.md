@@ -126,6 +126,6 @@ Per-document Q-sets: doc 04 Q1–Q13 (Q12 closed) · 05 NQ1–6 · 06 U1–6 · 
 
 ## 6. Housekeeping notes
 
-- **Version control:** the workspace is **not** a git repository (verified 2026-10-19). Before any revision or build-phase work, initialize version control (or back up the `spec/` folder) — the package is currently a single untracked working copy.
+- **Version control:** the workspace **is** a git repository (initialized 2026-10-19, branch `main`). All 26 markdown files are committed and byte-identical to the working tree (verified by blob-hash comparison). Commit `d7671ad` is the initial import of the package. **Commit before starting any revision.** Note the constraint nuance: this repository versions the *documents*; it is not application repository scaffolding — no app code, project files, or dependencies exist (see Part 25 in doc 00 §7).
 - **Dates:** research accessed 2026-10-18; synthesis and all doc v0.1 drafting 2026-10-19; W5 case studies and the propagation pass 2026-10-19. Recheck-flagged facts age — see "recheck before release" items before any launch-related decision.
-- **Part counter:** next continuation = **Part 24**. Log it.
+- **Part counter:** last logged = **Part 25**; next continuation = **Part 26**. Log it.
