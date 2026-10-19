@@ -1,6 +1,6 @@
 # 07 — Media Compatibility Matrix
 
-**Version:** 0.2 (draft; tier assignments are targets, not validated results; v0.2 adds §13 competitor-claims discipline)
+**Version:** 0.3 (draft; tier assignments are targets, not validated results; v0.3 adds **§8.1 — the SSA/ASS fidelity quality bar**, RQ-06's previously-missing pass criterion (Part 37; resolves doc 08 T6 and 08A RB-5; sources `research/ass_fidelity_reference.md`); v0.2 adds §13 competitor-claims discipline)
 **Date:** 2026-10-19
 **Status:** Draft. **No cell in this matrix has been tested by us.** Every entry is a *target tier* to be validated by the doc 12 fixture corpus and doc 13 methodology in the build phase; promotion/demotion rules in §3 keep it honest.
 **Consumes:** 04 (FR-PLAY-002 error taxonomy, FR-SUB-002, FR-AUD-007), 05 (NFR-COMP-004), `research/platform.md` (CDD mandates, Media3 format notes), `research/licensing.md` (decode/licensing verdicts), 02 §7 (claims to avoid).
@@ -134,6 +134,56 @@ Container-level features: chapters — MKV **B**, MP4 **C**; embedded cover art 
 | Styled-subtitle policy | — | User override wins over embedded styling after a one-time notice (FR-SUB-003); **never claim "best subtitle rendering"** (doc 02 §7 #5) |
 | Sidecar matching | — | `basename.*` / `subs/` discovery per FR-SUB-001; naming-convention coverage tested in doc 12 |
 
+### 8.1 The SSA/ASS fidelity quality bar (RQ-06's pass criterion; bar v1.0, 2026-10-19)
+
+This bar defines what **"B styling fidelity"** means operationally for the **Media3-native path**, and it is the criterion RQ-06 adjudicates against (doc 08 §6 T6; 08A RB-5). It exists because an undefined bar is not a threshold — and because the spike's outcome has a consequence either way: **PASS** → native ships as the R1 renderer; **FAIL** → the libass integration plan (doc 08 RQ-06; doc 16 §6 row 4). External anchors for the tag taxonomy, the reference renderer, and the native path's known state: `research/ass_fidelity_reference.md` (W11).
+
+**The plain-text floor (the one absolute rule).** Every cue MUST render at least as well as plain-text subtitles with correct timing — no cue dropped, garbled, misplaced, or made invisible *because of styling*. Any single fixture render that crosses below this floor is an automatic FAIL, regardless of the classes below.
+
+**Class E — essential (full support required; any failure → FAIL):**
+
+| # | Feature | Required outcome |
+|---|---|---|
+| E1 | Timing and cue integrity | Every cue appears once, at its scripted time, in order; overlapping events honored; an unparseable override block degrades that cue to plain text — never drops it |
+| E2 | Line structure | `\N` hard breaks, `\n` soft breaks, `\h` hard spaces honored; multi-line cues stable; no re-wrap that violates the FR-SUB-008 envelope |
+| E3 | Inline styling (basic) | `\b`, `\i`, `\u`, `\s`, `\fs`, `\fn` (system-font substitution allowed where no embedded font is available), `\1c` primary colour, `\bord`/`\shad` presence — each recognizably applied |
+| E4 | Alignment and static position | `\an` (and legacy `\a`) honored; `\pos` places the cue in the authored region at scaled playback sizes (small tolerance, adjudicator-recorded); no systematic mirroring or offset |
+| E5 | Simultaneous cues | Dialogue + signs compose without unreadable overlap or cross-cue corruption |
+
+**Class F — fidelity (degrade only through the stated allowance; the result must stay readable):**
+
+| # | Feature | Allowed degradation |
+|---|---|---|
+| F1 | `\move`, `\fad`/`\fade` | May render static (start- or end-state) or appear/disappear instantly; must not garble, misplace, or flicker |
+| F2 | Karaoke `\k`/`\K`/`\kf`/`\ko`/`\kt` | May render as plain text with correct timing for the whole line (loss of highlight/sweep allowed); never mistimed or fragmented into garbage |
+| F3 | Rotations/shear (`\frx`/`\fry`/`\frz`/`\fr`, `\fax`/`\fay`, `\org`) | May render unrotated; must stay readable and within frame |
+| F4 | Extended border/shadow/blur (`\xbord`/`\ybord`, `\xshad`/`\yshad`, `\be`, `\blur`) | May render as plain border/shadow equivalent |
+| F5 | `\t(...)` animated transforms | May render as the animation's start or end state (no animation required); must not flicker or corrupt the cue |
+| F6 | Additional colours/alphas (`\2c`, `\3c`, `\4c`; `\alpha`, `\1a`–`\4a`) | May render with primary-equivalent styling when the component is otherwise unused; must never hide text the reference renderer shows |
+| F7 | Scaling/spacing/wrap (`\fscx`/`\fscy`, `\fsp`, `\q`) | Small deviations allowed; must not break readability or push text off-frame |
+
+**Class X — extended/decorative (omission accepted; must not crash or corrupt; losses recorded):**
+
+| # | Feature | Required outcome |
+|---|---|---|
+| X1 | Vector drawings and vector clips (`\p`/`\pbo`, drawing commands, vector `\clip`/`\iclip`) | May be omitted entirely; never garbled into text-mode output; never a crash |
+| X2 | Embedded font attachments (`\fonts` in MKV) | May fall back to system fonts (E3 substitution); the loss is recorded in the RQ-06 artifact |
+| X3 | Exotic compositions (`\kt` chains, template-generated effects, `\r` into other styles, `\fe`) | May reduce to the nearest allowed Class F behaviour; never below the plain-text floor |
+| X4 | Adversarial inputs (malformed, oversized, degenerate) | Governed by FR-SUB-007 cap-and-degrade: never OOM, never hang (doc 12 §5 corpora) |
+
+**The adjudication rule.** **PASS** (native ships) iff, across the styled fixture set (12A §2.6; tier mapping: Simple/positioned → E, karaoke → F2, heavy styling/fonts → F1/F3–F7 and X):
+
+1. every **Class E** item renders fully on every fixture;
+2. every **Class F** item either renders as authored or degrades **only through its allowance**;
+3. the **plain-text floor** is never crossed anywhere;
+4. the **degradation path is honest** (RQ-06 step 4): unsupported styling falls back visibly as designed, not silently — and any shipped F/X loss is written into the one-time ceiling notice at doc 07 §8 ("say so once, plainly").
+
+**FAIL** = any of 1–4 violated → libass integration plan with a cost/date range (doc 08 RQ-06; the integration route is an extension outside Media3 — `research/ass_fidelity_reference.md` S1).
+
+**Protocol and freezing rule.** The reviewer answers exactly the question *"is the native result within the bar?"* — never "which is prettier" — using the doc 12 §3 manual charter and 08A's S-rules (fixtures frozen before the run; independent re-adjudication; raw captures retained). Reference renders (VLC/mpv, libass-class) are viewed **before** adjudication to calibrate (doc 08 §6.1). This bar is **frozen before adjudication**: if calibration reveals a missing category, amend the bar *then*, in writing, via the doc 17 change process — never after native renders have been judged, and never to fit a result. The RQ-06 result artifact records the bar revision it was judged against.
+
+**What this bar is not.** Not a promise of libass parity (that question *is* RQ-06); not the claims language (doc 07 §13 governs copy; DEC-010); not a change to FR-SUB-003's user-override policy or FR-SUB-007's adversarial handling; SRT/VTT rendering is untouched (system-caption path per FR-SUB-008). If the owner prefers a stricter posture (e.g., require parity), that is an owner decision recorded via the change process — otherwise this bar is in force.
+
 ---
 
 ## 9. HDR, color, and display behavior (target tiers)
@@ -194,7 +244,7 @@ Rule: a format may appear in user-facing copy only when the corresponding doc 07
 
 | # | Question | Owner |
 |---|---|---|
-| C1 | RQ-06 outcome: ASS styling fidelity ceiling (Media3 path vs libass integration) | 08/11 |
+| C1 | RQ-06 outcome: ASS styling fidelity ceiling (Media3 path vs libass integration) — **criterion now written (doc 07 §8.1); the outcome pends the spike** | 08/11 |
 | C2 | PGS/image-subtitle support in the chosen engine path (device/engine-dependent) | 08/12 |
 | C3 | AC-3/E-AC-3 add-back legality (⚖️) and real battery cost of bundled audio decode | 11/13 |
 | C4 | MPEG-2/interlaced expectation management for cord-cutter audiences (copy testing) | 06/15 |

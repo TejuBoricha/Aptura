@@ -1,6 +1,6 @@
 # 12A — B0.0 Instrumentation Build Order
 
-**Version:** 0.1 (draft — **nothing in this document exists yet: no fixture, no script, no harness**)
+**Version:** 0.2 (draft — **nothing in this document exists yet: no fixture, no script, no harness**); v0.2 maps §2.6's subtitle corpus to the now-written ASS quality bar (doc 07 §8.1) — every bar class gets at least one probe fixture
 **Date:** 2026-10-19
 **Status:** Draft, docs-only. This is the **build order for B0.0** — the instrumentation stage `08A` §2 named but left as one sentence per item. A sentence cannot be built; this document fixes, per artifact: what it contains, how it is identified, what it must produce, and how its output is adjudicated. **No commands, scripts or code appear here** — the generator scripts are authored at build time and recorded with each fixture (doc 12 §5); embedding unverified command lines would be exactly the invented-constant failure 17 §1.3 forbids.
 **Companion status:** numbered `12A` following the `02A`/`08A`/`08B`/`11A` precedent — the master prompt's deliverable set (00–18) and doc 18's 24/24 audit are unchanged.
@@ -117,7 +117,7 @@ Minimum total: **≥15 files** `[T]`. Every fixed adversarial bug becomes a perm
 |---|---|
 | Encodings | UTF-8 · UTF-8-BOM · UTF-16 LE/BE ±BOM · UTF-32 ±BOM · Windows-125x family · Shift-JIS · GB-class · KOI-class |
 | Scripts | Latin · RTL (Arabic, Hebrew) · Devanagari · Thai · CJK |
-| ASS tiers | Simple · positioned · karaoke (`\k`) · heavy styling/fonts — the RQ-06 fidelity ladder |
+| ASS tiers | Simple · positioned · karaoke (`\k`) · heavy styling/fonts — the RQ-06 fidelity ladder; **every doc 07 §8.1 bar class (E1–E5, F1–F7) gets at least one probe fixture** (Simple/positioned → E; karaoke → F2; heavy → F1/F3–F7, X) |
 | **Bait** | Wrong-charset files that only look right after re-encoding — they exist to prove the FR-SUB-005 re-encoding UI |
 | Sidecar naming | `basename.srt`, `basename.en.srt`, `basename.forced.srt`, `subs/` folder form, mismatched-case basename (FR-SUB-001 discovery) |
 | Adversarial | 10⁵-cue file · overlapping cues · zero-length cues · malformed tags · BOM storms · mixed encodings in one file · cue at t=0 · cue beyond media duration · negative timing · 10k-char single line |

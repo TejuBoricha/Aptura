@@ -1,6 +1,6 @@
 # 12 — QA Strategy, Test Plan, and Acceptance Criteria
 
-**Version:** 0.4 (draft; v0.4 points §5/§7 at `12A_B0_INSTRUMENTATION.md` — the B0.0 **build order** (fixture manifests, harness contracts, done criteria) that operates under this document's rules; v0.3 cross-references `08B` §3/§3.5 as the procurement plan that **closes toward** this document's §6 matrix — the B0 lab is a subset of it, not a separate fleet (Part 32, D-23); v0.2 adds the TST-QUEUE end-of-item suite)
+**Version:** 0.5 (draft; v0.5 points the subtitle-fidelity protocol at its decision rule — the ASS quality bar, doc 07 §8.1 (Part 37); v0.4 points §5/§7 at `12A_B0_INSTRUMENTATION.md` — the B0.0 **build order** (fixture manifests, harness contracts, done criteria) that operates under this document's rules; v0.3 cross-references `08B` §3/§3.5 as the procurement plan that **closes toward** this document's §6 matrix — the B0 lab is a subset of it, not a separate fleet (Part 32, D-23); v0.2 adds the TST-QUEUE end-of-item suite)
 **Date:** 2026-10-19
 **Status:** Draft. **Nothing in this document has been executed.** No test results exist; no device or benchmark claims are made anywhere in this package. All numeric budgets marked `[T]` are provisional QA targets to be ratified at Gate A (doc 18). This document defines *what the suites cited across docs 04/05/10 actually are* and how quality is proven before release.
 **Consumes:** 04 (FRs + TST refs), 05 (NFRs + verification methods), 07 (tier matrix — testing gates every claim), 09 (states/architecture), 10 (privacy proofs, threat register), 11 (license CI gate).
@@ -41,7 +41,7 @@
 | System/performance | Startup, scroll, scan, jank, soak | Macrobenchmark; protocol owned by doc 13 | Weekly + RC | weekly |
 | Fault injection | Storage removal/revocation, low space, clock changes, battery saver, process-kill matrix, thermal soak | Harness scripts + device lab; emulator for logic only | Weekly + RC | per suite |
 | Adversarial/fuzz | Subtitle parsers, URI/intent handling, metadata ingestion, our native audio ext boundary | JVM fuzzer (Jazzer-class) + native fuzzer (libFuzzer-class) where applicable | Nightly (time-boxed) + RC | 30–60 min/run `[T]` |
-| Manual charters | Gesture ergonomics, subtitle fidelity eyeball protocol, TalkBack sweeps, copy/claims audit | Charter-driven exploratory | RC (per release) | 1–2 days total `[T]` |
+| Manual charters | Gesture ergonomics, subtitle fidelity protocol (rule: doc 07 §8.1), TalkBack sweeps, copy/claims audit | Charter-driven exploratory | RC (per release) | 1–2 days total `[T]` |
 | Privacy proofs | No-network verification, deletion correctness, redaction fidelity | Manifest assertion + runtime monitor + hash-diff fixtures | RC (part of Gate A/B) | — |
 
 ---
@@ -99,7 +99,7 @@ Case IDs allocate inside these suites exactly as already cited (e.g. `TST-SCAN-0
 
 | Suite | Scope | Levels |
 |---|---|---|
-| TST-SUB | 31+ cases already scoped in doc 04: matching heuristics, ASS tiers, charset detection, styling controls, adversarial subtitle corpus (§5) | Unit + instrumented + manual fidelity protocol |
+| TST-SUB | 31+ cases already scoped in doc 04: matching heuristics, ASS tiers, charset detection, styling controls, adversarial subtitle corpus (§5) | Unit + instrumented + manual fidelity protocol (bar: doc 07 §8.1) |
 | TST-AUD | 23+ cases: track election, delay, route changes, passthrough-vs-effected honest labeling, licensing-gated tiers | Instrumented + manual |
 | TST-PLAT | PiP, lifecycle, multi-window, system integration (FR-PLAT) | Instrumented + manual |
 

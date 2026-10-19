@@ -1,6 +1,6 @@
 # 08A — Spike Runbooks (RQ-01…RQ-16)
 
-**Version:** 0.3 (draft — **nothing in this document has been executed**); v0.3 **corrects v0.2's RQ-12 orphan note** (the D-31 claim was wrong — FR-PLAY-012 owns refresh-rate alignment; the residual kill-switch-form question is kept) and points the B0.0 table at `12A_B0_INSTRUMENTATION.md` as the build order; v0.2 applied the Part 32 audit fixes (device-requirement derivation in §3/§5, class-representative D1 procurement in RQ-03, metric-set and legal-dependency corrections, fleet-vs-matrix distinction) — **no pass/fail criterion changed, then or now**
+**Version:** 0.4 (draft — **nothing in this document has been executed**); v0.4 **resolves RB-5** — the ASS quality bar RQ-06 could not be run without now exists (doc 07 §8.1), and the RQ-06 card points at it (calibration-first, frozen-before-adjudication); v0.3 **corrects v0.2's RQ-12 orphan note** (the D-31 claim was wrong — FR-PLAY-012 owns refresh-rate alignment; the residual kill-switch-form question is kept) and points the B0.0 table at `12A_B0_INSTRUMENTATION.md` as the build order; v0.2 applied the Part 32 audit fixes (device-requirement derivation in §3/§5, class-representative D1 procurement in RQ-03, metric-set and legal-dependency corrections, fleet-vs-matrix distinction) — **no pass/fail criterion changed, then or now**
 **Date:** 2026-10-19
 **Status:** Draft, docs-only. **No spike has been run, no measurement exists, and no result is claimed.** This document is *procedure*: it converts doc 08 §6's spike definitions (hypothesis, method, pass/fail) into runnable instructions, and it is the artifact the build phase executes from. Doc 08 remains **authoritative for what each spike decides and what counts as pass or fail**; 08A is authoritative for **how a run is conducted, recorded and adjudicated**.
 **Companion status:** numbered `08A` deliberately, following the `02A` precedent — the master prompt's deliverable set is 00–18 and this document does not alter it (doc 18 §22 audit remains 24/24).
@@ -154,12 +154,12 @@ Each card follows the same shape: what it unblocks, its binding prerequisite, it
 **Procedure:**
 1. Assemble the styled-script fixture set across the ASS style tiers, plus the malformed/oversized adversarial subtitle set (doc 12 §5).
 2. Render the same cues through the Media3-native path and capture the output; do the same with a libass reference render.
-3. Present both to a human fidelity protocol (doc 12 §3 "manual charters"): the question asked of the reviewer is **"is the native result within the agreed quality bar?"**, not "which is prettier".
+3. Present both to a human fidelity protocol (doc 12 §3 "manual charters"): the question asked of the reviewer is **"is the native result within the agreed quality bar?"** (the bar: **doc 07 §8.1**), not "which is prettier". View the reference renders first — calibration is the bar's first execution step (doc 08 §6.1).
 4. Separately confirm the **degradation path is honest**: unsupported styling must visibly fall back, not silently drop.
 5. Estimate libass integration cost **if and only if** the native path misses the bar.
 **Capture:** paired renders; the reviewer's written bar-judgement; degradation evidence; cost estimate if applicable.
-**Pass / fail (doc 08):** PASS = native within the agreed quality bar → ship native. Else: libass integration plan with a cost/date range.
-**If inconclusive:** "the bar" is the deliverable if it is not yet written down — an undefined bar is not a pass criterion. Write the bar, then re-render.
+**Pass / fail (doc 08):** PASS = native within the agreed quality bar (**doc 07 §8.1**) → ship native. Else: libass integration plan with a cost/date range.
+**If inconclusive:** the bar exists (doc 07 §8.1) — "inconclusive" now means the paired renders or the reviewer protocol failed; re-run them. Do not improvise a verdict, and do not amend the bar after renders have been judged.
 
 ---
 
@@ -353,6 +353,6 @@ Every spike files one record. Ten fields; any missing field makes the result ina
 | RB-2 | How many engineers will run B0 concurrently? | Determines whether the 4–8 wk range is achievable at all (§5) | owner (OD-4) |
 | RB-3 | Is DEP-005 ordered on day one of B0, given it gates 11 spikes? | Every device-dependent spike stalls | owner (OD-4) / 16 |
 | RB-4 | Who is the independent re-adjudicator (S6), and is that role staffed? | Results lose their adversarial layer | owner / 12 |
-| RB-5 | Is the ASS "agreed quality bar" (RQ-06) written down before the spike runs? | RQ-06 has no pass criterion until it is | 07 / 06 |
+| RB-5 | Is the ASS "agreed quality bar" (RQ-06) written down before the spike runs? — **resolved (Part 37): yes — doc 07 §8.1** | — (cleared before RQ-06 can run) | 07/06 |
 | RB-6 | Screen/audio capture rig: acquire or rent (doc 13 Q13-5)? | RQ-01's sync half and MB-08 are blocked | 12/16 |
 | RB-7 | Does the fleet close toward doc 12 §6's full matrix coverage, or does B6 need a second procurement round? (Part 32, D-23) | A second purchase round costs lead time at the worst moment | 16/12 |
