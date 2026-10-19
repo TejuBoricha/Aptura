@@ -1,7 +1,7 @@
 # 17 — Consolidated Registers, DoR/DoD, and Change Process
 
-**Version:** 0.6 (draft; v0.6 adds a **fifth error class — gratuitous prompts** (asking the user for something the platform exempts us from) plus method step **9 — read the platform's exemption list, and record the condition that keeps each exemption alive**; adds classification rows for the notification permission, edge gestures, caption defaults and delegation, and the media-control surface. v0.5 added the fourth error class (platform contracts under-read), steps 7–8 (read the platform contract; classify Class A/B constants) and closed Q14; v0.4 added step 6 and the third error class; v0.3 added the rule and the decision-set classification; v0.2 added RSK-015 and the doc 02A question pointers)
-**Date:** 2026-10-19
+**Version:** 0.7 (draft; v0.7 records the **Part 38 delegated decisions** — DEC-001/002/004 confirmed; ASM-005/006 become working scenarios; ASM-009 becomes the wave-1 market set; OD-6 deliberately deferred; v0.6 added a **fifth error class — gratuitous prompts** (asking the user for something the platform exempts us from) plus method step **9 — read the platform's exemption list, and record the condition that keeps each exemption alive**; adds classification rows for the notification permission, edge gestures, caption defaults and delegation, and the media-control surface. v0.5 added the fourth error class (platform contracts under-read), steps 7–8 (read the platform contract; classify Class A/B constants) and closed Q14; v0.4 added step 6 and the third error class; v0.3 added the rule and the decision-set classification; v0.2 added RSK-015 and the doc 02A question pointers)
+**Date:** 2026-10-20
 **Status:** Draft — **this document is the canonical home** for the DEC / ASM / RSK / DEP registers and for the Definition of Ready/Done. Where earlier documents hold originals (00 §3, 08, 16 §3), this register supersedes for lookup while preserving the original context. IDs are frozen; nothing is silently renumbered (change rules §7).
 **Consumes:** every prior document.
 **Feeds:** 18 (readiness verdict consumes risk/decision status).
@@ -16,10 +16,10 @@ Status legend: **Active** = working default in force (owner silent → 00 §5 de
 
 | ID | Decision | Rationale (one-line) | Status |
 |---|---|---|---|
-| DEC-001 | R1 = local-file player (type A); SMB/NAS/HTTP = R2 candidate; C/D/E out of scope | Evidence-strong pain area; bounded ops/legal surface | Active (OD-2 pending) |
-| DEC-002 | Android-first; iOS at an evidence-gated R1.x decision (RQ-09) | Market/likelihood + custom-engine feasibility | Active (OD-1 pending) |
+| DEC-001 | R1 = local-file player (type A); SMB/NAS/HTTP = R2 candidate; C/D/E out of scope | Evidence-strong pain area; bounded ops/legal surface | Active (OD-2 confirmed — Part 38) |
+| DEC-002 | Android-first; iOS at an evidence-gated R1.x decision (RQ-09) | Market/likelihood + custom-engine feasibility | Active (OD-1 confirmed — Part 38) |
 | DEC-003 | Engine hypothesis: Media3 core + self-built LGPL-2.1 FFmpeg **audio** extension; no bundled video decode; libVLC fallback only if spikes fail | Licensing-clean + platform-native; finalized by B0 spikes | Active (spike-pending) |
-| DEC-004 | Free, no ads, no account at launch; monetization hypotheses only | Trust positioning; billing deferred | Active (OD-3 pending) |
+| DEC-004 | Free, no ads, no account at launch; monetization hypotheses only | Trust positioning; billing deferred | Active (OD-3 confirmed — Part 38) |
 | DEC-005 | Android phones + tablets from R1; TV/foldables/car/wearables out of R1 | Input-model and test-matrix discipline | Active |
 | DEC-006 | No DRM/protected playback; honest failure UI | Keeps scope/licensing/security small | Active |
 | DEC-007 | No AI features in R1; any R3+ AI feature must be on-device-first, opt-in, never silently upload | Privacy boundary | Active |
@@ -128,12 +128,12 @@ Reviewed 2026-10-19 against docs 02/02A and the W1–W8 research notes. "Deviati
 | ASM-001 | Primary users play personal local files (downloaded/recorded/copied) | W1 evidence; personas | Supported by research (provisional) |
 | ASM-002 | Android-first economics favor R1 Android | W2/W4 evidence; DEC-002 | Provisional |
 | ASM-003 | Local-first, no account, no mandatory backend | Doc 09 no-backend rationale | Validated by design (no server exists) |
-| ASM-004 | Free/no-ads launch | DEC-004; W4 monetization analysis | Active (OD-3 pending) |
-| ASM-005 | Small senior team (2–4 eng + part-time design/QA) | OD-4 | **Unvalidated** |
-| ASM-006 | Timeline/budget unknown; phase-relative sizing only | OD-4; doc 16 ranges | **Unvalidated** |
+| ASM-004 | Free/no-ads launch | DEC-004; W4 monetization analysis | Active (OD-3 confirmed — Part 38) |
+| ASM-005 | Small senior team — **working scenario: 2 engineers full-time + part-time design** (the range's floor; Part 38, delegated) | OD-4 — re-validate when real figures are known | **Working scenario** |
+| ASM-006 | **Working scenario: no hard external date** (internal aim only); **modest ceiling** — §3.1-minimum device lab grown by 08B §3.5 + batch-A counsel (Part 38, delegated) | OD-4 — calendar applies the 2-engineer row (doc 16 §2.1) | **Working scenario** |
 | ASM-007 | Shipping config uses platform/royalty-free decoders; unclear royalty → excluded/flagged | Doc 11 register | Active |
 | ASM-008 | Incumbent pain clusters: ads/trust, reliability edges, subtitles, scan friction, low-end perf, bloat | W1 pain synthesis (doc 02 §5) | Supported |
-| ASM-009 | Launch regions: India, Brazil, SE Asia, MENA + US/EU; EN + small locale set | W4; OD-5 | Provisional |
+| ASM-009 | **Wave-1 markets (Part 38, delegated): India (en-IN, hi-IN), Brazil (pt-BR), US (en-US), Indonesia (id-ID)** — ≤5 locales; MENA/EU deferred to wave 2 | W4; OD-5 | Active (delegated) |
 | ASM-010 | No DRM support; honest failure | DEC-006 | Active |
 | ASM-011 | Target segment prioritizes trust/privacy/reliability over feature breadth | Positioning depends on it (docs 02/03); beta signals | **Core hypothesis to watch** |
 | ASM-012 | Bundled audio decode is an enhancement; product survives its removal | Doc 11 §3.5 fallback design | Validated-by-design |

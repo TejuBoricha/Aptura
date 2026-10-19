@@ -1,7 +1,7 @@
 # 08B — B0 Kickoff Pack (Owner Decisions, Device Procurement, Week One)
 
-**Version:** 0.3 (draft — nothing ordered, nothing decided, nothing executed); v0.3 makes the device order executable: **§3.2.1 purchase worksheet**, **§3.4.1 intake probe specification** (what to record, which documented surface answers it), the "buy one → probe → extend" rule, and a **D-27 remnant removed from §3.2** (the selection-criteria example still described buying *for* a decode deficiency that v0.2 had banned); v0.2 applies the Part 32 audit fixes: D1 restated from doc 05 §1's class definition (not an invented RAM figure or API era), OS-band coverage aligned to doc 12 §6's six bands, the **B0 lab vs. matrix-fleet distinction** made explicit, farm authority narrowed to match doc 12 §6, the OD-2 size comparison corrected, and the device count now derived rather than asserted
-**Date:** 2026-10-19
+**Version:** 0.4 (draft — nothing ordered, nothing executed); v0.4 records the **Part 38 delegated decisions** — the answer sheet (§5) is filled and §1/§2/§6 updated to match; v0.3 made the device order executable: **§3.2.1 purchase worksheet**, **§3.4.1 intake probe specification** (what to record, which documented surface answers it), the "buy one → probe → extend" rule, and a **D-27 remnant removed from §3.2** (the selection-criteria example still described buying *for* a decode deficiency that v0.2 had banned); v0.2 applies the Part 32 audit fixes: D1 restated from doc 05 §1's class definition (not an invented RAM figure or API era), OS-band coverage aligned to doc 12 §6's six bands, the **B0 lab vs. matrix-fleet distinction** made explicit, farm authority narrowed to match doc 12 §6, the OD-2 size comparison corrected, and the device count now derived rather than asserted
+**Date:** 2026-10-20
 **Status:** Draft, docs-only. This is the **action layer** for the spike program: it converts the pending owner decisions (doc 00 §5), the device-lab dependency (DEP-005) and the first week of B0 into things a person can actually do on a Monday morning. It decides nothing itself.
 **Companion status:** numbered `08B` alongside `08A`, following the `02A` precedent — the master prompt's deliverable set (00–18) is unchanged and doc 18's §22 audit remains 24/24.
 **Consumes:** 00 §5 (OD table + defaults), 08 §6 + 08A (§spike definitions and runbooks — the source of every device requirement here), 12 §5/§6 (corpora and device matrix), 13 (M1/M8 — why farms are useless for our questions), 16 §2/§3/§7 (B0, DEP register, critical path), 11 §5 (L1/L2), 15 §4 (S1/S2/S8).
@@ -15,14 +15,16 @@
 |---|---|
 | A **decision brief** for each pending OD, written so the answer takes one line | A recommendation to proceed with the build — that gate is the owner's, not this document's |
 | A **capability specification** for the device lab, not a shopping list of unverified models | A purchase order, a budget, or a claim about any device's real behaviour |
-| A **week-one sequence** derived from the B0.0 finding (08A §2) | A schedule. Calendar conversion needs OD-4 |
+| A **week-one sequence** derived from the B0.0 finding (08A §2) | A schedule. Calendar conversion applies doc 16 §2.1's 2-engineer working case (Part 38) |
 | A place to record answers that already have defaults | A re-opening of decisions already made and defaulted |
 
-**The honest situation:** the specification is complete and audited; the spike program is written and runnable; **neither hardware nor answers exist yet.** Two things block B0, and both are outside engineering: **OD-4** (which decides whether the 4–8 dev-week B0 range is even reachable — Q16-7) and **DEP-005** (which gates the 11 device-dependent spikes — the count is *derived*, not asserted: 08A §3). Everything else in B0 can be prepared while those are pending.
+**The honest situation (updated, Part 38):** the specification is complete and audited; the spike program is written and runnable; **the decisions are recorded (delegated — §5) but no hardware exists yet.** One external dependency still blocks B0: **DEP-005** — the lab gates the 11 device-dependent spikes (the count is *derived*, not asserted: 08A §3). **OD-4's questions are answered by delegation** (2 engineers full-time; no hard date — Q16-7 = 2). Everything else in B0 can be prepared now.
 
 ---
 
 ## 2. Owner decision briefs (OD-1…OD-6)
+
+**Status (Part 38): every OD below now carries a delegated decision — see the filled answer sheet in §5.** The briefs remain the rationale for each.
 
 Each brief states the question, why it is being asked *now* rather than later, the realistic options with their consequences, our recommendation, what the answer unblocks, and the cost of leaving it unanswered. **Defaults are in force meanwhile** (doc 00 §5) — an unanswered OD is not a blocked OD unless its row says so.
 
@@ -240,26 +242,26 @@ Derived from the B0.0 finding (08A §2). The order matters: **device order and l
 
 ---
 
-## 5. Owner answer sheet
+## 5. Owner answer sheet — filled (Part 38, 2026-10-20; owner-delegated)
 
-Fill the right-hand columns and return; the ledger (doc 00 §5) and doc 17's statuses get updated from it. Unanswered rows keep their defaults, stated below.
+**These decisions were taken under the owner's instruction to proceed on the process's best judgment.** They are recorded in the ledger (doc 00 §5) and mirrored into doc 17's registers; each is replaceable through the change process (17 §7). **OD-4's scenario stands in for facts only the owner holds** (actual headcount, budget) — replace it wholesale when those arrive.
 
-| OD | Question | Default if unanswered | **Your answer** | Date |
-|---|---|---|---|---|
-| OD-1 | Platform order | Android-first (DEC-002) | | |
-| OD-2 | R1 boundary: local-only vs network | Local-only (DEC-001) | | |
-| OD-3 | Monetization at launch | Free / no ads (DEC-004) | | |
-| OD-4 | Team (engineers, full-time?), design, window, spend ceiling | `[E]` dev-weeks only | | |
-| OD-5 | First market set (≤5 locales) | ASM-009 provisional set | | |
-| OD-6 | Candidate names (2–3) | Working title TBD | | |
+| OD | Question | Decision | Notes |
+|---|---|---|---|
+| OD-1 | Platform order | **Android-first** (DEC-002 confirmed) | iOS stays an evidence-gated R1.x decision (RQ-09) |
+| OD-2 | R1 boundary: local-only vs network | **Local-only** (DEC-001 confirmed) | SMB/NAS/HTTP remain an R2 candidate |
+| OD-3 | Monetization at launch | **Free / no ads / no account** (DEC-004 confirmed) | Monetization option B remains an R1.x candidate |
+| OD-4 | Team, design, window, spend ceiling | **2 engineers full-time + part-time design; no hard external date (internal aim only); modest ceiling** | Lab: §3.1 minimum fleet grown by §3.5 (buy one → probe → extend); counsel: batch A. Calendar: doc 16 §2.1's 2-engineer row (≈5–9 months). Q16-7 = 2 engineers on B0; **the §3.3 "second unit of the busiest class" trigger is now met** — buy one duplicate when the probe confirms its class, budget allowing |
+| OD-5 | First market set (≤5 locales) | **Wave 1: India (en-IN, hi-IN) · Brazil (pt-BR) · US (en-US) · Indonesia (id-ID)** | Wave-1 availability = these countries; MENA (Arabic) and EU (GDPR/EAA) deferred to wave 2 — expansion is listing + font-subset work, no engineering. L5's statute scope follows this set |
+| OD-6 | Candidate names (2–3) | **Deferred by decision** — naming happens at launch-prep | The collision risk is the one error that forces a rebrand; nothing blocks on it except L6, which starts once a shortlist exists |
 
-**If only one line gets filled this week, make it OD-4** — doc 16 §2.1 shows what each possible answer changes, so a rough answer is enough.
+**Remaining physical acts (cannot be done from the spec desk):** order the lab (§3), **send batch A to counsel (cover note: `11A` §0.1)**, open the Play Console track (S1/S2). **If a hard date ever appears**, the de-scope ladder is now exercisable (doc 16 §5.1; rung definitions confirmed — Q16-8).
 
 ---
 
 ## 6. Boundaries
 
-- **Nothing here is executed, ordered, or decided.** No device has been bought, no counsel engaged, no decision taken beyond the defaults already recorded in doc 00 §5.
+- **Nothing here is executed or ordered.** No device has been bought and no counsel engaged. The decisions taken so far are the **Part 38 delegated set** (doc 00 §5) — delegated, not owner-validated, and replaceable via 17 §7.
 - **No claim that the B0 device subset satisfies the release matrix.** The B0 lab is a *subset* of doc 12 §6's coverage; §3.5 is the plan to close the gap, and until it is closed, `TST-CMPT` runs on the doc 12 §6 matrix only (doc 12 §6).
 - **No prices, no models, no benchmarks.** §3.1 specifies *capabilities to verify*, not products; §3.4's farm policy exists so that a cheap fleet result can never be presented as a lab result.
 - **No claim that answering the ODs unblocks launch.** They unblock **B0 scheduling**. The build/launch decision remains the owner's separate gate.

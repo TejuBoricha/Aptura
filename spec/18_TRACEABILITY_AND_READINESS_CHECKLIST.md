@@ -1,7 +1,7 @@
 # 18 — Traceability, Gap Audit, and Readiness Verdict
 
-**Version:** 0.6 (draft — final review artifact; v0.6 records the **correction of delta 4's D-31** — an audit finding that was itself wrong, produced by a case-sensitive search — the **negative-claim rule** it produced, and the residuals that survive it; v0.5 adds **Gate C post-audit delta 4** auditing the three Part 30–31 companion documents (`08A`/`08B`/`11A`) and the figures they propagated — D-20…D-32, including one circular procurement rule and one invented constant; v0.4 adds **Gate C post-audit delta 3** for doc 04 v0.8 / doc 05 v0.4 (Part 29, D-16…D-19) and confirms the verdict; v0.3 added **delta 2** for doc 04 v0.7 (Parts 24–28, D-10…D-15); v0.2 added the first post-audit delta for doc 04 v0.3)
-**Date:** 2026-10-19
+**Version:** 0.7 (draft — final review artifact; v0.7 propagates the **Part 38 delegated OD decisions** into §5's residual table, §6 and §9 — status propagation only, **verdict unchanged**; v0.6 records the **correction of delta 4's D-31** — an audit finding that was itself wrong, produced by a case-sensitive search — the **negative-claim rule** it produced, and the residuals that survive it; v0.5 adds **Gate C post-audit delta 4** auditing the three Part 30–31 companion documents (`08A`/`08B`/`11A`) and the figures they propagated — D-20…D-32, including one circular procurement rule and one invented constant; v0.4 adds **Gate C post-audit delta 3** for doc 04 v0.8 / doc 05 v0.4 (Part 29, D-16…D-19) and confirms the verdict; v0.3 added **delta 2** for doc 04 v0.7 (Parts 24–28, D-10…D-15); v0.2 added the first post-audit delta for doc 04 v0.3)
+**Date:** 2026-10-20
 **Status:** Final deliverable of the specification engagement. **The verdict at the end of this document is the package's readiness verdict.** This review was performed against the master prompt's §21 (failure-mode review), §22 (deliverables), §23 (quality gates), and §24 (execution order), on all documents at their recorded versions (01–17 v0.1, 02/04 v0.2 at audit time; doc 04 is now v0.3 — see the Gate C post-audit delta in §3). No app code exists; no benchmark was run; no device was tested — those claims would be false and are not made.
 **Consumes:** every document 00–17.
 **Feeds:** the build phase (kickoff checklist §9), owner decisions (00 §5).
@@ -97,7 +97,7 @@ No chain terminates in an unowned requirement; no test suite exists without a re
 - Scope boundaries explicit: DEC-001 (A now/B later/C–E out), OS/platform fences (DEC-002/005), permission model (DEC-011). ✔
 - Features/screens/settings/permissions/states/user-facing errors covered: FR catalogue + SCR inventory incl. error/empty/limited states + error-code taxonomy. ✔
 - Requirements connect to real user problems: §1.4 chains; W1 evidence base. ✔
-- *Notes:* OD-1/2/3/5 answers would convert working defaults into owner-confirmed scope (not a completeness defect; 00 §5 defaults apply).
+- *Notes:* OD-1/2/3/5 would convert working defaults into owner-confirmed scope (not a completeness defect). **Part 38 records delegated decisions for all six (00 §5); owner validation/replacement remains desirable, and the completeness point stands.**
 
 ### Spec Gate B — technical/operational completeness → **PASS (spike-conditional items labeled)**
 - Media engine and format claims realistic: tier system with X-blocked-legal cells; no universal claims; fallback honesty paths. ✔
@@ -238,8 +238,8 @@ No scenario is claimed "solved perfectly"; residual risks are the honest remaind
 |---|---|
 | Implementation commitments | B0 spike outcomes (RQ-01/03/05/06/08/13/14); provisional `[T]` targets become measured or adjusted at release Gate B |
 | Bundled-audio extension only | Legal L1 (LGPL relinking), L2 (AC-3/E-AC-3) — fallback defined (doc 11 §3.5) |
-| Calendar/estimation | OD-4 (team/budget/time); ASM-005/006 remain unvalidated |
-| Owner-confirmed scope | OD-1, OD-2, OD-3, OD-5, OD-6 (working defaults active meanwhile) |
+| Calendar/estimation | **OD-4 delegated (Part 38)** — the 2-engineer working scenario supplies a calendar (doc 16 §2.1); ASM-005/006 remain replaceable working values |
+| Owner-confirmed scope | **All six have delegated decisions (Part 38, 00 §5)**; owner validation/replacement remains open (17 §7) |
 | Launch operations | S2 developer verification, S8 closed-testing clock, DEP-005 device procurement, DEP-006 hosting/support surfaces |
 | Market hypothesis | ASM-011 (trust-over-features) — validated by beta signals before monetization decisions |
 
@@ -247,7 +247,7 @@ No scenario is claimed "solved perfectly"; residual risks are the honest remaind
 
 ## 6. Open questions
 
-Canonical index: doc 17 §5 (all Q-sets by document). The five that matter for the next milestones: OD-4, L1, RQ-01 outcome, OD-3, DEP-005/006. Nothing in the question backlog prevents B0 kickoff.
+Canonical index: doc 17 §5 (all Q-sets by document). The five that matter for the next milestones: DEP-005/006, L1, the RQ-01 and RQ-06 outcomes, and owner validation of the delegated OD set. Nothing in the question backlog prevents B0 kickoff.
 
 ---
 
@@ -255,11 +255,11 @@ Canonical index: doc 17 §5 (all Q-sets by document). The five that matter for t
 
 > # ✅ **READY FOR TECHNICAL SPIKES**
 
-**Rationale.** The package is internally consistent (Spec Gate C pass with findings resolved or registered), complete against the §22 checklist, and honest about its provisional content. The designed next step per the master prompt (§19: "technical feasibility spikes after specification approval") is the spike program, which is fully specified in doc 08 (RQ-01…15 with hypotheses, thresholds, conditions, and the decisions each unblocks). Estimation may start **in parallel** on doc 16's ranges; implementation planning should wait for spike results and the owner conclusions of OD-1…OD-4.
+**Rationale.** The package is internally consistent (Spec Gate C pass with findings resolved or registered), complete against the §22 checklist, and honest about its provisional content. The designed next step per the master prompt (§19: "technical feasibility spikes after specification approval") is the spike program, which is fully specified in doc 08 (RQ-01…15 with hypotheses, thresholds, conditions, and the decisions each unblocks). Estimation may start **in parallel** on doc 16's ranges (the 2-engineer working case now supplies a calendar conversion — Part 38); implementation planning should wait for spike results and owner validation of the delegated decisions (OD-1…OD-4 most consequential).
 
 **What this verdict does NOT mean:** it is not READY FOR IMPLEMENTATION PLANNING (spike outcomes and legal L1/L2 are still open), and it is not a claim that production will be easy — it is a claim that a competent team can now *start correctly* and will not have to invent major requirements.
 
-**Permitted in parallel:** device procurement (DEP-005), store prerequisites S1/S2/S8 (long-lead), legal briefs L1/L2/L5/L6, design translation of doc 06, beta-recruitment groundwork, and owner decision-making on OD-1…6.
+**Permitted in parallel:** device procurement (DEP-005), store prerequisites S1/S2/S8 (long-lead), legal briefs L1/L2/L5/L6, design translation of doc 06, beta-recruitment groundwork, and **owner validation/replacement of the Part 38 delegated decisions (OD-1…6)**.
 
 ---
 
@@ -271,10 +271,10 @@ This package does **not** claim to cover literally every conceivable scenario. I
 
 ## 9. Build-kickoff checklist (hand-off)
 
-1. Owner: answer OD-1…6 (anything left unanswered keeps its default, which becomes expensive to reverse later).
+1. Owner: review the **Part 38 delegated decisions** (00 §5) and replace anything that misstates reality (17 §7) — most consequential: OD-4's headcount/budget scenario.
 2. Eng: stand up B0 spikes exactly per doc 08 definitions; time-box; record results as evidence rows.
 3. Owner/ops: start S1 (Play Console/signing), S2 (verification), S8 (closed-testing recruitment clock), DEP-005 device purchases.
 4. Owner/counsel: open L1 (LGPL relinking brief), L2 (codec confirmations).
 5. Design: translate doc 06 into visuals (no structural changes without the doc 17 change template).
-6. PM: convert doc 16 ranges to calendar once OD-4 is answered; Ratify `[T]` targets into a benchmark plan schedule (doc 13 §5).
+6. PM: the calendar conversion now applies doc 16 §2.1's 2-engineer working case (Part 38) — re-derive when real headcount lands; ratify `[T]` targets into a benchmark plan schedule (doc 13 §5).
 7. Everyone: read in the order 00 → 01 → 17 → 04 → 05 → 08 → 09; obey the change process (17 §7); never let a dependency enter the graph without passing doc 11.

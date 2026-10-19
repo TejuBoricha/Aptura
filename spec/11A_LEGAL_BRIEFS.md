@@ -1,7 +1,7 @@
 # 11A — Legal Briefs (L1–L8) — prepared for counsel
 
-**Version:** 0.2 (draft — **not legal advice**, and no position below has been reviewed by a lawyer); v0.1 contained L1–L2 only; v0.2 adds the **batch-B** briefs **L3–L8** (§4) in the same sendable format and updates the engagement notes
-**Date:** 2026-10-19
+**Version:** 0.3 (draft — **not legal advice**, and no position below has been reviewed by a lawyer); v0.3 adds the **paste-ready cover note (§0.1)** and folds in the Part 38 decisions (L5 now scopes to the wave-1 markets; L6 starts at launch-prep); v0.1 contained L1–L2 only; v0.2 adds the **batch-B** briefs **L3–L8** (§4) in the same sendable format and updates the engagement notes
+**Date:** 2026-10-20
 **Status:** Draft, docs-only. These are **briefs to send to counsel**, written so that answering them is cheap: the facts first, our reading second (stated so it can be corrected), then numbered questions each with the decision it changes. Companion to doc 11, numbered `11A` following the `02A`/`08A` precedent (the §22 deliverable set 00–18 is unchanged).
 **Consumes:** 11 §1.2/§2/§3/§5 (component + patent registers, LGPL process, L1–L8), 04 (FR-AUD-007, FR-SET-008), 10 §4.1/§6.2/§6.3 (data inventory, statutes, mirrored legal list), 15 (store-listing step, its S3), 08B (OD-6 — the name decision L6 depends on), `research/licensing.md` (W3).
 **Feeds:** doc 11 register verdicts, the build-phase license CI gate, doc 00 §5 / L-item statuses.
@@ -11,11 +11,31 @@
 
 ## 0. How to use this document
 
-1. **Send in two batches.** **Batch A — §2 and §3** — as they stand (or after trimming §2.1's build detail, which is written for a lawyer who does not need to read FFmpeg's configure flags — but which does establish exactly what we ship): these gate capabilities. **Batch B — §4** — when convenient: L3/L4/L7/L8 can go immediately, L5 benefits from the launch-region answer (OD-5), and L6 cannot *start* without candidate names (OD-6), though its process questions can be answered now.
+1. **Send in two batches.** **Batch A — §2 and §3** — as they stand (or after trimming §2.1's build detail, which is written for a lawyer who does not need to read FFmpeg's configure flags — but which does establish exactly what we ship): these gate capabilities. **Batch B — §4** — when convenient: L3/L4/L7/L8 can go immediately, L5 now scopes to the wave-1 markets (**OD-5 decided — Part 38**), and L6 cannot *start* without candidate names (**OD-6 deferred to launch-prep — Part 38**), though its process questions can be answered now.
 2. **What we are asking for is deliberately small:** a written position we can act on, not a full legal opinion. A short memo answering the numbered questions is sufficient for every decision below.
 3. **Every question carries "what changes on the answer"** so counsel can see the stakes and skip anything immaterial.
 4. **Our readings are hypotheses.** Where this document says "we read §6 as…", that is *our* reading for correction — not a claim about what the licence says.
 5. **Every item has a designed posture if the answer narrows it** (L1 §2.6, L2 §3.5, each batch-B brief's closing note). **None of L1–L8 is on the R1 critical path** (doc 16 §7). Say that to counsel: it changes the advice from "urgent" to "correct", and good counsel will price it accordingly.
+
+6. **A cover note is ready to paste** — it follows this list (and exists so sending batch A is a single copy-paste).
+
+### 0.1 Cover note — batch A (copy-paste; attach this document, or §2–§3 alone)
+
+> **Subject:** Legal review request — Android local-file video player: two capability questions (LGPL-2.1 relinking; AC-3/E-AC-3)
+>
+> Dear [counsel],
+>
+> We are preparing an Android-only, local-file video player for Google Play — no accounts, no backend, and no `INTERNET` permission in the shipping build. Before committing to two optional capabilities, we would like short written positions. The attached brief is written to make answering cheap: the facts as shipped, our own readings stated so they can be corrected, and numbered questions that each say what changes on the answer.
+>
+> - **L1 (§2)** — LGPL-2.1 §6 if we ship a self-built FFmpeg **audio** extension. We ship no bundled video decode and no bundled AAC. A designed fallback exists if this does not clear.
+> - **L2 (§3)** — AC-3 / E-AC-3 positions if we bundle playback for them (patent expiry; pool posture).
+>
+> A short memo answering the numbered questions in §2.5 and §3.4 is sufficient. Nothing here is on the launch critical path — we want correct, not urgent. §2.8 lists assets we can send on request, and we are glad to walk through it.
+>
+> Best regards,
+> [Name]
+
+*Batch B (§4) follows when convenient. With the Part 38 decisions: L5's statute scope is the wave-1 markets (India, Brazil, US, Indonesia); L6 begins at launch-prep, once a 2–3-name shortlist exists.*
 
 **Two facts to keep in front of any reader:**
 
