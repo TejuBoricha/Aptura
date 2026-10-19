@@ -1,6 +1,6 @@
 # 08B — B0 Kickoff Pack (Owner Decisions, Device Procurement, Week One)
 
-**Version:** 0.2 (draft — nothing ordered, nothing decided, nothing executed); v0.2 applies the Part 32 audit fixes: D1 restated from doc 05 §1's class definition (not an invented RAM figure or API era), OS-band coverage aligned to doc 12 §6's six bands, the **B0 lab vs. matrix-fleet distinction** made explicit, farm authority narrowed to match doc 12 §6, the OD-2 size comparison corrected, and the device count now derived rather than asserted
+**Version:** 0.3 (draft — nothing ordered, nothing decided, nothing executed); v0.3 makes the device order executable: **§3.2.1 purchase worksheet**, **§3.4.1 intake probe specification** (what to record, which documented surface answers it), the "buy one → probe → extend" rule, and a **D-27 remnant removed from §3.2** (the selection-criteria example still described buying *for* a decode deficiency that v0.2 had banned); v0.2 applies the Part 32 audit fixes: D1 restated from doc 05 §1's class definition (not an invented RAM figure or API era), OS-band coverage aligned to doc 12 §6's six bands, the **B0 lab vs. matrix-fleet distinction** made explicit, farm authority narrowed to match doc 12 §6, the OD-2 size comparison corrected, and the device count now derived rather than asserted
 **Date:** 2026-10-19
 **Status:** Draft, docs-only. This is the **action layer** for the spike program: it converts the pending owner decisions (doc 00 §5), the device-lab dependency (DEP-005) and the first week of B0 into things a person can actually do on a Monday morning. It decides nothing itself.
 **Companion status:** numbered `08B` alongside `08A`, following the `02A` precedent — the master prompt's deliverable set (00–18) is unchanged and doc 18's §22 audit remains 24/24.
@@ -147,9 +147,26 @@ We deliberately do **not** name specific models. Three reasons, and they are the
 
 1. **Unverified `[U]`.** We have not probed any device; naming a model would assert a decode capability we have not measured, in the document whose entire purpose is to avoid that.
 2. **Region and time variance.** Availability differs by market and models turn over in months; the fleet must be selected at purchase time, not at spec time.
-3. **Capability, not brand, is the requirement.** What the spikes need is "a device without HEVC Main10 hardware decode", not a particular product.
+3. **Capability, not brand, is the requirement — and never a *deficiency*.** What the spikes need is a device that *represents a class* (doc 05 §1), not a particular product; and, per rule 2 above, never one chosen *for* a capability it lacks. (v0.2 used "a device without HEVC Main10 hardware decode" as this example — the exact circularity D-27 removed; corrected in v0.3.)
 
-**Buyer's procedure:** take §3.1's capability rows → shortlist locally-available models whose published specs satisfy them → **verify at intake with the capability probe** (§3.4) before the device enters the lab matrix.
+**Buyer's procedure:** take §3.1's capability rows → shortlist locally-available models whose **published** specs *suggest* they satisfy them → **buy one, probe it (§3.4.1), then extend to a set** only if the probe confirms the row it was bought for. Published specs shortlist; the probe decides.
+
+#### 3.2.1 Purchase worksheet (one per candidate, filled at purchase time)
+
+| Field | Candidate A | Candidate B | Candidate C |
+|---|---|---|---|
+| Model / region / availability | | | |
+| Intended role (§3.1 row #) | | | |
+| Class per doc 05 §1 — and why this candidate is class-representative | | | |
+| OS band (doc 12 §6's six) | | | |
+| microSD slot — portable or adoptable state? | | | |
+| Display refresh capability (≥90 Hz?) | | | |
+| OEM skin (AOSP-like / Samsung-class / Xiaomi-class) | | | |
+| Price at purchase — **filled by the buyer; not researched here** `[U]` | | | |
+| Closes an uncovered doc 12 §6 matrix item? (§3.5 rule) | | | |
+| **Intake-probe verdict (§3.4.1) — pass / conditional / reject** | | | |
+
+**Decision rule:** buy the smallest set that covers §3.1's rows, preferring candidates that also close uncovered matrix items (§3.5). A candidate that cannot be probed before purchase is bought **as one unit**, probed, and only then bought in quantity.
 
 ### 3.3 What we deliberately do not buy yet
 
@@ -169,6 +186,23 @@ Farms are a **supplement, never a substitute** (doc 16 §3). Concretely:
 - **Every result must name how it was obtained.** A farm result presented as a lab result is exactly the failure mode §1 S8 exists to prevent.
 
 **Intake protocol (per device, before it counts as lab equipment):** record model, build number, firmware, region variant, display refresh capability, decode capabilities as *probed* (not as published), storage topology (internal/SD, portable/adoptable), and thermal behaviour under a fixed load. Freeze this as the device's lab-matrix record; every spike result cites it rather than restating it (08A §1 S8).
+
+#### 3.4.1 The intake probe — what to record, and which documented surface answers it
+
+The probe is the instrument that makes rule 2 enforceable: **published specs may shortlist a candidate; only the device's own report admits it.** Every value comes from a documented platform surface — this table is the *record shape*, not a frozen API contract, and the implementer verifies exact names and version gates against the SDK reference when building the probe in B0.0.
+
+| Record | Documented surface to read | Needed by |
+|---|---|---|
+| OS/API level, build fingerprint, security patch level | `Build.VERSION`, `Build.FINGERPRINT` | doc 12 §6 band coverage; every result cites it (08A S8) |
+| **Decode support per codec / profile / level, hw-accelerated or not** | `MediaCodecList` + `MediaCodecInfo.CodecCapabilities` | **RQ-01, RQ-03** — the value that replaces the spec sheet |
+| Display refresh modes; panel HDR capability | `Display` supported modes / `Display.Mode`; panel HDR capability surface | RQ-12 (≥90 Hz), RQ-03 (HDR honesty paths) |
+| Storage topology: internal / removable, portable or adoptable | `StorageManager` volume list, `StorageVolume` | RQ-05, RQ-11 |
+| Audio outputs and routes available | `AudioManager` device list | RQ-04 route matrix |
+| Thermal behaviour under a fixed timed load; temperature before/after | platform thermal-status surface (version-gated) + doc 13 M2/M8 protocol | RQ-03; MB-09/10; M8's thermal-context rule |
+| RAM class; supported ABIs | `ActivityManager` memory info, `Build.SUPPORTED_ABIS` | class confirmation (doc 05 §1); RQ-14 |
+| PiP action capacity; gesture-exclusion behaviour at screen edges | `PictureInPictureParams` surface; edge-drag test with and without exclusion rects | RQ-16 |
+
+**Three rules:** (1) record **what the device reports**, never what its marketing page claims; (2) record **unavailability** too — a version-gated surface that returns nothing is logged "not available on this build", never left blank; (3) the probe output **is** the device's lab-matrix record (S8) — no device enters the lab matrix without one.
 
 **Budget:** **no prices were researched for this document** `[U]` — cost is region- and timing-dependent, and inflating a number here would be exactly the kind of invented constant the standing rule forbids (17 §1.3). The cost *drivers* are: the D1 device is the cheapest and the most load-bearing; HDR/high-refresh and any foldable are the expensive outliers; SD-capable devices are cheap but must be verified, not assumed.
 
@@ -193,13 +227,13 @@ Derived from the B0.0 finding (08A §2). The order matters: **device order and l
 
 | When | Action | Owner | Notes |
 |---|---|---|---|
-| **Day 1** | Answer **OD-4** (even roughly) | owner | Decides lab size and B0 concurrency (Q16-7) — the single highest-value answer |
+| **Day 1** | Answer **OD-4** (even roughly) | owner | Decides lab size and B0 concurrency (Q16-7) — the single highest-value answer; **doc 16 §2.1 pre-computes what each possible answer changes** |
 | Day 1 | Answer **OD-2** and **OD-3** | owner | Both have safe defaults; answering removes them from the open list |
-| Day 1 | **Order the device lab** (§3) | owner | 11 of 16 spikes are blocked without it; external lead time |
+| Day 1 | **Order the device lab** (§3, worksheet §3.2.1) | owner | The device-dependent spikes — a derived 11 of 16 (08A §3) — are blocked without it; external lead time |
 | Day 1 | **Open L1 and L2 with counsel** (briefs: `11A_LEGAL_BRIEFS.md`) | owner | L1 is the highest-priority legal item (doc 11 §5); both have safe fallbacks, so this is not on R1's critical path |
 | Day 1–2 | Open Play Console (doc 15 S1), start developer verification (S2), open the **test track early** for RQ-08 | owner | Store elapsed time dominates RQ-08, not engineering |
 | Day 2–3 | Begin **B0.0**: fixture corpus v1 + adversarial and scale corpora (doc 12 §5) | eng | Prerequisite of most spikes; do not wait for hardware to start this |
-| Day 2–3 | Write the **capability probe** and intake record (§3.4) | eng | Needed the day the first device arrives |
+| Day 2–3 | Implement the **intake probe** and lab-matrix record (§3.4.1 — specified) | eng | Needed the day the first device arrives |
 | Week 1, in parallel | **RQ-09** (iOS viability — no device needed) and **RQ-02** (toolchain — build machine only); paper half of **RQ-14** | eng | The three spikes that are not blocked by hardware or corpus |
 | Week 1 | Specify the seek/first-frame and state-restoration harnesses (doc 12 §7) | eng | Second half of B0.0 |
 | **Do not** | Start RQ-01 (or any group-C/D spike) | — | Running a spike without its pinned corpus converts evidence into anecdote (08A S1) |
@@ -219,7 +253,7 @@ Fill the right-hand columns and return; the ledger (doc 00 §5) and doc 17's sta
 | OD-5 | First market set (≤5 locales) | ASM-009 provisional set | | |
 | OD-6 | Candidate names (2–3) | Working title TBD | | |
 
-**If only one line gets filled this week, make it OD-4.**
+**If only one line gets filled this week, make it OD-4** — doc 16 §2.1 shows what each possible answer changes, so a rough answer is enough.
 
 ---
 

@@ -1,6 +1,6 @@
 # 16 — Roadmap, Dependencies, Roles, and Estimates
 
-**Version:** 0.5 (draft; v0.5 records that the device-dependency count is **derived** (11 of 16 — 08A §3) rather than asserted, and that the B0 lab is a **subset** of the doc 12 §6 matrix fleet, procured as one fleet that grows (Part 32, D-23/D-26); v0.4 points DEP-005 at the procurement specification and the owner kickoff pack in `08B`; v0.3 adds **B0.0 — instrumentation** as the named prerequisite stage of the spike program and corrects DEP-005's path classification (it gates most of B0, so it is on the *B0* critical path even though it is off the *launch* path) — both surfaced by `08A_SPIKE_RUNBOOKS.md` §2/§5; v0.2 restates de-scope item 3 by **window width** — "the 840dp+ two-pane layout" — instead of by device, consistent with doc 06 §3's breakpoint model, and adds **RQ-15** (adaptive layout) and **RQ-16** (notification exemption + gesture exclusion) to the B0 phase within its existing range. v0.1: roadmap, release trains, phases, DEP register, roles, de-scope ladder)
+**Version:** 0.6 (draft; v0.6 adds **§2.1 OD-4 decision support** — headcount scenarios derived from §2's own ranges, the externally-clocked floor no headcount compresses, and what a hard date would change; v0.5 records that the device-dependency count is **derived** (11 of 16 — 08A §3) rather than asserted, and that the B0 lab is a **subset** of the doc 12 §6 matrix fleet, procured as one fleet that grows (Part 32, D-23/D-26); v0.4 points DEP-005 at the procurement specification and the owner kickoff pack in `08B`; v0.3 adds **B0.0 — instrumentation** as the named prerequisite stage of the spike program and corrects DEP-005's path classification (it gates most of B0, so it is on the *B0* critical path even though it is off the *launch* path) — both surfaced by `08A_SPIKE_RUNBOOKS.md` §2/§5; v0.2 restates de-scope item 3 by **window width** — "the 840dp+ two-pane layout" — instead of by device, consistent with doc 06 §3's breakpoint model, and adds **RQ-15** (adaptive layout) and **RQ-16** (notification exemption + gesture exclusion) to the B0 phase within its existing range. v0.1: roadmap, release trains, phases, DEP register, roles, de-scope ladder)
 **Date:** 2026-10-19
 **Status:** Draft. **Planning ranges only — no calendar dates, no commitments.** Timeline and budget are unknown (ASM-006, OD-4 pending), so this document is phase-relative by design. Every size is an `[E]` estimate in dev-weeks with stated assumptions; calibration happens after the spike program (doc 08 definitions + `08A_SPIKE_RUNBOOKS.md` procedures, RQ-01…16) replaces hypothesis with evidence.
 **Consumes:** 01 (scope fences), 08 (spikes/ADRs), 11 (legal gates), 12/13 (hardening/bench programs), 15 (launch ops).
@@ -44,6 +44,37 @@ Assumptions: 2–4 engineers (ASM-005), part-time design, spec package as input,
 2. **The range assumes concurrency.** Summed sequentially, 08A §4's per-spike timeboxes total ≈**18 dev-weeks `[E]`**, before B0.0. The 4–8 range is therefore only achievable with several engineers running spikes in parallel (and with B0.0 amortised). **With a single engineer on B0 the range is not achievable and should be re-based rather than quietly missed** (Q16-7, owner input OD-4). The timeboxes themselves are `[E]` and uncalibrated until the first three spikes close, at which point the remainder should be re-derived from actuals.
 
 **Parallel tracks (not in phase sizes):** legal L1–L8 (doc 11), design translation of doc 06, device-lab procurement (long lead — start in B0), community/support standing setup, privacy-policy hosting.
+
+### 2.1 OD-4 decision support — what each answer changes (Part 33)
+
+Doc 16's sizes are in dev-weeks *because* headcount is unknown (ASM-005, OD-4). This section pre-computes what the owner's answer does, so OD-4 can be answered in one line without a follow-up round. **Everything below is derived from §2's own ranges; it is `[E]`, and the point is the shape, not the digits.**
+
+**A. A dev-week total is not a calendar.**
+
+| Scenario | Assumption | Indicative calendar `[E]` | What it implies |
+|---|---|---|---|
+| **1 engineer** | full-time; design not counted | **≈8–13 months** | 34–56 dev-weeks at 1×, plus B0.0. **B0 alone (≈18 dev-weeks sequential, 08A §5) cannot be compressed** — with one engineer the B0 range in §2 is not reachable and should be re-based (Q16-7) |
+| **2 engineers** | the ASM-005 floor | **≈5–9 months** | The phase chain is largely sequential (B2→B3 needs the data model; B4 needs B3; B6 needs a feature freeze), so two engineers give **≈1.5×, not 2×** — the gain comes from choosing overlap deliberately (B1‖B0, B5‖B4), not from headcount |
+| **3–4 engineers** | the ASM-005 ceiling | **≈4–7 months** | ≈1.8–2.2×; review/coordination load grows, and the tail (B6/B7) is clock-bound — this is where the returns flatten |
+| **>4 engineers** | — | **no material gain** | 34–56 dev-weeks does not decompose further without inventing parallel work; past this point, more people mostly add coordination cost |
+
+**B. Part of every calendar is externally clocked, and no headcount compresses it.**
+
+- **Closed testing: 12 testers / 14 days** (doc 15 §4 S8, assumed required) — a hard ~2-week block before production.
+- **Developer verification + regional rollout** (doc 15 §4 S2) — gates *distribution*, not quality, but it sits in the calendar.
+- **Device-lab lead time** (DEP-005) — external. If it lands late, group C/D spikes slide **regardless of how many engineers exist**.
+- **Counsel (L1/L2)** — *not* on the critical path (doc 11 §3.5 fallbacks exist), so it does not lengthen the plan; it only decides whether the audio extension ships in R1 or R1.x.
+
+**Consequence:** the last ~1–2 months of any scenario is externally clocked. **A hard date shorter than that is not a staffing problem, and hiring cannot fix it.**
+
+**C. If there is a hard date.** In order of preference:
+1. **Staff to the scenario** — cheapest, provided the window is at least the 3–4-engineer case.
+2. **Exercise the de-scope ladder (§5)** in its documented order — noting that only items **3 and 4** have adjacent sizing anywhere in the package (item 4 the ASS tier ≈ 2–4 dev-weeks `[E]`; item 3, the 840dp+ two-pane layout, is unsized). **A window shorter than ~4 months therefore requires sizing the ladder first** — a short piece of work, available on request.
+3. **Move the date** — the honest default when neither closes the gap.
+
+**What never happens:** cutting §5's *never cut* list (playback honesty paths, scan reliability, accessibility floor, privacy proofs, error taxonomy) to protect a date. If the date cannot be met with them, the date is wrong — not the requirements.
+
+**D. If the answer is "no date yet".** Nothing changes; that is a legitimate answer, the plan stays in dev-weeks, and no commitment is implied. One thing does not wait for it: **the device order and the store clock run anyway** (DEP-005, S2/S8) — ordering the lab does not depend on the calendar decision, which is why §2.1 ends here rather than gating procurement on it.
 
 ---
 
@@ -126,7 +157,7 @@ Off the launch path but still long-lead and time-sensitive: store verification (
 
 | # | Question | Owner |
 |---|---|---|
-| Q16-1 | OD-4 answer (team/budget/time) — the single unlock for calendar conversion | Owner |
+| Q16-1 | OD-4 answer (team/budget/time) — the single unlock for calendar conversion. **§2.1 pre-computes what each answer changes** | Owner |
 | Q16-2 | Designer sourcing (DEP-011) and whether store assets need an external agency | Owner |
 | Q16-3 | Support staffing model at launch (Q14-5) | Owner |
 | Q16-4 | Whether the open-testing stage (doc 15 §5) is worth the extra clock vs. closed→staged | 15/16 |
