@@ -37,6 +37,28 @@ android {
         excludes += "/META-INF/{AL2.0,LGPL2.1}"
       }
     }
+
+    bundle {
+      abi {
+        enableSplit = true
+      }
+      density {
+        enableSplit = true
+      }
+      language {
+        // Must be false for offline-only app: dynamic feature/language downloads are impossible without INTERNET
+        enableSplit = false
+      }
+    }
+
+    splits {
+      abi {
+        isEnable = true
+        reset()
+        include("arm64-v8a", "armeabi-v7a", "x86_64")
+        isUniversalApk = true
+      }
+    }
 }
 
 kotlin {
