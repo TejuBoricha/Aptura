@@ -1,0 +1,5 @@
+﻿1
+00:00:01,000 --> 00:00:05,000
+UTF-8 with BOM: Aptura Video Player test.
+Universal multi-script subtitle sample.
+

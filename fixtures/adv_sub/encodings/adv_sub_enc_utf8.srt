@@ -1,0 +1,5 @@
+1
+00:00:01,000 --> 00:00:05,000
+UTF-8 Plain Latin sample text: Aptura Video Player.
+Line 2 with accents: Café, Noël, façade.
+

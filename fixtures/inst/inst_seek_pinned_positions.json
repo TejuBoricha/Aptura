@@ -1,0 +1,53 @@
+{
+  "description": "Pinned seek targets for TST-SEEK and MB-07 latency benchmarks per spec/12A \u00a72.9",
+  "targets": [
+    {
+      "position_us": 500000,
+      "position_s": 0.5,
+      "target_type": "non-keyframe",
+      "zone": "near-start"
+    },
+    {
+      "position_us": 1000000,
+      "position_s": 1.0,
+      "target_type": "keyframe",
+      "zone": "near-start"
+    },
+    {
+      "position_us": 2500000,
+      "position_s": 2.5,
+      "target_type": "non-keyframe",
+      "zone": "near-start"
+    },
+    {
+      "position_us": 12000000,
+      "position_s": 12.0,
+      "target_type": "keyframe",
+      "zone": "mid"
+    },
+    {
+      "position_us": 14750000,
+      "position_s": 14.75,
+      "target_type": "non-keyframe",
+      "zone": "mid"
+    },
+    {
+      "position_us": 15000000,
+      "position_s": 15.0,
+      "target_type": "non-keyframe",
+      "zone": "mid"
+    },
+    {
+      "position_us": 27000000,
+      "position_s": 27.0,
+      "target_type": "keyframe",
+      "zone": "near-end"
+    },
+    {
+      "position_us": 29200000,
+      "position_s": 29.2,
+      "target_type": "non-keyframe",
+      "zone": "near-end"
+    }
+  ]
+}

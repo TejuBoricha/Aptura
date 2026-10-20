@@ -24,6 +24,30 @@ local.properties
 .kotlin/
 .cxx/
 
+# Generated Media Fixtures (manifest.csv and adv_sub text files are tracked)
+fixtures/**/*.mp4
+fixtures/**/*.mkv
+fixtures/**/*.mov
+fixtures/**/*.webm
+fixtures/**/*.ts
+fixtures/**/*.3gp
+fixtures/**/*.avi
+fixtures/**/*.flv
+fixtures/**/*.ogv
+fixtures/**/*.wmv
+fixtures/**/*.mpg
+fixtures/**/*.wtv
+fixtures/**/*.mxf
+fixtures/**/*.rm
+fixtures/**/*.rmvb
+fixtures/**/*.m4a
+fixtures/**/*.flv
+fixtures/**/*.flac
+fixtures/scale/
+fixtures/meta_bombs/tags/
+fixtures/meta_bombs/artwork/
+fixtures/meta_bombs/paths/
+
 # IDE
 .idea/
 *.iml
