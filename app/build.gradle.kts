@@ -100,8 +100,19 @@ dependencies {
   implementation(libs.androidx.room.runtime)
   implementation(libs.androidx.room.ktx)
 
+  // WorkManager (Background Media Ingest & Differential Scanning)
+  implementation(libs.androidx.work.runtime.ktx)
+
+  // DataStore Preferences (Asynchronous Settings & State Persistence)
+  implementation(libs.androidx.datastore.preferences)
+
+  // Coil (Async Video Thumbnails & Image Pipeline)
+  implementation(libs.coil.compose)
+  implementation(libs.coil.video)
+
   // Serialization
   implementation(libs.kotlinx.serialization.json)
+
 
   // Local tests: jUnit, coroutines, Turbine
   testImplementation(libs.junit)
