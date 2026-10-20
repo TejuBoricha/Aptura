@@ -34,5 +34,30 @@ Before any commit, the AI Developer must evaluate the changes against the follow
 
 ---
 
-## 2. Review Artifact Delivery
+## 2. The Anti-Confirmation-Bias Mandate (Preventing False "PASS" Verdicts)
+
+A test suite that only asserts happy paths is a dangerous false positive. To prevent code from passing unit tests while harboring fatal bugs in production:
+
+### The 3-Point Pre-Mortem Falsification Checklist
+Before writing tests or claiming a feature is complete, the developer MUST explicitly challenge the implementation against three failure dimensions:
+1. **Scale Falsification (The 10k Multiplier):**
+   - *"What happens if this list contains 10,000 items instead of 2?"*
+   - Never allow loops containing database queries, disk I/O, or IPC calls (N+1 query pattern).
+   - Never pass unbounded lists into SQL `IN (...)` clauses; chunk into batches of ≤500 items to avoid SQLite's 999 parameter limit.
+2. **Interruption & Asymmetry Falsification:**
+   - *"What happens if an asynchronous event fires out of order, or an error occurs mid-stream?"*
+   - Verify that subsequent lifecycle events (e.g. `ExoPlayer.STATE_IDLE`) do NOT clobber active error states.
+   - Verify that hardware resources (`Player`, `Cursor`, coroutine scopes) are properly detached on `release()` or cancellation.
+3. **Framework Contract Falsification:**
+   - *"What platform behavior is being assumed that is unmocked or behaves differently on real Android?"*
+   - Never assume Android framework classes (`Uri`, `Context`, `Build`) work on local JVM without explicit Robolectric or test mocks.
+   - Validate platform exemptions (e.g. media session notification exemption) before designing UI prompts.
+
+### Automated Structural Invariant Tests
+Whenever an architectural or legal invariant is established, it MUST be locked by an automated test that inspects the source files directly (e.g. `ArchitectureDecouplingTest.kt`, `PlatformInvariantsTest.kt`). If an invariant is broken by any commit or dependency, the CI build MUST fail automatically.
+
+---
+
+## 3. Review Artifact Delivery
 Every phase commit message and handoff summary must explicitly reference this QA & Code Review Gate.
+
