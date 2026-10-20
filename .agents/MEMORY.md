@@ -45,14 +45,18 @@
 - **Phase B1 Playback Controller Bridge (Part 53):** `Media3PlaybackController` bridging the live `MediaSession` to domain `PlaybackController` (StateFlow mappings, 3s seek-to-previous threshold, speed clamping, and repeat/shuffle).
 - **QA Review & Hardening (Part 54):** Eliminated N+1 SQLite queries in `MediaScanWorker` via single bulk fetch and chunked 500-item deletes. Fixed `Media3PlaybackController` error state clobbering bug; added `playQueue` and repeat-mode wrap-around navigation; expanded test suite with 5 new tests.
 - **Invariants Gate & Anti-Confirmation Mandate (Part 55):** Codified 3-Point Pre-Mortem Falsification Protocol. Implemented `PlatformInvariantsTest.kt` asserting zero INTERNET, zero MANAGE_EXTERNAL_STORAGE, zero POST_NOTIFICATIONS, zero telemetry SDKs, and offline bundle invariants.
-- **Test Baseline:** 49 unit tests passing across 12 suites (100% green). Android Lint static analysis clean (0 errors, 0 security warnings).
+- **Test Baseline:** 57 unit tests passing across 13 suites (100% green). Android Lint static analysis clean (0 errors, 0 security warnings).
+- **Crash-Proof Scans & Edge-to-Edge Cleanup (Part 56):** Hardened `MediaStoreScanner` to safely handle column lookups on API 26-28 and OEM variations. Stripped deprecated window bar color overrides in `Theme.kt` for Android 15 edge-to-edge.
+- **Media Library Grid UI (Part 57):** Implemented Coil hardware video frame decoder via `ApturaApplication`, `@Immutable` `MediaLibraryUiState`, reactive `MediaLibraryViewModel` combining 5 flows with instant search and folder chip filtering, and adaptive Compose `MediaLibraryScreen` (16:9 thumbnails, `tnum` tabular timecodes, watch progress bars, empty/loading states per `taste-compose.md`). Implemented 8 new unit tests in `MediaLibraryViewModelTest`.
 - **Active Skills & Tooling:** `android-cli` (with official Android docs KB), `jetpack-compose-performance`, `adaptive`, `edge-to-edge`, `testing-setup`, QA & Code Review Gate, Compose Taste rules, and frozen Invariants.
 
 ---
 
-## 5. Next Immediate Milestones (Phase B1 Jetpack Compose Media Grid & Player HUD)
-- Implement Jetpack Compose Media Grid with Coil video thumbnail decoding, folder filtering, and instant search.
-- Implement Player HUD screen with edge-to-edge gestures and tabular figures.
+## 5. Next Immediate Milestones (Phase B1 Jetpack Compose Player HUD & Gestures)
+- **Phase B1 Step 5:** Implement Player Screen (`PlayerScreen.kt` & `PlayerViewModel.kt`) with Media3 `PlayerView` Compose interop via `AndroidView` connecting to `Media3PlaybackController`.
+- **Custom Video Surface HUD:** 5s auto-hide timeout, top bar (back navigation, video title, aspect ratio toggle, audio/subtitle selectors), bottom bar (play/pause, scrubber with `tnum` timecode labels, playback speed menu).
+- **Edge-to-Edge Gestures:** Vertical swipe right for volume, vertical swipe left for brightness, horizontal double-tap for ±10s seek.
+- **4-Pillar QA Gate:** Automated unit tests, lint validation, and 3-Point Pre-Mortem verification before commit.
 
 
 

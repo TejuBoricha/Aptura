@@ -51,7 +51,10 @@ data class DomainMediaItem(
     val frameRate: Float = 0f,
     val audioTrackCount: Int = 0,
     val subtitleTrackCount: Int = 0,
-    val dateAddedSec: Long = 0
+    val dateAddedSec: Long = 0,
+    val folderPath: String = "",
+    val playbackPositionMs: Long = 0L,
+    val isCompleted: Boolean = false
 )
 
 data class DomainTrackSelection(
