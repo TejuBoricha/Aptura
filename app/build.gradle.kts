@@ -36,6 +36,7 @@ android {
 
     testOptions {
       unitTests.isReturnDefaultValues = true
+      unitTests.isIncludeAndroidResources = true
       unitTests.all { testTask ->
         testTask.timeout.set(Duration.ofSeconds(30))
         testTask.testLogging {
@@ -130,10 +131,12 @@ dependencies {
   implementation(libs.kotlinx.serialization.json)
 
 
-  // Local tests: jUnit, coroutines, Turbine
+  // Local tests: jUnit, coroutines, Turbine, Robolectric, Compose UI test
   testImplementation(libs.junit)
   testImplementation(libs.kotlinx.coroutines.test)
   testImplementation(libs.turbine)
+  testImplementation(libs.robolectric)
+  testImplementation(libs.androidx.compose.ui.test.junit4)
 
   // Instrumented tests: jUnit rules and runners
   androidTestImplementation(libs.androidx.test.core)
