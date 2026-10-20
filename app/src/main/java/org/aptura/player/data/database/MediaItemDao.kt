@@ -43,6 +43,12 @@ interface MediaItemDao {
     @Query("UPDATE media_items SET playbackPositionMs = :positionMs, isCompleted = :isCompleted, lastPlayedTimestamp = :timestamp WHERE uri = :uri")
     suspend fun updatePlaybackPosition(uri: String, positionMs: Long, isCompleted: Boolean, timestamp: Long)
 
+    @Query("SELECT * FROM media_items")
+    suspend fun getAllVideosRaw(): List<MediaItemEntity>
+
+    @Query("DELETE FROM media_items WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<Long>)
+
     @Query("DELETE FROM media_items WHERE mediaStoreId NOT IN (:existingMediaStoreIds)")
     suspend fun deleteRemovedVideos(existingMediaStoreIds: List<Long>)
 

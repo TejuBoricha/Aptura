@@ -31,13 +31,16 @@ class MediaScanWorker(
             val database = ApturaDatabase.getInstance(applicationContext)
             val dao = database.mediaItemDao()
 
-            val existingIds = mutableListOf<Long>()
+            val existingVideos = dao.getAllVideosRaw()
+            val existingMap = existingVideos.associateBy { it.mediaStoreId }
+
+            val scannedIds = mutableSetOf<Long>()
             val itemsToInsert = mutableListOf<MediaItemEntity>()
 
             // Merge with existing records to preserve user playback progress & timestamps
             for (item in scannedItems) {
-                existingIds.add(item.mediaStoreId)
-                val existing = dao.getVideoByMediaStoreId(item.mediaStoreId)
+                scannedIds.add(item.mediaStoreId)
+                val existing = existingMap[item.mediaStoreId]
                 if (existing != null) {
                     itemsToInsert.add(
                         item.copy(
@@ -57,10 +60,16 @@ class MediaScanWorker(
                 dao.insertOrUpdateAll(batch)
             }
 
-            // Prune files deleted from disk
-            if (existingIds.isNotEmpty()) {
-                dao.deleteRemovedVideos(existingIds)
-            } else {
+            // Prune files deleted from disk in safe 500-item chunks (prevents SQLite 999 parameter limit)
+            val idsToDelete = existingVideos
+                .filter { it.mediaStoreId !in scannedIds }
+                .map { it.id }
+
+            if (idsToDelete.isNotEmpty()) {
+                idsToDelete.chunked(500).forEach { batch ->
+                    dao.deleteByIds(batch)
+                }
+            } else if (scannedItems.isEmpty() && existingVideos.isNotEmpty()) {
                 dao.clearAll()
             }
 

@@ -41,6 +41,8 @@ class Media3PlaybackControllerTest {
         var shuffleModeEnabled: Boolean = false
         var lastSeekPosition: Long? = null
         var currentMediaItem: MediaItem? = null
+        var playerError: PlaybackException? = null
+        var released: Boolean = false
 
         fun fireStateChange(newState: Int) {
             playbackState = newState
@@ -53,6 +55,7 @@ class Media3PlaybackControllerTest {
         }
 
         fun fireError(exception: PlaybackException) {
+            playerError = exception
             listeners.forEach { it.onPlayerError(exception) }
         }
 
@@ -69,6 +72,7 @@ class Media3PlaybackControllerTest {
                 "getCurrentPosition" -> currentPosition
                 "getDuration" -> duration
                 "getPlaybackState" -> playbackState
+                "getPlayerError" -> playerError
                 "isPlaying" -> isPlaying
                 "getPlaybackParameters" -> playbackParameters
                 "setPlaybackParameters" -> {
@@ -110,7 +114,10 @@ class Media3PlaybackControllerTest {
                     shuffleModeEnabled = args?.get(0) as Boolean
                     null
                 }
-                "release" -> null
+                "release" -> {
+                    released = true
+                    null
+                }
                 else -> null
             }
         }
@@ -245,5 +252,90 @@ class Media3PlaybackControllerTest {
         controller.setPlayMode(PlayMode.SHUFFLE)
         assertEquals(Player.REPEAT_MODE_OFF, state.repeatMode)
         assertTrue(state.shuffleModeEnabled)
+    }
+
+    @Test
+    fun onPlayerError_mapsErrorState_andPreservesErrorOnIdleTransition() = runTest(testDispatcher) {
+        val (player, state) = createMockPlayer()
+        val controller = Media3PlaybackController(player, testScope, testDispatcher)
+
+        controller.playbackState.test {
+            assertEquals(DomainPlaybackState.Idle, awaitItem())
+
+            // Trigger player error
+            val exception = PlaybackException("Decoder initialization failed", null, PlaybackException.ERROR_CODE_DECODER_INIT_FAILED)
+            state.fireError(exception)
+
+            val errorState = awaitItem()
+            assertTrue("Expected DomainPlaybackState.Error", errorState is DomainPlaybackState.Error)
+            val domainError = errorState as DomainPlaybackState.Error
+            assertEquals("ERROR_CODE_DECODER_INIT_FAILED", domainError.errorCode)
+            assertFalse("Init failure should not be recoverable", domainError.isRecoverable)
+
+            // Media3 fires STATE_IDLE following an error; verify it does NOT clobber the error state
+            state.fireStateChange(Player.STATE_IDLE)
+            expectNoEvents()
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun skipToPrevious_navigatesToPreviousItem_whenUnderThreeSeconds() = runTest(testDispatcher) {
+        val (player, state) = createMockPlayer()
+        val controller = Media3PlaybackController(player, testScope, testDispatcher)
+
+        // Queue with 2 items, currently at index 1
+        controller.playQueue(listOf(sampleItem1, sampleItem2), startIndex = 1)
+        assertEquals(1, controller.playbackQueue.value.currentIndex)
+
+        state.currentPosition = 1500L // Under 3000ms threshold -> previous item
+        controller.skipToPrevious()
+
+        assertEquals(0, controller.playbackQueue.value.currentIndex)
+        assertEquals(sampleItem1, controller.playbackQueue.value.currentItem)
+    }
+
+    @Test
+    fun skipToNext_advancesQueue_andPlaysNextItem() = runTest(testDispatcher) {
+        val (player, _) = createMockPlayer()
+        val controller = Media3PlaybackController(player, testScope, testDispatcher)
+
+        controller.playQueue(listOf(sampleItem1, sampleItem2), startIndex = 0)
+        assertEquals(0, controller.playbackQueue.value.currentIndex)
+
+        controller.skipToNext()
+
+        assertEquals(1, controller.playbackQueue.value.currentIndex)
+        assertEquals(sampleItem2, controller.playbackQueue.value.currentItem)
+    }
+
+    @Test
+    fun playQueue_initializesQueue_andPlaysTargetItem() = runTest(testDispatcher) {
+        val (player, state) = createMockPlayer()
+        val controller = Media3PlaybackController(player, testScope, testDispatcher)
+
+        val queueItems = listOf(sampleItem1, sampleItem2)
+        controller.playQueue(queueItems, startIndex = 1)
+
+        val queue = controller.playbackQueue.value
+        assertEquals(2, queue.items.size)
+        assertEquals(1, queue.currentIndex)
+        assertEquals(sampleItem2, queue.currentItem)
+        assertTrue(state.isPlaying)
+    }
+
+    @Test
+    fun release_cleansUpListenerAndReleasesPlayer() = runTest(testDispatcher) {
+        val (player, state) = createMockPlayer()
+        val controller = Media3PlaybackController(player, testScope, testDispatcher)
+
+        assertEquals(1, state.listeners.size)
+        assertFalse(state.released)
+
+        controller.release()
+
+        assertEquals(0, state.listeners.size)
+        assertTrue(state.released)
     }
 }

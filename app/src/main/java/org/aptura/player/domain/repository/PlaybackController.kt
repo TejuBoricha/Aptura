@@ -18,6 +18,7 @@ interface PlaybackController {
     val trackSelection: StateFlow<DomainTrackSelection>
 
     suspend fun playMediaItem(item: DomainMediaItem)
+    suspend fun playQueue(items: List<DomainMediaItem>, startIndex: Int = 0)
     suspend fun play()
     suspend fun pause()
     suspend fun seekTo(positionMs: Long)

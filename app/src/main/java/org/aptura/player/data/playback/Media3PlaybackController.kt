@@ -4,6 +4,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -27,7 +28,8 @@ import org.aptura.player.domain.usecase.PreviousActionOutcome
  */
 class Media3PlaybackController(
     private val player: Player,
-    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
+    private val mainDispatcher: CoroutineDispatcher = Dispatchers.Main
 ) : PlaybackController {
 
     private val _playbackState = MutableStateFlow<DomainPlaybackState>(DomainPlaybackState.Idle)
@@ -49,11 +51,7 @@ class Media3PlaybackController(
         }
 
         override fun onPlayerError(error: PlaybackException) {
-            _playbackState.value = DomainPlaybackState.Error(
-                errorCode = error.errorCodeName,
-                message = error.message ?: "Unknown playback error occurred",
-                isRecoverable = error.errorCode != PlaybackException.ERROR_CODE_DECODER_INIT_FAILED
-            )
+            updatePlaybackState()
         }
 
         override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
@@ -70,6 +68,16 @@ class Media3PlaybackController(
     }
 
     private fun updatePlaybackState() {
+        val error = player.playerError
+        if (error != null) {
+            _playbackState.value = DomainPlaybackState.Error(
+                errorCode = error.errorCodeName,
+                message = error.message ?: "Unknown playback error occurred",
+                isRecoverable = error.errorCode != PlaybackException.ERROR_CODE_DECODER_INIT_FAILED
+            )
+            return
+        }
+
         val currentPosition = player.currentPosition.coerceAtLeast(0L)
         val duration = player.duration.coerceAtLeast(0L)
 
@@ -88,6 +96,24 @@ class Media3PlaybackController(
     }
 
     override suspend fun playMediaItem(item: DomainMediaItem) {
+        playQueue(listOf(item), 0)
+    }
+
+    override suspend fun playQueue(items: List<DomainMediaItem>, startIndex: Int) {
+        if (items.isEmpty()) return
+        val clampedIndex = startIndex.coerceIn(0, items.size - 1)
+        val targetItem = items[clampedIndex]
+
+        playMediaItemInternal(targetItem)
+
+        _playbackQueue.value = DomainPlaybackQueue(
+            items = items,
+            currentIndex = clampedIndex,
+            playMode = _playbackQueue.value.playMode
+        )
+    }
+
+    private fun playMediaItemInternal(item: DomainMediaItem) {
         val mediaItem = try {
             MediaItem.fromUri(item.uri)
         } catch (_: Throwable) {
@@ -96,13 +122,6 @@ class Media3PlaybackController(
         player.setMediaItem(mediaItem)
         player.prepare()
         player.play()
-
-
-        _playbackQueue.value = DomainPlaybackQueue(
-            items = listOf(item),
-            currentIndex = 0,
-            playMode = _playbackQueue.value.playMode
-        )
     }
 
     override suspend fun play() {
@@ -122,10 +141,16 @@ class Media3PlaybackController(
     override suspend fun skipToNext() {
         val queue = _playbackQueue.value
         if (queue.hasNext) {
-            val nextIndex = (queue.currentIndex + 1).coerceAtMost(queue.items.size - 1)
-            val nextItem = queue.items[nextIndex]
-            _playbackQueue.value = queue.copy(currentIndex = nextIndex)
-            playMediaItem(nextItem)
+            val nextIndex = when (queue.playMode) {
+                PlayMode.REPEAT_ONE -> queue.currentIndex
+                PlayMode.REPEAT_ALL -> if (queue.items.isEmpty()) -1 else (queue.currentIndex + 1) % queue.items.size
+                PlayMode.NORMAL, PlayMode.SHUFFLE -> (queue.currentIndex + 1).coerceAtMost(queue.items.size - 1)
+            }
+            if (nextIndex in queue.items.indices) {
+                val nextItem = queue.items[nextIndex]
+                _playbackQueue.value = queue.copy(currentIndex = nextIndex)
+                playMediaItemInternal(nextItem)
+            }
         }
     }
 
@@ -138,10 +163,16 @@ class Media3PlaybackController(
                 player.seekTo(0L)
             }
             PreviousActionOutcome.NavigateToPreviousItem -> {
-                val prevIndex = (queue.currentIndex - 1).coerceAtLeast(0)
-                val prevItem = queue.items[prevIndex]
-                _playbackQueue.value = queue.copy(currentIndex = prevIndex)
-                playMediaItem(prevItem)
+                val prevIndex = when (queue.playMode) {
+                    PlayMode.REPEAT_ONE -> queue.currentIndex
+                    PlayMode.REPEAT_ALL -> if (queue.items.isEmpty()) -1 else (queue.currentIndex - 1 + queue.items.size) % queue.items.size
+                    PlayMode.NORMAL, PlayMode.SHUFFLE -> (queue.currentIndex - 1).coerceAtLeast(0)
+                }
+                if (prevIndex in queue.items.indices) {
+                    val prevItem = queue.items[prevIndex]
+                    _playbackQueue.value = queue.copy(currentIndex = prevIndex)
+                    playMediaItemInternal(prevItem)
+                }
             }
         }
     }

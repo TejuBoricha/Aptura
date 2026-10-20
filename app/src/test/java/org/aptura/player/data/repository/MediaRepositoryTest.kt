@@ -87,6 +87,12 @@ class MediaRepositoryTest {
             }
         }
 
+        override suspend fun getAllVideosRaw(): List<MediaItemEntity> = items.value
+
+        override suspend fun deleteByIds(ids: List<Long>) {
+            items.value = items.value.filter { it.id !in ids }
+        }
+
         override suspend fun deleteRemovedVideos(existingMediaStoreIds: List<Long>) {
             items.value = items.value.filter { it.mediaStoreId in existingMediaStoreIds }
         }
