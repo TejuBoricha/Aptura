@@ -1,3 +1,5 @@
+import java.time.Duration
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.compose.compiler)
@@ -34,6 +36,14 @@ android {
 
     testOptions {
       unitTests.isReturnDefaultValues = true
+      unitTests.all { testTask ->
+        testTask.timeout.set(Duration.ofSeconds(30))
+        testTask.testLogging {
+          events("failed", "skipped")
+          showStandardStreams = false
+          exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+        }
+      }
     }
 
 

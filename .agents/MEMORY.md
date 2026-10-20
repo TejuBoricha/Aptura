@@ -48,15 +48,16 @@
 - **Test Baseline:** 57 unit tests passing across 13 suites (100% green). Android Lint static analysis clean (0 errors, 0 security warnings).
 - **Crash-Proof Scans & Edge-to-Edge Cleanup (Part 56):** Hardened `MediaStoreScanner` to safely handle column lookups on API 26-28 and OEM variations. Stripped deprecated window bar color overrides in `Theme.kt` for Android 15 edge-to-edge.
 - **Media Library Grid UI (Part 57):** Implemented Coil hardware video frame decoder via `ApturaApplication`, `@Immutable` `MediaLibraryUiState`, reactive `MediaLibraryViewModel` combining 5 flows with instant search and folder chip filtering, and adaptive Compose `MediaLibraryScreen` (16:9 thumbnails, `tnum` tabular timecodes, watch progress bars, empty/loading states per `taste-compose.md`). Implemented 8 new unit tests in `MediaLibraryViewModelTest`.
-- **Active Skills & Tooling:** `android-cli` (with official Android docs KB), `jetpack-compose-performance`, `adaptive`, `edge-to-edge`, `testing-setup`, QA & Code Review Gate, Compose Taste rules, and frozen Invariants.
+- **Player Screen & Video Surface HUD (Part 58):** Implemented `PlayerScreen.kt` (Media3 PlayerView interop, dual-half gesture layers for volume/brightness, top/bottom scrims, auto-hide HUD), `PlayerViewModel.kt` (event-driven 5s checkpointing, comfort pre-roll restoration, multi-tap seek accumulation, speed/aspect ladders), `PlayerManager.kt` thread-safe singleton, and 14 unit tests in `PlayerViewModelTest.kt`. Permanently hardened quality gates: configured 30s Gradle test timeout in `build.gradle.kts`, codified zero-polling and Media3 AndroidX OptIn rules in `coding-standards.md`, and created atomic validation script `tools/gate.ps1`. 71 unit tests passing across 14 suites (100% green); lint clean.
+- **Active Skills & Tooling:** `android-cli`, `jetpack-compose-performance`, `adaptive`, `edge-to-edge`, `testing-setup`, QA & Code Review Gate, Compose Taste rules, and frozen Invariants.
 
 ---
 
-## 5. Next Immediate Milestones (Phase B1 Jetpack Compose Player HUD & Gestures)
-- **Phase B1 Step 5:** Implement Player Screen (`PlayerScreen.kt` & `PlayerViewModel.kt`) with Media3 `PlayerView` Compose interop via `AndroidView` connecting to `Media3PlaybackController`.
-- **Custom Video Surface HUD:** 5s auto-hide timeout, top bar (back navigation, video title, aspect ratio toggle, audio/subtitle selectors), bottom bar (play/pause, scrubber with `tnum` timecode labels, playback speed menu).
-- **Edge-to-Edge Gestures:** Vertical swipe right for volume, vertical swipe left for brightness, horizontal double-tap for ±10s seek.
-- **4-Pillar QA Gate:** Automated unit tests, lint validation, and 3-Point Pre-Mortem verification before commit.
+## 5. Next Immediate Milestones (Phase B1 Advanced Player Panels & Media Details)
+- **Phase B1 Step 6 (SCR-009 & SCR-010e):**
+  - **Media Details Sheet (SCR-009):** Metadata viewer showing container format, video codec, audio channels, bitrate, resolution, frame rate, file path, size, date added.
+  - **Advanced Player Sheet & Stats (SCR-010e):** Decoder override selector (Auto/HW/SW) with informative descriptions, audio delay calibration slider (±5s in 50ms increments per `FR-AUD-004`), subtitle delay calibration slider (±10s in 50ms increments per `FR-SUB-003`), and real-time playback diagnostics stats overlay (`EV-001…020`).
+- **4-Pillar QA Gate:** Automated unit tests, `tools/gate.ps1` execution, and 3-Point Pre-Mortem verification before commit.
 
 
 

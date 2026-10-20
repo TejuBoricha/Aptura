@@ -27,7 +27,7 @@ import org.aptura.player.domain.usecase.PreviousActionOutcome
  * and enforces platform navigation rules (FR-CTRL-002, W8, W9).
  */
 class Media3PlaybackController(
-    private val player: Player,
+    val player: Player,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
     private val mainDispatcher: CoroutineDispatcher = Dispatchers.Main
 ) : PlaybackController {

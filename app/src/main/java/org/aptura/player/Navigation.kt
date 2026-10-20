@@ -15,6 +15,11 @@ import org.aptura.player.data.scanner.MediaScanScheduler
 import org.aptura.player.ui.library.MediaLibraryScreen
 import org.aptura.player.ui.library.MediaLibraryViewModel
 
+import androidx.compose.runtime.LaunchedEffect
+import org.aptura.player.data.playback.PlayerManager
+import org.aptura.player.ui.player.PlayerScreen
+import org.aptura.player.ui.player.PlayerViewModel
+
 @Composable
 fun MainNavigation() {
     val backStack = rememberNavBackStack(MediaLibrary)
@@ -24,6 +29,11 @@ fun MainNavigation() {
     val mediaRepository = remember { MediaRepositoryImpl(database.mediaItemDao()) }
     val libraryViewModel: MediaLibraryViewModel = viewModel {
         MediaLibraryViewModel(mediaRepository)
+    }
+
+    val playbackController = remember { PlayerManager.getOrCreate(context) }
+    val playerViewModel: PlayerViewModel = viewModel {
+        PlayerViewModel(playbackController, mediaRepository)
     }
 
     NavDisplay(
@@ -45,6 +55,36 @@ fun MainNavigation() {
                             MediaScanScheduler.scheduleImmediateScan(context)
                         }
                     }
+                )
+            }
+            entry<PlayerKey> { playerKey ->
+                LaunchedEffect(playerKey.videoUri) {
+                    playerViewModel.loadAndPlay(playerKey.videoUri)
+                }
+                val uiState by playerViewModel.uiState.collectAsStateWithLifecycle()
+                PlayerScreen(
+                    uiState = uiState,
+                    player = playbackController.player,
+                    onBackClick = {
+                        backStack.removeLastOrNull()
+                    },
+                    onPlayPauseClick = playerViewModel::togglePlayPause,
+                    onSeekRelative = playerViewModel::seekRelative,
+                    onScrubStart = playerViewModel::onScrubStart,
+                    onScrubMove = playerViewModel::onScrubMove,
+                    onScrubEnd = playerViewModel::onScrubEnd,
+                    onControlsVisibilityToggle = playerViewModel::toggleControlsVisibility,
+                    onLockToggle = playerViewModel::toggleLock,
+                    onSpeedSelected = playerViewModel::setPlaybackSpeed,
+                    onResizeModeToggle = playerViewModel::toggleResizeMode,
+                    onSpeedSheetVisible = playerViewModel::setSpeedSheetVisible,
+                    onAudioSheetVisible = playerViewModel::setAudioSheetVisible,
+                    onSubtitleSheetVisible = playerViewModel::setSubtitleSheetVisible,
+                    onAudioTrackSelected = playerViewModel::selectAudioTrack,
+                    onSubtitleTrackSelected = playerViewModel::selectSubtitleTrack,
+                    onVolumePercentChanged = playerViewModel::setVolumePercent,
+                    onBrightnessPercentChanged = playerViewModel::setBrightnessPercent,
+                    onRetryPlayback = playerViewModel::retryPlayback
                 )
             }
         }
