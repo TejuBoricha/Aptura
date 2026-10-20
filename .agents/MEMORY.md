@@ -44,7 +44,8 @@
 - **Phase B1 Media Ingest (Part 52):** `MediaStoreScanner` (sub-second cold scan projection), `MediaScanWorker` (`WorkManager` differential ingest with progress preservation), and `MediaScanScheduler` implemented.
 - **Phase B1 Playback Controller Bridge (Part 53):** `Media3PlaybackController` bridging the live `MediaSession` to domain `PlaybackController` (StateFlow mappings, 3s seek-to-previous threshold, speed clamping, and repeat/shuffle).
 - **QA Review & Hardening (Part 54):** Eliminated N+1 SQLite queries in `MediaScanWorker` via single bulk fetch and chunked 500-item deletes. Fixed `Media3PlaybackController` error state clobbering bug; added `playQueue` and repeat-mode wrap-around navigation; expanded test suite with 5 new tests.
-- **Test Baseline:** 43 unit tests passing across 11 suites (100% green). Android Lint static analysis clean (0 errors, 0 security warnings).
+- **Invariants Gate & Anti-Confirmation Mandate (Part 55):** Codified 3-Point Pre-Mortem Falsification Protocol. Implemented `PlatformInvariantsTest.kt` asserting zero INTERNET, zero MANAGE_EXTERNAL_STORAGE, zero POST_NOTIFICATIONS, zero telemetry SDKs, and offline bundle invariants.
+- **Test Baseline:** 49 unit tests passing across 12 suites (100% green). Android Lint static analysis clean (0 errors, 0 security warnings).
 - **Active Skills & Tooling:** `android-cli` (with official Android docs KB), `jetpack-compose-performance`, `adaptive`, `edge-to-edge`, `testing-setup`, QA & Code Review Gate, Compose Taste rules, and frozen Invariants.
 
 ---
