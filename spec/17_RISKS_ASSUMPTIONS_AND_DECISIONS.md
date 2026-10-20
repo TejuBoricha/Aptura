@@ -1,6 +1,6 @@
 # 17 — Consolidated Registers, DoR/DoD, and Change Process
 
-**Version:** 0.8 (draft; v0.8 updates **ASM-009** to reflect the owner's global launch directive on **OD-5** (Part 39) — worldwide Google Play distribution, English baseline UI at launch with full multi-script subtitle rendering and progressive UI translations, global statute scope active; v0.7 recorded the Part 38 delegated decisions; v0.6 added a fifth error class and method step 9; v0.5 added the fourth error class and steps 7–8; v0.4 added step 6; v0.3 added the rule and decision-set classification; v0.2 added RSK-015)
+**Version:** 0.9 (draft; v0.9 updates **ASM-005** and **ASM-006** to reflect the owner's explicit directive on **OD-4** in **Part 40** — **Solo AI Developer (Antigravity) + Product Owner (User)**, zero human engineers on staff, zero engineering payroll, sequential build execution; v0.8 updated ASM-009 for global launch under OD-5; v0.7 recorded Part 38 delegated decisions; v0.6 added fifth error class; v0.5 added fourth error class; v0.4 added step 6; v0.3 added rule; v0.2 added RSK-015)
 **Date:** 2026-10-20
 **Status:** Draft — **this document is the canonical home** for the DEC / ASM / RSK / DEP registers and for the Definition of Ready/Done. Where earlier documents hold originals (00 §3, 08, 16 §3), this register supersedes for lookup while preserving the original context. IDs are frozen; nothing is silently renumbered (change rules §7).
 **Consumes:** every prior document.
@@ -129,8 +129,8 @@ Reviewed 2026-10-19 against docs 02/02A and the W1–W8 research notes. "Deviati
 | ASM-002 | Android-first economics favor R1 Android | W2/W4 evidence; DEC-002 | Provisional |
 | ASM-003 | Local-first, no account, no mandatory backend | Doc 09 no-backend rationale | Validated by design (no server exists) |
 | ASM-004 | Free/no-ads launch | DEC-004; W4 monetization analysis | Active (OD-3 confirmed — Part 38) |
-| ASM-005 | Small senior team — **working scenario: 2 engineers full-time + part-time design** (the range's floor; Part 38, delegated) | OD-4 — re-validate when real figures are known | **Working scenario** |
-| ASM-006 | **Working scenario: no hard external date** (internal aim only); **modest ceiling** — §3.1-minimum device lab grown by 08B §3.5 + batch-A counsel (Part 38, delegated) | OD-4 — calendar applies the 2-engineer row (doc 16 §2.1) | **Working scenario** |
+| ASM-005 | **Solo AI Developer (Antigravity) + Product Owner (User)** — zero human engineers; AI executes all architecture, implementation, test suites, and scripts under pair-programming direction | OD-4 (owner directive, Part 40) | **Active (owner-validated — Part 40)** |
+| ASM-006 | **No hard external date**; **minimal spend ceiling** ($0 engineering payroll; budget covers DEP-005 device lab + Play fees); sequential execution | OD-4 (owner directive, Part 40) | **Active (owner-validated — Part 40)** |
 | ASM-007 | Shipping config uses platform/royalty-free decoders; unclear royalty → excluded/flagged | Doc 11 register | Active |
 | ASM-008 | Incumbent pain clusters: ads/trust, reliability edges, subtitles, scan friction, low-end perf, bloat | W1 pain synthesis (doc 02 §5) | Supported |
 | ASM-009 | **Targeted globally from Day 1 (Part 39, owner-validated): worldwide Google Play distribution, English UI baseline at launch + full multi-script subtitle support (Arabic RTL, CJK, Devanagari, Cyrillic), progressive UI translation additions; global compliance active** | W4; OD-5 | Active (owner-validated — Part 39) |
@@ -192,10 +192,10 @@ Detail lives in each source document; this index is for navigation. **Owner deci
 
 | Priority | Open item | Home |
 |---|---|---|
-| 1 | **OD-4** team/budget/time (unlocks calendar + device-lab scope) | 00 §5 |
-| 2 | **L1** LGPL relinking verdict (gates only the optional audio ext) | 11 §5 |
-| 3 | **B0 spike outcomes** (RQ-01/03/05/06/08/13/14) | 08 |
-| 4 | OD-3 monetization intent; OD-6 name; OD-1/OD-2 confirmations (OD-5 confirmed global — Part 39) | 00 §5 |
+| 1 | **DEP-005 device lab** (gates 11 spikes) + **B0.0 instrumentation** (`12A`) | 08B §3 / 12A |
+| 2 | **L1** LGPL relinking verdict (gates only the optional audio ext) | 11 §5 / 11A |
+| 3 | **B0 spike execution** (RQ-01/03/05/06/08/13/14…16) | 08 / 08A |
+| 4 | **OD-6** candidate names (unblocks L6 trademark clearance & pins `applicationId`) | 00 §5 / 08B |
 | 5 | Device budget (Q12-2), support staffing (Q14-5/Q16-3), hosting (OQ15-3/Q14-2) | 12/14/15/16 |
 
 Full sets: doc 04 Q1–Q14 (Q12, Q13, Q14 closed) · doc 05 NQ1–NQ6 · doc 06 U1–U6 · doc 07 C1–C6 · doc 08 T1–T5 · doc 09 A1–A6 · doc 10 S1–S6 · doc 11 OQ-1…5 · doc 12 Q12-1…6 · doc 13 Q13-1…6 · doc 14 Q14-1…5 · doc 15 OQ15-1…5 · doc 16 Q16-1…5 · doc 02A CS-1…CS-7.

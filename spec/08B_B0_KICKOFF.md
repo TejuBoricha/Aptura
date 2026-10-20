@@ -1,6 +1,6 @@
 # 08B — B0 Kickoff Pack (Owner Decisions, Device Procurement, Week One)
 
-**Version:** 0.5 (draft — nothing ordered, nothing executed); v0.5 records the **owner directive on OD-5 (Part 39)** — targeted globally from Day 1 with worldwide Google Play distribution, English baseline UI at launch, full multi-script subtitle rendering (Arabic RTL, CJK, Devanagari, Cyrillic), and progressive UI translation rollouts; v0.4 recorded the Part 38 delegated decisions; v0.3 made the device order executable (§3.2.1 purchase worksheet, §3.4.1 intake probe specification); v0.2 applied Part 32 audit fixes.
+**Version:** 0.6 (draft — nothing ordered, nothing executed); v0.6 records the **owner directive on OD-4 (Part 40)** — Solo AI Developer (Antigravity) + Product Owner (User), zero human engineers, zero dev payroll, sequential execution (Q16-7 = 1, RB-2 = 1); v0.5 recorded the owner directive on OD-5 (Part 39); v0.4 recorded Part 38 delegated decisions; v0.3 made the device order executable; v0.2 applied Part 32 audit fixes.
 **Date:** 2026-10-20
 **Status:** Draft, docs-only. This is the **action layer** for the spike program: it converts the pending owner decisions (doc 00 §5), the device-lab dependency (DEP-005) and the first week of B0 into things a person can actually do on a Monday morning. It decides nothing itself.
 **Companion status:** numbered `08B` alongside `08A`, following the `02A` precedent — the master prompt's deliverable set (00–18) is unchanged and doc 18's §22 audit remains 24/24.
@@ -80,19 +80,14 @@ Each brief states the question, why it is being asked *now* rather than later, t
 ---
 
 ### OD-4 — Team, budget, and time
-**Default in force:** ranges in `[E]` dev-weeks only (doc 16).
+**Decision (Owner Directive, Part 40):** **Solo AI Developer (Antigravity) + Product Owner (User)** — zero human engineers on staff.
+- **Engineers:** 0 human engineers; the AI assistant (Antigravity) acts as the solo developer/engineer, executing all architecture, code, test suites, and scripts under pair-programming direction of the Product Owner.
+- **Design:** Handled directly in code by the AI implementing the Material 3 design tokens, wireflows, and screen specifications of doc 06.
+- **Window:** No hard external calendar deadline; pace is determined by interactive pair programming sessions and milestone verification.
+- **Spend ceiling:** Zero engineering payroll ($0); spend ceiling is allocated exclusively to the physical device lab (DEP-005, §3) and Google Play registration fees.
+- **Execution model & Concurrency:** Concurrency = 1 (sequential execution; Q16-7 = 1, RB-2 = 1). Re-adjudication (S6/RB-4) is held by Product Owner sign-off on automated test evidence.
 
-**Why now — and why this is the one to answer first:** every size in the package is in dev-weeks precisely because headcount is unknown. Without it there is no calendar, no way to know whether the de-scope ladder (doc 16 §5) needs to be exercised, and no answer to **Q16-7**, the question that decides whether B0's 4–8 week range is reachable at all (08A §5: spike timeboxes alone sum to ≈18 dev-weeks sequentially).
-
-The four things actually needed — a rough answer beats a careful one:
-
-1. **Engineers**: how many, and are they full-time on this? (A range is fine: "1–2", "3".)
-2. **Design**: is there a designer at part-time hours (DEP-011)?
-3. **Window**: is there a target date, and is it a hard external commitment or an internal preference?
-4. **Spend ceiling**: the two cash items in the plan are the **device lab** (DEP-005) and **legal counsel** (L1/L2). A ceiling of "some" is enough to decide whether the lab is 3 devices or 6.
-
-**What this unblocks:** calendar conversion of every range; B0 concurrency; lab size; whether the launch window is plausible at all.
-**Cost of delay:** the plan continues in dev-weeks, but **B0 cannot be scheduled**, and the device order and legal engagement — both with external lead times — stay unsent.
+**What this unblocks:** B0 scheduling as an AI development sequence, zero coordination overhead, lab procurement sizing.
 
 ---
 
@@ -251,7 +246,7 @@ Derived from the B0.0 finding (08A §2). The order matters: **device order and l
 | OD-1 | Platform order | **Android-first** (DEC-002 confirmed) | iOS stays an evidence-gated R1.x decision (RQ-09) |
 | OD-2 | R1 boundary: local-only vs network | **Local-only** (DEC-001 confirmed) | SMB/NAS/HTTP remain an R2 candidate |
 | OD-3 | Monetization at launch | **Free / no ads / no account** (DEC-004 confirmed) | Monetization option B remains an R1.x candidate |
-| OD-4 | Team, design, window, spend ceiling | **2 engineers full-time + part-time design; no hard external date (internal aim only); modest ceiling** | Lab: §3.1 minimum fleet grown by §3.5 (buy one → probe → extend); counsel: batch A. Calendar: doc 16 §2.1's 2-engineer row (≈5–9 months). Q16-7 = 2 engineers on B0; **the §3.3 "second unit of the busiest class" trigger is now met** — buy one duplicate when the probe confirms its class, budget allowing |
+| OD-4 | Team, design, window, spend ceiling | **Solo AI Developer (Antigravity) + Product Owner (User)** (owner directive — Part 40) | Zero human engineers; zero engineering payroll budget. No hard external deadline. Spend ceiling covers §3.1-minimum device lab (DEP-005) and Play Store fees. Concurrency = 1 (sequential execution; Q16-7 = 1, RB-2 = 1). Re-adjudicator (S6/RB-4) = Product Owner sign-off on automated test evidence |
 | OD-5 | First market set / launch regions | **Targeted globally from Day 1** (owner directive — Part 39) | Worldwide availability on Google Play; English baseline UI at launch; full multi-script subtitle support (Arabic RTL, CJK, Devanagari, Cyrillic) from Day 1; progressive UI translation additions. L5 statute scope covers global regimes (GDPR, CCPA, DPDP, LGPD, EAA) concurrently |
 | OD-6 | Candidate names (2–3) | **Deferred by decision** — naming happens at launch-prep | The collision risk is the one error that forces a rebrand; nothing blocks on it except L6, which starts once a shortlist exists |
 
