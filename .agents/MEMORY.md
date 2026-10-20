@@ -41,14 +41,16 @@
 - **Spike RQ-14 (Part 49):** ABI & Language Bundle Strategy (PASSED). Universal APK 16.1 MB, per-ABI 12.5 MB, language split disabled for zero-network offline safety.
 - **Spike RQ-09 (Part 50):** iOS Viability Gate (CLOSED / DEC-002 REAFFIRMED). Pure Kotlin domain contracts established with automated zero-Android-import assertion (`ArchitectureDecouplingTest.kt`).
 - **Phase B1 Kickoff (Part 51):** `ApturaPlaybackService` (Media3 foreground service with audio focus and platform notification exemption), Room database (`MediaItemEntity`, `MediaItemDao`, `ApturaDatabase`), and `MediaRepositoryImpl` implemented.
-- **Test Baseline:** 30 unit tests passing across 9 suites (100% green).
+- **Phase B1 Media Ingest (Part 52):** `MediaStoreScanner` (sub-second cold scan projection), `MediaScanWorker` (`WorkManager` differential ingest with progress preservation), and `MediaScanScheduler` implemented.
+- **Test Baseline:** 33 unit tests passing across 10 suites (100% green).
 - **Active Skills & Tooling:** `android-cli` (with official Android docs KB), `jetpack-compose-performance`, `adaptive`, `edge-to-edge`, `testing-setup`, Compose Taste rules, and frozen Invariants.
 
 ---
 
-## 5. Next Immediate Milestones (Phase B1 Media Ingest & Player Controller)
-- Implement MediaStore / SAF scanning worker (`WorkManager`) for local library ingest.
+## 5. Next Immediate Milestones (Phase B1 Player Controller & UI Media Grid)
 - Implement `Media3PlaybackController` bridging the live `MediaSession` to domain `PlaybackController`.
 - Implement Jetpack Compose Media Grid with Coil video thumbnail decoding.
+- Implement Player HUD screen with edge-to-edge gestures and tabular figures.
+
 
 
