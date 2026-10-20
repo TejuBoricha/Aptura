@@ -54,11 +54,22 @@
 
 ---
 
-## 5. Next Immediate Milestones (Phase B1 Advanced Player Panels & Media Details)
-- **Phase B1 Step 6 (SCR-009 & SCR-010e):**
-  - **Media Details Sheet (SCR-009):** Metadata viewer showing container format, video codec, audio channels, bitrate, resolution, frame rate, file path, size, date added.
-  - **Advanced Player Sheet & Stats (SCR-010e):** Decoder override selector (Auto/HW/SW) with informative descriptions, audio delay calibration slider (±5s in 50ms increments per `FR-AUD-004`), subtitle delay calibration slider (±10s in 50ms increments per `FR-SUB-003`), and real-time playback diagnostics stats overlay (`EV-001…020`).
-- **4-Pillar QA Gate:** Automated unit tests, `tools/gate.ps1` execution, and 3-Point Pre-Mortem verification before commit.
+## 5. Next Immediate Milestones & Continuous Evolution Roadmap
+- **Advanced Audio & Video Customization Suite (Part 60):** Implemented 5-band Equalizer, Presets, Bass Boost, Virtualizer, Loudness Enhancer, Subtitle Delay (-10s to +10s), Audio Sync Delay (-5s to +5s), Sleep Timer, Frame Stepper, A-B Repeat Looper, Picture Adjustments (Night Mode / Eye Comfort, Contrast, Saturation) with 94 unit/UI tests passing.
+- **Player Screen Alignment & Scrubber Modernization (Part 61):** 
+  - Fixed horizontal and vertical misalignment of Center Transport Cluster (`⏮ ⏪10 ⏯ ⏩10 ⏭`) by switching HUD controls overlay from `Column(SpaceBetween)` (which pinned pill to `Alignment.Start` and shifted it upwards) to `Box(fillMaxSize())` with `.align(Alignment.Center)`. Mathematically dead-centers the controls (540px X, 1200px Y on 1080x2400) across all devices and orientations.
+  - Replaced rigid bordered pill surface with modern floating circular controls (72dp primary Play/Pause, 48/52dp secondary controls with translucent scrims).
+- **Pixel-Perfect Concentric Scrubber & Commercial Information Architecture (Part 62):**
+  - **Scrubber Concentric Alignment (0.0px Error):** Diagnosed 2.67px vertical offset and black void gap in Material 3's `Slider`. Replaced with custom Compose `Canvas` video scrubber where both track and thumb calculate from unified midline `cy = size.height / 2f`. Verified on Pixel 8 framebuffer: Thumb Y = 2142.0, Track Y = 2142.0 (0.0px offset). Edge clamping prevents clipping at 0% and 100%.
+  - **Commercial Information Architecture (IA):** Deconstructed 2,500px developer debug dumping ground into clean, context-driven sheets:
+    1. **`AudioSheet`:** Audio Track list + Lip-Sync Audio Delay Stepper (with Bluetooth presets +150ms/+250ms/-100ms) + Equalizer presets (Flat, Bass Boost, Vocal, Rock) & 5-band EQ + Bass Boost, Virtualizer, Loudness Boost.
+    2. **`SubtitleSheet`:** Subtitle Track list + Subtitle Delay Stepper with 1-tap "Reset (0ms)" and step size chips. Removed duplicate audio delays.
+    3. **`PlaybackSettingsSheet` (Segmented Tab Bar):**
+       - **Tab 0 (Playback Tools):** Speed pills (0.5x–2.0x), Sleep Timer (15/30/45/60m with live countdown & cancel), A-B Repeat Loop, Frame-by-Frame Stepper (~42ms).
+       - **Tab 1 (Picture & Display):** Aspect Ratio chips (FIT, FILL, ZOOM, 16:9, 4:3), Eye Comfort Night Mode toggle & warmth slider, Picture Calibration (Contrast & Saturation with "Reset to Natural").
+  - **Visual Verification Gate:** Live emulator screencaps captured and visually validated: `player_hud_new.png`, `sheet_audio.png`, `sheet_subtitles.png`, `sheet_settings_tab0.png`, `sheet_settings_tab1.png`. All 94 unit/UI tests green, lint clean via `tools/gate.ps1`.
+- **Mandatory Quality Gate:** Every commit and review must pass `tools/gate.ps1` (100% tests green, 0 lint errors) and adhere to the visual inspection and contextual IA invariants.
+
 
 
 

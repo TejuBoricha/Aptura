@@ -20,6 +20,7 @@ object ApturaColors {
     val AccentPrimary = Color(0xFF00E5FF)       // Aptura Electric Cyan
     val AccentSecondary = Color(0xFF00B4D8)     // Deep Teal
     val AccentSubtle = Color(0x2600E5FF)        // 15% Cyan fill
+    val BorderSubtle = Color(0x26FFFFFF)        // 15% White subtle border
 
     // Semantic State Colors
     val StatusSuccess = Color(0xFF00E676)

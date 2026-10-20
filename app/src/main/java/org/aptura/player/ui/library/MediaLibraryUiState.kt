@@ -85,4 +85,10 @@ object MediaFormatters {
         if (durationMs <= 0L || positionMs <= 0L) return 0f
         return (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
     }
+
+    fun cleanTitle(rawTitle: String): String {
+        if (rawTitle.isBlank()) return "Untitled"
+        val stripped = rawTitle.replace(Regex("\\.(mp4|mkv|webm|avi|mov|ts|m4v|3gp)$", RegexOption.IGNORE_CASE), "")
+        return stripped.replace('_', ' ').trim()
+    }
 }

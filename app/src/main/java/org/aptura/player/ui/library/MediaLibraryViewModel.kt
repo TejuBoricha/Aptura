@@ -130,7 +130,7 @@ class MediaLibraryViewModel(
 
         return VideoCardUiModel(
             uri = uri,
-            title = title,
+            title = MediaFormatters.cleanTitle(title),
             durationFormatted = MediaFormatters.formatDuration(durationMs),
             fileSizeFormatted = MediaFormatters.formatFileSize(sizeBytes),
             folderName = folderDisplay,

@@ -1,12 +1,9 @@
+@file:androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+
 package org.aptura.player.data.playback
 
 import android.app.PendingIntent
 import android.content.Intent
-import androidx.annotation.OptIn
-import androidx.media3.common.AudioAttributes
-import androidx.media3.common.C
-import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import org.aptura.player.MainActivity
@@ -17,7 +14,6 @@ import org.aptura.player.MainActivity
  * Invariant: Media playback notification is platform-exempt from POST_NOTIFICATIONS (FR-PLAT-002, W10).
  * Never post non-media notifications from this service.
  */
-@OptIn(UnstableApi::class)
 class ApturaPlaybackService : MediaSessionService() {
 
     private var mediaSession: MediaSession? = null
@@ -25,17 +21,8 @@ class ApturaPlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
 
-        // Configure player with movie audio attributes and automatic audio focus handling
-        val player = ExoPlayer.Builder(this)
-            .setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
-                    .setUsage(C.USAGE_MEDIA)
-                    .build(),
-                /* handleAudioFocus = */ true
-            )
-            .setHandleAudioBecomingNoisy(true)
-            .build()
+        val controller = PlayerManager.getOrCreate(applicationContext)
+        val player = controller.player
 
         val sessionActivityPendingIntent = PendingIntent.getActivity(
             this,
@@ -64,14 +51,11 @@ class ApturaPlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         mediaSession?.run {
-            player.release()
             release()
             mediaSession = null
         }
         super.onDestroy()
     }
 
-    private class ApturaSessionCallback : MediaSession.Callback {
-        // Handles custom session commands or validation if needed
-    }
+    private class ApturaSessionCallback : MediaSession.Callback
 }

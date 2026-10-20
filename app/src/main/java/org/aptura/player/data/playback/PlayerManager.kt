@@ -1,17 +1,17 @@
+@file:androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+
 package org.aptura.player.data.playback
 
 import android.content.Context
-import androidx.annotation.OptIn
+import android.content.Intent
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
-import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 
 /**
  * Thread-safe provider for the active Media3 player session and domain PlaybackController bridge.
  * Configures movie audio attributes, automatic audio focus, and audio-becoming-noisy handling.
  */
-@OptIn(UnstableApi::class)
 object PlayerManager {
 
     @Volatile
@@ -38,6 +38,14 @@ object PlayerManager {
 
         val controller = Media3PlaybackController(player)
         controllerInstance = controller
+
+        try {
+            val serviceIntent = Intent(appContext, ApturaPlaybackService::class.java)
+            appContext.startService(serviceIntent)
+        } catch (_: Throwable) {
+            // Service will be started when activity is in foreground
+        }
+
         return controller
     }
 

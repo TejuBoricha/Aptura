@@ -32,6 +32,11 @@ Before any commit, the AI Developer must evaluate the changes against the follow
 - [ ] **Negative & Boundary Test Coverage:** Assertions must test failure paths, boundary thresholds, and edge cases, not just happy paths.
 - [ ] **Static Analysis (Lint):** Run `./gradlew.bat lintDebug` to verify zero fatal errors, zero resource leaks, and zero security warnings.
 
+### Pillar 5: Proactive Evolution & Competitive Gap Audit
+- [ ] **Beyond "Does It Work?":** Never settle for an MVP. For every screen, component, and screenshot inspected, evaluate what features, settings, customization opportunities, and edge cases are missing.
+- [ ] **Competitive Parity:** Benchmark against VLC, MX Player Pro, Next Player, and Just Player (equalizer presets, bass/virtualizer, software contrast/brightness/night mode, fine-grained delays, A-B repeat, frame stepping, 2x long-press).
+- [ ] **Customizability:** Expose granular controls (sliders, fine steppers, presets) rather than hardcoded magic numbers.
+
 ---
 
 ## 2. The Anti-Confirmation-Bias Mandate (Preventing False "PASS" Verdicts)

@@ -1,20 +1,29 @@
+@file:androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+
 package org.aptura.player.data.playback
 
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionParameters
+import androidx.media3.common.Tracks
 import app.cash.turbine.test
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.domain.model.DomainPlaybackState
 import org.aptura.player.domain.model.PlayMode
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Method
@@ -30,6 +39,16 @@ class Media3PlaybackControllerTest {
     private val testDispatcher = StandardTestDispatcher()
     private val testScope = TestScope(testDispatcher)
 
+    @Before
+    fun setUp() {
+        Dispatchers.setMain(testDispatcher)
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
+
     private class MockPlayerState : InvocationHandler {
         val listeners = mutableListOf<Player.Listener>()
         var currentPosition: Long = 0L
@@ -42,6 +61,8 @@ class Media3PlaybackControllerTest {
         var lastSeekPosition: Long? = null
         var currentMediaItem: MediaItem? = null
         var playerError: PlaybackException? = null
+        var trackSelectionParameters: TrackSelectionParameters = TrackSelectionParameters.DEFAULT_WITHOUT_CONTEXT
+        var currentTracks: Tracks = Tracks.EMPTY
         var released: Boolean = false
 
         fun fireStateChange(newState: Int) {
@@ -74,6 +95,12 @@ class Media3PlaybackControllerTest {
                 "getPlaybackState" -> playbackState
                 "getPlayerError" -> playerError
                 "isPlaying" -> isPlaying
+                "getCurrentTracks" -> currentTracks
+                "getTrackSelectionParameters" -> trackSelectionParameters
+                "setTrackSelectionParameters" -> {
+                    trackSelectionParameters = args?.get(0) as TrackSelectionParameters
+                    null
+                }
                 "getPlaybackParameters" -> playbackParameters
                 "setPlaybackParameters" -> {
                     playbackParameters = args?.get(0) as PlaybackParameters

@@ -20,6 +20,9 @@ import org.aptura.player.data.playback.PlayerManager
 import org.aptura.player.ui.player.PlayerScreen
 import org.aptura.player.ui.player.PlayerViewModel
 
+import org.aptura.player.data.playback.AudioEnhancementController
+import org.aptura.player.domain.model.DomainMediaItem
+
 @Composable
 fun MainNavigation() {
     val backStack = rememberNavBackStack(MediaLibrary)
@@ -32,8 +35,16 @@ fun MainNavigation() {
     }
 
     val playbackController = remember { PlayerManager.getOrCreate(context) }
+    val audioEnhancementController = remember {
+        AudioEnhancementController().apply {
+            val sessionId = playbackController.audioSessionId
+            if (sessionId > 0) {
+                attachToSession(sessionId)
+            }
+        }
+    }
     val playerViewModel: PlayerViewModel = viewModel {
-        PlayerViewModel(playbackController, mediaRepository)
+        PlayerViewModel(playbackController, mediaRepository, audioEnhancementController)
     }
 
     NavDisplay(
@@ -44,7 +55,18 @@ fun MainNavigation() {
                 val uiState by libraryViewModel.uiState.collectAsStateWithLifecycle()
                 MediaLibraryScreen(
                     uiState = uiState,
-                    onVideoClick = { item, _ ->
+                    onVideoClick = { item, items ->
+                        val domainItems = items.map { uiItem ->
+                            DomainMediaItem(
+                                uri = uiItem.uri,
+                                title = uiItem.title,
+                                durationMs = uiItem.durationMs,
+                                sizeBytes = uiItem.sizeBytes,
+                                mimeType = "video/*"
+                            )
+                        }
+                        val clickedIndex = items.indexOfFirst { it.uri == item.uri }.coerceAtLeast(0)
+                        playerViewModel.playQueue(domainItems, clickedIndex)
                         backStack.add(PlayerKey(item.uri))
                     },
                     onSearchQueryChanged = libraryViewModel::onSearchQueryChanged,
@@ -59,7 +81,13 @@ fun MainNavigation() {
             }
             entry<PlayerKey> { playerKey ->
                 LaunchedEffect(playerKey.videoUri) {
-                    playerViewModel.loadAndPlay(playerKey.videoUri)
+                    val sessionId = playbackController.audioSessionId
+                    if (sessionId > 0) {
+                        audioEnhancementController.attachToSession(sessionId)
+                    }
+                    if (playerViewModel.uiState.value.videoUri != playerKey.videoUri) {
+                        playerViewModel.loadAndPlay(playerKey.videoUri)
+                    }
                 }
                 val uiState by playerViewModel.uiState.collectAsStateWithLifecycle()
                 PlayerScreen(
@@ -85,7 +113,30 @@ fun MainNavigation() {
                     onVolumePercentChanged = playerViewModel::setVolumePercent,
                     onBrightnessPercentChanged = playerViewModel::setBrightnessPercent,
                     onRetryPlayback = playerViewModel::retryPlayback,
-                    onPlayModeToggle = playerViewModel::togglePlayMode
+                    onPlayModeToggle = playerViewModel::togglePlayMode,
+                    onSkipNext = playerViewModel::skipToNext,
+                    onSkipPrevious = playerViewModel::skipToPrevious,
+                    onAdvancedSheetVisible = playerViewModel::setAdvancedSheetVisible,
+                    onSubtitleDelayChanged = playerViewModel::setSubtitleDelay,
+                    onAudioDelayChanged = playerViewModel::setAudioDelay,
+                    onStartSleepTimer = playerViewModel::startSleepTimer,
+                    onCancelSleepTimer = playerViewModel::cancelSleepTimer,
+                    onDelayStepChanged = playerViewModel::setDelayStep,
+                    onEqualizerEnabledChanged = playerViewModel::setEqualizerEnabled,
+                    onEqualizerPresetSelected = playerViewModel::setEqualizerPreset,
+                    onEqualizerBandChanged = playerViewModel::setEqualizerBandLevel,
+                    onBassBoostChanged = playerViewModel::setBassBoost,
+                    onVirtualizerChanged = playerViewModel::setVirtualizer,
+                    onLoudnessBoostChanged = playerViewModel::setLoudnessBoost,
+                    onContrastChanged = playerViewModel::setContrast,
+                    onSaturationChanged = playerViewModel::setSaturation,
+                    onNightModeToggle = { enabled -> playerViewModel.setNightMode(enabled) },
+                    onNightModeWarmthChanged = { warmth -> playerViewModel.setNightMode(true, warmth) },
+                    onResetPictureAdjustment = playerViewModel::resetPictureAdjustments,
+                    onSetAbPointA = playerViewModel::setAbPointA,
+                    onSetAbPointB = playerViewModel::setAbPointB,
+                    onClearAbRepeat = playerViewModel::clearAbRepeat,
+                    onStepFrame = playerViewModel::stepFrame
                 )
             }
         }

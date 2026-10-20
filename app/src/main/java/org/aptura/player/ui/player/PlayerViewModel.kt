@@ -17,6 +17,12 @@ import org.aptura.player.domain.model.DomainPlaybackState
 import org.aptura.player.domain.model.PlayMode
 import org.aptura.player.domain.repository.MediaRepository
 import org.aptura.player.domain.repository.PlaybackController
+import org.aptura.player.data.playback.AudioEnhancementController
+import org.aptura.player.domain.model.AbRepeatState
+import org.aptura.player.domain.model.AudioEnhancementState
+import org.aptura.player.domain.model.EqualizerPreset
+import org.aptura.player.domain.model.PictureAdjustmentState
+import org.aptura.player.ui.library.MediaFormatters
 import java.io.File
 
 /**
@@ -26,8 +32,20 @@ import java.io.File
 class PlayerViewModel(
     private val playbackController: PlaybackController,
     private val mediaRepository: MediaRepository,
+    private val audioEnhancementController: AudioEnhancementController = AudioEnhancementController(),
     private val dispatcher: CoroutineDispatcher = Dispatchers.Main
 ) : ViewModel() {
+
+    constructor(
+        playbackController: PlaybackController,
+        mediaRepository: MediaRepository,
+        dispatcher: CoroutineDispatcher
+    ) : this(
+        playbackController = playbackController,
+        mediaRepository = mediaRepository,
+        audioEnhancementController = AudioEnhancementController(),
+        dispatcher = dispatcher
+    )
 
     private val _uiState = MutableStateFlow(PlayerUiState())
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
@@ -36,6 +54,7 @@ class PlayerViewModel(
     private var volumeFeedbackJob: Job? = null
     private var brightnessFeedbackJob: Job? = null
     private var seekFeedbackJob: Job? = null
+    private var sleepTimerJob: Job? = null
     private var lastPersistedPositionMs: Long = 0L
 
     private var lastSeekTimestampMs: Long = 0L
@@ -52,6 +71,15 @@ class PlayerViewModel(
         observePlaybackState()
         observePlaybackQueue()
         observeTrackSelection()
+        observeAudioEnhancements()
+    }
+
+    private fun observeAudioEnhancements() {
+        viewModelScope.launch(dispatcher) {
+            audioEnhancementController.state.collect { enhancementState ->
+                _uiState.update { it.copy(audioEnhancement = enhancementState) }
+            }
+        }
     }
 
     private fun observePlaybackState() {
@@ -89,6 +117,10 @@ class PlayerViewModel(
                                 playbackSpeed = state.playbackSpeed,
                                 errorMessage = null
                             )
+                        }
+                        val ab = _uiState.value.abRepeat
+                        if (ab.isLooping && ab.pointA != null && ab.pointB != null && state.positionMs >= ab.pointB) {
+                            playbackController.seekTo(ab.pointA)
                         }
                         if (state.isPlaying) {
                             if (Math.abs(state.positionMs - lastPersistedPositionMs) >= CHECKPOINT_INTERVAL_MS) {
@@ -140,8 +172,16 @@ class PlayerViewModel(
     private fun observePlaybackQueue() {
         viewModelScope.launch(dispatcher) {
             playbackController.playbackQueue.collect { queue ->
+                val currentItem = queue.currentItem
                 _uiState.update {
-                    it.copy(playMode = queue.playMode)
+                    it.copy(
+                        playMode = queue.playMode,
+                        hasNext = queue.hasNext,
+                        hasPrevious = queue.hasPrevious,
+                        videoUri = currentItem?.uri ?: it.videoUri,
+                        videoTitle = currentItem?.let { item -> MediaFormatters.cleanTitle(item.title) } ?: it.videoTitle,
+                        durationMs = if (currentItem != null && currentItem.durationMs > 0) currentItem.durationMs else it.durationMs
+                    )
                 }
             }
         }
@@ -153,18 +193,78 @@ class PlayerViewModel(
                 _uiState.update {
                     it.copy(
                         playbackSpeed = selection.playbackSpeed,
+                        audioTracks = selection.availableAudioTracks.map { track ->
+                            TrackInfo(
+                                id = track.id,
+                                index = track.index,
+                                label = track.label,
+                                language = track.language,
+                                isSelected = track.isSelected
+                            )
+                        },
+                        subtitleTracks = selection.availableSubtitleTracks.map { track ->
+                            TrackInfo(
+                                id = track.id,
+                                index = track.index,
+                                label = track.label,
+                                language = track.language,
+                                isSelected = track.isSelected
+                            )
+                        },
                         selectedAudioTrackIndex = selection.selectedAudioTrackIndex,
-                        selectedSubtitleTrackIndex = selection.selectedSubtitleTrackIndex
+                        selectedSubtitleTrackIndex = selection.selectedSubtitleTrackIndex,
+                        subtitleDelayMs = selection.subtitleDelayMs,
+                        audioDelayMs = selection.audioDelayMs,
+                        sleepTimerRemainingMs = selection.sleepTimerRemainingMs
                     )
                 }
             }
         }
     }
 
+    fun playQueue(items: List<DomainMediaItem>, startIndex: Int = 0) {
+        viewModelScope.launch(dispatcher) {
+            if (items.isEmpty()) return@launch
+            val clampedIndex = startIndex.coerceIn(0, items.size - 1)
+            val currentItem = items[clampedIndex]
+
+            _uiState.update {
+                it.copy(
+                    videoUri = currentItem.uri,
+                    videoTitle = MediaFormatters.cleanTitle(currentItem.title),
+                    durationMs = currentItem.durationMs,
+                    isControlsVisible = true
+                )
+            }
+            playbackController.playQueue(items, clampedIndex)
+
+            val savedPosition = currentItem.playbackPositionMs
+            if (savedPosition > 3000L && !currentItem.isCompleted) {
+                val preRollPosition = (savedPosition - 2000L).coerceAtLeast(0L)
+                playbackController.seekTo(preRollPosition)
+            }
+            scheduleAutoHide()
+        }
+    }
+
+    fun skipToNext() {
+        viewModelScope.launch(dispatcher) {
+            playbackController.skipToNext()
+            scheduleAutoHide()
+        }
+    }
+
+    fun skipToPrevious() {
+        viewModelScope.launch(dispatcher) {
+            playbackController.skipToPrevious()
+            scheduleAutoHide()
+        }
+    }
+
     fun loadAndPlay(videoUri: String) {
         viewModelScope.launch(dispatcher) {
             val item = mediaRepository.getVideoByUri(videoUri)
-            val title = item?.title ?: extractTitleFromUri(videoUri)
+            val title = MediaFormatters.cleanTitle(item?.title ?: extractTitleFromUri(videoUri))
             val initialDuration = item?.durationMs ?: 0L
 
             _uiState.update {
@@ -337,8 +437,11 @@ class PlayerViewModel(
             PlayMode.REPEAT_ONE -> PlayMode.SHUFFLE
             PlayMode.SHUFFLE -> PlayMode.NORMAL
         }
-        _uiState.update { it.copy(playMode = nextMode) }
-        scheduleAutoHide()
+        viewModelScope.launch(dispatcher) {
+            playbackController.setPlayMode(nextMode)
+            _uiState.update { it.copy(playMode = nextMode) }
+            scheduleAutoHide()
+        }
     }
 
     fun setVolumePercent(percent: Int) {
@@ -397,6 +500,155 @@ class PlayerViewModel(
         }
     }
 
+    fun setSubtitleDelay(delayMs: Long) {
+        viewModelScope.launch(dispatcher) {
+            playbackController.setSubtitleDelay(delayMs)
+            _uiState.update { it.copy(subtitleDelayMs = delayMs) }
+        }
+    }
+
+    fun setAudioDelay(delayMs: Long) {
+        viewModelScope.launch(dispatcher) {
+            playbackController.setAudioDelay(delayMs)
+            _uiState.update { it.copy(audioDelayMs = delayMs) }
+        }
+    }
+
+    fun startSleepTimer(minutes: Int) {
+        sleepTimerJob?.cancel()
+        val durationMs = minutes * 60 * 1000L
+        _uiState.update { it.copy(sleepTimerRemainingMs = durationMs) }
+        sleepTimerJob = viewModelScope.launch(dispatcher) {
+            delay(durationMs)
+            playbackController.pause()
+            _uiState.update { it.copy(sleepTimerRemainingMs = null) }
+        }
+    }
+
+    fun cancelSleepTimer() {
+        sleepTimerJob?.cancel()
+        sleepTimerJob = null
+        _uiState.update { it.copy(sleepTimerRemainingMs = null) }
+    }
+
+    fun setAdvancedSheetVisible(visible: Boolean) {
+        _uiState.update { it.copy(isAdvancedSheetVisible = visible) }
+        if (visible) autoHideJob?.cancel() else scheduleAutoHide()
+    }
+
+    fun setDelayStep(stepMs: Long) {
+        _uiState.update { it.copy(delayStepMs = stepMs) }
+    }
+
+    fun setEqualizerEnabled(enabled: Boolean) {
+        audioEnhancementController.setEnabled(enabled)
+    }
+
+    fun setEqualizerPreset(preset: EqualizerPreset) {
+        audioEnhancementController.setPreset(preset)
+    }
+
+    fun setEqualizerBandLevel(bandIndex: Int, levelMilliBels: Int) {
+        audioEnhancementController.setBandLevel(bandIndex, levelMilliBels)
+    }
+
+    fun setBassBoost(percent: Int) {
+        audioEnhancementController.setBassBoost(percent)
+    }
+
+    fun setVirtualizer(percent: Int) {
+        audioEnhancementController.setVirtualizer(percent)
+    }
+
+    fun setLoudnessBoost(percent: Int) {
+        audioEnhancementController.setLoudnessBoost(percent)
+    }
+
+    fun setContrast(contrast: Float) {
+        _uiState.update {
+            it.copy(pictureAdjustment = it.pictureAdjustment.copy(contrast = contrast.coerceIn(0.5f, 1.5f)))
+        }
+    }
+
+    fun setSaturation(saturation: Float) {
+        _uiState.update {
+            it.copy(pictureAdjustment = it.pictureAdjustment.copy(saturation = saturation.coerceIn(0.0f, 2.0f)))
+        }
+    }
+
+    fun setNightMode(enabled: Boolean, warmth: Float = 0.4f) {
+        _uiState.update {
+            it.copy(
+                pictureAdjustment = it.pictureAdjustment.copy(
+                    isNightModeEnabled = enabled,
+                    nightModeWarmth = warmth.coerceIn(0.1f, 0.8f)
+                )
+            )
+        }
+    }
+
+    fun resetPictureAdjustments() {
+        _uiState.update {
+            it.copy(pictureAdjustment = PictureAdjustmentState())
+        }
+    }
+
+    fun setAbPointA() {
+        val current = _uiState.value.currentPositionMs
+        _uiState.update {
+            val nextPointB = if (it.abRepeat.pointB != null && it.abRepeat.pointB <= current) null else it.abRepeat.pointB
+            it.copy(
+                abRepeat = it.abRepeat.copy(
+                    pointA = current,
+                    pointB = nextPointB,
+                    isLooping = nextPointB != null
+                )
+            )
+        }
+    }
+
+    fun setAbPointB() {
+        val current = _uiState.value.currentPositionMs
+        val pointA = _uiState.value.abRepeat.pointA
+        if (pointA != null && current > pointA) {
+            _uiState.update {
+                it.copy(
+                    abRepeat = it.abRepeat.copy(
+                        pointB = current,
+                        isLooping = true
+                    )
+                )
+            }
+        }
+    }
+
+    fun clearAbRepeat() {
+        _uiState.update {
+            it.copy(abRepeat = AbRepeatState())
+        }
+    }
+
+    fun stepFrame(forward: Boolean) {
+        val delta = if (forward) 42L else -42L
+        val current = _uiState.value.currentPositionMs
+        val duration = _uiState.value.durationMs
+        val target = (current + delta).coerceIn(0L, duration.coerceAtLeast(0L))
+        viewModelScope.launch(dispatcher) {
+            playbackController.seekTo(target)
+            _uiState.update { it.copy(currentPositionMs = target) }
+        }
+    }
+
+    fun setEqualizerSheetVisible(visible: Boolean) {
+        _uiState.update { it.copy(isEqualizerSheetVisible = visible) }
+        if (visible) autoHideJob?.cancel() else scheduleAutoHide()
+    }
+
+    fun setPictureSheetVisible(visible: Boolean) {
+        _uiState.update { it.copy(isPictureSheetVisible = visible) }
+        if (visible) autoHideJob?.cancel() else scheduleAutoHide()
+    }
+
     private fun scheduleAutoHide() {
         autoHideJob?.cancel()
         if (_uiState.value.isPlaying &&
@@ -404,6 +656,9 @@ class PlayerViewModel(
             !_uiState.value.isAudioSheetVisible &&
             !_uiState.value.isSubtitleSheetVisible &&
             !_uiState.value.isSpeedSheetVisible &&
+            !_uiState.value.isAdvancedSheetVisible &&
+            !_uiState.value.isEqualizerSheetVisible &&
+            !_uiState.value.isPictureSheetVisible &&
             _uiState.value.errorMessage == null
         ) {
             autoHideJob = viewModelScope.launch(dispatcher) {
@@ -444,6 +699,7 @@ class PlayerViewModel(
         volumeFeedbackJob?.cancel()
         brightnessFeedbackJob?.cancel()
         seekFeedbackJob?.cancel()
+        sleepTimerJob?.cancel()
         persistCurrentPosition()
         super.onCleared()
     }

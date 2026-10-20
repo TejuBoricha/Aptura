@@ -1,9 +1,14 @@
+@file:androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+
 package org.aptura.player.data.playback
 
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.Tracks
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,6 +20,7 @@ import kotlinx.coroutines.launch
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.domain.model.DomainPlaybackQueue
 import org.aptura.player.domain.model.DomainPlaybackState
+import org.aptura.player.domain.model.DomainTrackInfo
 import org.aptura.player.domain.model.DomainTrackSelection
 import org.aptura.player.domain.model.PlayMode
 import org.aptura.player.domain.repository.PlaybackController
@@ -32,6 +38,9 @@ class Media3PlaybackController(
     private val mainDispatcher: CoroutineDispatcher = Dispatchers.Main
 ) : PlaybackController {
 
+    val audioSessionId: Int
+        get() = (player as? androidx.media3.exoplayer.ExoPlayer)?.audioSessionId ?: 0
+
     private val _playbackState = MutableStateFlow<DomainPlaybackState>(DomainPlaybackState.Idle)
     override val playbackState: StateFlow<DomainPlaybackState> = _playbackState.asStateFlow()
 
@@ -44,6 +53,9 @@ class Media3PlaybackController(
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(state: Int) {
             updatePlaybackState()
+            if (state == Player.STATE_ENDED) {
+                handleAutoAdvance()
+            }
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -60,11 +72,17 @@ class Media3PlaybackController(
             )
             updatePlaybackState()
         }
+
+        override fun onTracksChanged(tracks: Tracks) {
+            updateTracks(tracks)
+        }
     }
 
     init {
         player.addListener(playerListener)
         updatePlaybackState()
+        val currentTracks = try { player.currentTracks } catch (_: Throwable) { null } ?: Tracks.EMPTY
+        updateTracks(currentTracks)
     }
 
     private fun updatePlaybackState() {
@@ -193,13 +211,86 @@ class Media3PlaybackController(
     }
 
     override suspend fun selectAudioTrack(index: Int?) {
+        val params = try { player.trackSelectionParameters } catch (_: Throwable) { null }
+        if (index == null) {
+            params?.let {
+                player.trackSelectionParameters = it
+                    .buildUpon()
+                    .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
+                    .build()
+            }
+            _trackSelection.value = _trackSelection.value.copy(selectedAudioTrackIndex = null)
+            return
+        }
+
+        val currentTracks = try { player.currentTracks } catch (_: Throwable) { null } ?: Tracks.EMPTY
+        var audioCount = 0
+        for (group in currentTracks.groups) {
+            if (group.type == C.TRACK_TYPE_AUDIO) {
+                for (i in 0 until group.length) {
+                    if (audioCount == index) {
+                        params?.let {
+                            player.trackSelectionParameters = it
+                                .buildUpon()
+                                .setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, i))
+                                .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
+                                .build()
+                        }
+                        _trackSelection.value = _trackSelection.value.copy(selectedAudioTrackIndex = index)
+                        return
+                    }
+                    audioCount++
+                }
+            }
+        }
+        // Fallback if currentTracks is empty or mock
         _trackSelection.value = _trackSelection.value.copy(selectedAudioTrackIndex = index)
     }
 
     override suspend fun selectSubtitleTrack(index: Int?) {
+        val params = try { player.trackSelectionParameters } catch (_: Throwable) { null }
+        if (index == null) {
+            params?.let {
+                player.trackSelectionParameters = it
+                    .buildUpon()
+                    .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                    .build()
+            }
+            _trackSelection.value = _trackSelection.value.copy(
+                selectedSubtitleTrackIndex = null,
+                subtitlesEnabled = false
+            )
+            return
+        }
+
+        val currentTracks = try { player.currentTracks } catch (_: Throwable) { null } ?: Tracks.EMPTY
+        var subCount = 0
+        for (group in currentTracks.groups) {
+            if (group.type == C.TRACK_TYPE_TEXT) {
+                for (i in 0 until group.length) {
+                    if (subCount == index) {
+                        params?.let {
+                            player.trackSelectionParameters = it
+                                .buildUpon()
+                                .setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, i))
+                                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                                .build()
+                        }
+                        _trackSelection.value = _trackSelection.value.copy(
+                            selectedSubtitleTrackIndex = index,
+                            subtitlesEnabled = true
+                        )
+                        return
+                    }
+                    subCount++
+                }
+            }
+        }
+        // Fallback if currentTracks is empty or mock
         _trackSelection.value = _trackSelection.value.copy(
             selectedSubtitleTrackIndex = index,
-            subtitlesEnabled = (index != null)
+            subtitlesEnabled = true
         )
     }
 
@@ -209,6 +300,90 @@ class Media3PlaybackController(
 
     override suspend fun setAudioDelay(delayMs: Long) {
         _trackSelection.value = _trackSelection.value.copy(audioDelayMs = delayMs)
+    }
+
+    private fun updateTracks(tracks: Tracks) {
+        val audioTracks = mutableListOf<DomainTrackInfo>()
+        val subtitleTracks = mutableListOf<DomainTrackInfo>()
+        var selectedAudioIndex: Int? = null
+        var selectedSubtitleIndex: Int? = null
+
+        var audioTrackCount = 0
+        var subtitleTrackCount = 0
+
+        for (group in tracks.groups) {
+            val trackType = group.type
+            for (i in 0 until group.length) {
+                val isSelected = group.isTrackSelected(i)
+                val format = group.getTrackFormat(i)
+                val id = format.id ?: "${group.mediaTrackGroup.id}_$i"
+                val language = format.language
+                val label = format.label ?: language?.uppercase() ?: "Track ${i + 1}"
+
+                when (trackType) {
+                    C.TRACK_TYPE_AUDIO -> {
+                        val index = audioTrackCount++
+                        if (isSelected) {
+                            selectedAudioIndex = index
+                        }
+                        audioTracks.add(
+                            DomainTrackInfo(
+                                id = id,
+                                index = index,
+                                label = label,
+                                language = language,
+                                isSelected = isSelected
+                            )
+                        )
+                    }
+                    C.TRACK_TYPE_TEXT -> {
+                        val index = subtitleTrackCount++
+                        if (isSelected) {
+                            selectedSubtitleIndex = index
+                        }
+                        subtitleTracks.add(
+                            DomainTrackInfo(
+                                id = id,
+                                index = index,
+                                label = label,
+                                language = language,
+                                isSelected = isSelected
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        _trackSelection.value = _trackSelection.value.copy(
+            availableAudioTracks = audioTracks,
+            availableSubtitleTracks = subtitleTracks,
+            selectedAudioTrackIndex = selectedAudioIndex,
+            selectedSubtitleTrackIndex = selectedSubtitleIndex,
+            subtitlesEnabled = selectedSubtitleIndex != null
+        )
+    }
+
+    private fun handleAutoAdvance() {
+        scope.launch {
+            val queue = _playbackQueue.value
+            when (queue.playMode) {
+                PlayMode.REPEAT_ONE -> {
+                    seekTo(0L)
+                    play()
+                }
+                PlayMode.REPEAT_ALL -> {
+                    if (queue.items.isNotEmpty()) {
+                        skipToNext()
+                    }
+                }
+                PlayMode.NORMAL, PlayMode.SHUFFLE -> {
+                    if (queue.hasNext) {
+                        skipToNext()
+                    }
+                }
+            }
+        }
     }
 
     override suspend fun release() {

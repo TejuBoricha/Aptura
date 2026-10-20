@@ -1,6 +1,9 @@
 package org.aptura.player.ui.player
 
 import androidx.compose.runtime.Immutable
+import org.aptura.player.domain.model.AbRepeatState
+import org.aptura.player.domain.model.AudioEnhancementState
+import org.aptura.player.domain.model.PictureAdjustmentState
 import org.aptura.player.domain.model.PlayMode
 
 /**
@@ -57,6 +60,18 @@ data class PlayerUiState(
     val isAudioSheetVisible: Boolean = false,
     val isSubtitleSheetVisible: Boolean = false,
     val isSpeedSheetVisible: Boolean = false,
+    val isAdvancedSheetVisible: Boolean = false,
+    val hasNext: Boolean = false,
+    val hasPrevious: Boolean = false,
+    val subtitleDelayMs: Long = 0L,
+    val audioDelayMs: Long = 0L,
+    val delayStepMs: Long = 50L,
+    val audioEnhancement: AudioEnhancementState = AudioEnhancementState(),
+    val pictureAdjustment: PictureAdjustmentState = PictureAdjustmentState(),
+    val abRepeat: AbRepeatState = AbRepeatState(),
+    val isEqualizerSheetVisible: Boolean = false,
+    val isPictureSheetVisible: Boolean = false,
+    val sleepTimerRemainingMs: Long? = null,
     val volumePercent: Int? = null,
     val brightnessPercent: Int? = null,
     val seekDeltaSeconds: Int? = null,

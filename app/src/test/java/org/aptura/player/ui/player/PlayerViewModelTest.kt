@@ -14,6 +14,7 @@ import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.domain.model.DomainPlaybackQueue
 import org.aptura.player.domain.model.DomainPlaybackState
 import org.aptura.player.domain.model.DomainTrackSelection
+import org.aptura.player.domain.model.EqualizerPreset
 import org.aptura.player.domain.model.PlayMode
 import org.aptura.player.domain.repository.MediaRepository
 import org.aptura.player.domain.repository.PlaybackController
@@ -92,8 +93,30 @@ class PlayerViewModelTest {
             }
         }
 
-        override suspend fun skipToNext() {}
-        override suspend fun skipToPrevious() {}
+        var lastSubtitleDelay: Long? = null
+        var lastAudioDelay: Long? = null
+
+        override suspend fun skipToNext() {
+            val queue = _playbackQueue.value
+            if (queue.hasNext) {
+                val nextIndex = queue.currentIndex + 1
+                _playbackQueue.value = queue.copy(currentIndex = nextIndex)
+                if (nextIndex in queue.items.indices) {
+                    playMediaItem(queue.items[nextIndex])
+                }
+            }
+        }
+
+        override suspend fun skipToPrevious() {
+            val queue = _playbackQueue.value
+            if (queue.hasPrevious) {
+                val prevIndex = queue.currentIndex - 1
+                _playbackQueue.value = queue.copy(currentIndex = prevIndex)
+                if (prevIndex in queue.items.indices) {
+                    playMediaItem(queue.items[prevIndex])
+                }
+            }
+        }
 
         override suspend fun setPlaybackSpeed(speed: Float) {
             lastSpeed = speed
@@ -114,8 +137,16 @@ class PlayerViewModelTest {
             _trackSelection.value = _trackSelection.value.copy(selectedSubtitleTrackIndex = index)
         }
 
-        override suspend fun setSubtitleDelay(delayMs: Long) {}
-        override suspend fun setAudioDelay(delayMs: Long) {}
+        override suspend fun setSubtitleDelay(delayMs: Long) {
+            lastSubtitleDelay = delayMs
+            _trackSelection.value = _trackSelection.value.copy(subtitleDelayMs = delayMs)
+        }
+
+        override suspend fun setAudioDelay(delayMs: Long) {
+            lastAudioDelay = delayMs
+            _trackSelection.value = _trackSelection.value.copy(audioDelayMs = delayMs)
+        }
+
         override suspend fun release() {}
     }
 
@@ -481,6 +512,245 @@ class PlayerViewModelTest {
         assertEquals("ERROR_CODE_DECODER_INIT_FAILED", state.errorCode)
         assertFalse(state.isRecoverableError)
         assertTrue(state.isControlsVisible) // Controls locked visible on error
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun playQueue_initializesQueue_andAdvancesWithSkip() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        val item1 = sampleVideo
+        val item2 = sampleVideo.copy(uri = "content://media/2", title = "Tenet")
+        val queue = listOf(item1, item2)
+
+        viewModel.playQueue(queue, startIndex = 0)
+        runCurrent()
+
+        assertEquals("Interstellar", viewModel.uiState.value.videoTitle)
+        assertTrue(viewModel.uiState.value.hasNext)
+        assertFalse(viewModel.uiState.value.hasPrevious)
+
+        viewModel.skipToNext()
+        runCurrent()
+
+        assertEquals("Tenet", viewModel.uiState.value.videoTitle)
+        assertFalse(viewModel.uiState.value.hasNext)
+        assertTrue(viewModel.uiState.value.hasPrevious)
+
+        viewModel.skipToPrevious()
+        runCurrent()
+
+        assertEquals("Interstellar", viewModel.uiState.value.videoTitle)
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun advancedSettings_updatesDelays_andSleepTimer() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        viewModel.setSubtitleDelay(150L)
+        runCurrent()
+        assertEquals(150L, controller.lastSubtitleDelay)
+        assertEquals(150L, viewModel.uiState.value.subtitleDelayMs)
+
+        viewModel.setAudioDelay(-50L)
+        runCurrent()
+        assertEquals(-50L, controller.lastAudioDelay)
+        assertEquals(-50L, viewModel.uiState.value.audioDelayMs)
+
+        viewModel.startSleepTimer(30)
+        assertEquals(30 * 60 * 1000L, viewModel.uiState.value.sleepTimerRemainingMs)
+
+        viewModel.cancelSleepTimer()
+        assertNull(viewModel.uiState.value.sleepTimerRemainingMs)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun togglePlayMode_cyclesAndUpdatesController() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        assertEquals(PlayMode.NORMAL, viewModel.uiState.value.playMode)
+
+        viewModel.togglePlayMode()
+        runCurrent()
+        assertEquals(PlayMode.REPEAT_ALL, viewModel.uiState.value.playMode)
+        assertEquals(PlayMode.REPEAT_ALL, controller.playbackQueue.value.playMode)
+
+        viewModel.togglePlayMode()
+        runCurrent()
+        assertEquals(PlayMode.REPEAT_ONE, viewModel.uiState.value.playMode)
+
+        viewModel.togglePlayMode()
+        runCurrent()
+        assertEquals(PlayMode.SHUFFLE, viewModel.uiState.value.playMode)
+
+        viewModel.togglePlayMode()
+        runCurrent()
+        assertEquals(PlayMode.NORMAL, viewModel.uiState.value.playMode)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun delayStep_updatesStepSize() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        assertEquals(50L, viewModel.uiState.value.delayStepMs)
+        viewModel.setDelayStep(100L)
+        assertEquals(100L, viewModel.uiState.value.delayStepMs)
+
+        viewModel.setDelayStep(10L)
+        assertEquals(10L, viewModel.uiState.value.delayStepMs)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun equalizerAndSoundEnhancements_updateState() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        assertFalse(viewModel.uiState.value.audioEnhancement.enabled)
+        viewModel.setEqualizerEnabled(true)
+        runCurrent()
+        assertTrue(viewModel.uiState.value.audioEnhancement.enabled)
+
+        viewModel.setEqualizerPreset(EqualizerPreset.BASS_BOOST)
+        runCurrent()
+        assertEquals(EqualizerPreset.BASS_BOOST, viewModel.uiState.value.audioEnhancement.preset)
+
+        viewModel.setBassBoost(80)
+        runCurrent()
+        assertEquals(80, viewModel.uiState.value.audioEnhancement.bassBoostPercent)
+
+        viewModel.setVirtualizer(65)
+        runCurrent()
+        assertEquals(65, viewModel.uiState.value.audioEnhancement.virtualizerPercent)
+
+        viewModel.setLoudnessBoost(40)
+        runCurrent()
+        assertEquals(40, viewModel.uiState.value.audioEnhancement.loudnessBoostPercent)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun pictureAdjustments_andNightMode_updateAndResetState() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        assertEquals(1.0f, viewModel.uiState.value.pictureAdjustment.contrast)
+        assertEquals(1.0f, viewModel.uiState.value.pictureAdjustment.saturation)
+        assertFalse(viewModel.uiState.value.pictureAdjustment.isNightModeEnabled)
+
+        viewModel.setContrast(1.25f)
+        assertEquals(1.25f, viewModel.uiState.value.pictureAdjustment.contrast)
+
+        viewModel.setSaturation(1.5f)
+        assertEquals(1.5f, viewModel.uiState.value.pictureAdjustment.saturation)
+
+        viewModel.setNightMode(enabled = true, warmth = 0.5f)
+        assertTrue(viewModel.uiState.value.pictureAdjustment.isNightModeEnabled)
+        assertEquals(0.5f, viewModel.uiState.value.pictureAdjustment.nightModeWarmth)
+
+        viewModel.resetPictureAdjustments()
+        assertEquals(1.0f, viewModel.uiState.value.pictureAdjustment.contrast)
+        assertEquals(1.0f, viewModel.uiState.value.pictureAdjustment.saturation)
+        assertFalse(viewModel.uiState.value.pictureAdjustment.isNightModeEnabled)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun abRepeat_setsPoints_andLoopsBetweenAandB() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        viewModel.loadAndPlay(sampleVideo.uri)
+        runCurrent()
+
+        controller._playbackState.value = DomainPlaybackState.Ready(
+            positionMs = 10_000L,
+            durationMs = sampleVideo.durationMs,
+            isPlaying = true
+        )
+        runCurrent()
+
+        // Set Point A at 10s
+        viewModel.setAbPointA()
+        assertEquals(10_000L, viewModel.uiState.value.abRepeat.pointA)
+        assertNull(viewModel.uiState.value.abRepeat.pointB)
+        assertFalse(viewModel.uiState.value.abRepeat.isLooping)
+
+        // Advance to 25s and set Point B
+        controller._playbackState.value = DomainPlaybackState.Ready(
+            positionMs = 25_000L,
+            durationMs = sampleVideo.durationMs,
+            isPlaying = true
+        )
+        runCurrent()
+        viewModel.setAbPointB()
+        assertEquals(10_000L, viewModel.uiState.value.abRepeat.pointA)
+        assertEquals(25_000L, viewModel.uiState.value.abRepeat.pointB)
+        assertTrue(viewModel.uiState.value.abRepeat.isLooping)
+
+        // Playback reaches 25,000ms -> should automatically loop back to Point A (10,000ms)
+        controller._playbackState.value = DomainPlaybackState.Ready(
+            positionMs = 25_001L,
+            durationMs = sampleVideo.durationMs,
+            isPlaying = true
+        )
+        runCurrent()
+        assertEquals(10_000L, controller.lastSeekPosition)
+
+        // Clear A-B repeat
+        viewModel.clearAbRepeat()
+        assertNull(viewModel.uiState.value.abRepeat.pointA)
+        assertNull(viewModel.uiState.value.abRepeat.pointB)
+        assertFalse(viewModel.uiState.value.abRepeat.isLooping)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun stepFrame_seeksForwardAndBackwardByDelta() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        viewModel.loadAndPlay(sampleVideo.uri)
+        runCurrent()
+
+        controller._playbackState.value = DomainPlaybackState.Ready(
+            positionMs = 5000L,
+            durationMs = sampleVideo.durationMs,
+            isPlaying = false
+        )
+        runCurrent()
+
+        viewModel.stepFrame(forward = true)
+        runCurrent()
+        assertEquals(5042L, controller.lastSeekPosition)
+        assertEquals(5042L, viewModel.uiState.value.currentPositionMs)
+
+        viewModel.stepFrame(forward = false)
+        runCurrent()
+        assertEquals(5000L, controller.lastSeekPosition)
+        assertEquals(5000L, viewModel.uiState.value.currentPositionMs)
+
         viewModel.clearForTesting()
     }
 }

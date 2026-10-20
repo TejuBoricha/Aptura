@@ -57,7 +57,17 @@ data class DomainMediaItem(
     val isCompleted: Boolean = false
 )
 
+data class DomainTrackInfo(
+    val id: String,
+    val index: Int,
+    val label: String,
+    val language: String? = null,
+    val isSelected: Boolean = false
+)
+
 data class DomainTrackSelection(
+    val availableAudioTracks: List<DomainTrackInfo> = emptyList(),
+    val availableSubtitleTracks: List<DomainTrackInfo> = emptyList(),
     val selectedAudioTrackIndex: Int? = null,
     val selectedSubtitleTrackIndex: Int? = null,
     val subtitlesEnabled: Boolean = false,
@@ -88,4 +98,69 @@ data class DomainPlaybackQueue(
             PlayMode.REPEAT_ALL -> items.isNotEmpty()
             PlayMode.NORMAL, PlayMode.SHUFFLE -> currentIndex > 0
         }
+}
+
+/**
+ * Standard equalizer presets for audio enhancement (FR-AUD-005).
+ */
+enum class EqualizerPreset(val label: String) {
+    FLAT("Flat"),
+    BASS_BOOST("Bass Boost"),
+    VOCAL_BOOST("Vocal Boost"),
+    ROCK("Rock"),
+    POP("Pop"),
+    CLASSICAL("Classical"),
+    JAZZ("Jazz"),
+    CUSTOM("Custom");
+
+    val displayName: String
+        get() = label
+}
+
+/**
+ * Individual frequency band configuration for the multi-band equalizer.
+ */
+data class EqualizerBand(
+    val bandIndex: Int,
+    val centerFreqHz: Int,
+    val levelMilliBels: Int,
+    val minMilliBels: Int = -1500,
+    val maxMilliBels: Int = 1500
+)
+
+/**
+ * Complete audio enhancement and sound effects state.
+ */
+data class AudioEnhancementState(
+    val enabled: Boolean = false,
+    val preset: EqualizerPreset = EqualizerPreset.FLAT,
+    val bassBoostPercent: Int = 0,
+    val virtualizerPercent: Int = 0,
+    val loudnessBoostPercent: Int = 0,
+    val bands: List<EqualizerBand> = emptyList()
+)
+
+/**
+ * Video picture adjustments and eye comfort night mode state.
+ */
+data class PictureAdjustmentState(
+    val contrast: Float = 1.0f,
+    val saturation: Float = 1.0f,
+    val isNightModeEnabled: Boolean = false,
+    val nightModeWarmth: Float = 0.4f
+) {
+    val isModified: Boolean
+        get() = contrast != 1.0f || saturation != 1.0f || isNightModeEnabled
+}
+
+/**
+ * A-B Repeat loop state for repeated playback of a custom segment.
+ */
+data class AbRepeatState(
+    val pointA: Long? = null,
+    val pointB: Long? = null,
+    val isLooping: Boolean = false
+) {
+    val isActive: Boolean
+        get() = pointA != null || pointB != null
 }
