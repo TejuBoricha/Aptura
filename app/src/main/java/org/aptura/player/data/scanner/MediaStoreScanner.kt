@@ -55,30 +55,30 @@ class MediaStoreScanner(
         )
 
         cursor?.use { c ->
-            val idCol = c.getColumnIndexOrThrow(MediaStore.Video.Media._ID)
-            val nameCol = c.getColumnIndexOrThrow(MediaStore.Video.Media.DISPLAY_NAME)
-            val titleCol = c.getColumnIndexOrThrow(MediaStore.Video.Media.TITLE)
-            val durCol = c.getColumnIndexOrThrow(MediaStore.Video.Media.DURATION)
-            val sizeCol = c.getColumnIndexOrThrow(MediaStore.Video.Media.SIZE)
-            val mimeCol = c.getColumnIndexOrThrow(MediaStore.Video.Media.MIME_TYPE)
-            val widthCol = c.getColumnIndexOrThrow(MediaStore.Video.Media.WIDTH)
-            val heightCol = c.getColumnIndexOrThrow(MediaStore.Video.Media.HEIGHT)
-            val dateAddCol = c.getColumnIndexOrThrow(MediaStore.Video.Media.DATE_ADDED)
-            val dateModCol = c.getColumnIndexOrThrow(MediaStore.Video.Media.DATE_MODIFIED)
-            val bucketCol = c.getColumnIndexOrThrow(MediaStore.Video.Media.BUCKET_DISPLAY_NAME)
+            val idCol = c.getColumnIndex(MediaStore.Video.Media._ID)
+            val nameCol = c.getColumnIndex(MediaStore.Video.Media.DISPLAY_NAME)
+            val titleCol = c.getColumnIndex(MediaStore.Video.Media.TITLE)
+            val durCol = c.getColumnIndex(MediaStore.Video.Media.DURATION)
+            val sizeCol = c.getColumnIndex(MediaStore.Video.Media.SIZE)
+            val mimeCol = c.getColumnIndex(MediaStore.Video.Media.MIME_TYPE)
+            val widthCol = c.getColumnIndex(MediaStore.Video.Media.WIDTH)
+            val heightCol = c.getColumnIndex(MediaStore.Video.Media.HEIGHT)
+            val dateAddCol = c.getColumnIndex(MediaStore.Video.Media.DATE_ADDED)
+            val dateModCol = c.getColumnIndex(MediaStore.Video.Media.DATE_MODIFIED)
+            val bucketCol = c.getColumnIndex(MediaStore.Video.Media.BUCKET_DISPLAY_NAME)
 
             while (c.moveToNext()) {
-                val mediaStoreId = c.getLong(idCol)
-                val displayName = c.getString(nameCol) ?: "Video_$mediaStoreId"
-                val title = c.getString(titleCol) ?: displayName
-                val duration = c.getLong(durCol).coerceAtLeast(0L)
-                val size = c.getLong(sizeCol).coerceAtLeast(0L)
-                val mimeType = c.getString(mimeCol)
-                val width = c.getInt(widthCol).coerceAtLeast(0)
-                val height = c.getInt(heightCol).coerceAtLeast(0)
-                val dateAdded = c.getLong(dateAddCol).coerceAtLeast(0L)
-                val dateModified = c.getLong(dateModCol).coerceAtLeast(0L)
-                val folder = c.getString(bucketCol) ?: "Internal Storage"
+                val mediaStoreId = if (idCol >= 0) c.getLong(idCol) else 0L
+                val displayName = if (nameCol >= 0 && !c.isNull(nameCol)) c.getString(nameCol) else "Video_$mediaStoreId"
+                val title = if (titleCol >= 0 && !c.isNull(titleCol)) c.getString(titleCol) else displayName
+                val duration = (if (durCol >= 0 && !c.isNull(durCol)) c.getLong(durCol) else 0L).coerceAtLeast(0L)
+                val size = (if (sizeCol >= 0 && !c.isNull(sizeCol)) c.getLong(sizeCol) else 0L).coerceAtLeast(0L)
+                val mimeType = if (mimeCol >= 0 && !c.isNull(mimeCol)) c.getString(mimeCol) else null
+                val width = (if (widthCol >= 0 && !c.isNull(widthCol)) c.getInt(widthCol) else 0).coerceAtLeast(0)
+                val height = (if (heightCol >= 0 && !c.isNull(heightCol)) c.getInt(heightCol) else 0).coerceAtLeast(0)
+                val dateAdded = (if (dateAddCol >= 0 && !c.isNull(dateAddCol)) c.getLong(dateAddCol) else 0L).coerceAtLeast(0L)
+                val dateModified = (if (dateModCol >= 0 && !c.isNull(dateModCol)) c.getLong(dateModCol) else 0L).coerceAtLeast(0L)
+                val folder = if (bucketCol >= 0 && !c.isNull(bucketCol)) c.getString(bucketCol) else "Internal Storage"
 
                 val contentUri = ContentUris.withAppendedId(uri, mediaStoreId).toString()
 
