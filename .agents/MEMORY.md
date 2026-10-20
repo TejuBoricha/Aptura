@@ -33,7 +33,20 @@
 
 ---
 
-## 4. Immediate Roadmap (B0.0 Instrumentation)
-- Stage 1: Android project scaffolding (`applicationId = org.aptura.player`).
-- Stage 2: Media corpus generation scripts & manifest CSVs per [spec/12A §2](file:///c:/Users/tejas/Desktop/Mobile%20App/spec/12A_B0_INSTRUMENTATION.md#L45-L120).
-- Stage 3: Test harness contracts for seek latency, AV-sync, and process-death restoration per [spec/12A §3](file:///c:/Users/tejas/Desktop/Mobile%20App/spec/12A_B0_INSTRUMENTATION.md#L125-L185).
+## 4. Current Progress & Executed Milestones
+- **B0.0 Instrumentation (Part 45):** 1,086 test fixtures generated, `fixtures/manifest.csv` pinned, test harness contracts implemented.
+- **Spike RQ-10 (Part 46):** Privacy-Preserving Diagnostics (PASSED). 5/5 failure classes diagnosable without PII.
+- **Spike RQ-07 (Part 47):** Process-Death & State Restoration (PASSED). 12/12 kill points restored contractually.
+- **Spike RQ-02 (Part 48):** Royalty-Safe LGPL FFmpeg Audio Extension Config (PASSED).
+- **Spike RQ-14 (Part 49):** ABI & Language Bundle Strategy (PASSED). Universal APK 16.1 MB, per-ABI 12.5 MB, language split disabled for zero-network offline safety.
+- **Spike RQ-09 (Part 50):** iOS Viability Gate (CLOSED / DEC-002 REAFFIRMED). Pure Kotlin domain contracts established with automated zero-Android-import assertion (`ArchitectureDecouplingTest.kt`).
+- **Test Baseline:** 27 unit tests passing across 8 suites (100% green).
+- **Active Skills & Tooling:** `android-cli` (with official Android docs KB), `jetpack-compose-performance`, `adaptive`, Compose Taste rules, and frozen Invariants.
+
+---
+
+## 5. Next Immediate Milestones (Phase B1 Media Core & Next Spikes)
+- Implement foreground `MediaSessionService` (`ApturaPlaybackService`) and Media3 player session binding.
+- Implement Room Media Database (`MediaItemDao`, `MediaItemEntity`) for local media index.
+- Implement MediaStore / SAF scanning worker for library ingest.
+
