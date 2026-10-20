@@ -1,6 +1,6 @@
 # 17 — Consolidated Registers, DoR/DoD, and Change Process
 
-**Version:** 0.9 (draft; v0.9 updates **ASM-005** and **ASM-006** to reflect the owner's explicit directive on **OD-4** in **Part 40** — **Solo AI Developer (Antigravity) + Product Owner (User)**, zero human engineers on staff, zero engineering payroll, sequential build execution; v0.8 updated ASM-009 for global launch under OD-5; v0.7 recorded Part 38 delegated decisions; v0.6 added fifth error class; v0.5 added fourth error class; v0.4 added step 6; v0.3 added rule; v0.2 added RSK-015)
+**Version:** 1.0 (draft; v1.0 records the **brand name decision under OD-6 (Part 41)** — **Aptura** (working title & primary launch target; `applicationId` pinned to `org.aptura.player`) with candidate clearance shortlist (**Aptura**, **Caelis**, **Pellucis**), resolving priority item 4; v0.9 updates **ASM-005** and **ASM-006** to reflect the owner's explicit directive on **OD-4** in **Part 40** — **Solo AI Developer (Antigravity) + Product Owner (User)**, zero human engineers on staff, zero engineering payroll, sequential build execution; v0.8 updated ASM-009 for global launch under OD-5; v0.7 recorded Part 38 delegated decisions; v0.6 added fifth error class; v0.5 added fourth error class; v0.4 added step 6; v0.3 added rule; v0.2 added RSK-015)
 **Date:** 2026-10-20
 **Status:** Draft — **this document is the canonical home** for the DEC / ASM / RSK / DEP registers and for the Definition of Ready/Done. Where earlier documents hold originals (00 §3, 08, 16 §3), this register supersedes for lookup while preserving the original context. IDs are frozen; nothing is silently renumbered (change rules §7).
 **Consumes:** every prior document.
@@ -195,7 +195,7 @@ Detail lives in each source document; this index is for navigation. **Owner deci
 | 1 | **DEP-005 device lab** (gates 11 spikes) + **B0.0 instrumentation** (`12A`) | 08B §3 / 12A |
 | 2 | **L1** LGPL relinking verdict (gates only the optional audio ext) | 11 §5 / 11A |
 | 3 | **B0 spike execution** (RQ-01/03/05/06/08/13/14…16) | 08 / 08A |
-| 4 | **OD-6** candidate names (unblocks L6 trademark clearance & pins `applicationId`) | 00 §5 / 08B |
+| 4 | ~~OD-6 candidate names~~ ✅ **Decided (Part 41)**: **Aptura** (pinned `applicationId = org.aptura.player`); clearance finalists: **Aptura**, **Caelis**, **Pellucis** | 00 §5 / 08B / 11A |
 | 5 | Device budget (Q12-2), support staffing (Q14-5/Q16-3), hosting (OQ15-3/Q14-2) | 12/14/15/16 |
 
 Full sets: doc 04 Q1–Q14 (Q12, Q13, Q14 closed) · doc 05 NQ1–NQ6 · doc 06 U1–U6 · doc 07 C1–C6 · doc 08 T1–T5 · doc 09 A1–A6 · doc 10 S1–S6 · doc 11 OQ-1…5 · doc 12 Q12-1…6 · doc 13 Q13-1…6 · doc 14 Q14-1…5 · doc 15 OQ15-1…5 · doc 16 Q16-1…5 · doc 02A CS-1…CS-7.

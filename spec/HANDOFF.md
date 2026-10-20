@@ -1,6 +1,6 @@
 # HANDOFF — Progress, Pending Work, and How to Resume
 
-**As of:** 2026-10-20 · **Package:** `spec/` v0.3 (docs 00–18 + `02A` case studies + `08A` spike runbooks + `08B` kickoff pack + `11A` counsel briefs + `12A` B0.0 build order + `research/`) · **Previous session:** specification engagement, Parts 1–40
+**As of:** 2026-10-20 · **Package:** `spec/` v0.4 (docs 00–18 + `02A` case studies + `08A` spike runbooks + `08B` kickoff pack + `11A` counsel briefs + `12A` B0.0 build order + `research/`) · **Previous session:** specification engagement, Parts 1–41
 **This file:** the "start here" for any new session (human or AI). It says what is done, what is not, and what to do next. It duplicates nothing critical — the authoritative ledger stays `00_INDEX_AND_STATUS.md`; the authoritative registers stay `17_…`; the authoritative verdict stays `18_… §7`.
 
 ---
@@ -9,7 +9,7 @@
 
 1. **The specification package is COMPLETE.** All 19 documents (00–18) plus ten sourced research files exist; phases 0–6 of the master prompt are done; the final audit issued the verdict **READY FOR TECHNICAL SPIKES** (doc 18 §7).
 2. **Nothing in the package has been executed.** No app code, no tests run, no benchmark measured, no device tested — by the engagement's hard constraints. Do not ever describe the content as "verified working".
-3. **The next session's job is NOT more spec writing.** The owner decisions are **recorded** (OD-4 confirmed as Solo AI Developer model in Part 40; OD-5 confirmed as global launch in Part 39; OD-1/2/3/6 in Part 38 — `00 §5`); what remains is **physical acts and build work**: order the device lab, send the counsel briefs (`11A` — cover note in §0.1), execute the B0 spikes (runnable procedures in `08A`; kickoff in `08B`), start store prerequisites (S) — or revision work only if the owner requests changes. See §3.
+3. **The next session's job is NOT more spec writing.** The owner decisions are **recorded and confirmed** (OD-4 confirmed as Solo AI Developer model in Part 40; OD-5 confirmed as global launch in Part 39; **OD-6 decided as Aptura brand and clearance shortlist in Part 41**; OD-1/2/3 in Part 38 — `00 §5`); what remains is **physical acts and build work**: order the device lab, send the counsel briefs (`11A` — cover note in §0.1), execute the B0 spikes (runnable procedures in `08A`; kickoff in `08B`), start store prerequisites (S) — or revision work only if the owner requests changes. See §3.
 4. **Before doing anything:** read `00` (ledger/IDs), then `18` (verdict + handoff checklist), then this file, then the task-relevant document. Do not redo completed docs.
 
 ---
@@ -20,40 +20,40 @@
 |---|---|---|
 | 00–18 | All 19 specification documents (vision, market, personas, FRs, NFRs, UX, compatibility, tech/ADRs, architecture/data, security/privacy, licensing, QA, benchmarking, diagnostics, ops, roadmap, registers, traceability) | ✅ Drafted — current versions in the version map below |
 | research/ | W1 competitors · W2 platform · W3 licensing · W4 market/compliance · W5 case studies (02A) · W6 autoplay defaults · W7 decoder labels · W8 interface constants · W9 platform constants · **W10 permissions, gestures, captions** · **W11 ASS/SSA fidelity sources** — sourced, dated, evidence-labeled | ✅ Complete (W1–W4 accessed 2026-10-18; W5–W11 2026-10-19) |
-| 00 | Ledger, ID conventions, part log (Parts 1–38), OD table (decided by delegation — Part 38), first-response §3 | ✅ Closed for this phase |
+| 00 | Ledger, ID conventions, part log (Parts 1–41), OD table (Parts 38–41), first-response §3 | ✅ Closed for this phase |
 | 18 | Traceability matrices, §22 deliverable audit (24/24), §23 Spec Gates A/B/C review (findings C-1…C-10) + **four** Gate C post-audit deltas (D-1…D-32; delta 4's D-31 withdrawn in Part 34 after it was found to be itself wrong), §21 failure-mode review | ✅ Verdict issued, re-confirmed after delta 4 + correction |
 | 17 | Canonical registers: DEC-001…013, ASM-001…013, RSK-001…015 (+RSK-08-01…04 in doc 08), DEP-001…012, DoR/DoD, change process | ✅ |
 | Constraints honored | No code, no scaffolding, no deps, no prototype, no execution claims | ✅ |
-| 08A | **Spike runbooks** (companion to doc 08): operating rules S1–S10, the **B0.0 instrumentation prerequisite**, scheduling map by binding prerequisite, a runbook card for every spike RQ-01…16, lab/procurement scope, result-artifact template, RB-1…RB-7 | ✅ Written (docs-only) — **nothing executed**; **v0.5 resolves RB-1…RB-4 and RB-6 (Part 38)**; **v0.4 resolved RB-5: the RQ-06 bar is written (doc 07 §8.1)** |
-| 08B | **B0 kickoff pack** (action layer): OD-1…OD-6 decision briefs, DEP-005 procurement specification (capability rows, purchase worksheet, intake probe, fleet growth, farm policy), week-one sequence, answer sheet | ✅ Written — **no device ordered, no counsel engaged**; **answer sheet filled with the Part 38 delegated decisions (§5)** |
-| 11A | **Counsel briefs L1–L8** in sendable form: facts as shipped, our readings for correction, numbered questions with what each answer changes, postures/fallbacks, assets to hand over — batch A (L1/L2), batch B (L3–L8), plus a **paste-ready cover note (§0.1)** | ✅ Written — **not legal advice; not yet reviewed by a lawyer** |
+| 08A | **Spike runbooks** (companion to doc 08): operating rules S1–S10, the **B0.0 instrumentation prerequisite**, scheduling map by binding prerequisite, a runbook card for every spike RQ-01…16, lab/procurement scope, result-artifact template, RB-1…RB-7 | ✅ Written (docs-only) — **nothing executed**; **v0.6 resolves RB-2/RB-4 for Solo AI model (Part 40)**; **v0.5 resolved RB-1…RB-4 and RB-6 (Part 38)**; **v0.4 resolved RB-5: the RQ-06 bar is written (doc 07 §8.1)** |
+| 08B | **B0 kickoff pack** (action layer): OD-1…OD-6 decision briefs, DEP-005 procurement specification (capability rows, purchase worksheet, intake probe, fleet growth, farm policy), week-one sequence, answer sheet | ✅ Written — **no device ordered, no counsel engaged**; **answer sheet filled with confirmed decisions (Parts 38–41, §5)** |
+| 11A | **Counsel briefs L1–L8** in sendable form: facts as shipped, our readings for correction, numbered questions with what each answer changes, postures/fallbacks, assets to hand over — batch A (L1/L2), batch B (L3–L8), plus a **paste-ready cover note (§0.1)** | ✅ Written — **not legal advice; not yet reviewed by a lawyer; L6 clearance shortlist established (Part 41)** |
 | 12A | **B0.0 build order** (companion to doc 12): fixture manifests (A/B/C-D/adversarial/subtitle/metadata/scale + instrumented seek/sync), harness contracts (seek/first-frame, AV-sync, state-restoration, scan-at-scale), B0.0 done criteria — the corpus half needs **no devices and no owner answers** | ✅ Written (docs-only) — **nothing built: no fixture, no script, no harness exists**; v0.2 maps the subtitle corpus to the bar (doc 07 §8.1) |
 | 07 §8.1 | **SSA/ASS fidelity quality bar** — RQ-06's pass criterion: plain-text floor, Classes E/F/X, adjudication + freezing rules; W11 sources (`research/ass_fidelity_reference.md`) | ✅ Written (docs-only) — resolves doc 08 T6 and 08A RB-5 |
-| OD set | **Owner decisions recorded & confirmed (Parts 38–40)** — OD-1/2/3 confirm defaults; **OD-4 → Solo AI Developer (Antigravity) + Product Owner confirmed by owner (Part 40)**; **OD-5 → global launch from Day 1 confirmed by owner (Part 39)**; OD-6 → deferred by decision (L6 starts at launch-prep) | ✅ Recorded `00 §5`, `17 §2`; filled sheet `08B §5`; replaceable via 17 §7 |
+| OD set | **Owner decisions recorded & confirmed (Parts 38–41)** — OD-1/2/3 confirm defaults; **OD-4 → Solo AI Developer (Antigravity) + Product Owner confirmed by owner (Part 40)**; **OD-5 → global launch from Day 1 confirmed by owner (Part 39)**; **OD-6 → Aptura brand name and clearance finalists decided by owner (Part 41)** | ✅ Recorded `00 §5`, `17 §1/§4`; filled sheet `08B §5`; replaceable via 17 §7 |
 
-**Version map:** docs **16, 17 = v0.9**; docs **04, 08 = v0.8**; docs **18 = v0.7**; docs **06, 08A, 08B, 12 = v0.6**; docs **05 = v0.5**; docs **11A = v0.4**; docs **00, 02A, 07, 11 = v0.3**; docs **02, 09, 12A = v0.2**; everything else = v0.1 (docs 01/03/10/13/14/15).
+**Version map:** docs **17 = v1.0**; docs **16 = v0.9**; docs **04, 08 = v0.8**; docs **08B, 18 = v0.7**; docs **06, 08A, 12 = v0.6**; docs **05, 11A = v0.5**; docs **00, HANDOFF = v0.4**; docs **02A, 07, 11 = v0.3**; docs **02, 09, 12A = v0.2**; everything else = v0.1 (docs 01/03/10/13/14/15).
 
 ---
 
 ## 2. What is NOT done (the pick-up inventory)
 
-### 2A. Owner decisions — **recorded by delegation (Part 38); replaceable via 17 §7** (`00 §5` · filled sheet: `08B` §5)
+### 2A. Owner decisions — **confirmed (Parts 38–41)** (`00 §5` · filled sheet: `08B` §5)
 
-| ID | Question | Decision (Part 38, 2026-10-20) |
+| ID | Question | Decision (Parts 38–41) |
 |---|---|---|
 | OD-1 | Android-first vs. both platforms | **Android-first** (DEC-002 confirmed; iOS gated on RQ-09 at R1.x) |
 | OD-2 | R1 = local-only vs. include network playback | **Local-only** (DEC-001 confirmed; network = R2 candidate) |
 | OD-3 | Monetization intent at launch | **Free / no ads / no account** (DEC-004 confirmed) |
 | OD-4 | **Team, budget, time** | **Solo AI Developer (Antigravity) + Product Owner (User) (owner directive — Part 40)**: zero human engineers; zero engineering payroll ($0); no hard external deadline; sequential build execution (Q16-7 = 1; RB-2 = 1); re-adjudication = Product Owner review |
 | OD-5 | Launch regions & languages | **Targeted globally from Day 1 (owner directive — Part 39)**: worldwide Google Play distribution; English baseline UI at launch; full multi-script subtitle support (Arabic RTL, CJK, Devanagari, Cyrillic); progressive UI translations; global compliance active (L5) |
-| OD-6 | Product/brand name (blocks L6) | **Deferred by decision** — naming at launch-prep; L6 starts on a shortlist |
+| OD-6 | Product/brand name (blocks L6) | **Decided (owner directive — Part 41)**: **Aptura** (Working Title & primary launch target; pinned `applicationId = org.aptura.player`); clearance finalists: 1. **Aptura**, 2. **Caelis**, 3. **Pellucis** |
 
 **Physical acts still outstanding (not decisions):** order the lab (DEP-005), send `11A` to counsel, open the Play Console track.
 
 ### 2B. Legal items ⚖️ — counsel required (canonical list: doc 11 §5; mirror doc 10 §6.3)
 
-L1 LGPL §6 relinking (highest priority; blocks only the optional bundled audio extension — fallback exists) · L2 AC-3/E-AC-3 confirmations · L3 DTS/TrueHD wording · L4 Dolby brand usage in UI copy · L5 statute applicability (GDPR/CCPA/DPDP/LGPD/COPPA/EAA) · L6 Name/trademark clearance · L7 Own-app license/distribution model (F-Droid implications) · L8 Store-copy wording audit (per release).
-**Sendable briefs for all of L1–L8: `11A_LEGAL_BRIEFS.md` v0.3** (facts as shipped, readings stated for correction, numbered questions with what each answer changes). Two batches: A = L1/L2 (capability gates, send now — **cover note ready: `11A` §0.1**); B = L3–L8 (copy/statute/naming — **L5's scope is now the wave-1 set (Part 38); L6 starts at launch-prep**).
+L1 LGPL §6 relinking (highest priority; blocks only the optional bundled audio extension — fallback exists) · L2 AC-3/E-AC-3 confirmations · L3 DTS/TrueHD wording · L4 Dolby brand usage in UI copy · L5 statute applicability (GDPR/CCPA/DPDP/LGPD/COPPA/EAA) · L6 Name/trademark clearance (finalists: Aptura, Caelis, Pellucis) · L7 Own-app license/distribution model (F-Droid implications) · L8 Store-copy wording audit (per release).
+**Sendable briefs for all of L1–L8: `11A_LEGAL_BRIEFS.md` v0.5** (facts as shipped, readings stated for correction, numbered questions with what each answer changes). Two batches: A = L1/L2 (capability gates, send now — **cover note ready: `11A` §0.1**); B = L3–L8 (copy/statute/naming — **L5's scope is global per OD-5, Part 39; L6 knockout clearance has its 3 finalists per OD-6, Part 41**).
 
 ### 2C. Technical spikes (B0) — the designed next step (definitions + thresholds: doc 08)
 
@@ -86,14 +86,14 @@ Per-document Q-sets: doc 04 Q1–Q14 (**Q12, Q13, Q14 all closed**) · 05 NQ1–
 
 ## 3. Suggested next actions (pick-up checklist, in order)
 
-1. ~~Ask the owner for OD-1…OD-6~~ ✅ **recorded & confirmed Parts 38–40 (OD-4 confirmed as Solo AI Developer in Part 40; OD-5 confirmed global in Part 39; OD-1/2/3/6 in Part 38 — `00 §5`, filled sheet `08B` §5)**. **Next physical act: order the lab (item 2).**
+1. ~~Ask the owner for OD-1…OD-6~~ ✅ **recorded & confirmed Parts 38–41 (OD-4 Solo AI Developer in Part 40; OD-5 global in Part 39; OD-6 Aptura brand in Part 41; OD-1/2/3 in Part 38 — `00 §5`, filled sheet `08B` §5)**. **Next physical act: order the lab (item 2).**
 2. **Order the device lab (DEP-005) on day one.** It gates 11 of the 16 spikes, and its elapsed time is outside our control. Device scope: 08A §5.
 3. **Build B0.0 instrumentation before any spike runs** — fixture corpus and adversarial/scale corpora (doc 12 §5), seek/first-frame and state-restoration harnesses (doc 12 §7). This is the work doc 16's B0 range does not visibly contain (Q16-6), and it is the only B0 work that needs **no devices and no owner answers**. Build order: **`12A_B0_INSTRUMENTATION.md`** §2 (corpora), §3 (harness contracts), §4 (done criteria).
 4. ~~Write spike runbooks~~ ✅ **done, Part 30** — `08A_SPIKE_RUNBOOKS.md`. Next: execute the spikes in a build environment.
 5. **Send legal briefs L1/L2 to counsel** — briefs: `11A` §2–§3 with the cover note (`11A` §0.1); L1's counterfactual fallback is doc 11 §3.5.
 6. **Long-lead store items:** S1, S2, S8 (doc 15 §4). Open the Play test track early for **RQ-08** — its elapsed time is store review, not engineering.
 7. **Optional revisions** (§2F) if the owner requests them — use the change template (17 §7).
-8. **After ANY new work:** update `00` (doc row + phase if applicable + part log — next part is **Part 41**) and bump the changed document's version.
+8. **After ANY new work:** update `00` (doc row + phase if applicable + part log — next part is **Part 42**) and bump the changed document's version.
 
 ---
 

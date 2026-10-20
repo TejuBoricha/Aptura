@@ -1,6 +1,6 @@
 # 08B — B0 Kickoff Pack (Owner Decisions, Device Procurement, Week One)
 
-**Version:** 0.6 (draft — nothing ordered, nothing executed); v0.6 records the **owner directive on OD-4 (Part 40)** — Solo AI Developer (Antigravity) + Product Owner (User), zero human engineers, zero dev payroll, sequential execution (Q16-7 = 1, RB-2 = 1); v0.5 recorded the owner directive on OD-5 (Part 39); v0.4 recorded Part 38 delegated decisions; v0.3 made the device order executable; v0.2 applied Part 32 audit fixes.
+**Version:** 0.7 (draft — nothing ordered, nothing executed); v0.7 records the **owner directive on OD-6 (Part 41)** — brand name decided: **Aptura** (working title & primary launch target; `applicationId` pinned to `org.aptura.player`) with clearance finalists **Aptura**, **Caelis**, **Pellucis**; v0.6 recorded the owner directive on OD-4 (Part 40); v0.5 recorded the owner directive on OD-5 (Part 39); v0.4 recorded Part 38 delegated decisions; v0.3 made the device order executable; v0.2 applied Part 32 audit fixes.
 **Date:** 2026-10-20
 **Status:** Draft, docs-only. This is the **action layer** for the spike program: it converts the pending owner decisions (doc 00 §5), the device-lab dependency (DEP-005) and the first week of B0 into things a person can actually do on a Monday morning. It decides nothing itself.
 **Companion status:** numbered `08B` alongside `08A`, following the `02A` precedent — the master prompt's deliverable set (00–18) is unchanged and doc 18's §22 audit remains 24/24.
@@ -103,13 +103,16 @@ Each brief states the question, why it is being asked *now* rather than later, t
 ---
 
 ### OD-6 — Product/brand name
-**Default in force:** working title TBD.
+**Decision (Owner Directive, Part 41):** Decided brand name and candidate shortlist:
+- **Primary Chosen Name & Working Title:** **Aptura** (pinned `applicationId`: `org.aptura.player`).
+- **Shortlist Finalists for L6 Trademark Clearance:**
+  1. **Aptura** (`org.aptura.player` — optical aperture + apt precision; 0 hits on Play Store in media players).
+  2. **Caelis** (`org.caelis.player` — Latin *caelis*, celestial clarity and calm; 0 hits on Play Store).
+  3. **Pellucis** (`org.pellucis.player` — Latin *pellucidus*, transparent/crystalline purity; 0 hits on Play Store).
 
-**Why now:** trademark clearance (L6) is a long-lead with a real chance of failure, and the `applicationId` should be pinned once — **changing it later means a new store listing**, losing install base, reviews and ranking.
+**Why decided now:** Brand name selection pins `applicationId` to `org.aptura.player` for B0.0 build scaffolding, avoiding the catastrophic launch-prep risk where changing the package ID requires publishing a completely new store listing (destroying user base, ratings, and search ranking).
 
-**Practical ask:** give **two or three** candidate names so L6 can clear them in parallel and at least one survives.
-
-**Unblocks:** L6, S1 (store account identity), `applicationId` pinning.
+**Unblocks:** Legal brief L6 (knockout clearance can now execute against the 3 finalists), S1 (store account identity & signing), and `applicationId` pinning in build scripts.
 
 ---
 
@@ -248,7 +251,7 @@ Derived from the B0.0 finding (08A §2). The order matters: **device order and l
 | OD-3 | Monetization at launch | **Free / no ads / no account** (DEC-004 confirmed) | Monetization option B remains an R1.x candidate |
 | OD-4 | Team, design, window, spend ceiling | **Solo AI Developer (Antigravity) + Product Owner (User)** (owner directive — Part 40) | Zero human engineers; zero engineering payroll budget. No hard external deadline. Spend ceiling covers §3.1-minimum device lab (DEP-005) and Play Store fees. Concurrency = 1 (sequential execution; Q16-7 = 1, RB-2 = 1). Re-adjudicator (S6/RB-4) = Product Owner sign-off on automated test evidence |
 | OD-5 | First market set / launch regions | **Targeted globally from Day 1** (owner directive — Part 39) | Worldwide availability on Google Play; English baseline UI at launch; full multi-script subtitle support (Arabic RTL, CJK, Devanagari, Cyrillic) from Day 1; progressive UI translation additions. L5 statute scope covers global regimes (GDPR, CCPA, DPDP, LGPD, EAA) concurrently |
-| OD-6 | Candidate names (2–3) | **Deferred by decision** — naming happens at launch-prep | The collision risk is the one error that forces a rebrand; nothing blocks on it except L6, which starts once a shortlist exists |
+| OD-6 | Candidate names (2–3) | **Aptura** (Primary / Working Title; pinned `applicationId = org.aptura.player`); clearance finalists: 1. **Aptura**, 2. **Caelis**, 3. **Pellucis** (owner directive — Part 41) | Decided per owner instruction. 0 hits on Google Play in media players. Unblocks Brief L6 trademark knockout clearance and pins package ID for build scaffolding |
 
 **Remaining physical acts (cannot be done from the spec desk):** order the lab (§3), **send batch A to counsel (cover note: `11A` §0.1)**, open the Play Console track (S1/S2). **If a hard date ever appears**, the de-scope ladder is now exercisable (doc 16 §5.1; rung definitions confirmed — Q16-8).
 
