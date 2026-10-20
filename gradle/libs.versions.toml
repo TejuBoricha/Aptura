@@ -16,8 +16,10 @@ lifecycleViewmodelNav3 = "2.10.0"
 media3 = "1.5.1"
 room = "2.6.1"
 turbine = "1.2.0"
+kotlinxSerialization = "1.8.0"
 
 [libraries]
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidxCore" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidxActivity" }
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "androidxComposeBom" }

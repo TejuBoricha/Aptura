@@ -78,6 +78,9 @@ dependencies {
   implementation(libs.androidx.room.runtime)
   implementation(libs.androidx.room.ktx)
 
+  // Serialization
+  implementation(libs.kotlinx.serialization.json)
+
   // Local tests: jUnit, coroutines, Turbine
   testImplementation(libs.junit)
   testImplementation(libs.kotlinx.coroutines.test)

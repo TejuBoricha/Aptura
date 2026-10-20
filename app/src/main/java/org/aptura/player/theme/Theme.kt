@@ -49,10 +49,13 @@ fun ApturaTheme(
         SideEffect {
             val window = (view.context as? Activity)?.window
             if (window != null) {
+                @Suppress("DEPRECATION")
                 window.statusBarColor = ApturaColors.SurfaceBase.toArgb()
+                @Suppress("DEPRECATION")
                 window.navigationBarColor = ApturaColors.SurfacePureBlack.toArgb()
-                WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
-                WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = false
+                val insetsController = WindowCompat.getInsetsController(window, view)
+                insetsController.isAppearanceLightStatusBars = false
+                insetsController.isAppearanceLightNavigationBars = false
             }
         }
     }
