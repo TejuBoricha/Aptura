@@ -1,6 +1,6 @@
 # 08B — B0 Kickoff Pack (Owner Decisions, Device Procurement, Week One)
 
-**Version:** 0.4 (draft — nothing ordered, nothing executed); v0.4 records the **Part 38 delegated decisions** — the answer sheet (§5) is filled and §1/§2/§6 updated to match; v0.3 made the device order executable: **§3.2.1 purchase worksheet**, **§3.4.1 intake probe specification** (what to record, which documented surface answers it), the "buy one → probe → extend" rule, and a **D-27 remnant removed from §3.2** (the selection-criteria example still described buying *for* a decode deficiency that v0.2 had banned); v0.2 applies the Part 32 audit fixes: D1 restated from doc 05 §1's class definition (not an invented RAM figure or API era), OS-band coverage aligned to doc 12 §6's six bands, the **B0 lab vs. matrix-fleet distinction** made explicit, farm authority narrowed to match doc 12 §6, the OD-2 size comparison corrected, and the device count now derived rather than asserted
+**Version:** 0.5 (draft — nothing ordered, nothing executed); v0.5 records the **owner directive on OD-5 (Part 39)** — targeted globally from Day 1 with worldwide Google Play distribution, English baseline UI at launch, full multi-script subtitle rendering (Arabic RTL, CJK, Devanagari, Cyrillic), and progressive UI translation rollouts; v0.4 recorded the Part 38 delegated decisions; v0.3 made the device order executable (§3.2.1 purchase worksheet, §3.4.1 intake probe specification); v0.2 applied Part 32 audit fixes.
 **Date:** 2026-10-20
 **Status:** Draft, docs-only. This is the **action layer** for the spike program: it converts the pending owner decisions (doc 00 §5), the device-lab dependency (DEP-005) and the first week of B0 into things a person can actually do on a Monday morning. It decides nothing itself.
 **Companion status:** numbered `08B` alongside `08A`, following the `02A` precedent — the master prompt's deliverable set (00–18) is unchanged and doc 18's §22 audit remains 24/24.
@@ -97,11 +97,11 @@ The four things actually needed — a rough answer beats a careful one:
 ---
 
 ### OD-5 — Launch regions and languages
-**Default in force:** ASM-009 provisional set (India, Brazil, SE Asia, MENA + US/EU).
+**Decision (Owner Directive, Part 39):** **Targeted globally from Day 1** — worldwide Google Play store distribution with English UI baseline at launch, complete international subtitle script rendering (Latin extended, Arabic RTL, CJK, Devanagari, Cyrillic), and progressive UI translation additions (R1.x+).
 
 **Why now:** it is not just translation. Regions determine **S2** developer-verification rollout (doc 15 §4), the statute set that legal must consider (L5), content rating, and — the one that touches engineering — the **OFL font subsets** needed for subtitle rendering (OQ-5).
 
-**Practical ask:** choose a **first market set of ≤5 locales**. Because the app is local-only with no backend, expanding later is cheap; starting too broad is what costs (fonts per script, listing per language, compliance per region).
+**Global posture (confirmed):** Because the app is local-only with no backend, no accounts, and no `INTERNET` permission (DEC-012, DEC-004), worldwide distribution carries minimal backend compliance overhead. L5 scopes to global statutes (GDPR, CCPA, DPDP, LGPD, EAA) concurrently; UI starts in English with ICU-clean externalized strings (NFR-LOC-001) for gradual localization.
 
 **Unblocks:** S2 sequencing, font subsetting (OQ-5), L5 scope, store listing work (S3).
 
@@ -252,7 +252,7 @@ Derived from the B0.0 finding (08A §2). The order matters: **device order and l
 | OD-2 | R1 boundary: local-only vs network | **Local-only** (DEC-001 confirmed) | SMB/NAS/HTTP remain an R2 candidate |
 | OD-3 | Monetization at launch | **Free / no ads / no account** (DEC-004 confirmed) | Monetization option B remains an R1.x candidate |
 | OD-4 | Team, design, window, spend ceiling | **2 engineers full-time + part-time design; no hard external date (internal aim only); modest ceiling** | Lab: §3.1 minimum fleet grown by §3.5 (buy one → probe → extend); counsel: batch A. Calendar: doc 16 §2.1's 2-engineer row (≈5–9 months). Q16-7 = 2 engineers on B0; **the §3.3 "second unit of the busiest class" trigger is now met** — buy one duplicate when the probe confirms its class, budget allowing |
-| OD-5 | First market set (≤5 locales) | **Wave 1: India (en-IN, hi-IN) · Brazil (pt-BR) · US (en-US) · Indonesia (id-ID)** | Wave-1 availability = these countries; MENA (Arabic) and EU (GDPR/EAA) deferred to wave 2 — expansion is listing + font-subset work, no engineering. L5's statute scope follows this set |
+| OD-5 | First market set / launch regions | **Targeted globally from Day 1** (owner directive — Part 39) | Worldwide availability on Google Play; English baseline UI at launch; full multi-script subtitle support (Arabic RTL, CJK, Devanagari, Cyrillic) from Day 1; progressive UI translation additions. L5 statute scope covers global regimes (GDPR, CCPA, DPDP, LGPD, EAA) concurrently |
 | OD-6 | Candidate names (2–3) | **Deferred by decision** — naming happens at launch-prep | The collision risk is the one error that forces a rebrand; nothing blocks on it except L6, which starts once a shortlist exists |
 
 **Remaining physical acts (cannot be done from the spec desk):** order the lab (§3), **send batch A to counsel (cover note: `11A` §0.1)**, open the Play Console track (S1/S2). **If a hard date ever appears**, the de-scope ladder is now exercisable (doc 16 §5.1; rung definitions confirmed — Q16-8).

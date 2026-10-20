@@ -1,6 +1,6 @@
 # 17 — Consolidated Registers, DoR/DoD, and Change Process
 
-**Version:** 0.7 (draft; v0.7 records the **Part 38 delegated decisions** — DEC-001/002/004 confirmed; ASM-005/006 become working scenarios; ASM-009 becomes the wave-1 market set; OD-6 deliberately deferred; v0.6 added a **fifth error class — gratuitous prompts** (asking the user for something the platform exempts us from) plus method step **9 — read the platform's exemption list, and record the condition that keeps each exemption alive**; adds classification rows for the notification permission, edge gestures, caption defaults and delegation, and the media-control surface. v0.5 added the fourth error class (platform contracts under-read), steps 7–8 (read the platform contract; classify Class A/B constants) and closed Q14; v0.4 added step 6 and the third error class; v0.3 added the rule and the decision-set classification; v0.2 added RSK-015 and the doc 02A question pointers)
+**Version:** 0.8 (draft; v0.8 updates **ASM-009** to reflect the owner's global launch directive on **OD-5** (Part 39) — worldwide Google Play distribution, English baseline UI at launch with full multi-script subtitle rendering and progressive UI translations, global statute scope active; v0.7 recorded the Part 38 delegated decisions; v0.6 added a fifth error class and method step 9; v0.5 added the fourth error class and steps 7–8; v0.4 added step 6; v0.3 added the rule and decision-set classification; v0.2 added RSK-015)
 **Date:** 2026-10-20
 **Status:** Draft — **this document is the canonical home** for the DEC / ASM / RSK / DEP registers and for the Definition of Ready/Done. Where earlier documents hold originals (00 §3, 08, 16 §3), this register supersedes for lookup while preserving the original context. IDs are frozen; nothing is silently renumbered (change rules §7).
 **Consumes:** every prior document.
@@ -133,7 +133,7 @@ Reviewed 2026-10-19 against docs 02/02A and the W1–W8 research notes. "Deviati
 | ASM-006 | **Working scenario: no hard external date** (internal aim only); **modest ceiling** — §3.1-minimum device lab grown by 08B §3.5 + batch-A counsel (Part 38, delegated) | OD-4 — calendar applies the 2-engineer row (doc 16 §2.1) | **Working scenario** |
 | ASM-007 | Shipping config uses platform/royalty-free decoders; unclear royalty → excluded/flagged | Doc 11 register | Active |
 | ASM-008 | Incumbent pain clusters: ads/trust, reliability edges, subtitles, scan friction, low-end perf, bloat | W1 pain synthesis (doc 02 §5) | Supported |
-| ASM-009 | **Wave-1 markets (Part 38, delegated): India (en-IN, hi-IN), Brazil (pt-BR), US (en-US), Indonesia (id-ID)** — ≤5 locales; MENA/EU deferred to wave 2 | W4; OD-5 | Active (delegated) |
+| ASM-009 | **Targeted globally from Day 1 (Part 39, owner-validated): worldwide Google Play distribution, English UI baseline at launch + full multi-script subtitle support (Arabic RTL, CJK, Devanagari, Cyrillic), progressive UI translation additions; global compliance active** | W4; OD-5 | Active (owner-validated — Part 39) |
 | ASM-010 | No DRM support; honest failure | DEC-006 | Active |
 | ASM-011 | Target segment prioritizes trust/privacy/reliability over feature breadth | Positioning depends on it (docs 02/03); beta signals | **Core hypothesis to watch** |
 | ASM-012 | Bundled audio decode is an enhancement; product survives its removal | Doc 11 §3.5 fallback design | Validated-by-design |
@@ -195,7 +195,7 @@ Detail lives in each source document; this index is for navigation. **Owner deci
 | 1 | **OD-4** team/budget/time (unlocks calendar + device-lab scope) | 00 §5 |
 | 2 | **L1** LGPL relinking verdict (gates only the optional audio ext) | 11 §5 |
 | 3 | **B0 spike outcomes** (RQ-01/03/05/06/08/13/14) | 08 |
-| 4 | OD-3 monetization intent; OD-5 regions; OD-6 name; OD-1/OD-2 confirmations | 00 §5 |
+| 4 | OD-3 monetization intent; OD-6 name; OD-1/OD-2 confirmations (OD-5 confirmed global — Part 39) | 00 §5 |
 | 5 | Device budget (Q12-2), support staffing (Q14-5/Q16-3), hosting (OQ15-3/Q14-2) | 12/14/15/16 |
 
 Full sets: doc 04 Q1–Q14 (Q12, Q13, Q14 closed) · doc 05 NQ1–NQ6 · doc 06 U1–U6 · doc 07 C1–C6 · doc 08 T1–T5 · doc 09 A1–A6 · doc 10 S1–S6 · doc 11 OQ-1…5 · doc 12 Q12-1…6 · doc 13 Q13-1…6 · doc 14 Q14-1…5 · doc 15 OQ15-1…5 · doc 16 Q16-1…5 · doc 02A CS-1…CS-7.

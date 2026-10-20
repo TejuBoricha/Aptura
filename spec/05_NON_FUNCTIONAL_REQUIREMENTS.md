@@ -1,7 +1,7 @@
 # 05 — Non-Functional Requirements (NFRs)
 
-**Version:** 0.4 (draft; every target is provisional and unmeasured; v0.4 **removes the notification permission from NFR-PRIV-004** — Android documents media-session notifications as exempt from `POST_NOTIFICATIONS`, so requesting it would have spent a user prompt for nothing — and records the condition that preserves the exemption (R1 posts no non-media notifications); v0.3 completes the Play vitals threshold context — wake locks, battery, bitmap memory, DEX optimisation — and records where our targets are deliberately stricter; v0.2 added the FR-CTRL-017 auto-advance clause)
-**Date:** 2026-10-19
+**Version:** 0.5 (draft; every target is provisional and unmeasured; v0.5 updates NFR-LOC-003 to reflect global launch targeting per owner decision OD-5 in Part 39: English baseline UI at launch with worldwide store availability, multi-script subtitle support, and progressive UI localization; v0.4 removed the notification permission from NFR-PRIV-004; v0.3 completed Play vitals thresholds; v0.2 added FR-CTRL-017 auto-advance clause)
+**Date:** 2026-10-20
 **Status:** Draft. **No figure in this document is a measured result.** Every threshold is a provisional target (`[T]`), with rationale and verification method, to be validated or revised by doc 13 (benchmark protocol) and doc 12 (tests). Thresholds without direct evidence are additionally labeled `[E]`.
 **Consumes:** 01 (scope/platform), 04 (FRs), `research/platform.md`, `research/licensing.md`, `research/competitors.md` (via 02).
 **Feeds:** 06 (UI budgets), 09 (architecture constraints), 12 (test cases), 13 (measurement protocol), 18 (traceability).
@@ -287,9 +287,9 @@ Each record: **ID — Title** (MUST/SHOULD, release) · **Statement** (normative
 **MUST · R1** · **Statement:** complete RTL layout mirroring (Arabic/Hebrew/Urdu); BiDi correctness in lists, details, and subtitle rendering (FR-SUB-005).
 **Verification:** RTL slot in doc 12; native-reviewer pass at launch locale expansion.
 
-#### NFR-LOC-003 — Launch locales
-**SHOULD · R1** · **Statement:** English + a small launch set `[E]` (candidate set per ASM-009/OD-5: e.g., ES, PT-BR, HI, ID, AR — final pending owner decision OD-5); expansion by measured usage.
-**Verification:** localization manifest per release (doc 15).
+#### NFR-LOC-003 — Launch locales and global targeting
+**SHOULD · R1** · **Statement:** Targeted globally from Day 1 (owner decision OD-5, Part 39) with worldwide Google Play distribution. App ships with an English UI baseline at launch; UI strings externalized (NFR-LOC-001) for progressive localization rollouts (R1.x+); complete international subtitle rendering support across global scripts (Latin extended, Arabic RTL, CJK, Devanagari, Cyrillic) supported from Day 1.
+**Verification:** localization manifest and Play Store console distribution configuration per release (doc 15).
 
 #### NFR-LOC-004 — Locale-aware formatting
 **MUST · R1** · **Statement:** dates, sizes, durations, times, and numbers formatted per system locale; 12/24-hour preference honored.

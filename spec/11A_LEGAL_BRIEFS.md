@@ -1,17 +1,17 @@
 # 11A — Legal Briefs (L1–L8) — prepared for counsel
 
-**Version:** 0.3 (draft — **not legal advice**, and no position below has been reviewed by a lawyer); v0.3 adds the **paste-ready cover note (§0.1)** and folds in the Part 38 decisions (L5 now scopes to the wave-1 markets; L6 starts at launch-prep); v0.1 contained L1–L2 only; v0.2 adds the **batch-B** briefs **L3–L8** (§4) in the same sendable format and updates the engagement notes
+**Version:** 0.4 (draft — **not legal advice**, and no position below has been reviewed by a lawyer); v0.4 updates Brief L5 to reflect **global launch targeting** per owner decision OD-5 (Part 39); v0.3 added the paste-ready cover note (§0.1) and folded in Part 38 decisions; v0.2 added batch-B briefs L3–L8 (§4); v0.1 contained L1–L2 only.
 **Date:** 2026-10-20
 **Status:** Draft, docs-only. These are **briefs to send to counsel**, written so that answering them is cheap: the facts first, our reading second (stated so it can be corrected), then numbered questions each with the decision it changes. Companion to doc 11, numbered `11A` following the `02A`/`08A` precedent (the §22 deliverable set 00–18 is unchanged).
 **Consumes:** 11 §1.2/§2/§3/§5 (component + patent registers, LGPL process, L1–L8), 04 (FR-AUD-007, FR-SET-008), 10 §4.1/§6.2/§6.3 (data inventory, statutes, mirrored legal list), 15 (store-listing step, its S3), 08B (OD-6 — the name decision L6 depends on), `research/licensing.md` (W3).
 **Feeds:** doc 11 register verdicts, the build-phase license CI gate, doc 00 §5 / L-item statuses.
-**Scope of this document:** **L1–L8 in full.** L1/L2 (§2–§3) are the capability gates, sendable as-is since v0.1. **Batch B (§4)** adds the copy, statute and naming briefs: L3 DTS/TrueHD wording · L4 Dolby brand usage in UI text · L5 statute applicability · L6 name clearance and copycat response · L7 app-licence/distribution model · L8 store-copy claims policy. None of batch B gates a capability; the two owner-decision dependencies are named where they bind (OD-5 sharpens L5; OD-6 starts L6).
+**Scope of this document:** **L1–L8 in full.** L1/L2 (§2–§3) are the capability gates, sendable as-is since v0.1. **Batch B (§4)** adds the copy, statute and naming briefs: L3 DTS/TrueHD wording · L4 Dolby brand usage in UI text · L5 statute applicability · L6 name clearance and copycat response · L7 app-licence/distribution model · L8 store-copy claims policy. None of batch B gates a capability; the two owner-decision dependencies are named where they bind (OD-5 confirmed global scope for L5 in Part 39; OD-6 starts L6).
 
 ---
 
 ## 0. How to use this document
 
-1. **Send in two batches.** **Batch A — §2 and §3** — as they stand (or after trimming §2.1's build detail, which is written for a lawyer who does not need to read FFmpeg's configure flags — but which does establish exactly what we ship): these gate capabilities. **Batch B — §4** — when convenient: L3/L4/L7/L8 can go immediately, L5 now scopes to the wave-1 markets (**OD-5 decided — Part 38**), and L6 cannot *start* without candidate names (**OD-6 deferred to launch-prep — Part 38**), though its process questions can be answered now.
+1. **Send in two batches.** **Batch A — §2 and §3** — as they stand (or after trimming §2.1's build detail, which is written for a lawyer who does not need to read FFmpeg's configure flags — but which does establish exactly what we ship): these gate capabilities. **Batch B — §4** — when convenient: L3/L4/L7/L8 can go immediately, L5 scopes to the global launch set (**OD-5 decided as global — Part 39**), and L6 cannot *start* without candidate names (**OD-6 deferred to launch-prep — Part 38**), though its process questions can be answered now.
 2. **What we are asking for is deliberately small:** a written position we can act on, not a full legal opinion. A short memo answering the numbered questions is sufficient for every decision below.
 3. **Every question carries "what changes on the answer"** so counsel can see the stakes and skip anything immaterial.
 4. **Our readings are hypotheses.** Where this document says "we read §6 as…", that is *our* reading for correction — not a claim about what the licence says.
@@ -165,7 +165,7 @@ Sent when the moment is right rather than urgently: **none of these gates a capa
 |---|---|---|---|
 | L3 | DTS/TrueHD passthrough copy | doc 07 §7/§13 copy; doc 06 §7 strings | **Now** |
 | L4 | Dolby brand usage in UI text | doc 06 §7 copy; doc 15 listing | **Now** |
-| L5 | Statute applicability notes | Privacy page, store forms, doc 10 §6.2 statuses | Now on the provisional region set; sharpen after OD-5 |
+| L5 | Statute applicability notes | Privacy page, store forms, doc 10 §6.2 statuses | **Now — global region set confirmed (OD-5, Part 39)** |
 | L6 | Name/trademark clearance + copycat response | doc 15 listing, `applicationId` pinning | **Process questions now; clearance waits for OD-6 names** |
 | L7 | Own-app licence & distribution (F-Droid) | OQ-1 (decision support) | Now — explicitly lowest priority |
 | L8 | Store-copy claims policy | doc 15 S3 gate; TST-VIS | Now — as a scoping question; may need no counsel at all |
@@ -227,7 +227,7 @@ Sent when the moment is right rather than urgently: **none of these gates a capa
 
 ### 4.3 Brief L5 — statute applicability notes
 
-**Priority: medium** (doc 11 §5). **Gates:** the privacy page, store forms (data safety, rating), doc 10 §6.2's status column. **Dependency:** answerable now on the provisional region set (India, Brazil, SE Asia, MENA + US/EU — ASM-009, provisional; OD-5 pending); refresh if that changes.
+**Priority: medium** (doc 11 §5). **Gates:** the privacy page, store forms (data safety, rating), doc 10 §6.2's status column. **Dependency:** global launch scope confirmed under OD-5 (Part 39); major global regimes (GDPR, CCPA/CPRA, India DPDP, LGPD, EAA) apply concurrently to R1 legal review.
 
 **The facts**
 
@@ -342,7 +342,7 @@ Sent when the moment is right rather than urgently: **none of these gates a capa
 | **Priority order** | **Batch A: L1 before L2** (doc 11 §5) — L1 gates a build decision; L2 gates an optional add-back with a working default. **Batch B (§4) is not urgent** — L3/L4 must land before doc 06's copy freeze, L5 sharpens after OD-5, L6 *starts* at OD-6, L7/L8 are cheap now and annoying later; none gates launch. If a single engagement is simpler, send §2–§4 together and let counsel triage |
 | **What we explicitly do not need** | A general survey of open-source licensing, or a comparison of how other players resolve §6. Our questions are specific and the fallbacks are already designed |
 | **Facts that will age** | Everything in §3.2 is `recheck`-flagged; the patent rows are re-verified at every release gate (doc 11 §2). Do not treat any date in this brief as settled |
-| **Coverage** | **Nothing is unbriefed.** v0.1 listed L3–L8 as follow-on items; v0.2 briefs them all (§4). Remaining dependencies are owner-side: **OD-5** (launch regions) sharpens L5; **OD-6** (candidate names) starts L6 |
+| **Coverage** | **Nothing is unbriefed.** v0.1 listed L3–L8 as follow-on items; v0.2 briefs them all (§4). Remaining dependencies are owner-side: **OD-5** (launch regions) confirmed as global (Part 39); **OD-6** (candidate names) starts L6 |
 
 ---
 
