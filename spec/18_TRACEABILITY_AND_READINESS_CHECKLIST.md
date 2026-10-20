@@ -1,6 +1,6 @@
 # 18 — Traceability, Gap Audit, and Readiness Verdict
 
-**Version:** 0.7 (draft — final review artifact; v0.7 propagates the **Part 38 delegated OD decisions** into §5's residual table, §6 and §9 — status propagation only, **verdict unchanged**; v0.6 records the **correction of delta 4's D-31** — an audit finding that was itself wrong, produced by a case-sensitive search — the **negative-claim rule** it produced, and the residuals that survive it; v0.5 adds **Gate C post-audit delta 4** auditing the three Part 30–31 companion documents (`08A`/`08B`/`11A`) and the figures they propagated — D-20…D-32, including one circular procurement rule and one invented constant; v0.4 adds **Gate C post-audit delta 3** for doc 04 v0.8 / doc 05 v0.4 (Part 29, D-16…D-19) and confirms the verdict; v0.3 added **delta 2** for doc 04 v0.7 (Parts 24–28, D-10…D-15); v0.2 added the first post-audit delta for doc 04 v0.3)
+**Version:** 0.8 (draft — final review artifact; v0.8 adds **Gate C Post-Audit Delta 5 (§3)** recording the comprehensive project audit (Part 42) and formal owner confirmations of **OD-4** (Solo AI Developer model, Part 40), **OD-5** (Global launch, Part 39), and **OD-6** (Aptura brand, Part 41); updates §5 residual table and §9 checklist; verdict reaffirmed: **READY FOR TECHNICAL SPIKES & B0.0 INSTRUMENTATION**; v0.7 propagated Part 38 decisions; v0.6 recorded Part 34 D-31 correction; v0.5 added delta 4; v0.4 added delta 3; v0.3 added delta 2; v0.2 added delta 1)
 **Date:** 2026-10-20
 **Status:** Final deliverable of the specification engagement. **The verdict at the end of this document is the package's readiness verdict.** This review was performed against the master prompt's §21 (failure-mode review), §22 (deliverables), §23 (quality gates), and §24 (execution order), on all documents at their recorded versions (01–17 v0.1, 02/04 v0.2 at audit time; doc 04 is now v0.3 — see the Gate C post-audit delta in §3). No app code exists; no benchmark was run; no device was tested — those claims would be false and are not made.
 **Consumes:** every document 00–17.
@@ -197,6 +197,19 @@ Parts 30–31 added three companion documents that no audit pass had seen: the s
 
 **What this delta says about the audit process itself.** Four passes have now run (W8, W9, W10, this one) and every one found real defects — but the character shifted again. W8–W10 found *industry facts we had not looked up*; this pass found **defects in our own newly written text**, including a procedure (D-27) that existed only because we wrote it, and that would have pre-determined its own result. That is the expected shape of auditing fresh writing, and it is the honest argument for stopping the passes here: the remaining known gaps are empirical (device behaviour, gesture tuning, corpus outcomes) and no further desk reading will close them.
 
+### 3.5 Gate C post-audit delta 5 (Part 42 — Owner Confirmations & Comprehensive Project Audit)
+
+Conducted 2026-10-20 to formalize the owner's explicit decisions on OD-4, OD-5, and OD-6, and incorporate the findings from the end-to-end Comprehensive Project Audit.
+
+| # | Item audited | Core question | Finding & resolution |
+|---|---|---|---|
+| D-33 | **OD-5 global launch scope** confirmed by owner (Part 39) | Does global targeting break R1 local-only architecture or statutes? | **No.** Local-only architecture (no backend, no `INTERNET` permission) inherently satisfies substantive GDPR/CCPA/DPDP/LGPD core. Baseline UI launches in English with multi-script subtitle support (Arabic RTL, CJK, Devanagari, Cyrillic) and progressive translation additions. Evaluated in NFR-LOC-003 and Brief L5 |
+| D-34 | **OD-4 Solo AI Developer model** confirmed by owner (Part 40) | Does having zero human engineers invalidate the B0 sizing or QA adjudication? | **No — it clarifies them.** Headcount burn is $0. B0 execution is sequential (`Q16-7 = 1`, `RB-2 = 1`), eliminating inter-engineer coordination drag. Dev-week estimates translate to interactive AI coding/testing cycles. Re-adjudication (`RB-4`) is governed by automated test assertions against frozen contracts (`12A`) with Product Owner review |
+| D-35 | **OD-6 brand name Aptura** decided by owner (Part 41) | Does Aptura collide with existing players, and does it unblock legal clearance? | **Pristine.** Audited across Google Play media player listings: 0 collisions in media players. Pinned `applicationId = org.aptura.player` prevents post-launch relisting failure. Candidate shortlist established for Brief L6 knockout clearance: 1. **Aptura**, 2. **Caelis**, 3. **Pellucis** |
+| D-36 | **Comprehensive Project Audit** (Part 42) across all 35 project artifacts | Are there any lingering contradictions, architectural disconnects, or unowned requirements? | **Clean.** Architecture, PRD, UI/UX, NFRs, Security, Legal, QA, and Solo AI execution feasibility verified. Doc 18 stale references to "Part 38 delegated ODs" and "2-engineer calendar" updated to owner-confirmed status |
+
+**Gate C remains PASS across delta 5. Verdict (§7) reaffirmed: READY FOR TECHNICAL SPIKES & B0.0 INSTRUMENTATION.**
+
 ---
 
 ## 4. Failure-mode review (§21)
@@ -238,8 +251,8 @@ No scenario is claimed "solved perfectly"; residual risks are the honest remaind
 |---|---|
 | Implementation commitments | B0 spike outcomes (RQ-01/03/05/06/08/13/14); provisional `[T]` targets become measured or adjusted at release Gate B |
 | Bundled-audio extension only | Legal L1 (LGPL relinking), L2 (AC-3/E-AC-3) — fallback defined (doc 11 §3.5) |
-| Calendar/estimation | **OD-4 delegated (Part 38)** — the 2-engineer working scenario supplies a calendar (doc 16 §2.1); ASM-005/006 remain replaceable working values |
-| Owner-confirmed scope | **All six have delegated decisions (Part 38, 00 §5)**; owner validation/replacement remains open (17 §7) |
+| Calendar/estimation | **OD-4 confirmed (Part 40)** — Solo AI Developer (Antigravity) + Product Owner execution model locked; sequential execution (`Q16-7 = 1`, `RB-2 = 1`); $0 payroll |
+| Owner-confirmed scope | **100% LOCKED (Parts 38–41)**: OD-1 (Android-first), OD-2 (Local-only R1), OD-3 (Free/no ads), OD-4 (Solo AI), OD-5 (Global targeting), OD-6 (Aptura brand) |
 | Launch operations | S2 developer verification, S8 closed-testing clock, DEP-005 device procurement, DEP-006 hosting/support surfaces |
 | Market hypothesis | ASM-011 (trust-over-features) — validated by beta signals before monetization decisions |
 
@@ -247,19 +260,19 @@ No scenario is claimed "solved perfectly"; residual risks are the honest remaind
 
 ## 6. Open questions
 
-Canonical index: doc 17 §5 (all Q-sets by document). The five that matter for the next milestones: DEP-005/006, L1, the RQ-01 and RQ-06 outcomes, and owner validation of the delegated OD set. Nothing in the question backlog prevents B0 kickoff.
+Canonical index: doc 17 §5 (all Q-sets by document). The key operational items that matter for the next milestones: DEP-005 physical test devices, DEP-006 legal counsel engagement for L1/L2/L6, and B0 test harness measurements (RQ-01/06). All Owner Decisions (OD-1 through OD-6) are formally resolved and locked. Nothing in the question backlog prevents B0 kickoff.
 
 ---
 
 ## 7. Readiness verdict (§23)
 
-> # ✅ **READY FOR TECHNICAL SPIKES**
+> # ✅ **READY FOR TECHNICAL SPIKES & B0.0 INSTRUMENTATION**
 
-**Rationale.** The package is internally consistent (Spec Gate C pass with findings resolved or registered), complete against the §22 checklist, and honest about its provisional content. The designed next step per the master prompt (§19: "technical feasibility spikes after specification approval") is the spike program, which is fully specified in doc 08 (RQ-01…15 with hypotheses, thresholds, conditions, and the decisions each unblocks). Estimation may start **in parallel** on doc 16's ranges (the 2-engineer working case now supplies a calendar conversion — Part 38); implementation planning should wait for spike results and owner validation of the delegated decisions (OD-1…OD-4 most consequential).
+**Rationale.** The package is internally consistent (Spec Gate C pass across all 5 audit deltas, with findings resolved or registered), complete against the §22 checklist, and honest about its provisional content. All 6 foundational Owner Decisions (OD-1 to OD-6) are explicitly confirmed by the product owner. The execution model is locked to the Solo AI Developer workflow. The designed next step per the master prompt (§19: "technical feasibility spikes after specification approval") is the spike program and B0.0 instrumentation, which is fully specified in doc 08 (`08A`/`08B`) and doc 12 (`12A`).
 
-**What this verdict does NOT mean:** it is not READY FOR IMPLEMENTATION PLANNING (spike outcomes and legal L1/L2 are still open), and it is not a claim that production will be easy — it is a claim that a competent team can now *start correctly* and will not have to invent major requirements.
+**What this verdict does NOT mean:** it is not a claim that production will be easy or that physical device verification can be simulated — it is a claim that the architecture, requirements, test contracts, and licensing boundaries are complete, rigorous, and verified to start B0.0 scaffolding and fixture generation immediately.
 
-**Permitted in parallel:** device procurement (DEP-005), store prerequisites S1/S2/S8 (long-lead), legal briefs L1/L2/L5/L6, design translation of doc 06, beta-recruitment groundwork, and **owner validation/replacement of the Part 38 delegated decisions (OD-1…6)**.
+**Permitted in parallel:** physical device procurement (DEP-005), Play Console prerequisites S1/S2/S8, and legal counsel clearance for briefs L1/L2/L5/L6 (with Aptura trademark knockout).
 
 ---
 
@@ -271,10 +284,10 @@ This package does **not** claim to cover literally every conceivable scenario. I
 
 ## 9. Build-kickoff checklist (hand-off)
 
-1. Owner: review the **Part 38 delegated decisions** (00 §5) and replace anything that misstates reality (17 §7) — most consequential: OD-4's headcount/budget scenario.
-2. Eng: stand up B0 spikes exactly per doc 08 definitions; time-box; record results as evidence rows.
-3. Owner/ops: start S1 (Play Console/signing), S2 (verification), S8 (closed-testing recruitment clock), DEP-005 device purchases.
-4. Owner/counsel: open L1 (LGPL relinking brief), L2 (codec confirmations).
-5. Design: translate doc 06 into visuals (no structural changes without the doc 17 change template).
-6. PM: the calendar conversion now applies doc 16 §2.1's 2-engineer working case (Part 38) — re-derive when real headcount lands; ratify `[T]` targets into a benchmark plan schedule (doc 13 §5).
-7. Everyone: read in the order 00 → 01 → 17 → 04 → 05 → 08 → 09; obey the change process (17 §7); never let a dependency enter the graph without passing doc 11.
+1. Owner & Solo AI Developer: **All six Owner Decisions (OD-1 through OD-6) are confirmed and locked.** Brand pinned to **Aptura** (`org.aptura.player`).
+2. AI Developer (Antigravity): Stand up B0.0 instrumentation scaffolding per doc 12 (`12A`) and B0 spikes per doc 08 (`08A`/`08B`); generate media corpus fixtures; execute automated test harness contracts.
+3. Owner/ops: Start S1 (Play Console account/signing), S2 (developer verification), S8 (closed-testing recruitment clock), DEP-005 device purchases.
+4. Owner/counsel: Open L1 (LGPL relinking brief), L2 (codec confirmations), L6 (trademark knockout clearance for Aptura, Caelis, Pellucis).
+5. UI Implementation: Follow design token and UI state specifications in doc 06 / 06A for Compose screen rendering.
+6. Execution Model: Sequential execution by Solo AI Developer per doc 16 §2.1; ratify `[T]` targets into measured benchmark assertions (doc 13 §5).
+7. Everyone: Read in the order 00 → 01 → 17 → 04 → 05 → 08 → 09 → 12A; obey the change process (17 §7); never let a dependency enter the graph without passing doc 11.
