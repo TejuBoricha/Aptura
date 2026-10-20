@@ -35,6 +35,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -61,6 +65,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
@@ -69,12 +74,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -83,6 +90,9 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -120,10 +130,30 @@ fun PlayerScreen(
     onVolumePercentChanged: (Int) -> Unit,
     onBrightnessPercentChanged: (Int) -> Unit,
     onRetryPlayback: () -> Unit,
+    onPlayModeToggle: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
+
+    val activity = context as? Activity
+    DisposableEffect(activity, uiState.isControlsVisible) {
+        val window = activity?.window
+        if (window != null) {
+            val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+            insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            if (uiState.isControlsVisible) {
+                insetsController.show(WindowInsetsCompat.Type.systemBars())
+            } else {
+                insetsController.hide(WindowInsetsCompat.Type.systemBars())
+            }
+        }
+        onDispose {
+            window?.let {
+                WindowCompat.getInsetsController(it, it.decorView).show(WindowInsetsCompat.Type.systemBars())
+            }
+        }
+    }
 
     val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager }
     val maxVolume = remember(audioManager) {
@@ -411,6 +441,7 @@ fun PlayerScreen(
                                 listOf(ApturaColors.SurfaceScrim, Color.Transparent)
                             )
                         )
+                        .windowInsetsPadding(WindowInsets.statusBars)
                         .padding(horizontal = 16.dp, vertical = 12.dp)
                 ) {
                     Row(
@@ -557,6 +588,7 @@ fun PlayerScreen(
                                 listOf(Color.Transparent, ApturaColors.SurfaceScrim)
                             )
                         )
+                        .windowInsetsPadding(WindowInsets.navigationBars)
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
                     Column(modifier = Modifier.fillMaxWidth()) {
@@ -573,24 +605,42 @@ fun PlayerScreen(
 
                             Spacer(modifier = Modifier.width(12.dp))
 
-                            Slider(
-                                value = uiState.progressFraction,
-                                onValueChange = { fraction ->
-                                    val targetMs = (fraction * uiState.durationMs).toLong()
-                                    onScrubStart(targetMs)
-                                    onScrubMove(targetMs)
-                                },
-                                onValueChangeFinished = {
-                                    onScrubEnd()
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                },
-                                colors = SliderDefaults.colors(
-                                    thumbColor = ApturaColors.AccentPrimary,
-                                    activeTrackColor = ApturaColors.AccentPrimary,
-                                    inactiveTrackColor = ApturaColors.SurfaceElevated3
-                                ),
-                                modifier = Modifier.weight(1f)
-                            )
+                            Box(
+                                modifier = Modifier.weight(1f),
+                                contentAlignment = Alignment.CenterStart
+                            ) {
+                                // Secondary buffered track indicator behind the slider
+                                if (uiState.bufferedFraction > 0f) {
+                                    LinearProgressIndicator(
+                                        progress = { uiState.bufferedFraction },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(4.dp)
+                                            .clip(RoundedCornerShape(2.dp)),
+                                        color = ApturaColors.SurfaceElevated3,
+                                        trackColor = ApturaColors.SurfaceElevated1
+                                    )
+                                }
+
+                                Slider(
+                                    value = uiState.progressFraction,
+                                    onValueChange = { fraction ->
+                                        val targetMs = (fraction * uiState.durationMs).toLong()
+                                        onScrubStart(targetMs)
+                                        onScrubMove(targetMs)
+                                    },
+                                    onValueChangeFinished = {
+                                        onScrubEnd()
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    },
+                                    colors = SliderDefaults.colors(
+                                        thumbColor = ApturaColors.AccentPrimary,
+                                        activeTrackColor = ApturaColors.AccentPrimary,
+                                        inactiveTrackColor = if (uiState.bufferedFraction > 0f) Color.Transparent else ApturaColors.SurfaceElevated2
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
 
                             Spacer(modifier = Modifier.width(12.dp))
 
@@ -644,22 +694,24 @@ fun PlayerScreen(
                                     )
                                 }
 
-                                Icon(
-                                    imageVector = when (uiState.playMode) {
-                                        PlayMode.REPEAT_ONE -> Icons.Filled.RepeatOne
-                                        PlayMode.REPEAT_ALL -> Icons.Filled.Repeat
-                                        PlayMode.SHUFFLE -> Icons.Filled.Shuffle
-                                        PlayMode.NORMAL -> Icons.Filled.Repeat
-                                    },
-                                    contentDescription = "Play Mode",
-                                    tint = if (uiState.playMode != PlayMode.NORMAL)
-                                        ApturaColors.AccentPrimary
-                                    else
-                                        ApturaColors.TextLowEmphasis,
-                                    modifier = Modifier
-                                        .size(48.dp)
-                                        .padding(12.dp)
-                                )
+                                IconButton(
+                                    onClick = onPlayModeToggle,
+                                    modifier = Modifier.size(48.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = when (uiState.playMode) {
+                                            PlayMode.REPEAT_ONE -> Icons.Filled.RepeatOne
+                                            PlayMode.REPEAT_ALL -> Icons.Filled.Repeat
+                                            PlayMode.SHUFFLE -> Icons.Filled.Shuffle
+                                            PlayMode.NORMAL -> Icons.Filled.Repeat
+                                        },
+                                        contentDescription = "Play Mode: ${uiState.playMode.name}",
+                                        tint = if (uiState.playMode != PlayMode.NORMAL)
+                                            ApturaColors.AccentPrimary
+                                        else
+                                            ApturaColors.TextLowEmphasis
+                                    )
+                                }
                             }
                         }
                     }

@@ -105,7 +105,7 @@ class MediaLibraryViewModelTest {
 
             // Verify duration & size format
             assertEquals("2:05", success.videos[0].durationFormatted)
-            assertEquals("100.0 MB", success.videos[0].fileSizeFormatted)
+            assertEquals("100 MB", success.videos[0].fileSizeFormatted)
             assertEquals(1.0f, success.videos[0].progressFraction, 0.01f)
 
             cancelAndIgnoreRemainingEvents()
@@ -230,7 +230,7 @@ class MediaLibraryViewModelTest {
         assertEquals("0 B", MediaFormatters.formatFileSize(0L))
         assertEquals("500 B", MediaFormatters.formatFileSize(500L))
         assertEquals("100 KB", MediaFormatters.formatFileSize(102400L))
-        assertEquals("10.0 MB", MediaFormatters.formatFileSize(10485760L))
-        assertEquals("2.0 GB", MediaFormatters.formatFileSize(2147483648L))
+        assertEquals("10 MB", MediaFormatters.formatFileSize(10485760L))
+        assertEquals("2 GB", MediaFormatters.formatFileSize(2147483648L))
     }
 }

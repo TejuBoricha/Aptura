@@ -39,18 +39,18 @@ class ApturaAppE2eTest {
         // Wait until empty library message or videos are loaded and displayed
         composeTestRule.waitUntil(timeoutMillis = 10_000) {
             runCatching {
-                composeTestRule.onNodeWithText("Your library is ready").assertIsDisplayed()
+                composeTestRule.onNodeWithText("No videos found").assertIsDisplayed()
                 true
             }.getOrElse {
                 runCatching {
-                    composeTestRule.onNodeWithText("Refresh Videos").assertIsDisplayed()
+                    composeTestRule.onNodeWithText("Scan Device").assertIsDisplayed()
                     true
                 }.getOrDefault(false)
             }
         }
 
-        // Verify Refresh Videos button is interactive
-        composeTestRule.onNodeWithText("Refresh Videos")
+        // Verify Scan Device button is interactive
+        composeTestRule.onNodeWithText("Scan Device")
             .assertIsDisplayed()
             .performClick()
 
@@ -68,11 +68,11 @@ class ApturaAppE2eTest {
         // Confirm UI elements still present after configuration change
         composeTestRule.waitUntil(timeoutMillis = 8_000) {
             runCatching {
-                composeTestRule.onNodeWithText("Your library is ready").assertIsDisplayed()
+                composeTestRule.onNodeWithText("No videos found").assertIsDisplayed()
                 true
             }.getOrElse {
                 runCatching {
-                    composeTestRule.onNodeWithText("Refresh Videos").assertIsDisplayed()
+                    composeTestRule.onNodeWithText("Scan Device").assertIsDisplayed()
                     true
                 }.getOrDefault(false)
             }
@@ -82,7 +82,7 @@ class ApturaAppE2eTest {
         device.setOrientationNatural()
         device.waitForIdle()
 
-        composeTestRule.onNodeWithText("Your library is ready").assertIsDisplayed()
+        composeTestRule.onNodeWithText("No videos found").assertIsDisplayed()
     }
 
     @Test

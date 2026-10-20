@@ -45,11 +45,14 @@ class MediaStoreScanner(
 
         val uri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI
         val sortOrder = "${MediaStore.Video.Media.DATE_ADDED} DESC"
+        val selection = "${MediaStore.Video.Media.DURATION} > 0 " +
+            "AND ${MediaStore.Video.Media.SIZE} > 1024 " +
+            "AND ${MediaStore.Video.Media.MIME_TYPE} LIKE 'video/%'"
 
         val cursor: Cursor? = contentResolver.query(
             uri,
             PROJECTION,
-            null,
+            selection,
             null,
             sortOrder
         )
@@ -83,7 +86,7 @@ class MediaStoreScanner(
                 val contentUri = ContentUris.withAppendedId(uri, mediaStoreId).toString()
 
                 // Filter out non-video artifacts, 0-byte placeholders or corrupt fragments
-                if (size > 1024L) {
+                if (size > 1024L && duration > 0L) {
                     items.add(
                         MediaItemEntity(
                             mediaStoreId = mediaStoreId,

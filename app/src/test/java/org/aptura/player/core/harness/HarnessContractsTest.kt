@@ -10,7 +10,10 @@ import org.junit.Test
  */
 class HarnessContractsTest {
 
-    private val json = Json { prettyPrint = true }
+    private val json = Json {
+        prettyPrint = true
+        encodeDefaults = true
+    }
 
     @Test
     fun seekBenchmarkRecord_serialization_retainsAllContractFields() {
@@ -47,7 +50,8 @@ class HarnessContractsTest {
             p95OffsetMs = 8.5,
             maxAbsOffsetMs = 14.1,
             sampleCadenceMs = 1000L,
-            windowPhase = AvSyncBenchmarkRecord.WindowPhase.MID
+            windowPhase = AvSyncBenchmarkRecord.WindowPhase.MID,
+            timestampMs = 1700000000000L
         )
 
         val encoded = json.encodeToString(AvSyncBenchmarkRecord.serializer(), record)

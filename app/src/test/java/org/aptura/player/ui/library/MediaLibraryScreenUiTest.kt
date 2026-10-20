@@ -94,11 +94,11 @@ class MediaLibraryScreenUiTest {
         }
 
         // Verify empty view title and message
-        composeTestRule.onNodeWithText("Your library is ready").assertIsDisplayed()
+        composeTestRule.onNodeWithText("No videos found").assertIsDisplayed()
 
-        // Verify Refresh button is displayed and triggers callback
-        composeTestRule.onNodeWithText("Refresh Videos").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Refresh Videos").performClick()
+        // Verify Scan Device button is displayed and triggers callback
+        composeTestRule.onNodeWithText("Scan Device").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Scan Device").performClick()
         assertTrue(refreshClicked)
     }
 

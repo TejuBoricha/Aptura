@@ -14,6 +14,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.domain.model.DomainPlaybackState
+import org.aptura.player.domain.model.PlayMode
 import org.aptura.player.domain.repository.MediaRepository
 import org.aptura.player.domain.repository.PlaybackController
 import java.io.File
@@ -326,6 +327,17 @@ class PlayerViewModel(
         _uiState.update {
             it.copy(resizeMode = it.resizeMode.next())
         }
+        scheduleAutoHide()
+    }
+
+    fun togglePlayMode() {
+        val nextMode = when (_uiState.value.playMode) {
+            PlayMode.NORMAL -> PlayMode.REPEAT_ALL
+            PlayMode.REPEAT_ALL -> PlayMode.REPEAT_ONE
+            PlayMode.REPEAT_ONE -> PlayMode.SHUFFLE
+            PlayMode.SHUFFLE -> PlayMode.NORMAL
+        }
+        _uiState.update { it.copy(playMode = nextMode) }
         scheduleAutoHide()
     }
 

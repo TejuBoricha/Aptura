@@ -68,9 +68,15 @@ object MediaFormatters {
         val gb = mb / 1024.0
 
         return when {
-            gb >= 1.0 -> String.format(Locale.US, "%.1f GB", gb)
-            mb >= 1.0 -> String.format(Locale.US, "%.1f MB", mb)
-            kb >= 1.0 -> String.format(Locale.US, "%.0f KB", kb)
+            gb >= 1.0 -> {
+                val formatted = String.format(Locale.US, "%.1f", gb)
+                "${formatted.removeSuffix(".0")} GB"
+            }
+            mb >= 1.0 -> {
+                val formatted = String.format(Locale.US, "%.1f", mb)
+                "${formatted.removeSuffix(".0")} MB"
+            }
+            kb >= 1.0 -> "${Math.round(kb)} KB"
             else -> "$bytes B"
         }
     }

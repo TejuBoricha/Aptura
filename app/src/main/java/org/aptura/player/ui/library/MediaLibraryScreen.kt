@@ -1,8 +1,5 @@
 package org.aptura.player.ui.library
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -28,6 +25,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.PlayArrow
@@ -159,7 +157,7 @@ private fun MediaLibraryContentView(
                 onValueChange = onSearchQueryChanged,
                 placeholder = {
                     Text(
-                        text = "Search ${state.totalCount} videos...",
+                        text = "Search videos",
                         style = ApturaTypography.bodyMedium,
                         color = ApturaColors.TextLowEmphasis
                     )
@@ -277,6 +275,16 @@ private fun MediaLibraryContentView(
                     FilterChip(
                         selected = state.selectedFolder == null,
                         onClick = { onFolderSelected(null) },
+                        leadingIcon = if (state.selectedFolder == null) {
+                            {
+                                Icon(
+                                    imageVector = Icons.Filled.Check,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = ApturaColors.AccentPrimary
+                                )
+                            }
+                        } else null,
                         label = { Text("All Videos", style = ApturaTypography.labelSmall) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = ApturaColors.AccentSubtle,
@@ -295,10 +303,27 @@ private fun MediaLibraryContentView(
                 }
 
                 items(state.folders, key = { it }) { folder ->
+                    val friendlyName = remember(folder) {
+                        if (folder.contains('/')) {
+                            folder.trimEnd('/').substringAfterLast('/').ifBlank { "Internal Storage" }
+                        } else {
+                            folder
+                        }
+                    }
                     FilterChip(
                         selected = state.selectedFolder == folder,
                         onClick = { onFolderSelected(folder) },
-                        label = { Text(folder, style = ApturaTypography.labelSmall) },
+                        leadingIcon = if (state.selectedFolder == folder) {
+                            {
+                                Icon(
+                                    imageVector = Icons.Filled.Check,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = ApturaColors.AccentPrimary
+                                )
+                            }
+                        } else null,
+                        label = { Text(friendlyName, style = ApturaTypography.labelSmall) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = ApturaColors.AccentSubtle,
                             selectedLabelColor = ApturaColors.AccentPrimary,
@@ -334,7 +359,8 @@ private fun MediaLibraryContentView(
         ) {
             items(
                 items = state.videos,
-                key = { it.uri }
+                key = { item -> item.uri },
+                contentType = { "video_card" }
             ) { card ->
                 VideoGridCard(
                     card = card,
@@ -373,7 +399,6 @@ fun VideoGridCard(
                     ImageRequest.Builder(context)
                         .data(card.uri)
                         .videoFrameMillis(2000L) // 2-second offset avoids initial black title cards
-                        .crossfade(true)
                         .build()
                 }
 
@@ -479,7 +504,7 @@ private fun MediaLibraryEmptyView(
             Spacer(modifier = Modifier.height(20.dp))
 
             Text(
-                text = if (isFiltered) "No videos match '$query'" else "Your library is ready",
+                text = if (isFiltered) "No videos match '$query'" else "No videos found",
                 style = ApturaTypography.headlineMedium,
                 color = ApturaColors.TextHighEmphasis
             )
@@ -490,7 +515,7 @@ private fun MediaLibraryEmptyView(
                 text = if (isFiltered) {
                     "Try checking for spelling errors or searching for a different title"
                 } else {
-                    "Videos stored on your device or SD card will appear here automatically."
+                    "Videos stored on your device storage or SD card can be scanned into your library."
                 },
                 style = ApturaTypography.bodyMedium,
                 color = ApturaColors.TextMediumEmphasis,
@@ -525,7 +550,7 @@ private fun MediaLibraryEmptyView(
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Refresh Videos", style = ApturaTypography.titleMedium)
+                    Text("Scan Device", style = ApturaTypography.titleMedium)
                 }
             }
         }

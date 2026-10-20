@@ -33,26 +33,40 @@ class MediaLibraryViewModel(
 
     private val _isRefreshing = MutableStateFlow(false)
 
+    private data class FilterState(
+        val query: String,
+        val folder: String?,
+        val sort: LibrarySortOrder,
+        val isRefreshing: Boolean
+    )
+
+    private val filterState = combine(
+        _searchQuery,
+        _selectedFolder,
+        _sortOrder,
+        _isRefreshing
+    ) { query, folder, sort, refreshing ->
+        FilterState(query, folder, sort, refreshing)
+    }
+
     val uiState: StateFlow<MediaLibraryUiState> = combine(
         mediaRepository.getAllVideos(),
         mediaRepository.getAllFolders(),
-        _searchQuery,
-        _selectedFolder,
-        _sortOrder
-    ) { allVideos: List<DomainMediaItem>, folders: List<String>, query: String, folderFilter: String?, sort: LibrarySortOrder ->
-        if (allVideos.isEmpty() && query.isBlank() && folderFilter == null) {
+        filterState
+    ) { allVideos: List<DomainMediaItem>, folders: List<String>, filter: FilterState ->
+        if (allVideos.isEmpty() && filter.query.isBlank() && filter.folder == null) {
             MediaLibraryUiState.Empty(isFiltered = false)
         } else {
             var filtered = allVideos
 
             // Apply folder filter
-            if (folderFilter != null) {
-                filtered = filtered.filter { it.folderPath == folderFilter }
+            if (filter.folder != null) {
+                filtered = filtered.filter { it.folderPath == filter.folder }
             }
 
             // Apply search query filter
-            if (query.isNotBlank()) {
-                val trimmedQuery = query.trim()
+            if (filter.query.isNotBlank()) {
+                val trimmedQuery = filter.query.trim()
                 filtered = filtered.filter { item ->
                     item.title.contains(trimmedQuery, ignoreCase = true) ||
                         item.folderPath.contains(trimmedQuery, ignoreCase = true)
@@ -60,23 +74,23 @@ class MediaLibraryViewModel(
             }
 
             // Apply sort order
-            filtered = when (sort) {
+            filtered = when (filter.sort) {
                 LibrarySortOrder.DATE_ADDED_DESC -> filtered.sortedByDescending { it.dateAddedSec }
                 LibrarySortOrder.TITLE_ASC -> filtered.sortedBy { it.title.lowercase() }
             }
 
             if (filtered.isEmpty()) {
-                MediaLibraryUiState.Empty(isFiltered = true, query = query)
+                MediaLibraryUiState.Empty(isFiltered = true, query = filter.query)
             } else {
                 val cards = filtered.map { item -> item.toCardUiModel() }
                 MediaLibraryUiState.Success(
                     videos = cards,
                     folders = folders,
-                    selectedFolder = folderFilter,
-                    searchQuery = query,
-                    sortOrder = sort,
+                    selectedFolder = filter.folder,
+                    searchQuery = filter.query,
+                    sortOrder = filter.sort,
                     totalCount = cards.size,
-                    isRefreshing = _isRefreshing.value
+                    isRefreshing = filter.isRefreshing
                 )
             }
         }
@@ -108,7 +122,11 @@ class MediaLibraryViewModel(
 
     private fun DomainMediaItem.toCardUiModel(): VideoCardUiModel {
         val progress = MediaFormatters.calculateProgressFraction(playbackPositionMs, durationMs)
-        val folderDisplay = folderPath.ifBlank { "Internal Storage" }
+        val folderDisplay = if (folderPath.contains('/')) {
+            folderPath.trimEnd('/').substringAfterLast('/').ifBlank { "Internal Storage" }
+        } else {
+            folderPath.ifBlank { "Internal Storage" }
+        }
 
         return VideoCardUiModel(
             uri = uri,

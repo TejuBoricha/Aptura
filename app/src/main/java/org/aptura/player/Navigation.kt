@@ -84,7 +84,8 @@ fun MainNavigation() {
                     onSubtitleTrackSelected = playerViewModel::selectSubtitleTrack,
                     onVolumePercentChanged = playerViewModel::setVolumePercent,
                     onBrightnessPercentChanged = playerViewModel::setBrightnessPercent,
-                    onRetryPlayback = playerViewModel::retryPlayback
+                    onRetryPlayback = playerViewModel::retryPlayback,
+                    onPlayModeToggle = playerViewModel::togglePlayMode
                 )
             }
         }
