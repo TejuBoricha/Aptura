@@ -147,6 +147,16 @@ class PlayerViewModelTest {
             _trackSelection.value = _trackSelection.value.copy(audioDelayMs = delayMs)
         }
 
+        var lastExternalSubtitleUri: String? = null
+        var lastExternalSubtitleMimeType: String? = null
+        var lastExternalSubtitleLabel: String? = null
+
+        override suspend fun addExternalSubtitle(uri: String, mimeType: String, label: String) {
+            lastExternalSubtitleUri = uri
+            lastExternalSubtitleMimeType = mimeType
+            lastExternalSubtitleLabel = label
+        }
+
         override suspend fun release() {}
     }
 
@@ -833,6 +843,44 @@ class PlayerViewModelTest {
 
         assertNull(viewModel.uiState.value.autoAdvanceCountdownSeconds)
         assertNull(viewModel.uiState.value.nextItemTitle)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun addExternalSubtitle_delegatesToControllerWithInferredMimeType() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        viewModel.addExternalSubtitle("content://downloads/my_subtitle.srt")
+        runCurrent()
+
+        assertEquals("content://downloads/my_subtitle.srt", controller.lastExternalSubtitleUri)
+        assertEquals("application/x-subrip", controller.lastExternalSubtitleMimeType)
+        assertEquals("my_subtitle.srt", controller.lastExternalSubtitleLabel)
+
+        viewModel.addExternalSubtitle("content://downloads/captions.vtt")
+        runCurrent()
+        assertEquals("text/vtt", controller.lastExternalSubtitleMimeType)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun subtitleAppearance_updatesUiStateProperly() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        viewModel.setSubtitleFontSize(26)
+        assertEquals(26, viewModel.uiState.value.subtitleFontSizeSp)
+
+        viewModel.setSubtitleTextColor("#00E5FF")
+        assertEquals("#00E5FF", viewModel.uiState.value.subtitleTextColorHex)
+
+        viewModel.setSubtitleBackgroundEnabled(true)
+        assertTrue(viewModel.uiState.value.subtitleBackgroundEnabled)
 
         viewModel.clearForTesting()
     }

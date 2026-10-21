@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -24,7 +25,10 @@ data class ApturaSettings(
     val seekDeltaSeconds: Int = 10,
     val backgroundAudioEnabled: Boolean = true,
     val onboardingCompleted: Boolean = false,
-    val autoAdvanceCountdownSeconds: Int = 10
+    val autoAdvanceCountdownSeconds: Int = 10,
+    val subtitleFontSizeSp: Int = 18,
+    val subtitleTextColorHex: String = "#FFFFFF",
+    val subtitleBackgroundEnabled: Boolean = false
 )
 
 /**
@@ -40,6 +44,9 @@ class ApturaSettingsRepository(private val context: Context) {
         val BACKGROUND_AUDIO_ENABLED = booleanPreferencesKey("background_audio_enabled")
         val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
         val AUTO_ADVANCE_COUNTDOWN = intPreferencesKey("auto_advance_countdown")
+        val SUBTITLE_FONT_SIZE_SP = intPreferencesKey("subtitle_font_size_sp")
+        val SUBTITLE_TEXT_COLOR_HEX = stringPreferencesKey("subtitle_text_color_hex")
+        val SUBTITLE_BACKGROUND_ENABLED = booleanPreferencesKey("subtitle_background_enabled")
     }
 
     val settingsFlow: Flow<ApturaSettings> = context.dataStore.data
@@ -57,7 +64,10 @@ class ApturaSettingsRepository(private val context: Context) {
                 seekDeltaSeconds = preferences[PreferencesKeys.SEEK_DELTA_SECONDS] ?: 10,
                 backgroundAudioEnabled = preferences[PreferencesKeys.BACKGROUND_AUDIO_ENABLED] ?: true,
                 onboardingCompleted = preferences[PreferencesKeys.ONBOARDING_COMPLETED] ?: false,
-                autoAdvanceCountdownSeconds = preferences[PreferencesKeys.AUTO_ADVANCE_COUNTDOWN] ?: 10
+                autoAdvanceCountdownSeconds = preferences[PreferencesKeys.AUTO_ADVANCE_COUNTDOWN] ?: 10,
+                subtitleFontSizeSp = preferences[PreferencesKeys.SUBTITLE_FONT_SIZE_SP] ?: 18,
+                subtitleTextColorHex = preferences[PreferencesKeys.SUBTITLE_TEXT_COLOR_HEX] ?: "#FFFFFF",
+                subtitleBackgroundEnabled = preferences[PreferencesKeys.SUBTITLE_BACKGROUND_ENABLED] ?: false
             )
         }
 
@@ -94,6 +104,24 @@ class ApturaSettingsRepository(private val context: Context) {
     suspend fun updateAutoAdvanceCountdown(seconds: Int) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.AUTO_ADVANCE_COUNTDOWN] = seconds
+        }
+    }
+
+    suspend fun updateSubtitleFontSize(sizeSp: Int) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.SUBTITLE_FONT_SIZE_SP] = sizeSp
+        }
+    }
+
+    suspend fun updateSubtitleTextColor(colorHex: String) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.SUBTITLE_TEXT_COLOR_HEX] = colorHex
+        }
+    }
+
+    suspend fun updateSubtitleBackground(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.SUBTITLE_BACKGROUND_ENABLED] = enabled
         }
     }
 

@@ -35,7 +35,11 @@ import org.aptura.player.ui.player.PlayerViewModel
 import org.aptura.player.ui.settings.SettingsScreen
 
 @Composable
-fun MainNavigation(initialLaunchUri: String? = null) {
+fun MainNavigation(
+    initialLaunchUri: String? = null,
+    isPipMode: Boolean = false,
+    onEnterPip: () -> Unit = {}
+) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -218,11 +222,16 @@ fun MainNavigation(initialLaunchUri: String? = null) {
                     if (playerViewModel.uiState.value.videoUri != playerKey.videoUri) {
                         playerViewModel.loadAndPlay(playerKey.videoUri)
                     }
+                    playerViewModel.setSubtitleFontSize(settings.subtitleFontSizeSp)
+                    playerViewModel.setSubtitleTextColor(settings.subtitleTextColorHex)
+                    playerViewModel.setSubtitleBackgroundEnabled(settings.subtitleBackgroundEnabled)
                 }
                 val uiState by playerViewModel.uiState.collectAsStateWithLifecycle()
                 PlayerScreen(
                     uiState = uiState,
                     player = playbackController.player,
+                    isPipMode = isPipMode,
+                    onEnterPip = onEnterPip,
                     onBackClick = {
                         backStack.removeLastOrNull()
                     },
@@ -268,7 +277,22 @@ fun MainNavigation(initialLaunchUri: String? = null) {
                     onClearAbRepeat = playerViewModel::clearAbRepeat,
                     onStepFrame = playerViewModel::stepFrame,
                     onCancelAutoAdvance = playerViewModel::cancelAutoAdvance,
-                    onPlayNextImmediately = playerViewModel::playNextImmediately
+                    onPlayNextImmediately = playerViewModel::playNextImmediately,
+                    onExternalSubtitleSelected = { uri ->
+                        playerViewModel.addExternalSubtitle(uri.toString())
+                    },
+                    onSubtitleFontSizeChanged = { sizeSp ->
+                        playerViewModel.setSubtitleFontSize(sizeSp)
+                        coroutineScope.launch { settingsRepository.updateSubtitleFontSize(sizeSp) }
+                    },
+                    onSubtitleTextColorChanged = { colorHex ->
+                        playerViewModel.setSubtitleTextColor(colorHex)
+                        coroutineScope.launch { settingsRepository.updateSubtitleTextColor(colorHex) }
+                    },
+                    onSubtitleBackgroundChanged = { enabled ->
+                        playerViewModel.setSubtitleBackgroundEnabled(enabled)
+                        coroutineScope.launch { settingsRepository.updateSubtitleBackground(enabled) }
+                    }
                 )
             }
         }

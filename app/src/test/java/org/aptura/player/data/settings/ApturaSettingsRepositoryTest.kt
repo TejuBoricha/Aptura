@@ -39,6 +39,9 @@ class ApturaSettingsRepositoryTest {
             assertTrue(initial.backgroundAudioEnabled)
             assertFalse(initial.onboardingCompleted)
             assertEquals(10, initial.autoAdvanceCountdownSeconds)
+            assertEquals(18, initial.subtitleFontSizeSp)
+            assertEquals("#FFFFFF", initial.subtitleTextColorHex)
+            assertFalse(initial.subtitleBackgroundEnabled)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -73,6 +76,16 @@ class ApturaSettingsRepositoryTest {
             // Update auto-advance countdown
             repository.updateAutoAdvanceCountdown(5)
             assertEquals(5, awaitItem().autoAdvanceCountdownSeconds)
+
+            // Update subtitle preferences
+            repository.updateSubtitleFontSize(22)
+            assertEquals(22, awaitItem().subtitleFontSizeSp)
+
+            repository.updateSubtitleTextColor("#FFEB3B")
+            assertEquals("#FFEB3B", awaitItem().subtitleTextColorHex)
+
+            repository.updateSubtitleBackground(true)
+            assertTrue(awaitItem().subtitleBackgroundEnabled)
 
             cancelAndIgnoreRemainingEvents()
         }

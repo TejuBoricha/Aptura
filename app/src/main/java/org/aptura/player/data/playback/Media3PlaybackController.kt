@@ -302,6 +302,27 @@ class Media3PlaybackController(
         _trackSelection.value = _trackSelection.value.copy(audioDelayMs = delayMs)
     }
 
+    override suspend fun addExternalSubtitle(uri: String, mimeType: String, label: String) {
+        val currentItem = player.currentMediaItem ?: return
+        val subtitleConfig = MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(uri))
+            .setMimeType(mimeType)
+            .setLanguage("en")
+            .setLabel(label)
+            .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
+            .build()
+
+        val updatedItem = currentItem.buildUpon()
+            .setSubtitleConfigurations(listOf(subtitleConfig))
+            .build()
+
+        val currentPosition = player.currentPosition
+        val wasPlaying = player.isPlaying
+        player.setMediaItem(updatedItem, currentPosition)
+        if (wasPlaying) {
+            player.play()
+        }
+    }
+
     private fun updateTracks(tracks: Tracks) {
         val audioTracks = mutableListOf<DomainTrackInfo>()
         val subtitleTracks = mutableListOf<DomainTrackInfo>()

@@ -30,5 +30,6 @@ interface PlaybackController {
     suspend fun selectSubtitleTrack(index: Int?)
     suspend fun setSubtitleDelay(delayMs: Long)
     suspend fun setAudioDelay(delayMs: Long)
+    suspend fun addExternalSubtitle(uri: String, mimeType: String = "application/x-subrip", label: String = "External Subtitle")
     suspend fun release()
 }

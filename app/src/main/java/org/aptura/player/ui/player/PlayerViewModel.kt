@@ -566,6 +566,37 @@ class PlayerViewModel(
         }
     }
 
+    fun addExternalSubtitle(
+        uri: String,
+        mimeType: String = when {
+            uri.endsWith(".vtt", ignoreCase = true) -> "text/vtt"
+            uri.endsWith(".ass", ignoreCase = true) || uri.endsWith(".ssa", ignoreCase = true) -> "text/x-ssa"
+            else -> "application/x-subrip"
+        },
+        label: String = try {
+            val name = File(uri).name
+            if (name.isNotBlank()) name else "External Subtitle"
+        } catch (_: Throwable) {
+            "External Subtitle"
+        }
+    ) {
+        viewModelScope.launch(dispatcher) {
+            playbackController.addExternalSubtitle(uri, mimeType, label)
+        }
+    }
+
+    fun setSubtitleFontSize(sizeSp: Int) {
+        _uiState.update { it.copy(subtitleFontSizeSp = sizeSp) }
+    }
+
+    fun setSubtitleTextColor(colorHex: String) {
+        _uiState.update { it.copy(subtitleTextColorHex = colorHex) }
+    }
+
+    fun setSubtitleBackgroundEnabled(enabled: Boolean) {
+        _uiState.update { it.copy(subtitleBackgroundEnabled = enabled) }
+    }
+
     fun startSleepTimer(minutes: Int) {
         sleepTimerJob?.cancel()
         val durationMs = minutes * 60 * 1000L

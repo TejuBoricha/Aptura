@@ -57,11 +57,20 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import android.content.pm.ActivityInfo
+import android.util.TypedValue
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.media3.ui.CaptionStyleCompat
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.Audiotrack
+import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.PictureInPictureAlt
+import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.BrightnessMedium
 import androidx.compose.material.icons.filled.Check
@@ -99,8 +108,10 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -179,18 +190,37 @@ fun PlayerScreen(
     onStepFrame: (Boolean) -> Unit = {},
     onCancelAutoAdvance: () -> Unit = {},
     onPlayNextImmediately: () -> Unit = {},
+    isPipMode: Boolean = false,
+    onEnterPip: () -> Unit = {},
+    onExternalSubtitleSelected: (android.net.Uri) -> Unit = {},
+    onSubtitleFontSizeChanged: (Int) -> Unit = {},
+    onSubtitleTextColorChanged: (String) -> Unit = {},
+    onSubtitleBackgroundChanged: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
+    val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
+
+    var is2xSpeedActive by remember { mutableStateOf(false) }
+    var currentOrientationMode by remember { mutableIntStateOf(0) } // 0: Auto, 1: Landscape, 2: Portrait
+    var orientationToastMessage by remember { mutableStateOf<String?>(null) }
+
+    val subtitlePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            onExternalSubtitleSelected(uri)
+        }
+    }
 
     val activity = context as? Activity
-    DisposableEffect(activity, uiState.isControlsVisible) {
+    DisposableEffect(activity, uiState.isControlsVisible, isPipMode) {
         val window = activity?.window
         if (window != null) {
             val insetsController = WindowCompat.getInsetsController(window, window.decorView)
             insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            if (uiState.isControlsVisible) {
+            if (uiState.isControlsVisible && !isPipMode) {
                 insetsController.show(WindowInsetsCompat.Type.systemBars())
             } else {
                 insetsController.hide(WindowInsetsCompat.Type.systemBars())
@@ -200,6 +230,12 @@ fun PlayerScreen(
             window?.let {
                 WindowCompat.getInsetsController(it, it.decorView).show(WindowInsetsCompat.Type.systemBars())
             }
+        }
+    }
+
+    DisposableEffect(activity) {
+        onDispose {
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
     }
 
@@ -234,6 +270,26 @@ fun PlayerScreen(
                     AspectRatioMode.FILL -> AspectRatioFrameLayout.RESIZE_MODE_FILL
                     AspectRatioMode.ZOOM -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                 }
+
+                val fgColor = try {
+                    android.graphics.Color.parseColor(uiState.subtitleTextColorHex)
+                } catch (_: Throwable) {
+                    android.graphics.Color.WHITE
+                }
+                val bgColor = if (uiState.subtitleBackgroundEnabled) {
+                    android.graphics.Color.argb(160, 0, 0, 0)
+                } else {
+                    android.graphics.Color.TRANSPARENT
+                }
+                val edgeType = if (uiState.subtitleBackgroundEnabled) {
+                    CaptionStyleCompat.EDGE_TYPE_NONE
+                } else {
+                    CaptionStyleCompat.EDGE_TYPE_OUTLINE
+                }
+                playerView.subtitleView?.apply {
+                    setFixedTextSize(TypedValue.COMPLEX_UNIT_SP, uiState.subtitleFontSizeSp.toFloat())
+                    setStyle(CaptionStyleCompat(fgColor, bgColor, android.graphics.Color.TRANSPARENT, edgeType, android.graphics.Color.BLACK, null))
+                }
             }
         )
 
@@ -258,13 +314,31 @@ fun PlayerScreen(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .pointerInput(uiState.isLocked) {
+                    .pointerInput(uiState.isLocked, uiState.isPlaying) {
                         detectTapGestures(
                             onTap = { onControlsVisibilityToggle() },
                             onDoubleTap = {
                                 if (!uiState.isLocked) {
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     onSeekRelative(-10_000L)
+                                }
+                            },
+                            onPress = {
+                                var longPressActive = false
+                                val job = coroutineScope.launch {
+                                    kotlinx.coroutines.delay(400L)
+                                    if (!uiState.isLocked && uiState.isPlaying) {
+                                        longPressActive = true
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        is2xSpeedActive = true
+                                        onSpeedSelected(2.0f)
+                                    }
+                                }
+                                tryAwaitRelease()
+                                job.cancel()
+                                if (longPressActive) {
+                                    is2xSpeedActive = false
+                                    onSpeedSelected(uiState.playbackSpeed)
                                 }
                             }
                         )
@@ -301,13 +375,31 @@ fun PlayerScreen(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .pointerInput(uiState.isLocked) {
+                    .pointerInput(uiState.isLocked, uiState.isPlaying) {
                         detectTapGestures(
                             onTap = { onControlsVisibilityToggle() },
                             onDoubleTap = {
                                 if (!uiState.isLocked) {
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     onSeekRelative(10_000L)
+                                }
+                            },
+                            onPress = {
+                                var longPressActive = false
+                                val job = coroutineScope.launch {
+                                    kotlinx.coroutines.delay(400L)
+                                    if (!uiState.isLocked && uiState.isPlaying) {
+                                        longPressActive = true
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        is2xSpeedActive = true
+                                        onSpeedSelected(2.0f)
+                                    }
+                                }
+                                tryAwaitRelease()
+                                job.cancel()
+                                if (longPressActive) {
+                                    is2xSpeedActive = false
+                                    onSpeedSelected(uiState.playbackSpeed)
                                 }
                             }
                         )
@@ -334,6 +426,72 @@ fun PlayerScreen(
                         }
                     }
             )
+        }
+
+        // Floating 2.0x Fast-Forward Indicator (SCR-010f)
+        AnimatedVisibility(
+            visible = is2xSpeedActive && !isPipMode,
+            enter = fadeIn() + scaleIn(),
+            exit = fadeOut() + scaleOut(),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 80.dp)
+        ) {
+            Surface(
+                color = ApturaColors.SurfaceElevated2.copy(alpha = 0.92f),
+                shape = RoundedCornerShape(20.dp),
+                border = BorderStroke(1.dp, ApturaColors.AccentPrimary)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.FastForward,
+                        contentDescription = null,
+                        tint = ApturaColors.AccentPrimary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = "2.0x Fast-Forward",
+                        style = ApturaTypography.labelMedium,
+                        color = ApturaColors.AccentPrimary,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
+        // Momentary Orientation Feedback Toast
+        AnimatedVisibility(
+            visible = orientationToastMessage != null && !isPipMode,
+            enter = fadeIn() + scaleIn(),
+            exit = fadeOut() + scaleOut(),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            Surface(
+                color = ApturaColors.SurfaceElevated2.copy(alpha = 0.9f),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.ScreenRotation,
+                        contentDescription = null,
+                        tint = ApturaColors.AccentPrimary
+                    )
+                    Text(
+                        text = orientationToastMessage.orEmpty(),
+                        style = ApturaTypography.titleMedium,
+                        color = ApturaColors.TextHighEmphasis
+                    )
+                }
+            }
         }
 
         // 3. Transient Feedback Overlays (Volume, Brightness, Double-Tap Seek)
@@ -484,7 +642,7 @@ fun PlayerScreen(
 
         // 5. Main Controls Overlay (Top Bar, Transport, Bottom Bar)
         AnimatedVisibility(
-            visible = uiState.isControlsVisible && !uiState.isLocked,
+            visible = uiState.isControlsVisible && !uiState.isLocked && !isPipMode,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.fillMaxSize()
@@ -532,6 +690,51 @@ fun PlayerScreen(
                         )
 
                         Spacer(modifier = Modifier.width(8.dp))
+
+                        // Orientation toggle button (SCR-010e)
+                        IconButton(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                currentOrientationMode = (currentOrientationMode + 1) % 3
+                                when (currentOrientationMode) {
+                                    1 -> {
+                                        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                                        orientationToastMessage = "Landscape Locked"
+                                    }
+                                    2 -> {
+                                        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                                        orientationToastMessage = "Portrait Locked"
+                                    }
+                                    else -> {
+                                        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                                        orientationToastMessage = "Auto-Rotate"
+                                    }
+                                }
+                                coroutineScope.launch {
+                                    kotlinx.coroutines.delay(1800L)
+                                    orientationToastMessage = null
+                                }
+                            },
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.ScreenRotation,
+                                contentDescription = "Screen Orientation",
+                                tint = if (currentOrientationMode != 0) ApturaColors.AccentPrimary else ApturaColors.TextMediumEmphasis
+                            )
+                        }
+
+                        // PiP button (SCR-010e, FR-CTRL-014)
+                        IconButton(
+                            onClick = onEnterPip,
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.PictureInPictureAlt,
+                                contentDescription = "Picture in Picture",
+                                tint = ApturaColors.TextHighEmphasis
+                            )
+                        }
 
                         // Aspect ratio badge button
                         Surface(
@@ -1499,6 +1702,44 @@ fun PlayerScreen(
                         }
                     }
 
+                    // Load External Subtitle (SAF)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                subtitlePickerLauncher.launch(
+                                    arrayOf(
+                                        "text/*",
+                                        "application/x-subrip",
+                                        "text/vtt",
+                                        "text/plain",
+                                        "*/*"
+                                    )
+                                )
+                            }
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.FolderOpen,
+                            contentDescription = "Load External Subtitle",
+                            tint = ApturaColors.AccentPrimary
+                        )
+                        Column {
+                            Text(
+                                text = "Load External Subtitle…",
+                                style = ApturaTypography.bodyMedium,
+                                color = ApturaColors.AccentPrimary
+                            )
+                            Text(
+                                text = "Select external .srt, .vtt, or .ass file",
+                                style = ApturaTypography.labelSmall,
+                                color = ApturaColors.TextLowEmphasis
+                            )
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(20.dp))
 
                     // SECTION 2: SUBTITLE DELAY (SYNC)
@@ -1602,6 +1843,118 @@ fun PlayerScreen(
                                 }
                             }
                         }
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    // SECTION 3: SUBTITLE APPEARANCE & TYPOGRAPHY
+                    Text(
+                        text = "SUBTITLE APPEARANCE",
+                        style = ApturaTypography.labelSmall,
+                        color = ApturaColors.AccentPrimary,
+                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                    )
+
+                    // Font Size Options
+                    Text(
+                        text = "Text Size",
+                        style = ApturaTypography.labelSmall,
+                        color = ApturaColors.TextMediumEmphasis,
+                        modifier = Modifier.padding(top = 6.dp, bottom = 6.dp)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf(14, 18, 22, 26).forEach { size ->
+                            val selected = uiState.subtitleFontSizeSp == size
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (selected) ApturaColors.AccentPrimary else ApturaColors.SurfaceElevated3,
+                                border = if (selected) null else BorderStroke(1.dp, ApturaColors.BorderSubtle),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { onSubtitleFontSizeChanged(size) }
+                            ) {
+                                Text(
+                                    text = "${size}sp",
+                                    style = ApturaTypography.labelSmall,
+                                    color = if (selected) ApturaColors.SurfacePureBlack else ApturaColors.TextHighEmphasis,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(vertical = 8.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // Text Color Options
+                    Text(
+                        text = "Color",
+                        style = ApturaTypography.labelSmall,
+                        color = ApturaColors.TextMediumEmphasis,
+                        modifier = Modifier.padding(top = 12.dp, bottom = 6.dp)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val colorChoices = listOf(
+                            "White" to "#FFFFFF",
+                            "Yellow" to "#FFEB3B",
+                            "Cyan" to "#00E5FF",
+                            "Green" to "#00E676"
+                        )
+                        colorChoices.forEach { (label, hex) ->
+                            val selected = uiState.subtitleTextColorHex.equals(hex, ignoreCase = true)
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (selected) ApturaColors.AccentPrimary else ApturaColors.SurfaceElevated3,
+                                border = if (selected) null else BorderStroke(1.dp, ApturaColors.BorderSubtle),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { onSubtitleTextColorChanged(hex) }
+                            ) {
+                                Text(
+                                    text = label,
+                                    style = ApturaTypography.labelSmall,
+                                    color = if (selected) ApturaColors.SurfacePureBlack else ApturaColors.TextHighEmphasis,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(vertical = 8.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // Background Box vs Outline
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "Background Box",
+                                style = ApturaTypography.bodyMedium,
+                                color = ApturaColors.TextHighEmphasis
+                            )
+                            Text(
+                                text = if (uiState.subtitleBackgroundEnabled) "Semi-transparent black box" else "Contrasting outline shadow",
+                                style = ApturaTypography.labelSmall,
+                                color = ApturaColors.TextLowEmphasis
+                            )
+                        }
+                        androidx.compose.material3.Switch(
+                            checked = uiState.subtitleBackgroundEnabled,
+                            onCheckedChange = { onSubtitleBackgroundChanged(it) },
+                            colors = androidx.compose.material3.SwitchDefaults.colors(
+                                checkedThumbColor = ApturaColors.SurfacePureBlack,
+                                checkedTrackColor = ApturaColors.AccentPrimary,
+                                uncheckedThumbColor = ApturaColors.TextLowEmphasis,
+                                uncheckedTrackColor = ApturaColors.SurfaceElevated3
+                            )
+                        )
                     }
                 }
             }

@@ -4,11 +4,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -28,6 +30,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
@@ -50,6 +53,9 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -169,139 +175,221 @@ private fun MediaLibraryContentView(
     var selectedDetailItem by remember { mutableStateOf<DomainMediaItem?>(null) }
     var itemToRemove by remember { mutableStateOf<DomainMediaItem?>(null) }
 
-    Column(modifier = modifier.fillMaxSize()) {
-        // Search & Sort Bar
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            OutlinedTextField(
-                value = state.searchQuery,
-                onValueChange = onSearchQueryChanged,
-                placeholder = {
-                    Text(
-                        text = "Search videos",
-                        style = ApturaTypography.bodyMedium,
-                        color = ApturaColors.TextLowEmphasis
-                    )
-                },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = "Search",
-                        tint = ApturaColors.TextMediumEmphasis
-                    )
-                },
-                trailingIcon = {
-                    if (state.searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { onSearchQueryChanged("") }) {
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val isWideScreen = maxWidth >= 600.dp
+
+        Row(modifier = Modifier.fillMaxSize()) {
+            if (isWideScreen) {
+                NavigationRail(
+                    containerColor = ApturaColors.SurfaceElevated1,
+                    contentColor = ApturaColors.TextHighEmphasis,
+                    header = {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(vertical = 12.dp)
+                        ) {
                             Icon(
-                                imageVector = Icons.Default.Clear,
-                                contentDescription = "Clear search",
+                                imageVector = Icons.Default.VideoLibrary,
+                                contentDescription = "Aptura",
+                                tint = ApturaColors.AccentPrimary,
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = "Aptura",
+                                style = ApturaTypography.labelSmall,
+                                color = ApturaColors.AccentPrimary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                ) {
+                    NavigationRailItem(
+                        selected = true,
+                        onClick = { },
+                        icon = { Icon(Icons.Default.VideoLibrary, contentDescription = "Videos") },
+                        label = { Text("Videos", style = ApturaTypography.labelSmall) },
+                        colors = NavigationRailItemDefaults.colors(
+                            selectedIconColor = ApturaColors.AccentPrimary,
+                            selectedTextColor = ApturaColors.AccentPrimary,
+                            indicatorColor = ApturaColors.AccentSubtle,
+                            unselectedIconColor = ApturaColors.TextMediumEmphasis,
+                            unselectedTextColor = ApturaColors.TextMediumEmphasis
+                        )
+                    )
+                    NavigationRailItem(
+                        selected = false,
+                        onClick = onOpenFilePicker,
+                        icon = { Icon(Icons.Filled.FolderOpen, contentDescription = "Open File") },
+                        label = { Text("Open", style = ApturaTypography.labelSmall) },
+                        colors = NavigationRailItemDefaults.colors(
+                            unselectedIconColor = ApturaColors.TextMediumEmphasis,
+                            unselectedTextColor = ApturaColors.TextMediumEmphasis
+                        )
+                    )
+                    NavigationRailItem(
+                        selected = false,
+                        onClick = onRefresh,
+                        icon = { Icon(Icons.Default.Refresh, contentDescription = "Refresh") },
+                        label = { Text("Refresh", style = ApturaTypography.labelSmall) },
+                        colors = NavigationRailItemDefaults.colors(
+                            unselectedIconColor = ApturaColors.TextMediumEmphasis,
+                            unselectedTextColor = ApturaColors.TextMediumEmphasis
+                        )
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    NavigationRailItem(
+                        selected = false,
+                        onClick = onSettingsClick,
+                        icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
+                        label = { Text("Settings", style = ApturaTypography.labelSmall) },
+                        colors = NavigationRailItemDefaults.colors(
+                            unselectedIconColor = ApturaColors.TextMediumEmphasis,
+                            unselectedTextColor = ApturaColors.TextMediumEmphasis
+                        )
+                    )
+                }
+            }
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+            ) {
+                // Search & Sort Bar
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = state.searchQuery,
+                        onValueChange = onSearchQueryChanged,
+                        placeholder = {
+                            Text(
+                                text = "Search videos",
+                                style = ApturaTypography.bodyMedium,
+                                color = ApturaColors.TextLowEmphasis
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "Search",
+                                tint = ApturaColors.TextMediumEmphasis
+                            )
+                        },
+                        trailingIcon = {
+                            if (state.searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { onSearchQueryChanged("") }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Clear,
+                                        contentDescription = "Clear search",
+                                        tint = ApturaColors.TextMediumEmphasis
+                                    )
+                                }
+                            }
+                        },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = ApturaColors.AccentPrimary,
+                            unfocusedBorderColor = ApturaColors.SurfaceElevated2,
+                            focusedContainerColor = ApturaColors.SurfaceElevated1,
+                            unfocusedContainerColor = ApturaColors.SurfaceElevated1,
+                            focusedTextColor = ApturaColors.TextHighEmphasis,
+                            unfocusedTextColor = ApturaColors.TextHighEmphasis,
+                            cursorColor = ApturaColors.AccentPrimary
+                        ),
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    // Sort Menu Button
+                    Box {
+                        IconButton(
+                            onClick = { sortMenuExpanded = true },
+                            modifier = Modifier
+                                .size(48.dp)
+                                .background(ApturaColors.SurfaceElevated1, RoundedCornerShape(12.dp))
+                        ) {
+                            @Suppress("DEPRECATION")
+                            Icon(
+                                imageVector = Icons.Default.Sort,
+                                contentDescription = "Sort library",
+                                tint = ApturaColors.AccentPrimary
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = sortMenuExpanded,
+                            onDismissRequest = { sortMenuExpanded = false },
+                            modifier = Modifier.background(ApturaColors.SurfaceElevated2)
+                        ) {
+                            LibrarySortOrder.entries.forEach { order ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = order.displayName,
+                                            style = ApturaTypography.bodyMedium,
+                                            color = if (state.sortOrder == order) ApturaColors.AccentPrimary else ApturaColors.TextHighEmphasis
+                                        )
+                                    },
+                                    onClick = {
+                                        onSortOrderChanged(order)
+                                        sortMenuExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    if (!isWideScreen) {
+                        Spacer(modifier = Modifier.width(4.dp))
+
+                        // Refresh Button
+                        IconButton(
+                            onClick = onRefresh,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .background(ApturaColors.SurfaceElevated1, RoundedCornerShape(12.dp))
+                        ) {
+                            if (state.isRefreshing) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp,
+                                    color = ApturaColors.AccentPrimary
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = "Refresh library",
+                                    tint = ApturaColors.TextMediumEmphasis
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(4.dp))
+
+                        // Settings Button
+                        IconButton(
+                            onClick = onSettingsClick,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .background(ApturaColors.SurfaceElevated1, RoundedCornerShape(12.dp))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Settings",
                                 tint = ApturaColors.TextMediumEmphasis
                             )
                         }
                     }
-                },
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
-                singleLine = true,
-                shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = ApturaColors.AccentPrimary,
-                    unfocusedBorderColor = ApturaColors.SurfaceElevated2,
-                    focusedContainerColor = ApturaColors.SurfaceElevated1,
-                    unfocusedContainerColor = ApturaColors.SurfaceElevated1,
-                    focusedTextColor = ApturaColors.TextHighEmphasis,
-                    unfocusedTextColor = ApturaColors.TextHighEmphasis,
-                    cursorColor = ApturaColors.AccentPrimary
-                ),
-                modifier = Modifier.weight(1f)
-            )
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            // Sort Menu Button
-            Box {
-                IconButton(
-                    onClick = { sortMenuExpanded = true },
-                    modifier = Modifier
-                        .size(48.dp)
-                        .background(ApturaColors.SurfaceElevated1, RoundedCornerShape(12.dp))
-                ) {
-                    @Suppress("DEPRECATION")
-                    Icon(
-                        imageVector = Icons.Default.Sort,
-                        contentDescription = "Sort library",
-                        tint = ApturaColors.AccentPrimary
-                    )
                 }
-
-                DropdownMenu(
-                    expanded = sortMenuExpanded,
-                    onDismissRequest = { sortMenuExpanded = false },
-                    modifier = Modifier.background(ApturaColors.SurfaceElevated2)
-                ) {
-                    LibrarySortOrder.entries.forEach { order ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    text = order.displayName,
-                                    style = ApturaTypography.bodyMedium,
-                                    color = if (state.sortOrder == order) ApturaColors.AccentPrimary else ApturaColors.TextHighEmphasis
-                                )
-                            },
-                            onClick = {
-                                onSortOrderChanged(order)
-                                sortMenuExpanded = false
-                            }
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.width(4.dp))
-
-            // Refresh Button
-            IconButton(
-                onClick = onRefresh,
-                modifier = Modifier
-                    .size(48.dp)
-                    .background(ApturaColors.SurfaceElevated1, RoundedCornerShape(12.dp))
-            ) {
-                if (state.isRefreshing) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp,
-                        color = ApturaColors.AccentPrimary
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Default.Refresh,
-                        contentDescription = "Refresh library",
-                        tint = ApturaColors.TextMediumEmphasis
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.width(4.dp))
-
-            // Settings Button
-            IconButton(
-                onClick = onSettingsClick,
-                modifier = Modifier
-                    .size(48.dp)
-                    .background(ApturaColors.SurfaceElevated1, RoundedCornerShape(12.dp))
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Settings,
-                    contentDescription = "Settings",
-                    tint = ApturaColors.TextMediumEmphasis
-                )
-            }
-        }
 
         // Folder Chips Row
         if (state.folders.isNotEmpty()) {
@@ -428,11 +516,11 @@ private fun MediaLibraryContentView(
             }
         }
 
-        // Adaptive Video Grid (Responds from 1 to 4 columns automatically)
+        // Adaptive Video Grid (Responds from 1 to 4+ columns automatically)
         val allRawVideos = remember(state.videos) { state.videos.map { it.rawItem } }
 
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 160.dp),
+            columns = GridCells.Adaptive(minSize = if (isWideScreen) 200.dp else 160.dp),
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(
                 start = 16.dp,
@@ -489,6 +577,8 @@ private fun MediaLibraryContentView(
                 },
                 onDismiss = { itemToRemove = null }
             )
+        }
+            }
         }
     }
 }

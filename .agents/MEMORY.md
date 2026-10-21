@@ -76,6 +76,23 @@
   - **Up Next / Auto-Advance Countdown (`SCR-010g`, `FR-CTRL-017`):** 10-second circular progress ring with tabular timecodes (`tnum`), cancellable and immediate play controls on playback completion.
   - **System "Open With" Handoff (`FR-LIB-020`):** Registered `ACTION_VIEW` intent filter for `video/*` in `AndroidManifest.xml`, routing external launches directly to `PlayerScreen`.
   - **Verification Gate:** Added 6 new unit tests (`ApturaSettingsRepositoryTest`, `PlayerViewModelTest`, `MediaLibraryViewModelTest`). `tools/gate.ps1` 100% green (Compilation: 4.27s, Fail-Fast Unit Tests: 4.69s, Lint: 4.05s, 0 errors, 0 warnings).
+- **Part 64: Multitasking PiP, Gesture Delighters, Deep Subtitle Engine & Adaptive Large-Screen Layouts:**
+  - **Priority 1 (Multitasking PiP & Gesture Delighters):**
+    - Enabled `android:supportsPictureInPicture="true"` and `configChanges` in `AndroidManifest.xml`.
+    - Added clamped `enterPictureInPicture()` (0.4184–2.39 aspect-ratio bounds) in `MainActivity.kt`, handling auto-PiP in `onUserLeaveHint()` when media is actively playing.
+    - Added dedicated PiP button to Player top bar; gated HUD overlays and system bar insets on `!isPipMode`.
+    - Added Long-Press 2.0x Fast-Forward preview gesture with floating visual badge (`SCR-010f`).
+    - Added Screen Orientation toggle button (cycles Auto-Rotate -> Landscape Locked -> Portrait Locked) with momentary tactile on-screen toast feedback.
+  - **Priority 2 (Deep Subtitle Engine & DataStore Styling):**
+    - Subtitle typography & styling engine: font sizes (14, 18, 22, 26sp), curated high-visibility color choices (White, Yellow, Cyan, Green), and background box vs outline shadow toggle backed by persistent DataStore preferences.
+    - Media3 `PlayerView.subtitleView` interop via `CaptionStyleCompat` and `setFixedTextSize`.
+    - SAF external subtitle file loader (`.srt`, `.vtt`, `.ass`) with MIME type inference and seamless live media item replacement preserving playback position.
+  - **Priority 3 (Adaptive Large-Screen Layouts):**
+    - Implemented responsive `BoxWithConstraints` in `MediaLibraryScreen.kt`.
+    - On large screens (`maxWidth >= 600dp` for foldables/tablets/desktops), presents a left `NavigationRail` with app branding and navigation items (Videos, Open, Refresh, Settings) while scaling adaptive grid card size to 200dp.
+  - **Priority 4 (Quality Gate & Validation):**
+    - Unit tests added to `PlayerViewModelTest` and `ApturaSettingsRepositoryTest` (97 unit tests across 16 suites, 100% passing).
+    - Atomic verification gate `tools/gate.ps1` 100% green (0 errors, 0 warnings).
 - **Mandatory Quality Gate:** Every commit and review must pass `tools/gate.ps1` (100% tests green, 0 lint errors) and adhere to the visual inspection and contextual IA invariants.
 
 

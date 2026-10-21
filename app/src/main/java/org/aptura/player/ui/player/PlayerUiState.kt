@@ -81,7 +81,10 @@ data class PlayerUiState(
     val isScrubbing: Boolean = false,
     val scrubPositionMs: Long = 0L,
     val autoAdvanceCountdownSeconds: Int? = null,
-    val nextItemTitle: String? = null
+    val nextItemTitle: String? = null,
+    val subtitleFontSizeSp: Int = 18,
+    val subtitleTextColorHex: String = "#FFFFFF",
+    val subtitleBackgroundEnabled: Boolean = false
 ) {
     val effectivePositionMs: Long
         get() = if (isScrubbing) scrubPositionMs else currentPositionMs
