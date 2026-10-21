@@ -55,6 +55,7 @@ class PlayerViewModel(
     private var brightnessFeedbackJob: Job? = null
     private var seekFeedbackJob: Job? = null
     private var sleepTimerJob: Job? = null
+    private var autoAdvanceJob: Job? = null
     private var lastPersistedPositionMs: Long = 0L
 
     private var lastSeekTimestampMs: Long = 0L
@@ -151,6 +152,7 @@ class PlayerViewModel(
                                 isCompleted = true
                             )
                         }
+                        handleAutoAdvanceOnEnded()
                     }
                     is DomainPlaybackState.Error -> {
                         _uiState.update {
@@ -223,6 +225,8 @@ class PlayerViewModel(
     }
 
     fun playQueue(items: List<DomainMediaItem>, startIndex: Int = 0) {
+        autoAdvanceJob?.cancel()
+        _uiState.update { it.copy(autoAdvanceCountdownSeconds = null, nextItemTitle = null) }
         viewModelScope.launch(dispatcher) {
             if (items.isEmpty()) return@launch
             val clampedIndex = startIndex.coerceIn(0, items.size - 1)
@@ -248,6 +252,8 @@ class PlayerViewModel(
     }
 
     fun skipToNext() {
+        autoAdvanceJob?.cancel()
+        _uiState.update { it.copy(autoAdvanceCountdownSeconds = null, nextItemTitle = null) }
         viewModelScope.launch(dispatcher) {
             playbackController.skipToNext()
             scheduleAutoHide()
@@ -255,10 +261,56 @@ class PlayerViewModel(
     }
 
     fun skipToPrevious() {
+        autoAdvanceJob?.cancel()
+        _uiState.update { it.copy(autoAdvanceCountdownSeconds = null, nextItemTitle = null) }
         viewModelScope.launch(dispatcher) {
             playbackController.skipToPrevious()
             scheduleAutoHide()
         }
+    }
+
+    private fun handleAutoAdvanceOnEnded() {
+        autoAdvanceJob?.cancel()
+        val queue = playbackController.playbackQueue.value
+        if (queue.hasNext) {
+            val nextIndex = when (queue.playMode) {
+                PlayMode.REPEAT_ALL -> (queue.currentIndex + 1) % queue.items.size
+                else -> queue.currentIndex + 1
+            }
+            val nextItem = if (nextIndex in queue.items.indices) queue.items[nextIndex] else null
+            val nextTitle = nextItem?.title?.let { MediaFormatters.cleanTitle(it) } ?: "Next Video"
+
+            autoAdvanceJob = viewModelScope.launch(dispatcher) {
+                for (s in 10 downTo 1) {
+                    _uiState.update {
+                        it.copy(
+                            autoAdvanceCountdownSeconds = s,
+                            nextItemTitle = nextTitle
+                        )
+                    }
+                    delay(1000L)
+                }
+                _uiState.update {
+                    it.copy(autoAdvanceCountdownSeconds = null, nextItemTitle = null)
+                }
+                skipToNext()
+            }
+        }
+    }
+
+    fun cancelAutoAdvance() {
+        autoAdvanceJob?.cancel()
+        _uiState.update {
+            it.copy(autoAdvanceCountdownSeconds = null, nextItemTitle = null)
+        }
+    }
+
+    fun playNextImmediately() {
+        autoAdvanceJob?.cancel()
+        _uiState.update {
+            it.copy(autoAdvanceCountdownSeconds = null, nextItemTitle = null)
+        }
+        skipToNext()
     }
 
     fun loadAndPlay(videoUri: String) {
@@ -700,6 +752,7 @@ class PlayerViewModel(
         brightnessFeedbackJob?.cancel()
         seekFeedbackJob?.cancel()
         sleepTimerJob?.cancel()
+        autoAdvanceJob?.cancel()
         persistCurrentPosition()
         super.onCleared()
     }

@@ -24,6 +24,9 @@ class MediaScanWorker(
     }
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
+        if (!org.aptura.player.core.platform.PermissionHelper.hasStoragePermission(applicationContext)) {
+            return@withContext Result.failure()
+        }
         try {
             val scanner = MediaStoreScanner(applicationContext.contentResolver)
             val scannedItems = scanner.scanAllVideos()

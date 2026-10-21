@@ -49,11 +49,20 @@ interface MediaItemDao {
     @Query("DELETE FROM media_items WHERE id IN (:ids)")
     suspend fun deleteByIds(ids: List<Long>)
 
+    @Query("DELETE FROM media_items WHERE uri = :uri")
+    suspend fun deleteByUri(uri: String)
+
     @Query("DELETE FROM media_items WHERE mediaStoreId NOT IN (:existingMediaStoreIds)")
     suspend fun deleteRemovedVideos(existingMediaStoreIds: List<Long>)
 
     @Query("SELECT COUNT(*) FROM media_items")
     suspend fun getMediaItemCount(): Int
+
+    @Query("SELECT SUM(durationMs) FROM media_items")
+    suspend fun getTotalDurationMs(): Long?
+
+    @Query("SELECT SUM(sizeBytes) FROM media_items")
+    suspend fun getTotalSizeBytes(): Long?
 
     @Query("DELETE FROM media_items")
     suspend fun clearAll()

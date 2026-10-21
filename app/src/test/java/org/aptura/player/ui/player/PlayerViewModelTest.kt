@@ -164,6 +164,18 @@ class PlayerViewModelTest {
         override suspend fun savePlaybackPosition(uri: String, positionMs: Long, isCompleted: Boolean) {
             savedPositions[uri] = positionMs to isCompleted
         }
+
+        override suspend fun removeVideoFromLibrary(uri: String) {
+            items.remove(uri)
+        }
+
+        override suspend fun getLibraryStatistics(): org.aptura.player.domain.repository.LibraryStatistics {
+            return org.aptura.player.domain.repository.LibraryStatistics(
+                totalVideos = items.size,
+                totalDurationMs = items.values.sumOf { it.durationMs },
+                totalSizeBytes = items.values.sumOf { it.sizeBytes }
+            )
+        }
     }
 
     private val sampleVideo = DomainMediaItem(
@@ -750,6 +762,77 @@ class PlayerViewModelTest {
         runCurrent()
         assertEquals(5000L, controller.lastSeekPosition)
         assertEquals(5000L, viewModel.uiState.value.currentPositionMs)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun playbackEnded_withQueueHasNext_triggersAutoAdvanceCountdown() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        val queue = listOf(
+            sampleVideo,
+            DomainMediaItem(
+                uri = "content://media/2",
+                title = "Next Video",
+                durationMs = 60_000L,
+                sizeBytes = 1000L,
+                mimeType = "video/mp4",
+                dateAddedSec = 2000L,
+                folderPath = "Movies"
+            )
+        )
+        viewModel.playQueue(queue, 0)
+        runCurrent()
+
+        controller._playbackState.value = DomainPlaybackState.Ended(sampleVideo.durationMs)
+        runCurrent()
+
+        assertEquals(10, viewModel.uiState.value.autoAdvanceCountdownSeconds)
+        assertEquals("Next Video", viewModel.uiState.value.nextItemTitle)
+
+        advanceTimeBy(1001L)
+        runCurrent()
+        assertEquals(9, viewModel.uiState.value.autoAdvanceCountdownSeconds)
+
+        viewModel.cancelAutoAdvance()
+        assertNull(viewModel.uiState.value.autoAdvanceCountdownSeconds)
+        assertNull(viewModel.uiState.value.nextItemTitle)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun playNextImmediately_skipsToNextAndCancelsCountdown() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        val nextItem = DomainMediaItem(
+            uri = "content://media/2",
+            title = "Next Video",
+            durationMs = 60_000L,
+            sizeBytes = 1000L,
+            mimeType = "video/mp4",
+            dateAddedSec = 2000L,
+            folderPath = "Movies"
+        )
+        val queue = listOf(sampleVideo, nextItem)
+        viewModel.playQueue(queue, 0)
+        runCurrent()
+
+        controller._playbackState.value = DomainPlaybackState.Ended(sampleVideo.durationMs)
+        runCurrent()
+
+        assertEquals(10, viewModel.uiState.value.autoAdvanceCountdownSeconds)
+
+        viewModel.playNextImmediately()
+        runCurrent()
+
+        assertNull(viewModel.uiState.value.autoAdvanceCountdownSeconds)
+        assertNull(viewModel.uiState.value.nextItemTitle)
 
         viewModel.clearForTesting()
     }

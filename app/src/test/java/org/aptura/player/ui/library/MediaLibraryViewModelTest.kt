@@ -37,9 +37,22 @@ class MediaLibraryViewModelTest {
             MutableStateFlow(videosFlow.value.filter { it.title.contains(query, ignoreCase = true) })
 
         override suspend fun getVideoByUri(uri: String): DomainMediaItem? =
-            videosFlow.value.find { it.uri == uri }
+            videosFlow.value.firstOrNull { it.uri == uri }
 
         override suspend fun savePlaybackPosition(uri: String, positionMs: Long, isCompleted: Boolean) {}
+
+        override suspend fun removeVideoFromLibrary(uri: String) {
+            videosFlow.value = videosFlow.value.filter { it.uri != uri }
+        }
+
+        override suspend fun getLibraryStatistics(): org.aptura.player.domain.repository.LibraryStatistics {
+            val list = videosFlow.value
+            return org.aptura.player.domain.repository.LibraryStatistics(
+                totalVideos = list.size,
+                totalDurationMs = list.sumOf { it.durationMs },
+                totalSizeBytes = list.sumOf { it.sizeBytes }
+            )
+        }
     }
 
     private val item1 = DomainMediaItem(
@@ -211,6 +224,71 @@ class MediaLibraryViewModelTest {
             val state = awaitItem()
             assertTrue("Expected Empty state but got $state", state is MediaLibraryUiState.Empty)
             assertFalse((state as MediaLibraryUiState.Empty).isFiltered)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun emptyRepository_withPermissionDenied_emitsEmptyWithPermissionDeniedTrue() = runTest(testDispatcher) {
+        val repo = FakeMediaRepository()
+        repo.videosFlow.value = emptyList()
+        val viewModel = MediaLibraryViewModel(repo, testDispatcher)
+
+        viewModel.uiState.test {
+            assertEquals(MediaLibraryUiState.Loading, awaitItem())
+            val state1 = awaitItem()
+            assertTrue(state1 is MediaLibraryUiState.Empty)
+            assertFalse((state1 as MediaLibraryUiState.Empty).isPermissionDenied)
+
+            viewModel.setPermissionDenied(true)
+            val state2 = awaitItem()
+            assertTrue(state2 is MediaLibraryUiState.Empty)
+            assertTrue((state2 as MediaLibraryUiState.Empty).isPermissionDenied)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun populatedRepository_withPermissionDenied_emitsSuccessWithLimitedModeTrue() = runTest(testDispatcher) {
+        val repo = FakeMediaRepository()
+        repo.videosFlow.value = listOf(item1)
+        val viewModel = MediaLibraryViewModel(repo, testDispatcher)
+
+        viewModel.uiState.test {
+            assertEquals(MediaLibraryUiState.Loading, awaitItem())
+            val state1 = awaitItem()
+            assertTrue(state1 is MediaLibraryUiState.Success)
+            assertFalse((state1 as MediaLibraryUiState.Success).isLimitedMode)
+
+            viewModel.setPermissionDenied(true)
+            val state2 = awaitItem()
+            assertTrue(state2 is MediaLibraryUiState.Success)
+            assertTrue((state2 as MediaLibraryUiState.Success).isLimitedMode)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun removeVideoFromLibrary_removesItemAndUpdatesUiState() = runTest(testDispatcher) {
+        val repo = FakeMediaRepository()
+        repo.videosFlow.value = listOf(item1, item2)
+        val viewModel = MediaLibraryViewModel(repo, testDispatcher)
+
+        viewModel.uiState.test {
+            assertEquals(MediaLibraryUiState.Loading, awaitItem())
+            val state1 = awaitItem()
+            assertTrue(state1 is MediaLibraryUiState.Success)
+            assertEquals(2, (state1 as MediaLibraryUiState.Success).videos.size)
+
+            viewModel.removeVideoFromLibrary(item1.uri)
+            val state2 = awaitItem()
+            assertTrue(state2 is MediaLibraryUiState.Success)
+            val videos = (state2 as MediaLibraryUiState.Success).videos
+            assertEquals(1, videos.size)
+            assertEquals("Avatar", videos[0].title)
 
             cancelAndIgnoreRemainingEvents()
         }

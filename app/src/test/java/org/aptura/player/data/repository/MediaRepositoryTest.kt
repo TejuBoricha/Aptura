@@ -93,11 +93,21 @@ class MediaRepositoryTest {
             items.value = items.value.filter { it.id !in ids }
         }
 
+        override suspend fun deleteByUri(uri: String) {
+            items.value = items.value.filter { it.uri != uri }
+        }
+
         override suspend fun deleteRemovedVideos(existingMediaStoreIds: List<Long>) {
             items.value = items.value.filter { it.mediaStoreId in existingMediaStoreIds }
         }
 
         override suspend fun getMediaItemCount(): Int = items.value.size
+
+        override suspend fun getTotalDurationMs(): Long? =
+            items.value.sumOf { it.durationMs }.takeIf { items.value.isNotEmpty() }
+
+        override suspend fun getTotalSizeBytes(): Long? =
+            items.value.sumOf { it.sizeBytes }.takeIf { items.value.isNotEmpty() }
 
         override suspend fun clearAll() {
             items.value = emptyList()
@@ -203,5 +213,61 @@ class MediaRepositoryTest {
         val updated = fakeDao.getVideoByUri("content://media/1")
         assertNotNull(updated)
         assertEquals(45000L, updated?.playbackPositionMs)
+    }
+
+    @Test
+    fun removeVideoFromLibrary_deletesFromDao() = runTest(testDispatcher) {
+        val fakeDao = FakeMediaItemDao()
+        val repo = MediaRepositoryImpl(fakeDao, testDispatcher)
+
+        val item = MediaItemEntity(
+            id = 1,
+            mediaStoreId = 101,
+            uri = "content://media/1",
+            title = "Movie",
+            displayName = "movie.mp4",
+            durationMs = 120000,
+            sizeBytes = 8192,
+            mimeType = "video/mp4"
+        )
+        fakeDao.insertOrUpdate(item)
+
+        repo.removeVideoFromLibrary("content://media/1")
+
+        val result = fakeDao.getVideoByUri("content://media/1")
+        assertEquals(null, result)
+    }
+
+    @Test
+    fun getLibraryStatistics_computesTotalsCorrectly() = runTest(testDispatcher) {
+        val fakeDao = FakeMediaItemDao()
+        val repo = MediaRepositoryImpl(fakeDao, testDispatcher)
+
+        val item1 = MediaItemEntity(
+            id = 1,
+            mediaStoreId = 101,
+            uri = "content://media/1",
+            title = "Movie 1",
+            displayName = "movie1.mp4",
+            durationMs = 60000L,
+            sizeBytes = 1000L,
+            mimeType = "video/mp4"
+        )
+        val item2 = MediaItemEntity(
+            id = 2,
+            mediaStoreId = 102,
+            uri = "content://media/2",
+            title = "Movie 2",
+            displayName = "movie2.mp4",
+            durationMs = 140000L,
+            sizeBytes = 3000L,
+            mimeType = "video/mp4"
+        )
+        fakeDao.insertOrUpdateAll(listOf(item1, item2))
+
+        val stats = repo.getLibraryStatistics()
+        assertEquals(2, stats.totalVideos)
+        assertEquals(200000L, stats.totalDurationMs)
+        assertEquals(4000L, stats.totalSizeBytes)
     }
 }

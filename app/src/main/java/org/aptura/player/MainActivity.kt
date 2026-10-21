@@ -14,9 +14,15 @@ class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
 
+    val launchUri = intent?.data?.toString()
+
     enableEdgeToEdge()
     setContent {
-      ApturaTheme { Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { MainNavigation() } }
+      ApturaTheme {
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+          MainNavigation(initialLaunchUri = launchUri)
+        }
+      }
     }
   }
 }

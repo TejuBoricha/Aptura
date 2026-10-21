@@ -79,7 +79,9 @@ data class PlayerUiState(
     val errorCode: String? = null,
     val isRecoverableError: Boolean = true,
     val isScrubbing: Boolean = false,
-    val scrubPositionMs: Long = 0L
+    val scrubPositionMs: Long = 0L,
+    val autoAdvanceCountdownSeconds: Int? = null,
+    val nextItemTitle: String? = null
 ) {
     val effectivePositionMs: Long
         get() = if (isScrubbing) scrubPositionMs else currentPositionMs

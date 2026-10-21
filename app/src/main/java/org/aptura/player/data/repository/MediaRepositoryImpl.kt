@@ -55,4 +55,19 @@ class MediaRepositoryImpl(
         val now = System.currentTimeMillis()
         mediaItemDao.updatePlaybackPosition(uri, positionMs, isCompleted, now)
     }
+
+    override suspend fun removeVideoFromLibrary(uri: String): Unit = withContext(ioDispatcher) {
+        mediaItemDao.deleteByUri(uri)
+    }
+
+    override suspend fun getLibraryStatistics(): org.aptura.player.domain.repository.LibraryStatistics = withContext(ioDispatcher) {
+        val count = mediaItemDao.getMediaItemCount()
+        val duration = mediaItemDao.getTotalDurationMs() ?: 0L
+        val size = mediaItemDao.getTotalSizeBytes() ?: 0L
+        org.aptura.player.domain.repository.LibraryStatistics(
+            totalVideos = count,
+            totalDurationMs = duration,
+            totalSizeBytes = size
+        )
+    }
 }

@@ -68,6 +68,14 @@
        - **Tab 0 (Playback Tools):** Speed pills (0.5x–2.0x), Sleep Timer (15/30/45/60m with live countdown & cancel), A-B Repeat Loop, Frame-by-Frame Stepper (~42ms).
        - **Tab 1 (Picture & Display):** Aspect Ratio chips (FIT, FILL, ZOOM, 16:9, 4:3), Eye Comfort Night Mode toggle & warmth slider, Picture Calibration (Contrast & Saturation with "Reset to Natural").
   - **Visual Verification Gate:** Live emulator screencaps captured and visually validated: `player_hud_new.png`, `sheet_audio.png`, `sheet_subtitles.png`, `sheet_settings_tab0.png`, `sheet_settings_tab1.png`. All 94 unit/UI tests green, lint clean via `tools/gate.ps1`.
+- **Commercial UX, Privacy Onboarding & Transparency Architecture (Part 63):**
+  - **First-Run Onboarding (`SCR-001`):** 3-page pager highlighting 100% offline privacy, zero network sockets, precision engine, and scoped storage access with "Grant Media Access" and "Continue without access (Limited Mode)" CTAs.
+  - **Limited Storage Mode & Database Safeguard (`SCR-012`, `FR-LIB-001..003`):** High-contrast warning banner when storage permission is denied; wired SAF document picker (`ACTION_OPEN_DOCUMENT_TREE`) and permission re-request. Guarded `MediaScanWorker` with `PermissionHelper.hasStoragePermission` to permanently prevent accidental `clearAll()` database wipes on revoked permission.
+  - **Media Details Sheet & Non-Destructive Removal (`SCR-009`, `SCR-018`):** Granular metadata sheet (full path, duration, file size, MIME format, watch status) and destructive-action confirmation dialog to remove items from Aptura index without mutating physical storage (`DEC-001`).
+  - **Commercial Settings & Transparency Root (`SCR-013..016`):** DataStore-backed asynchronous preferences (`ApturaSettingsRepository`), live library footprint statistics (`LibraryStatistics`), offline privacy manifesto, redacted local diagnostic markdown export (`ApturaDiagnostics`), and third-party license SBOM.
+  - **Up Next / Auto-Advance Countdown (`SCR-010g`, `FR-CTRL-017`):** 10-second circular progress ring with tabular timecodes (`tnum`), cancellable and immediate play controls on playback completion.
+  - **System "Open With" Handoff (`FR-LIB-020`):** Registered `ACTION_VIEW` intent filter for `video/*` in `AndroidManifest.xml`, routing external launches directly to `PlayerScreen`.
+  - **Verification Gate:** Added 6 new unit tests (`ApturaSettingsRepositoryTest`, `PlayerViewModelTest`, `MediaLibraryViewModelTest`). `tools/gate.ps1` 100% green (Compilation: 4.27s, Fail-Fast Unit Tests: 4.69s, Lint: 4.05s, 0 errors, 0 warnings).
 - **Mandatory Quality Gate:** Every commit and review must pass `tools/gate.ps1` (100% tests green, 0 lint errors) and adhere to the visual inspection and contextual IA invariants.
 
 

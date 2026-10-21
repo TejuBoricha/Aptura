@@ -43,6 +43,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.WindowInsets
@@ -173,6 +177,8 @@ fun PlayerScreen(
     onSetAbPointB: () -> Unit = {},
     onClearAbRepeat: () -> Unit = {},
     onStepFrame: (Boolean) -> Unit = {},
+    onCancelAutoAdvance: () -> Unit = {},
+    onPlayNextImmediately: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -970,6 +976,17 @@ fun PlayerScreen(
                     }
                 }
             }
+        }
+
+        // 7. Up Next Auto-Advance Countdown Overlay (SCR-010g)
+        if (uiState.isEnded && uiState.autoAdvanceCountdownSeconds != null) {
+            UpNextCountdownOverlay(
+                nextTitle = uiState.nextItemTitle ?: "Next Video",
+                countdownSeconds = uiState.autoAdvanceCountdownSeconds,
+                onPlayNext = onPlayNextImmediately,
+                onCancel = onCancelAutoAdvance,
+                modifier = Modifier.align(Alignment.Center)
+            )
         }
 
         // 7. Speed Selection Sheet (SCR-010b)
@@ -2094,3 +2111,96 @@ fun PlayerScreen(
         }
     }
 }
+
+/**
+ * Up Next Auto-Advance Countdown Overlay (SCR-010g, FR-CTRL-017).
+ * Displays a 10s countdown ring with play-now and cancellable controls.
+ */
+@Composable
+private fun UpNextCountdownOverlay(
+    nextTitle: String,
+    countdownSeconds: Int,
+    onPlayNext: () -> Unit,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .padding(24.dp)
+            .widthIn(max = 380.dp),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = ApturaColors.SurfaceElevated1.copy(alpha = 0.95f)
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "UP NEXT",
+                style = ApturaTypography.labelSmall,
+                color = ApturaColors.AccentPrimary,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = nextTitle,
+                style = ApturaTypography.headlineSmall,
+                color = ApturaColors.TextHighEmphasis,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Countdown circular ring
+            Box(
+                modifier = Modifier.size(72.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(
+                    progress = { countdownSeconds / 10f },
+                    modifier = Modifier.fillMaxSize(),
+                    color = ApturaColors.AccentPrimary,
+                    trackColor = ApturaColors.SurfaceElevated2,
+                    strokeWidth = 4.dp
+                )
+                Text(
+                    text = "$countdownSeconds",
+                    style = ApturaTypography.headlineMedium.copy(fontFeatureSettings = "tnum"),
+                    color = ApturaColors.TextHighEmphasis,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onCancel,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Cancel", color = ApturaColors.TextMediumEmphasis)
+                }
+
+                Button(
+                    onClick = onPlayNext,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = ApturaColors.AccentPrimary,
+                        contentColor = ApturaColors.SurfacePureBlack
+                    )
+                ) {
+                    Text("Play Now", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+

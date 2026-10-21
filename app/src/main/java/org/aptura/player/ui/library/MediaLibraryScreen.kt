@@ -32,7 +32,12 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sort
+import android.content.Intent
+import androidx.compose.material.icons.filled.FolderOff
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VideoLibrary
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -49,6 +54,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -60,6 +66,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -82,6 +89,10 @@ fun MediaLibraryScreen(
     onFolderSelected: (String?) -> Unit,
     onSortOrderChanged: (LibrarySortOrder) -> Unit,
     onRefresh: () -> Unit,
+    onSettingsClick: () -> Unit = {},
+    onOpenFilePicker: () -> Unit = {},
+    onRequestPermission: () -> Unit = {},
+    onRemoveVideo: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -106,8 +117,11 @@ fun MediaLibraryScreen(
                     MediaLibraryEmptyView(
                         isFiltered = uiState.isFiltered,
                         query = uiState.query,
+                        isPermissionDenied = uiState.isPermissionDenied,
                         onClearSearch = { onSearchQueryChanged("") },
                         onRefresh = onRefresh,
+                        onOpenFilePicker = onOpenFilePicker,
+                        onRequestPermission = onRequestPermission,
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(bottom = innerPadding.calculateBottomPadding())
@@ -122,6 +136,10 @@ fun MediaLibraryScreen(
                         onFolderSelected = onFolderSelected,
                         onSortOrderChanged = onSortOrderChanged,
                         onRefresh = onRefresh,
+                        onSettingsClick = onSettingsClick,
+                        onOpenFilePicker = onOpenFilePicker,
+                        onRequestPermission = onRequestPermission,
+                        onRemoveVideo = onRemoveVideo,
                         bottomPadding = innerPadding.calculateBottomPadding()
                     )
                 }
@@ -138,11 +156,18 @@ private fun MediaLibraryContentView(
     onFolderSelected: (String?) -> Unit,
     onSortOrderChanged: (LibrarySortOrder) -> Unit,
     onRefresh: () -> Unit,
+    onSettingsClick: () -> Unit,
+    onOpenFilePicker: () -> Unit,
+    onRequestPermission: () -> Unit,
+    onRemoveVideo: (String) -> Unit,
     bottomPadding: androidx.compose.ui.unit.Dp,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     var sortMenuExpanded by remember { mutableStateOf(false) }
+    var selectedDetailItem by remember { mutableStateOf<DomainMediaItem?>(null) }
+    var itemToRemove by remember { mutableStateOf<DomainMediaItem?>(null) }
 
     Column(modifier = modifier.fillMaxSize()) {
         // Search & Sort Bar
@@ -260,6 +285,22 @@ private fun MediaLibraryContentView(
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.width(4.dp))
+
+            // Settings Button
+            IconButton(
+                onClick = onSettingsClick,
+                modifier = Modifier
+                    .size(48.dp)
+                    .background(ApturaColors.SurfaceElevated1, RoundedCornerShape(12.dp))
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = "Settings",
+                    tint = ApturaColors.TextMediumEmphasis
+                )
+            }
         }
 
         // Folder Chips Row
@@ -342,6 +383,51 @@ private fun MediaLibraryContentView(
             }
         }
 
+        // Limited Storage Mode Banner (SCR-012)
+        if (state.isLimitedMode) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = ApturaColors.SurfaceElevated2)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = ApturaColors.AccentPrimary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Limited Storage Access",
+                            style = ApturaTypography.titleSmall,
+                            color = ApturaColors.TextHighEmphasis,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Only selected or shared files appear here",
+                            style = ApturaTypography.bodyMedium,
+                            color = ApturaColors.TextMediumEmphasis
+                        )
+                    }
+                    TextButton(onClick = onOpenFilePicker) {
+                        Text("Open File", style = ApturaTypography.labelMedium, color = ApturaColors.AccentPrimary)
+                    }
+                    TextButton(onClick = onRequestPermission) {
+                        Text("Grant", style = ApturaTypography.labelMedium, color = ApturaColors.AccentPrimary)
+                    }
+                }
+            }
+        }
+
         // Adaptive Video Grid (Responds from 1 to 4 columns automatically)
         val allRawVideos = remember(state.videos) { state.videos.map { it.rawItem } }
 
@@ -364,9 +450,45 @@ private fun MediaLibraryContentView(
             ) { card ->
                 VideoGridCard(
                     card = card,
-                    onClick = { onVideoClick(card.rawItem, allRawVideos) }
+                    onClick = { onVideoClick(card.rawItem, allRawVideos) },
+                    onMoreClick = { selectedDetailItem = card.rawItem }
                 )
             }
+        }
+
+        // Media Details Bottom Sheet (SCR-009)
+        selectedDetailItem?.let { item ->
+            MediaDetailsSheet(
+                item = item,
+                onDismiss = { selectedDetailItem = null },
+                onPlayClick = {
+                    selectedDetailItem = null
+                    onVideoClick(item, allRawVideos)
+                },
+                onShareClick = {
+                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = item.mimeType ?: "video/*"
+                        putExtra(Intent.EXTRA_STREAM, android.net.Uri.parse(item.uri))
+                    }
+                    context.startActivity(Intent.createChooser(shareIntent, "Share Video"))
+                },
+                onRemoveClick = {
+                    itemToRemove = item
+                    selectedDetailItem = null
+                }
+            )
+        }
+
+        // Destructive Remove Confirmation (SCR-018)
+        itemToRemove?.let { item ->
+            RemoveFromLibraryDialog(
+                itemTitle = item.title,
+                onConfirm = {
+                    onRemoveVideo(item.uri)
+                    itemToRemove = null
+                },
+                onDismiss = { itemToRemove = null }
+            )
         }
     }
 }
@@ -375,6 +497,7 @@ private fun MediaLibraryContentView(
 fun VideoGridCard(
     card: VideoCardUiModel,
     onClick: () -> Unit,
+    onMoreClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -442,17 +565,37 @@ fun VideoGridCard(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 10.dp, vertical = 8.dp)
+                    .padding(start = 10.dp, end = 4.dp, top = 8.dp, bottom = 8.dp)
             ) {
-                Text(
-                    text = card.title,
-                    style = ApturaTypography.titleMedium,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    color = ApturaColors.TextHighEmphasis
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = card.title,
+                        style = ApturaTypography.titleMedium,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        color = ApturaColors.TextHighEmphasis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (onMoreClick != null) {
+                        IconButton(
+                            onClick = onMoreClick,
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "More actions",
+                                tint = ApturaColors.TextMediumEmphasis,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(2.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -475,8 +618,11 @@ fun VideoGridCard(
 private fun MediaLibraryEmptyView(
     isFiltered: Boolean,
     query: String,
+    isPermissionDenied: Boolean = false,
     onClearSearch: () -> Unit,
     onRefresh: () -> Unit,
+    onOpenFilePicker: () -> Unit = {},
+    onRequestPermission: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -494,7 +640,11 @@ private fun MediaLibraryEmptyView(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = if (isFiltered) Icons.Default.Search else Icons.Default.VideoLibrary,
+                    imageVector = when {
+                        isPermissionDenied -> Icons.Default.FolderOff
+                        isFiltered -> Icons.Default.Search
+                        else -> Icons.Default.VideoLibrary
+                    },
                     contentDescription = null,
                     modifier = Modifier.size(36.dp),
                     tint = ApturaColors.AccentPrimary
@@ -504,27 +654,53 @@ private fun MediaLibraryEmptyView(
             Spacer(modifier = Modifier.height(20.dp))
 
             Text(
-                text = if (isFiltered) "No videos match '$query'" else "No videos found",
+                text = when {
+                    isPermissionDenied -> "Storage Permission Required"
+                    isFiltered -> "No videos match '$query'"
+                    else -> "No videos found"
+                },
                 style = ApturaTypography.headlineMedium,
-                color = ApturaColors.TextHighEmphasis
+                color = ApturaColors.TextHighEmphasis,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = if (isFiltered) {
-                    "Try checking for spelling errors or searching for a different title"
-                } else {
-                    "Videos stored on your device storage or SD card can be scanned into your library."
+                text = when {
+                    isPermissionDenied -> "Aptura needs access to your device media to index and display videos. Grant permission, or open a video file directly."
+                    isFiltered -> "Try checking for spelling errors or searching for a different title"
+                    else -> "Videos stored on your device storage or SD card can be scanned into your library."
                 },
                 style = ApturaTypography.bodyMedium,
                 color = ApturaColors.TextMediumEmphasis,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            if (isFiltered) {
+            if (isPermissionDenied) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(
+                        onClick = onRequestPermission,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = ApturaColors.AccentPrimary,
+                            contentColor = ApturaColors.SurfacePureBlack
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Grant Access", style = ApturaTypography.titleSmall, fontWeight = FontWeight.Bold)
+                    }
+
+                    androidx.compose.material3.OutlinedButton(
+                        onClick = onOpenFilePicker,
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Open File", style = ApturaTypography.titleSmall, color = ApturaColors.TextHighEmphasis)
+                    }
+                }
+            } else if (isFiltered) {
                 Button(
                     onClick = onClearSearch,
                     colors = ButtonDefaults.buttonColors(

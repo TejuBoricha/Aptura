@@ -39,4 +39,24 @@ interface MediaRepository {
      * Updates the saved playback progress position for state restoration (TST-REST-01, spec/12A).
      */
     suspend fun savePlaybackPosition(uri: String, positionMs: Long, isCompleted: Boolean)
+
+    /**
+     * Removes a video from the library index without deleting the physical file on storage (SCR-018).
+     */
+    suspend fun removeVideoFromLibrary(uri: String)
+
+    /**
+     * Computes high-level library statistics for SCR-014 (total videos, duration, and disk footprint).
+     */
+    suspend fun getLibraryStatistics(): LibraryStatistics
 }
+
+/**
+ * High-level statistics representing the indexed media library (SCR-014).
+ * Pure Kotlin domain model with zero framework dependencies.
+ */
+data class LibraryStatistics(
+    val totalVideos: Int = 0,
+    val totalDurationMs: Long = 0L,
+    val totalSizeBytes: Long = 0L
+)

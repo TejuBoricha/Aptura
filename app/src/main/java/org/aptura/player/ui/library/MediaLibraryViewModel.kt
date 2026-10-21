@@ -32,21 +32,24 @@ class MediaLibraryViewModel(
     val sortOrder: StateFlow<LibrarySortOrder> = _sortOrder
 
     private val _isRefreshing = MutableStateFlow(false)
+    private val _isPermissionDenied = MutableStateFlow(false)
 
     private data class FilterState(
         val query: String,
         val folder: String?,
         val sort: LibrarySortOrder,
-        val isRefreshing: Boolean
+        val isRefreshing: Boolean,
+        val isPermissionDenied: Boolean
     )
 
     private val filterState = combine(
         _searchQuery,
         _selectedFolder,
         _sortOrder,
-        _isRefreshing
-    ) { query, folder, sort, refreshing ->
-        FilterState(query, folder, sort, refreshing)
+        _isRefreshing,
+        _isPermissionDenied
+    ) { query, folder, sort, refreshing, permissionDenied ->
+        FilterState(query, folder, sort, refreshing, permissionDenied)
     }
 
     val uiState: StateFlow<MediaLibraryUiState> = combine(
@@ -55,7 +58,7 @@ class MediaLibraryViewModel(
         filterState
     ) { allVideos: List<DomainMediaItem>, folders: List<String>, filter: FilterState ->
         if (allVideos.isEmpty() && filter.query.isBlank() && filter.folder == null) {
-            MediaLibraryUiState.Empty(isFiltered = false)
+            MediaLibraryUiState.Empty(isFiltered = false, isPermissionDenied = filter.isPermissionDenied)
         } else {
             var filtered = allVideos
 
@@ -90,7 +93,8 @@ class MediaLibraryViewModel(
                     searchQuery = filter.query,
                     sortOrder = filter.sort,
                     totalCount = cards.size,
-                    isRefreshing = filter.isRefreshing
+                    isRefreshing = filter.isRefreshing,
+                    isLimitedMode = filter.isPermissionDenied
                 )
             }
         }
@@ -99,6 +103,16 @@ class MediaLibraryViewModel(
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = MediaLibraryUiState.Loading
     )
+
+    fun setPermissionDenied(denied: Boolean) {
+        _isPermissionDenied.value = denied
+    }
+
+    fun removeVideoFromLibrary(uri: String) {
+        viewModelScope.launch(dispatcher) {
+            mediaRepository.removeVideoFromLibrary(uri)
+        }
+    }
 
     fun onSearchQueryChanged(newQuery: String) {
         _searchQuery.value = newQuery

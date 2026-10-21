@@ -14,7 +14,8 @@ sealed interface MediaLibraryUiState {
 
     data class Empty(
         val isFiltered: Boolean = false,
-        val query: String = ""
+        val query: String = "",
+        val isPermissionDenied: Boolean = false
     ) : MediaLibraryUiState
 
     data class Success(
@@ -24,7 +25,8 @@ sealed interface MediaLibraryUiState {
         val searchQuery: String = "",
         val sortOrder: LibrarySortOrder = LibrarySortOrder.DATE_ADDED_DESC,
         val totalCount: Int = videos.size,
-        val isRefreshing: Boolean = false
+        val isRefreshing: Boolean = false,
+        val isLimitedMode: Boolean = false
     ) : MediaLibraryUiState
 }
 
