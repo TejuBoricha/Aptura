@@ -57,6 +57,26 @@ class PlatformInvariantsTest {
     }
 
     @Test
+    fun manifest_disablesAllowBackup() {
+        assertTrue("AndroidManifest.xml must exist", manifestFile.exists())
+        val content = manifestFile.readText()
+        assertTrue(
+            "CRITICAL INVARIANT VIOLATION (S-01): AndroidManifest.xml must set android:allowBackup=\"false\" to prevent cloud leakage of local library data",
+            content.contains("android:allowBackup=\"false\"")
+        )
+    }
+
+    @Test
+    fun manifest_containsZeroAudioPermission() {
+        assertTrue("AndroidManifest.xml must exist", manifestFile.exists())
+        val permissions = getDeclaredPermissions(manifestFile.readText())
+        assertFalse(
+            "CRITICAL INVARIANT VIOLATION (S-03): Aptura is strictly a video player; do NOT request READ_MEDIA_AUDIO",
+            permissions.any { it.contains("READ_MEDIA_AUDIO", ignoreCase = true) }
+        )
+    }
+
+    @Test
     fun manifest_declaresMediaPlaybackForegroundService() {
         assertTrue("AndroidManifest.xml must exist", manifestFile.exists())
         val content = manifestFile.readText()

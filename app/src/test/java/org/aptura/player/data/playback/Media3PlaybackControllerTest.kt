@@ -13,7 +13,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.aptura.player.domain.model.DomainMediaItem
@@ -52,6 +54,7 @@ class Media3PlaybackControllerTest {
     private class MockPlayerState : InvocationHandler {
         val listeners = mutableListOf<Player.Listener>()
         var currentPosition: Long = 0L
+        var bufferedPosition: Long = 0L
         var duration: Long = 60000L
         var playbackState: Int = Player.STATE_IDLE
         var isPlaying: Boolean = false
@@ -91,6 +94,7 @@ class Media3PlaybackControllerTest {
                     null
                 }
                 "getCurrentPosition" -> currentPosition
+                "getBufferedPosition" -> bufferedPosition
                 "getDuration" -> duration
                 "getPlaybackState" -> playbackState
                 "getPlayerError" -> playerError
@@ -160,6 +164,18 @@ class Media3PlaybackControllerTest {
         return Pair(player, state)
     }
 
+    private fun createController(
+        player: Player,
+        enablePositionTicker: Boolean = false
+    ): Media3PlaybackController {
+        return Media3PlaybackController(
+            player = player,
+            scope = testScope,
+            mainDispatcher = testDispatcher,
+            enablePositionTicker = enablePositionTicker
+        )
+    }
+
     private val sampleItem1 = DomainMediaItem(
         uri = "content://media/1",
         title = "Track 1",
@@ -179,7 +195,7 @@ class Media3PlaybackControllerTest {
     @Test
     fun playbackState_mapsMedia3StatesAccurately() = runTest(testDispatcher) {
         val (player, state) = createMockPlayer()
-        val controller = Media3PlaybackController(player, testScope)
+        val controller = createController(player)
 
         controller.playbackState.test {
             // Initial state is Idle
@@ -215,7 +231,7 @@ class Media3PlaybackControllerTest {
     @Test
     fun skipToPrevious_restartsCurrentItem_whenPastThreeSeconds() = runTest(testDispatcher) {
         val (player, state) = createMockPlayer()
-        val controller = Media3PlaybackController(player, testScope)
+        val controller = createController(player)
 
         controller.playMediaItem(sampleItem1)
         state.currentPosition = 5000L // Past 3000ms threshold
@@ -227,7 +243,7 @@ class Media3PlaybackControllerTest {
     @Test
     fun trackSelection_updatesSubtitleState() = runTest(testDispatcher) {
         val (player, _) = createMockPlayer()
-        val controller = Media3PlaybackController(player, testScope)
+        val controller = createController(player)
 
         controller.trackSelection.test {
             val initial = awaitItem()
@@ -252,7 +268,7 @@ class Media3PlaybackControllerTest {
     @Test
     fun setPlaybackSpeed_clampsWithinBounds() = runTest(testDispatcher) {
         val (player, state) = createMockPlayer()
-        val controller = Media3PlaybackController(player, testScope)
+        val controller = createController(player)
 
         // Normal speed
         controller.setPlaybackSpeed(1.5f)
@@ -270,7 +286,7 @@ class Media3PlaybackControllerTest {
     @Test
     fun setPlayMode_updatesRepeatAndShuffleOnPlayer() = runTest(testDispatcher) {
         val (player, state) = createMockPlayer()
-        val controller = Media3PlaybackController(player, testScope)
+        val controller = createController(player)
 
         controller.setPlayMode(PlayMode.REPEAT_ONE)
         assertEquals(Player.REPEAT_MODE_ONE, state.repeatMode)
@@ -284,7 +300,7 @@ class Media3PlaybackControllerTest {
     @Test
     fun onPlayerError_mapsErrorState_andPreservesErrorOnIdleTransition() = runTest(testDispatcher) {
         val (player, state) = createMockPlayer()
-        val controller = Media3PlaybackController(player, testScope, testDispatcher)
+        val controller = createController(player)
 
         controller.playbackState.test {
             assertEquals(DomainPlaybackState.Idle, awaitItem())
@@ -310,7 +326,7 @@ class Media3PlaybackControllerTest {
     @Test
     fun skipToPrevious_navigatesToPreviousItem_whenUnderThreeSeconds() = runTest(testDispatcher) {
         val (player, state) = createMockPlayer()
-        val controller = Media3PlaybackController(player, testScope, testDispatcher)
+        val controller = createController(player)
 
         // Queue with 2 items, currently at index 1
         controller.playQueue(listOf(sampleItem1, sampleItem2), startIndex = 1)
@@ -326,7 +342,7 @@ class Media3PlaybackControllerTest {
     @Test
     fun skipToNext_advancesQueue_andPlaysNextItem() = runTest(testDispatcher) {
         val (player, _) = createMockPlayer()
-        val controller = Media3PlaybackController(player, testScope, testDispatcher)
+        val controller = createController(player)
 
         controller.playQueue(listOf(sampleItem1, sampleItem2), startIndex = 0)
         assertEquals(0, controller.playbackQueue.value.currentIndex)
@@ -340,7 +356,7 @@ class Media3PlaybackControllerTest {
     @Test
     fun playQueue_initializesQueue_andPlaysTargetItem() = runTest(testDispatcher) {
         val (player, state) = createMockPlayer()
-        val controller = Media3PlaybackController(player, testScope, testDispatcher)
+        val controller = createController(player)
 
         val queueItems = listOf(sampleItem1, sampleItem2)
         controller.playQueue(queueItems, startIndex = 1)
@@ -355,7 +371,7 @@ class Media3PlaybackControllerTest {
     @Test
     fun release_cleansUpListenerAndReleasesPlayer() = runTest(testDispatcher) {
         val (player, state) = createMockPlayer()
-        val controller = Media3PlaybackController(player, testScope, testDispatcher)
+        val controller = createController(player)
 
         assertEquals(1, state.listeners.size)
         assertFalse(state.released)
@@ -364,5 +380,40 @@ class Media3PlaybackControllerTest {
 
         assertEquals(0, state.listeners.size)
         assertTrue(state.released)
+    }
+
+    @Test
+    fun positionTicker_updatesStatePeriodically_whenPlaying() = runTest(testDispatcher) {
+        val (player, state) = createMockPlayer()
+        val controller = createController(player, enablePositionTicker = true)
+
+        controller.playbackState.test {
+            assertEquals(DomainPlaybackState.Idle, awaitItem())
+
+            state.playbackState = Player.STATE_READY
+            state.currentPosition = 1000L
+            state.duration = 60000L
+            state.fireIsPlayingChange(true)
+
+            val ready1 = awaitItem()
+            assertTrue(ready1 is DomainPlaybackState.Ready)
+            assertEquals(1000L, (ready1 as DomainPlaybackState.Ready).positionMs)
+
+            // Advance time past 250ms interval and update position
+            state.currentPosition = 1500L
+            advanceTimeBy(300L)
+            runCurrent()
+
+            val ready2 = awaitItem()
+            assertTrue(ready2 is DomainPlaybackState.Ready)
+            assertEquals(1500L, (ready2 as DomainPlaybackState.Ready).positionMs)
+
+            // Pause playback to stop the ticker job
+            state.fireIsPlayingChange(false)
+            val ready3 = awaitItem()
+            assertFalse((ready3 as DomainPlaybackState.Ready).isPlaying)
+
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 }

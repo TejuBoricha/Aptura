@@ -245,6 +245,19 @@ fun PlayerScreen(
         }
     }
 
+    // Keep screen awake while actively playing media (P-16, spec/10:92)
+    DisposableEffect(activity, uiState.isPlaying) {
+        val window = activity?.window
+        if (uiState.isPlaying) {
+            window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+        onDispose {
+            window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
     val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager }
     val maxVolume = remember(audioManager) {
         audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 100

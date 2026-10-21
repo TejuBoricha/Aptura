@@ -25,7 +25,8 @@ sealed class DomainPlaybackState {
         val positionMs: Long,
         val durationMs: Long,
         val isPlaying: Boolean,
-        val playbackSpeed: Float = 1.0f
+        val playbackSpeed: Float = 1.0f,
+        val bufferedPositionMs: Long = 0L
     ) : DomainPlaybackState()
     
     data class Ended(

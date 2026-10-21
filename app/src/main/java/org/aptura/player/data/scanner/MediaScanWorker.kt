@@ -64,16 +64,18 @@ class MediaScanWorker(
             }
 
             // Prune files deleted from disk in safe 500-item chunks (prevents SQLite 999 parameter limit)
-            val idsToDelete = existingVideos
-                .filter { it.mediaStoreId !in scannedIds }
-                .map { it.id }
+            // If scanner returned empty while existing videos exist, do not wipe:
+            // transient MediaStore failure or unmounted volume must never wipe user library (P-14).
+            if (scannedItems.isNotEmpty()) {
+                val idsToDelete = existingVideos
+                    .filter { it.mediaStoreId !in scannedIds }
+                    .map { it.id }
 
-            if (idsToDelete.isNotEmpty()) {
-                idsToDelete.chunked(500).forEach { batch ->
-                    dao.deleteByIds(batch)
+                if (idsToDelete.isNotEmpty()) {
+                    idsToDelete.chunked(500).forEach { batch ->
+                        dao.deleteByIds(batch)
+                    }
                 }
-            } else if (scannedItems.isEmpty() && existingVideos.isNotEmpty()) {
-                dao.clearAll()
             }
 
             Result.success()

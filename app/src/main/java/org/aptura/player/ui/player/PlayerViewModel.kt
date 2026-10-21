@@ -116,6 +116,7 @@ class PlayerViewModel(
                                 isEnded = false,
                                 currentPositionMs = state.positionMs,
                                 durationMs = state.durationMs,
+                                bufferedPositionMs = state.bufferedPositionMs,
                                 playbackSpeed = state.playbackSpeed,
                                 errorMessage = null
                             )

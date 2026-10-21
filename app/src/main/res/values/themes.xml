@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <color name="aptura_surface_base">#0D0E11</color>
 
-    <style name="Theme.Aptura" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.Aptura" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/aptura_surface_base</item>
+        <item name="android:statusBarColor">@color/aptura_surface_base</item>
+        <item name="android:navigationBarColor">@color/aptura_surface_base</item>
+    </style>
 </resources>

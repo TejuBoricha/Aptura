@@ -13,9 +13,12 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.domain.model.DomainPlaybackQueue
@@ -35,7 +38,8 @@ import org.aptura.player.domain.usecase.PreviousActionOutcome
 class Media3PlaybackController(
     val player: Player,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
-    private val mainDispatcher: CoroutineDispatcher = Dispatchers.Main
+    private val mainDispatcher: CoroutineDispatcher = Dispatchers.Main,
+    private val enablePositionTicker: Boolean = true
 ) : PlaybackController {
 
     val audioSessionId: Int
@@ -43,6 +47,25 @@ class Media3PlaybackController(
 
     private val _playbackState = MutableStateFlow<DomainPlaybackState>(DomainPlaybackState.Idle)
     override val playbackState: StateFlow<DomainPlaybackState> = _playbackState.asStateFlow()
+
+    private var positionTickerJob: Job? = null
+
+    private fun checkPositionTicker(isPlaying: Boolean) {
+        if (!enablePositionTicker) return
+        if (isPlaying) {
+            if (positionTickerJob == null || positionTickerJob?.isActive == false) {
+                positionTickerJob = scope.launch(mainDispatcher) {
+                    while (isActive && player.isPlaying) {
+                        delay(250L)
+                        updatePlaybackState()
+                    }
+                }
+            }
+        } else {
+            positionTickerJob?.cancel()
+            positionTickerJob = null
+        }
+    }
 
     private val _playbackQueue = MutableStateFlow(DomainPlaybackQueue())
     override val playbackQueue: StateFlow<DomainPlaybackQueue> = _playbackQueue.asStateFlow()
@@ -52,6 +75,9 @@ class Media3PlaybackController(
 
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(state: Int) {
+            if (state == Player.STATE_ENDED || state == Player.STATE_IDLE) {
+                checkPositionTicker(false)
+            }
             updatePlaybackState()
             if (state == Player.STATE_ENDED) {
                 handleAutoAdvance()
@@ -59,10 +85,12 @@ class Media3PlaybackController(
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
+            checkPositionTicker(isPlaying)
             updatePlaybackState()
         }
 
         override fun onPlayerError(error: PlaybackException) {
+            checkPositionTicker(false)
             updatePlaybackState()
         }
 
@@ -98,6 +126,7 @@ class Media3PlaybackController(
 
         val currentPosition = player.currentPosition.coerceAtLeast(0L)
         val duration = player.duration.coerceAtLeast(0L)
+        val bufferedPosition = player.bufferedPosition.coerceAtLeast(0L)
 
         _playbackState.value = when (player.playbackState) {
             Player.STATE_IDLE -> DomainPlaybackState.Idle
@@ -106,11 +135,13 @@ class Media3PlaybackController(
                 positionMs = currentPosition,
                 durationMs = duration,
                 isPlaying = player.isPlaying,
-                playbackSpeed = player.playbackParameters.speed
+                playbackSpeed = player.playbackParameters.speed,
+                bufferedPositionMs = bufferedPosition
             )
             Player.STATE_ENDED -> DomainPlaybackState.Ended(duration)
             else -> DomainPlaybackState.Idle
         }
+        checkPositionTicker(player.isPlaying)
     }
 
     override suspend fun playMediaItem(item: DomainMediaItem) {
@@ -393,21 +424,16 @@ class Media3PlaybackController(
                     seekTo(0L)
                     play()
                 }
-                PlayMode.REPEAT_ALL -> {
-                    if (queue.items.isNotEmpty()) {
-                        skipToNext()
-                    }
-                }
-                PlayMode.NORMAL, PlayMode.SHUFFLE -> {
-                    if (queue.hasNext) {
-                        skipToNext()
-                    }
+                PlayMode.REPEAT_ALL, PlayMode.NORMAL, PlayMode.SHUFFLE -> {
+                    // Delegated to ViewModel's UpNext auto-advance countdown overlay
                 }
             }
         }
     }
 
     override suspend fun release() {
+        positionTickerJob?.cancel()
+        positionTickerJob = null
         player.removeListener(playerListener)
         player.release()
         _playbackState.value = DomainPlaybackState.Idle

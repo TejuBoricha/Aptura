@@ -109,6 +109,17 @@
   - **Tier 4 (Quality Gate & Validation):**
     - Comprehensive unit tests added to `MediaRepositoryTest`, `PlayerViewModelTest`, and `ApturaSettingsRepositoryTest`.
     - `tools/gate.ps1` 100% green (Compilation: 7.88s, Unit Tests: 16.46s, Lint: 43.89s, 0 errors, 0 warnings).
+- **Part 66: Week 1 Engineering & Quality Remediation Package (Dossier Part E §E.12):**
+  - **S-01 (Privacy Leak):** Set `android:allowBackup="false"` in `AndroidManifest.xml` to prevent cloud sync of local Room database and settings data. Added automated invariant test in `PlatformInvariantsTest`.
+  - **S-03 (Excessive Permission):** Removed unused `READ_MEDIA_AUDIO` permission from `AndroidManifest.xml` and `PermissionHelper.kt` (video-only player). Added invariant test assertion.
+  - **B-06 (Manifest Syntax Error):** Relocated `android:windowSoftInputMode="adjustResize"` from `<application>` to `<activity>` in `AndroidManifest.xml`.
+  - **P-16 (Screen Sleep Prevention):** Added `DisposableEffect(activity, isPlaying)` with `FLAG_KEEP_SCREEN_ON` management in `PlayerScreen.kt`.
+  - **P-01 (Startup White Flash):** Configured OLED dark `#0D0E11` (`@color/aptura_surface_base`) as `windowBackground`, `statusBarColor`, and `navigationBarColor` in `themes.xml`.
+  - **P-06 (Buffered Scrubber Rendering):** Added `bufferedPositionMs` to `DomainPlaybackState.Ready` and `PlayerUiState`, wired position ticker in `Media3PlaybackController` (250ms interval, test-guarded with `enablePositionTicker`), rendering secondary buffered track on custom Canvas scrubber.
+  - **P-07 (Double Auto-Advance Race):** Resolved race condition in `Media3PlaybackController.handleAutoAdvance()` by delegating queue progression to `PlayerViewModel`'s UpNext countdown overlay (only auto-repeating for `REPEAT_ONE`).
+  - **P-14 (Differential Ingest Safeguard):** Removed dangerous `clearAll()` purge in `MediaScanWorker.kt` on transient empty MediaStore query results.
+  - **B-03 & B-04 (Build Hardening & SDK 36):** Created `app/proguard-rules.pro` with keep rules for Media3, Room, Coroutines, and Coil; bumped `targetSdk = 36` in `app/build.gradle.kts`.
+  - **Quality Gate:** All 98 unit tests passing across 16 suites (100% green). `tools/gate.ps1` 100% clean (0 errors, 0 warnings).
 - **Mandatory Quality Gate:** Every commit and review must pass `tools/gate.ps1` (100% tests green, 0 lint errors) and adhere to the visual inspection and contextual IA invariants.
 
 
