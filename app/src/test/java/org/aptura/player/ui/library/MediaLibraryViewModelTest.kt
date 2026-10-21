@@ -104,7 +104,7 @@ class MediaLibraryViewModelTest {
         repo.videosFlow.value = listOf(item1, item2, item3)
         repo.foldersFlow.value = listOf("Camera", "Movies")
 
-        val viewModel = MediaLibraryViewModel(repo, testDispatcher)
+        val viewModel = MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 0L)
 
         viewModel.uiState.test {
             // Initial state is Loading
@@ -136,16 +136,18 @@ class MediaLibraryViewModelTest {
     fun searchFiltering_filtersItemsByTitleOrFolder() = runTest(testDispatcher) {
         val repo = FakeMediaRepository()
         repo.videosFlow.value = listOf(item1, item2, item3)
-        val viewModel = MediaLibraryViewModel(repo, testDispatcher)
+        val viewModel = MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 0L)
 
         viewModel.uiState.test {
             assertEquals(MediaLibraryUiState.Loading, awaitItem())
             assertTrue(awaitItem() is MediaLibraryUiState.Success)
 
-            // Search for "Avatar"
+            // Search for "Avatar": the text field echoes first, then the filtered result settles.
             viewModel.onSearchQueryChanged("Avatar")
-            val searchState = awaitItem()
-            assertTrue(searchState is MediaLibraryUiState.Success)
+            var searchState = awaitItem()
+            while (searchState !is MediaLibraryUiState.Success || searchState.videos.size != 1) {
+                searchState = awaitItem()
+            }
             val results = (searchState as MediaLibraryUiState.Success).videos
             assertEquals(1, results.size)
             assertEquals("Avatar", results[0].title)
@@ -158,15 +160,17 @@ class MediaLibraryViewModelTest {
     fun searchFiltering_withNoMatch_transitionsToEmptyFilteredState() = runTest(testDispatcher) {
         val repo = FakeMediaRepository()
         repo.videosFlow.value = listOf(item1, item2)
-        val viewModel = MediaLibraryViewModel(repo, testDispatcher)
+        val viewModel = MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 0L)
 
         viewModel.uiState.test {
             assertEquals(MediaLibraryUiState.Loading, awaitItem())
             assertTrue(awaitItem() is MediaLibraryUiState.Success)
 
             viewModel.onSearchQueryChanged("NonExistent")
-            val emptyState = awaitItem()
-            assertTrue(emptyState is MediaLibraryUiState.Empty)
+            var emptyState = awaitItem()
+            while (emptyState !is MediaLibraryUiState.Empty) {
+                emptyState = awaitItem()
+            }
             val empty = emptyState as MediaLibraryUiState.Empty
             assertTrue(empty.isFiltered)
             assertEquals("NonExistent", empty.query)
@@ -179,7 +183,7 @@ class MediaLibraryViewModelTest {
     fun folderFiltering_onlyReturnsVideosInTargetFolder() = runTest(testDispatcher) {
         val repo = FakeMediaRepository()
         repo.videosFlow.value = listOf(item1, item2, item3)
-        val viewModel = MediaLibraryViewModel(repo, testDispatcher)
+        val viewModel = MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 0L)
 
         viewModel.uiState.test {
             assertEquals(MediaLibraryUiState.Loading, awaitItem())
@@ -201,7 +205,7 @@ class MediaLibraryViewModelTest {
     fun sortOrderChanged_sortsByTitleAscending() = runTest(testDispatcher) {
         val repo = FakeMediaRepository()
         repo.videosFlow.value = listOf(item1, item2, item3) // Inception, Avatar, Vacation Clip
-        val viewModel = MediaLibraryViewModel(repo, testDispatcher)
+        val viewModel = MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 0L)
 
         viewModel.uiState.test {
             assertEquals(MediaLibraryUiState.Loading, awaitItem())
@@ -224,7 +228,7 @@ class MediaLibraryViewModelTest {
     fun emptyRepository_emitsEmptyUnfilteredState() = runTest(testDispatcher) {
         val repo = FakeMediaRepository()
         repo.videosFlow.value = emptyList()
-        val viewModel = MediaLibraryViewModel(repo, testDispatcher)
+        val viewModel = MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 0L)
 
         viewModel.uiState.test {
             assertEquals(MediaLibraryUiState.Loading, awaitItem())
@@ -240,7 +244,7 @@ class MediaLibraryViewModelTest {
     fun emptyRepository_withPermissionDenied_emitsEmptyWithPermissionDeniedTrue() = runTest(testDispatcher) {
         val repo = FakeMediaRepository()
         repo.videosFlow.value = emptyList()
-        val viewModel = MediaLibraryViewModel(repo, testDispatcher)
+        val viewModel = MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 0L)
 
         viewModel.uiState.test {
             assertEquals(MediaLibraryUiState.Loading, awaitItem())
@@ -261,7 +265,7 @@ class MediaLibraryViewModelTest {
     fun populatedRepository_withPermissionDenied_emitsSuccessWithLimitedModeTrue() = runTest(testDispatcher) {
         val repo = FakeMediaRepository()
         repo.videosFlow.value = listOf(item1)
-        val viewModel = MediaLibraryViewModel(repo, testDispatcher)
+        val viewModel = MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 0L)
 
         viewModel.uiState.test {
             assertEquals(MediaLibraryUiState.Loading, awaitItem())
@@ -282,7 +286,7 @@ class MediaLibraryViewModelTest {
     fun removeVideoFromLibrary_removesItemAndUpdatesUiState() = runTest(testDispatcher) {
         val repo = FakeMediaRepository()
         repo.videosFlow.value = listOf(item1, item2)
-        val viewModel = MediaLibraryViewModel(repo, testDispatcher)
+        val viewModel = MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 0L)
 
         viewModel.uiState.test {
             assertEquals(MediaLibraryUiState.Loading, awaitItem())
@@ -300,6 +304,33 @@ class MediaLibraryViewModelTest {
             cancelAndIgnoreRemainingEvents()
         }
     }
+
+    @Test
+    fun searchDebounce_echoesRawQueryImmediately_andFiltersAfterPause() = runTest(testDispatcher) {
+        val repo = FakeMediaRepository()
+        repo.videosFlow.value = listOf(item1, item2, item3)
+        val viewModel = MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 300L)
+
+        viewModel.uiState.test {
+            assertEquals(MediaLibraryUiState.Loading, awaitItem())
+            assertEquals(3, (awaitItem() as MediaLibraryUiState.Success).videos.size)
+
+            // Two rapid keystrokes: text field must echo at once, heavy filter pass must wait.
+            viewModel.onSearchQueryChanged("Av")
+            viewModel.onSearchQueryChanged("Avatar")
+
+            val echo = awaitItem() as MediaLibraryUiState.Success
+            assertEquals("Avatar", echo.searchQuery)
+            assertEquals("Results must not be recomputed before the debounce window", 3, echo.videos.size)
+
+            val filtered = awaitItem() as MediaLibraryUiState.Success
+            assertEquals("Avatar", filtered.searchQuery)
+            assertEquals(1, filtered.videos.size)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
 
     @Test
     fun mediaFormatters_formatDurationAccurately() {

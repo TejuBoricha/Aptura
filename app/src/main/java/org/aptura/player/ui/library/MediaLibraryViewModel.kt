@@ -4,23 +4,42 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import org.aptura.player.core.diagnostics.ApturaErrorHandler
+import org.aptura.player.core.diagnostics.EventCode
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.domain.repository.MediaRepository
 
 /**
  * Presentation ViewModel for the Media Library Screen.
  * Enforces Unidirectional Data Flow (UDF), explicit Dispatchers, and state immutability.
+ *
+ * Performance (P-03/P-04): the filter + search + sort + format pass over the whole library runs on
+ * [computeDispatcher] (never Main), and non-blank search input is debounced by [searchDebounceMs]
+ * so a fast typist triggers one pass instead of one per keystroke.
  */
+@OptIn(FlowPreview::class)
 class MediaLibraryViewModel(
     private val mediaRepository: MediaRepository,
-    private val dispatcher: CoroutineDispatcher = Dispatchers.Main
+    private val dispatcher: CoroutineDispatcher = Dispatchers.Main,
+    private val computeDispatcher: CoroutineDispatcher = Dispatchers.Default,
+    private val searchDebounceMs: Long = SEARCH_DEBOUNCE_MS
 ) : ViewModel() {
+
+    companion object {
+        const val SEARCH_DEBOUNCE_MS = 250L
+    }
+
+    /** Q-02: a failing repository call must never crash the process. */
+    private val errorHandler = ApturaErrorHandler.create("library_vm", EventCode.EV_006)
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery
@@ -42,8 +61,13 @@ class MediaLibraryViewModel(
         val isPermissionDenied: Boolean
     )
 
+    // Blank input (initial value / clear) applies instantly; typed input waits for a pause.
+    private val debouncedQuery = _searchQuery.debounce { query ->
+        if (query.isBlank()) 0L else searchDebounceMs
+    }
+
     private val filterState = combine(
-        _searchQuery,
+        debouncedQuery,
         _selectedFolder,
         _sortOrder,
         _isRefreshing,
@@ -52,7 +76,7 @@ class MediaLibraryViewModel(
         FilterState(query, folder, sort, refreshing, permissionDenied)
     }
 
-    val uiState: StateFlow<MediaLibraryUiState> = combine(
+    private val libraryContent: kotlinx.coroutines.flow.Flow<MediaLibraryUiState> = combine(
         mediaRepository.getAllVideos(),
         mediaRepository.getAllFolders(),
         filterState
@@ -98,6 +122,22 @@ class MediaLibraryViewModel(
                 )
             }
         }
+    }.flowOn(computeDispatcher)
+
+    /**
+     * The text field echoes the *raw* query so typing never lags or jumps the cursor; only this cheap
+     * overlay runs per keystroke while the expensive [libraryContent] pass stays debounced.
+     */
+    val uiState: StateFlow<MediaLibraryUiState> = combine(
+        libraryContent,
+        _searchQuery
+    ) { content, rawQuery ->
+        when (content) {
+            is MediaLibraryUiState.Success -> content.copy(searchQuery = rawQuery)
+            is MediaLibraryUiState.Empty ->
+                if (content.isFiltered) content.copy(query = rawQuery) else content
+            MediaLibraryUiState.Loading -> content
+        }
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -109,7 +149,7 @@ class MediaLibraryViewModel(
     }
 
     fun removeVideoFromLibrary(uri: String) {
-        viewModelScope.launch(dispatcher) {
+        viewModelScope.launch(dispatcher + errorHandler) {
             mediaRepository.removeVideoFromLibrary(uri)
         }
     }
@@ -127,10 +167,13 @@ class MediaLibraryViewModel(
     }
 
     fun onRefresh(onTriggerScan: (() -> Unit)? = null) {
-        viewModelScope.launch(dispatcher) {
+        viewModelScope.launch(dispatcher + errorHandler) {
             _isRefreshing.value = true
-            onTriggerScan?.invoke()
-            _isRefreshing.value = false
+            try {
+                onTriggerScan?.invoke()
+            } finally {
+                _isRefreshing.value = false
+            }
         }
     }
 

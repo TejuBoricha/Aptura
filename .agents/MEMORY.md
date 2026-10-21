@@ -118,8 +118,17 @@
   - **P-06 (Buffered Scrubber Rendering):** Added `bufferedPositionMs` to `DomainPlaybackState.Ready` and `PlayerUiState`, wired position ticker in `Media3PlaybackController` (250ms interval, test-guarded with `enablePositionTicker`), rendering secondary buffered track on custom Canvas scrubber.
   - **P-07 (Double Auto-Advance Race):** Resolved race condition in `Media3PlaybackController.handleAutoAdvance()` by delegating queue progression to `PlayerViewModel`'s UpNext countdown overlay (only auto-repeating for `REPEAT_ONE`).
   - **P-14 (Differential Ingest Safeguard):** Removed dangerous `clearAll()` purge in `MediaScanWorker.kt` on transient empty MediaStore query results.
-  - **B-03 & B-04 (Build Hardening & SDK 36):** Created `app/proguard-rules.pro` with keep rules for Media3, Room, Coroutines, and Coil; bumped `targetSdk = 36` in `app/build.gradle.kts`.
-  - **Quality Gate:** All 98 unit tests passing across 16 suites (100% green). `tools/gate.ps1` 100% clean (0 errors, 0 warnings).
+  - **B-03 & B-04 (Build Hardening & SDK 36):** Created `app/proguard-rules.pro`; bumped `targetSdk = 36` in `app/build.gradle.kts` (see Part 67 for the slimmed rules).
+  - **Quality Gate:** `tools/gate.ps1` 100% clean at commit time (0 errors, 0 warnings).
+- **Part 67: Release Hardening, Crash Safety & Search Performance (Dossier §E.12 Week 1–2):**
+  - **B-02 (R8):** `isMinifyEnabled` + `isShrinkResources` now ON for `release`. `assembleRelease` succeeds; unsigned APKs measure ~2.95 MB per ABI (3.04 MB universal) vs 25.4 MB debug. **Not yet smoke-tested on a device/emulator** (no adb in this environment) — run the release APK before shipping.
+  - **B-03 (rules):** `proguard-rules.pro` rewritten minimal; Media3/Room/WorkManager/Coil/kotlinx.serialization ship consumer rules, and blanket `-keep class androidx.media3.** {*;}` was removed because it defeats shrinking.
+  - **B-01 (signing):** Optional `signingConfigs.release` read from `local.properties` (`aptura.signing.storeFile|storePassword|keyAlias|keyPassword`) or env (`APTURA_SIGNING_STORE_FILE|STORE_PASSWORD|KEY_ALIAS|KEY_PASSWORD`). With none set, the release artifact stays unsigned. **No keystore exists yet — Product Owner must create the upload key.** `local.properties` is gitignored.
+  - **B-08:** Gradle heap raised 2 GB → 4 GB.
+  - **Q-02:** New `core/diagnostics/ApturaErrorHandler` (redacted: logs source label + exception class name only, never messages). Wired into all `PlayerViewModel` and `MediaLibraryViewModel` `viewModelScope.launch` sites; `onRefresh` resets `isRefreshing` in `finally`. Worker failures are still silent (S-06 diagnostics producers remain open).
+  - **P-03/P-04:** `MediaLibraryViewModel` now runs the filter/search/sort/format pass on an injectable `computeDispatcher` (`Dispatchers.Default`), debounces non-blank search input 250 ms (`searchDebounceMs`), and echoes the raw query to the text field through a cheap overlay so typing never lags. Side effect: one intermediate `Success` emission (new query text, old results) precedes the filtered result — tests await the settled state.
+  - **Tests added:** `ApturaErrorHandlerTest` (3), `MediaLibraryViewModelTest.searchDebounce_*`, `Media3PlaybackControllerTest.positionTicker_*`.
+  - **Still open from the dossier:** P-02 lazy ExoPlayer, Q-01/P-05/P-10 PlayerScreen decomposition, P-08/P-09 thumbnails, P-13 delta scan, S-02/B-05 CI + merged-manifest assertion, T-02 scanner/DAO tests, Play Console gates (§E.9).
 - **Mandatory Quality Gate:** Every commit and review must pass `tools/gate.ps1` (100% tests green, 0 lint errors) and adhere to the visual inspection and contextual IA invariants.
 
 

@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import org.aptura.player.core.diagnostics.ApturaErrorHandler
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.domain.model.DomainPlaybackState
 import org.aptura.player.domain.model.PlayMode
@@ -47,6 +48,9 @@ class PlayerViewModel(
         dispatcher = dispatcher
     )
 
+    /** Q-02: uncaught coroutine failures become local diagnostics events instead of process crashes. */
+    private val errorHandler = ApturaErrorHandler.create("player_vm")
+
     private val _uiState = MutableStateFlow(PlayerUiState())
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
 
@@ -77,7 +81,7 @@ class PlayerViewModel(
     }
 
     private fun observeAudioEnhancements() {
-        viewModelScope.launch(dispatcher) {
+        viewModelScope.launch(dispatcher + errorHandler) {
             audioEnhancementController.state.collect { enhancementState ->
                 _uiState.update { it.copy(audioEnhancement = enhancementState) }
             }
@@ -85,7 +89,7 @@ class PlayerViewModel(
     }
 
     private fun observePlaybackState() {
-        viewModelScope.launch(dispatcher) {
+        viewModelScope.launch(dispatcher + errorHandler) {
             playbackController.playbackState.collect { state ->
                 when (state) {
                     is DomainPlaybackState.Idle -> {
@@ -174,7 +178,7 @@ class PlayerViewModel(
     }
 
     private fun observePlaybackQueue() {
-        viewModelScope.launch(dispatcher) {
+        viewModelScope.launch(dispatcher + errorHandler) {
             playbackController.playbackQueue.collect { queue ->
                 val currentItem = queue.currentItem
                 _uiState.update {
@@ -195,7 +199,7 @@ class PlayerViewModel(
     }
 
     private fun observeTrackSelection() {
-        viewModelScope.launch(dispatcher) {
+        viewModelScope.launch(dispatcher + errorHandler) {
             playbackController.trackSelection.collect { selection ->
                 _uiState.update {
                     it.copy(
@@ -232,7 +236,7 @@ class PlayerViewModel(
     fun playQueue(items: List<DomainMediaItem>, startIndex: Int = 0) {
         autoAdvanceJob?.cancel()
         _uiState.update { it.copy(autoAdvanceCountdownSeconds = null, nextItemTitle = null) }
-        viewModelScope.launch(dispatcher) {
+        viewModelScope.launch(dispatcher + errorHandler) {
             if (items.isEmpty()) return@launch
             val clampedIndex = startIndex.coerceIn(0, items.size - 1)
             val currentItem = items[clampedIndex]
@@ -260,7 +264,7 @@ class PlayerViewModel(
     fun skipToNext() {
         autoAdvanceJob?.cancel()
         _uiState.update { it.copy(autoAdvanceCountdownSeconds = null, nextItemTitle = null) }
-        viewModelScope.launch(dispatcher) {
+        viewModelScope.launch(dispatcher + errorHandler) {
             playbackController.skipToNext()
             scheduleAutoHide()
         }
@@ -269,7 +273,7 @@ class PlayerViewModel(
     fun skipToPrevious() {
         autoAdvanceJob?.cancel()
         _uiState.update { it.copy(autoAdvanceCountdownSeconds = null, nextItemTitle = null) }
-        viewModelScope.launch(dispatcher) {
+        viewModelScope.launch(dispatcher + errorHandler) {
             playbackController.skipToPrevious()
             scheduleAutoHide()
         }
@@ -286,7 +290,7 @@ class PlayerViewModel(
             val nextItem = if (nextIndex in queue.items.indices) queue.items[nextIndex] else null
             val nextTitle = nextItem?.title?.let { MediaFormatters.cleanTitle(it) } ?: "Next Video"
 
-            autoAdvanceJob = viewModelScope.launch(dispatcher) {
+            autoAdvanceJob = viewModelScope.launch(dispatcher + errorHandler) {
                 for (s in 10 downTo 1) {
                     _uiState.update {
                         it.copy(
@@ -320,7 +324,7 @@ class PlayerViewModel(
     }
 
     fun loadAndPlay(videoUri: String) {
-        viewModelScope.launch(dispatcher) {
+        viewModelScope.launch(dispatcher + errorHandler) {
             val item = mediaRepository.getVideoByUri(videoUri)
             val title = MediaFormatters.cleanTitle(item?.title ?: extractTitleFromUri(videoUri))
             val initialDuration = item?.durationMs ?: 0L
@@ -357,7 +361,7 @@ class PlayerViewModel(
     }
 
     fun togglePlayPause() {
-        viewModelScope.launch(dispatcher) {
+        viewModelScope.launch(dispatcher + errorHandler) {
             if (_uiState.value.isEnded) {
                 playbackController.seekTo(0L)
                 playbackController.play()
@@ -373,7 +377,7 @@ class PlayerViewModel(
     }
 
     fun seekRelative(deltaMs: Long) {
-        viewModelScope.launch(dispatcher) {
+        viewModelScope.launch(dispatcher + errorHandler) {
             val now = System.currentTimeMillis()
             val isSameDirection = (deltaMs > 0 && accumulatedSeekDeltaMs > 0) ||
                     (deltaMs < 0 && accumulatedSeekDeltaMs < 0)
@@ -396,7 +400,7 @@ class PlayerViewModel(
             }
 
             seekFeedbackJob?.cancel()
-            seekFeedbackJob = viewModelScope.launch(dispatcher) {
+            seekFeedbackJob = viewModelScope.launch(dispatcher + errorHandler) {
                 delay(FEEDBACK_OVERLAY_DELAY_MS)
                 _uiState.update { it.copy(seekDeltaSeconds = null) }
                 accumulatedSeekDeltaMs = 0L
@@ -427,7 +431,7 @@ class PlayerViewModel(
     fun onScrubEnd() {
         val targetMs = _uiState.value.scrubPositionMs
         _uiState.update { it.copy(isScrubbing = false) }
-        viewModelScope.launch(dispatcher) {
+        viewModelScope.launch(dispatcher + errorHandler) {
             playbackController.seekTo(targetMs)
             scheduleAutoHide()
         }
@@ -470,7 +474,7 @@ class PlayerViewModel(
     }
 
     fun setPlaybackSpeed(speed: Float) {
-        viewModelScope.launch(dispatcher) {
+        viewModelScope.launch(dispatcher + errorHandler) {
             playbackController.setPlaybackSpeed(speed)
             _uiState.update {
                 it.copy(
@@ -496,7 +500,7 @@ class PlayerViewModel(
             PlayMode.REPEAT_ONE -> PlayMode.SHUFFLE
             PlayMode.SHUFFLE -> PlayMode.NORMAL
         }
-        viewModelScope.launch(dispatcher) {
+        viewModelScope.launch(dispatcher + errorHandler) {
             playbackController.setPlayMode(nextMode)
             _uiState.update { it.copy(playMode = nextMode) }
             scheduleAutoHide()
@@ -507,7 +511,7 @@ class PlayerViewModel(
         val clamped = percent.coerceIn(0, 100)
         _uiState.update { it.copy(volumePercent = clamped) }
         volumeFeedbackJob?.cancel()
-        volumeFeedbackJob = viewModelScope.launch(dispatcher) {
+        volumeFeedbackJob = viewModelScope.launch(dispatcher + errorHandler) {
             delay(FEEDBACK_OVERLAY_DELAY_MS)
             _uiState.update { it.copy(volumePercent = null) }
         }
@@ -517,7 +521,7 @@ class PlayerViewModel(
         val clamped = percent.coerceIn(0, 100)
         _uiState.update { it.copy(brightnessPercent = clamped) }
         brightnessFeedbackJob?.cancel()
-        brightnessFeedbackJob = viewModelScope.launch(dispatcher) {
+        brightnessFeedbackJob = viewModelScope.launch(dispatcher + errorHandler) {
             delay(FEEDBACK_OVERLAY_DELAY_MS)
             _uiState.update { it.copy(brightnessPercent = null) }
         }
@@ -539,14 +543,14 @@ class PlayerViewModel(
     }
 
     fun selectAudioTrack(index: Int?) {
-        viewModelScope.launch(dispatcher) {
+        viewModelScope.launch(dispatcher + errorHandler) {
             playbackController.selectAudioTrack(index)
             setAudioSheetVisible(false)
         }
     }
 
     fun selectSubtitleTrack(index: Int?) {
-        viewModelScope.launch(dispatcher) {
+        viewModelScope.launch(dispatcher + errorHandler) {
             playbackController.selectSubtitleTrack(index)
             setSubtitleSheetVisible(false)
         }
@@ -560,14 +564,14 @@ class PlayerViewModel(
     }
 
     fun setSubtitleDelay(delayMs: Long) {
-        viewModelScope.launch(dispatcher) {
+        viewModelScope.launch(dispatcher + errorHandler) {
             playbackController.setSubtitleDelay(delayMs)
             _uiState.update { it.copy(subtitleDelayMs = delayMs) }
         }
     }
 
     fun setAudioDelay(delayMs: Long) {
-        viewModelScope.launch(dispatcher) {
+        viewModelScope.launch(dispatcher + errorHandler) {
             playbackController.setAudioDelay(delayMs)
             _uiState.update { it.copy(audioDelayMs = delayMs) }
         }
@@ -587,7 +591,7 @@ class PlayerViewModel(
             "External Subtitle"
         }
     ) {
-        viewModelScope.launch(dispatcher) {
+        viewModelScope.launch(dispatcher + errorHandler) {
             playbackController.addExternalSubtitle(uri, mimeType, label)
         }
     }
@@ -606,7 +610,7 @@ class PlayerViewModel(
 
     private fun observeBookmarks(uri: String) {
         bookmarksJob?.cancel()
-        bookmarksJob = viewModelScope.launch(dispatcher) {
+        bookmarksJob = viewModelScope.launch(dispatcher + errorHandler) {
             mediaRepository.getBookmarks(uri).collect { list ->
                 _uiState.update { it.copy(bookmarks = list) }
             }
@@ -617,14 +621,14 @@ class PlayerViewModel(
         val uri = _uiState.value.videoUri
         val pos = _uiState.value.currentPositionMs
         if (uri.isNotBlank()) {
-            viewModelScope.launch(dispatcher) {
+            viewModelScope.launch(dispatcher + errorHandler) {
                 mediaRepository.addBookmark(uri, pos, note)
             }
         }
     }
 
     fun deleteBookmark(id: Long) {
-        viewModelScope.launch(dispatcher) {
+        viewModelScope.launch(dispatcher + errorHandler) {
             mediaRepository.deleteBookmark(id)
         }
     }
@@ -637,7 +641,7 @@ class PlayerViewModel(
         sleepTimerJob?.cancel()
         val durationMs = minutes * 60 * 1000L
         _uiState.update { it.copy(sleepTimerRemainingMs = durationMs) }
-        sleepTimerJob = viewModelScope.launch(dispatcher) {
+        sleepTimerJob = viewModelScope.launch(dispatcher + errorHandler) {
             delay(durationMs)
             playbackController.pause()
             _uiState.update { it.copy(sleepTimerRemainingMs = null) }
@@ -752,7 +756,7 @@ class PlayerViewModel(
         val current = _uiState.value.currentPositionMs
         val duration = _uiState.value.durationMs
         val target = (current + delta).coerceIn(0L, duration.coerceAtLeast(0L))
-        viewModelScope.launch(dispatcher) {
+        viewModelScope.launch(dispatcher + errorHandler) {
             playbackController.seekTo(target)
             _uiState.update { it.copy(currentPositionMs = target) }
         }
@@ -780,7 +784,7 @@ class PlayerViewModel(
             !_uiState.value.isPictureSheetVisible &&
             _uiState.value.errorMessage == null
         ) {
-            autoHideJob = viewModelScope.launch(dispatcher) {
+            autoHideJob = viewModelScope.launch(dispatcher + errorHandler) {
                 delay(AUTO_HIDE_DELAY_MS)
                 if (_uiState.value.isPlaying) {
                     _uiState.update { it.copy(isControlsVisible = false) }
@@ -794,7 +798,7 @@ class PlayerViewModel(
         val pos = _uiState.value.currentPositionMs
         val isEnded = _uiState.value.isEnded
         if (uri.isNotBlank() && pos > 0L) {
-            viewModelScope.launch(dispatcher) {
+            viewModelScope.launch(dispatcher + errorHandler) {
                 mediaRepository.savePlaybackPosition(uri, pos, isEnded)
             }
         }

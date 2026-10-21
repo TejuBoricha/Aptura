@@ -1,21 +1,19 @@
-# Aptura Video Player ProGuard & R8 Optimization Rules (B-03)
-# Optimization, obfuscation, and shrinking rules for release builds.
+# Aptura Video Player ProGuard & R8 rules (B-03)
+#
+# Philosophy: Media3, Room, WorkManager, Coil and kotlinx.serialization all ship their own
+# *consumer* keep rules inside their AARs, so the app file stays minimal. Blanket
+# `-keep class androidx.media3.** { *; }` rules were removed on purpose: they would stop R8
+# from shrinking ~all of Media3 and defeat the point of enabling minification (B-02).
 
-# Media3 & ExoPlayer keep rules
--keep class androidx.media3.exoplayer.** { *; }
--keep class androidx.media3.common.** { *; }
--keep class androidx.media3.session.** { *; }
--keep class androidx.media3.ui.** { *; }
+# Keep line numbers in crash stack traces surfaced through Play pre-launch / vitals reports.
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
+
+# Optional / compile-time-only references inside the playback and imaging stacks.
 -dontwarn androidx.media3.**
-
-# Room Persistence Library keep rules
--keep class * extends androidx.room.RoomDatabase
+-dontwarn coil.**
 -dontwarn androidx.room.paging.**
 
-# Kotlin Coroutines internal dispatchers
+# Coroutines: Main dispatcher is resolved through ServiceLoader.
 -keepnames class kotlinx.coroutines.internal.MainDispatcherFactory { *; }
 -keepnames class kotlinx.coroutines.CoroutineExceptionHandler { *; }
-
-# Coil image decoding & pipelines
--keep class coil.** { *; }
--dontwarn coil.**
