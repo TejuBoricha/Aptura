@@ -56,6 +56,7 @@ class PlayerViewModel(
     private var seekFeedbackJob: Job? = null
     private var sleepTimerJob: Job? = null
     private var autoAdvanceJob: Job? = null
+    private var bookmarksJob: Job? = null
     private var lastPersistedPositionMs: Long = 0L
 
     private var lastSeekTimestampMs: Long = 0L
@@ -185,6 +186,9 @@ class PlayerViewModel(
                         durationMs = if (currentItem != null && currentItem.durationMs > 0) currentItem.durationMs else it.durationMs
                     )
                 }
+                if (currentItem != null && currentItem.uri.isNotBlank()) {
+                    observeBookmarks(currentItem.uri)
+                }
             }
         }
     }
@@ -241,6 +245,7 @@ class PlayerViewModel(
                 )
             }
             playbackController.playQueue(items, clampedIndex)
+            observeBookmarks(currentItem.uri)
 
             val savedPosition = currentItem.playbackPositionMs
             if (savedPosition > 3000L && !currentItem.isCompleted) {
@@ -337,6 +342,7 @@ class PlayerViewModel(
             )
 
             playbackController.playMediaItem(domainItem)
+            observeBookmarks(videoUri)
 
             // Restore playback position if > 3s and not completed (spec/12A §3.3)
             val savedPosition = item?.playbackPositionMs ?: 0L
@@ -597,6 +603,35 @@ class PlayerViewModel(
         _uiState.update { it.copy(subtitleBackgroundEnabled = enabled) }
     }
 
+    private fun observeBookmarks(uri: String) {
+        bookmarksJob?.cancel()
+        bookmarksJob = viewModelScope.launch(dispatcher) {
+            mediaRepository.getBookmarks(uri).collect { list ->
+                _uiState.update { it.copy(bookmarks = list) }
+            }
+        }
+    }
+
+    fun addBookmark(note: String = "") {
+        val uri = _uiState.value.videoUri
+        val pos = _uiState.value.currentPositionMs
+        if (uri.isNotBlank()) {
+            viewModelScope.launch(dispatcher) {
+                mediaRepository.addBookmark(uri, pos, note)
+            }
+        }
+    }
+
+    fun deleteBookmark(id: Long) {
+        viewModelScope.launch(dispatcher) {
+            mediaRepository.deleteBookmark(id)
+        }
+    }
+
+    fun setDecoderStrategy(strategy: Int) {
+        _uiState.update { it.copy(decoderStrategy = strategy) }
+    }
+
     fun startSleepTimer(minutes: Int) {
         sleepTimerJob?.cancel()
         val durationMs = minutes * 60 * 1000L
@@ -784,6 +819,7 @@ class PlayerViewModel(
         seekFeedbackJob?.cancel()
         sleepTimerJob?.cancel()
         autoAdvanceJob?.cancel()
+        bookmarksJob?.cancel()
         persistCurrentPosition()
         super.onCleared()
     }

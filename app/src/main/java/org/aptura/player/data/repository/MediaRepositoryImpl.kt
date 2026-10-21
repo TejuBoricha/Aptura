@@ -6,19 +6,29 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import org.aptura.player.data.database.BookmarkDao
+import org.aptura.player.data.database.BookmarkEntity
 import org.aptura.player.data.database.MediaItemDao
+import org.aptura.player.data.database.toDomainBookmark
 import org.aptura.player.data.database.toDomainMediaItem
+import org.aptura.player.domain.model.Bookmark
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.domain.repository.MediaRepository
 
 /**
- * Concrete implementation of MediaRepository backed by Room MediaItemDao.
+ * Concrete implementation of MediaRepository backed by Room MediaItemDao and BookmarkDao.
  * Enforces explicit IO dispatcher for database operations and reactive Flow streaming.
  */
 class MediaRepositoryImpl(
     private val mediaItemDao: MediaItemDao,
+    private val bookmarkDao: BookmarkDao? = null,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : MediaRepository {
+
+    constructor(
+        mediaItemDao: MediaItemDao,
+        ioDispatcher: CoroutineDispatcher
+    ) : this(mediaItemDao, null, ioDispatcher)
 
     override fun getAllVideos(): Flow<List<DomainMediaItem>> {
         return mediaItemDao.getAllVideosSortedByDate()
@@ -69,5 +79,29 @@ class MediaRepositoryImpl(
             totalDurationMs = duration,
             totalSizeBytes = size
         )
+    }
+
+    override fun getBookmarks(mediaUri: String): Flow<List<Bookmark>> {
+        return (bookmarkDao?.getBookmarksForMedia(mediaUri) ?: kotlinx.coroutines.flow.flowOf(emptyList()))
+            .map { list -> list.map { it.toDomainBookmark() } }
+            .flowOn(ioDispatcher)
+    }
+
+    override suspend fun addBookmark(mediaUri: String, timestampMs: Long, note: String): Long {
+        return withContext(ioDispatcher) {
+            bookmarkDao?.insertBookmark(
+                BookmarkEntity(
+                    mediaUri = mediaUri,
+                    timestampMs = timestampMs,
+                    note = note
+                )
+            ) ?: 0L
+        }
+    }
+
+    override suspend fun deleteBookmark(id: Long) {
+        withContext(ioDispatcher) {
+            bookmarkDao?.deleteBookmarkById(id)
+        }
     }
 }

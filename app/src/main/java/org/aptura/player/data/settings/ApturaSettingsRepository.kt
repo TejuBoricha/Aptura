@@ -28,7 +28,8 @@ data class ApturaSettings(
     val autoAdvanceCountdownSeconds: Int = 10,
     val subtitleFontSizeSp: Int = 18,
     val subtitleTextColorHex: String = "#FFFFFF",
-    val subtitleBackgroundEnabled: Boolean = false
+    val subtitleBackgroundEnabled: Boolean = false,
+    val defaultDecoderStrategy: Int = 0 // 0: Auto, 1: Hardware, 2: Software
 )
 
 /**
@@ -47,6 +48,7 @@ class ApturaSettingsRepository(private val context: Context) {
         val SUBTITLE_FONT_SIZE_SP = intPreferencesKey("subtitle_font_size_sp")
         val SUBTITLE_TEXT_COLOR_HEX = stringPreferencesKey("subtitle_text_color_hex")
         val SUBTITLE_BACKGROUND_ENABLED = booleanPreferencesKey("subtitle_background_enabled")
+        val DEFAULT_DECODER_STRATEGY = intPreferencesKey("default_decoder_strategy")
     }
 
     val settingsFlow: Flow<ApturaSettings> = context.dataStore.data
@@ -67,7 +69,8 @@ class ApturaSettingsRepository(private val context: Context) {
                 autoAdvanceCountdownSeconds = preferences[PreferencesKeys.AUTO_ADVANCE_COUNTDOWN] ?: 10,
                 subtitleFontSizeSp = preferences[PreferencesKeys.SUBTITLE_FONT_SIZE_SP] ?: 18,
                 subtitleTextColorHex = preferences[PreferencesKeys.SUBTITLE_TEXT_COLOR_HEX] ?: "#FFFFFF",
-                subtitleBackgroundEnabled = preferences[PreferencesKeys.SUBTITLE_BACKGROUND_ENABLED] ?: false
+                subtitleBackgroundEnabled = preferences[PreferencesKeys.SUBTITLE_BACKGROUND_ENABLED] ?: false,
+                defaultDecoderStrategy = preferences[PreferencesKeys.DEFAULT_DECODER_STRATEGY] ?: 0
             )
         }
 
@@ -122,6 +125,12 @@ class ApturaSettingsRepository(private val context: Context) {
     suspend fun updateSubtitleBackground(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.SUBTITLE_BACKGROUND_ENABLED] = enabled
+        }
+    }
+
+    suspend fun updateDefaultDecoderStrategy(strategy: Int) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.DEFAULT_DECODER_STRATEGY] = strategy
         }
     }
 

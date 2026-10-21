@@ -67,6 +67,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.Audiotrack
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.BookmarkAdd
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.PictureInPictureAlt
@@ -196,6 +199,9 @@ fun PlayerScreen(
     onSubtitleFontSizeChanged: (Int) -> Unit = {},
     onSubtitleTextColorChanged: (String) -> Unit = {},
     onSubtitleBackgroundChanged: (Boolean) -> Unit = {},
+    onAddBookmark: () -> Unit = {},
+    onDeleteBookmark: (Long) -> Unit = {},
+    onDecoderStrategyChanged: (Int) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -1013,6 +1019,22 @@ fun PlayerScreen(
                                             size = Size(activeW, trackH),
                                             cornerRadius = CornerRadius(trackH / 2f, trackH / 2f)
                                         )
+                                    }
+
+                                    // 3b. Bookmark Pips (FR-CTRL-011)
+                                    if (uiState.durationMs > 0 && uiState.bookmarks.isNotEmpty()) {
+                                        val pipW = 3.dp.toPx()
+                                        val pipH = (trackH * 1.8f).coerceAtLeast(8.dp.toPx())
+                                        uiState.bookmarks.forEach { bookmark ->
+                                            val pipFraction = (bookmark.timestampMs.toFloat() / uiState.durationMs.toFloat()).coerceIn(0f, 1f)
+                                            val pipX = totalW * pipFraction
+                                            drawRoundRect(
+                                                color = Color.White.copy(alpha = 0.9f),
+                                                topLeft = Offset(pipX - pipW / 2f, cy - pipH / 2f),
+                                                size = Size(pipW, pipH),
+                                                cornerRadius = CornerRadius(pipW / 2f, pipW / 2f)
+                                            )
+                                        }
                                     }
 
                                     // 4. Thumb Circle (Concentric cy = size.height / 2f)
@@ -2252,6 +2274,126 @@ fun PlayerScreen(
                             }
                         }
 
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        // 5. Timeline Bookmarks & Chapters (FR-CTRL-011)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Bookmark,
+                                    contentDescription = null,
+                                    tint = ApturaColors.AccentPrimary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "BOOKMARKS & CHAPTERS",
+                                    style = ApturaTypography.labelSmall,
+                                    color = ApturaColors.AccentPrimary
+                                )
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = ApturaColors.AccentPrimary,
+                                modifier = Modifier.clickable { onAddBookmark() }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.BookmarkAdd,
+                                        contentDescription = null,
+                                        tint = ApturaColors.SurfacePureBlack,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Text(
+                                        text = "Bookmark @ ${MediaFormatters.formatDuration(uiState.currentPositionMs)}",
+                                        style = ApturaTypography.labelSmall.copy(fontFeatureSettings = "tnum"),
+                                        color = ApturaColors.SurfacePureBlack,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+
+                        if (uiState.bookmarks.isEmpty()) {
+                            Text(
+                                text = "No bookmarks saved for this video yet. Tap above to add one at current timecode.",
+                                style = ApturaTypography.bodySmall,
+                                color = ApturaColors.TextLowEmphasis,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
+                        } else {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                uiState.bookmarks.forEach { bookmark ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(ApturaColors.SurfaceElevated3)
+                                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clickable {
+                                                    onScrubStart(bookmark.timestampMs)
+                                                    onScrubEnd()
+                                                },
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Surface(
+                                                shape = RoundedCornerShape(6.dp),
+                                                color = ApturaColors.SurfaceElevated1
+                                            ) {
+                                                Text(
+                                                    text = MediaFormatters.formatDuration(bookmark.timestampMs),
+                                                    style = ApturaTypography.labelSmall.copy(fontFeatureSettings = "tnum"),
+                                                    color = ApturaColors.AccentPrimary,
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                            Text(
+                                                text = bookmark.note.ifBlank { "Bookmark at ${MediaFormatters.formatDuration(bookmark.timestampMs)}" },
+                                                style = ApturaTypography.labelSmall,
+                                                color = ApturaColors.TextHighEmphasis,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                        IconButton(
+                                            onClick = { onDeleteBookmark(bookmark.id) },
+                                            modifier = Modifier.size(28.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Filled.Delete,
+                                                contentDescription = "Delete Bookmark",
+                                                tint = ApturaColors.StatusError.copy(alpha = 0.8f),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                     } else {
                         // TAB 1: PICTURE & DISPLAY
 
@@ -2458,6 +2600,61 @@ fun PlayerScreen(
                             ),
                             modifier = Modifier.fillMaxWidth()
                         )
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        // 4. Decoder Engine Strategy (FR-PLAY-003, Q13)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "DECODER ENGINE STRATEGY",
+                                style = ApturaTypography.labelSmall,
+                                color = ApturaColors.AccentPrimary
+                            )
+                            val currentDecoderLabel = when (uiState.decoderStrategy) {
+                                1 -> "Hardware"
+                                2 -> "Software"
+                                else -> "Auto"
+                            }
+                            Text(
+                                text = "Current: $currentDecoderLabel",
+                                style = ApturaTypography.labelSmall,
+                                color = ApturaColors.TextMediumEmphasis
+                            )
+                        }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf(
+                                0 to "Auto",
+                                1 to "Hardware",
+                                2 to "Software"
+                            ).forEach { (strategy, label) ->
+                                val isSelected = uiState.decoderStrategy == strategy
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isSelected) ApturaColors.AccentPrimary else ApturaColors.SurfaceElevated3,
+                                    border = if (isSelected) null else BorderStroke(1.dp, ApturaColors.BorderSubtle),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { onDecoderStrategyChanged(strategy) }
+                                ) {
+                                    Text(
+                                        text = label,
+                                        style = ApturaTypography.labelSmall,
+                                        color = if (isSelected) ApturaColors.SurfacePureBlack else ApturaColors.TextHighEmphasis,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(vertical = 10.dp)
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }

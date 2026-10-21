@@ -10,13 +10,14 @@ import androidx.room.RoomDatabase
  * Zero network, local offline storage only (DEC-001, ADR-004).
  */
 @Database(
-    entities = [MediaItemEntity::class],
-    version = 1,
+    entities = [MediaItemEntity::class, BookmarkEntity::class],
+    version = 2,
     exportSchema = false
 )
 abstract class ApturaDatabase : RoomDatabase() {
 
     abstract fun mediaItemDao(): MediaItemDao
+    abstract fun bookmarkDao(): BookmarkDao
 
     companion object {
         private const val DATABASE_NAME = "aptura_media.db"

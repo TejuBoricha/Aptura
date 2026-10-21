@@ -42,6 +42,7 @@ class ApturaSettingsRepositoryTest {
             assertEquals(18, initial.subtitleFontSizeSp)
             assertEquals("#FFFFFF", initial.subtitleTextColorHex)
             assertFalse(initial.subtitleBackgroundEnabled)
+            assertEquals(0, initial.defaultDecoderStrategy)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -86,6 +87,10 @@ class ApturaSettingsRepositoryTest {
 
             repository.updateSubtitleBackground(true)
             assertTrue(awaitItem().subtitleBackgroundEnabled)
+
+            // Update decoder strategy
+            repository.updateDefaultDecoderStrategy(1)
+            assertEquals(1, awaitItem().defaultDecoderStrategy)
 
             cancelAndIgnoreRemainingEvents()
         }

@@ -84,7 +84,9 @@ data class PlayerUiState(
     val nextItemTitle: String? = null,
     val subtitleFontSizeSp: Int = 18,
     val subtitleTextColorHex: String = "#FFFFFF",
-    val subtitleBackgroundEnabled: Boolean = false
+    val subtitleBackgroundEnabled: Boolean = false,
+    val bookmarks: List<org.aptura.player.domain.model.Bookmark> = emptyList(),
+    val decoderStrategy: Int = 0
 ) {
     val effectivePositionMs: Long
         get() = if (isScrubbing) scrubPositionMs else currentPositionMs

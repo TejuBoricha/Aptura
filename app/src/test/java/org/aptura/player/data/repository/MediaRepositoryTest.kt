@@ -6,6 +6,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
+import org.aptura.player.data.database.BookmarkDao
+import org.aptura.player.data.database.BookmarkEntity
 import org.aptura.player.data.database.MediaItemDao
 import org.aptura.player.data.database.MediaItemEntity
 import org.junit.Assert.assertEquals
@@ -111,6 +113,34 @@ class MediaRepositoryTest {
 
         override suspend fun clearAll() {
             items.value = emptyList()
+        }
+    }
+
+    private class FakeBookmarkDao : BookmarkDao {
+        val bookmarks = MutableStateFlow<List<BookmarkEntity>>(emptyList())
+        private var autoId = 1L
+
+        override fun getBookmarksForMedia(mediaUri: String): Flow<List<BookmarkEntity>> {
+            return bookmarks.map { list -> list.filter { it.mediaUri == mediaUri } }
+        }
+
+        override suspend fun insertBookmark(bookmark: BookmarkEntity): Long {
+            val assignedId = if (bookmark.id == 0L) autoId++ else bookmark.id
+            val entity = bookmark.copy(id = assignedId)
+            bookmarks.value = bookmarks.value + entity
+            return assignedId
+        }
+
+        override suspend fun deleteBookmark(bookmark: BookmarkEntity) {
+            bookmarks.value = bookmarks.value.filter { it.id != bookmark.id }
+        }
+
+        override suspend fun deleteBookmarkById(id: Long) {
+            bookmarks.value = bookmarks.value.filter { it.id != id }
+        }
+
+        override suspend fun deleteBookmarksForMedia(mediaUri: String) {
+            bookmarks.value = bookmarks.value.filter { it.mediaUri != mediaUri }
         }
     }
 
@@ -269,5 +299,39 @@ class MediaRepositoryTest {
         assertEquals(2, stats.totalVideos)
         assertEquals(200000L, stats.totalDurationMs)
         assertEquals(4000L, stats.totalSizeBytes)
+    }
+
+    @Test
+    fun bookmarks_insertQueryAndDelete_worksCorrectly() = runTest(testDispatcher) {
+        val fakeMediaDao = FakeMediaItemDao()
+        val fakeBookmarkDao = FakeBookmarkDao()
+        val repo = MediaRepositoryImpl(fakeMediaDao, fakeBookmarkDao, testDispatcher)
+
+        val uri = "content://media/test"
+
+        repo.getBookmarks(uri).test {
+            // Initial empty
+            assertEquals(emptyList<org.aptura.player.domain.model.Bookmark>(), awaitItem())
+
+            // Add first bookmark
+            val id1 = repo.addBookmark(uri, 5000L, "Intro")
+            val list1 = awaitItem()
+            assertEquals(1, list1.size)
+            assertEquals("Intro", list1.first().note)
+            assertEquals(5000L, list1.first().timestampMs)
+
+            // Add second bookmark
+            val id2 = repo.addBookmark(uri, 12000L, "Climax")
+            val list2 = awaitItem()
+            assertEquals(2, list2.size)
+
+            // Delete first bookmark
+            repo.deleteBookmark(id1)
+            val list3 = awaitItem()
+            assertEquals(1, list3.size)
+            assertEquals(id2, list3.first().id)
+
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 }

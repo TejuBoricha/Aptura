@@ -1,3 +1,5 @@
+@file:OptIn(coil.annotation.ExperimentalCoilApi::class)
+
 package org.aptura.player
 
 import android.content.Intent
@@ -16,6 +18,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.aptura.player.core.platform.PermissionHelper
 import org.aptura.player.data.database.ApturaDatabase
@@ -47,7 +50,7 @@ fun MainNavigation(
     val settings by settingsRepository.settingsFlow.collectAsStateWithLifecycle(initialValue = ApturaSettings())
 
     val database = remember { ApturaDatabase.getInstance(context) }
-    val mediaRepository = remember { MediaRepositoryImpl(database.mediaItemDao()) }
+    val mediaRepository = remember { MediaRepositoryImpl(database.mediaItemDao(), database.bookmarkDao()) }
     val libraryViewModel: MediaLibraryViewModel = viewModel {
         MediaLibraryViewModel(mediaRepository)
     }
@@ -117,9 +120,12 @@ fun MainNavigation(
         }
     }
 
-    // Apply persisted default playback speed
+    // Apply persisted default playback speed and decoder strategy
     LaunchedEffect(settings.defaultPlaybackSpeed) {
         playerViewModel.setPlaybackSpeed(settings.defaultPlaybackSpeed)
+    }
+    LaunchedEffect(settings.defaultDecoderStrategy) {
+        playerViewModel.setDecoderStrategy(settings.defaultDecoderStrategy)
     }
 
     NavDisplay(
@@ -209,6 +215,20 @@ fun MainNavigation(
                     },
                     onReplayOnboardingClick = {
                         backStack.add(Onboarding)
+                    },
+                    onUpdateDecoderStrategy = { strategy ->
+                        coroutineScope.launch { settingsRepository.updateDefaultDecoderStrategy(strategy) }
+                        playerViewModel.setDecoderStrategy(strategy)
+                    },
+                    onClearThumbnailCache = {
+                        coroutineScope.launch(Dispatchers.IO) {
+                            try {
+                                context.cacheDir.deleteRecursively()
+                                context.cacheDir.mkdirs()
+                                coil.Coil.imageLoader(context).diskCache?.clear()
+                                coil.Coil.imageLoader(context).memoryCache?.clear()
+                            } catch (_: Throwable) {}
+                        }
                     }
                 )
             }
@@ -292,6 +312,12 @@ fun MainNavigation(
                     onSubtitleBackgroundChanged = { enabled ->
                         playerViewModel.setSubtitleBackgroundEnabled(enabled)
                         coroutineScope.launch { settingsRepository.updateSubtitleBackground(enabled) }
+                    },
+                    onAddBookmark = playerViewModel::addBookmark,
+                    onDeleteBookmark = playerViewModel::deleteBookmark,
+                    onDecoderStrategyChanged = { strategy ->
+                        playerViewModel.setDecoderStrategy(strategy)
+                        coroutineScope.launch { settingsRepository.updateDefaultDecoderStrategy(strategy) }
                     }
                 )
             }

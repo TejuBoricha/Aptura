@@ -6,10 +6,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import org.aptura.player.domain.model.Bookmark
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.domain.model.DomainPlaybackQueue
 import org.aptura.player.domain.model.DomainPlaybackState
@@ -177,6 +179,24 @@ class PlayerViewModelTest {
 
         override suspend fun removeVideoFromLibrary(uri: String) {
             items.remove(uri)
+        }
+
+        val bookmarksState = MutableStateFlow<List<Bookmark>>(emptyList())
+        private var nextBookmarkId = 1L
+
+        override fun getBookmarks(mediaUri: String): Flow<List<Bookmark>> {
+            return bookmarksState.map { list -> list.filter { it.mediaUri == mediaUri } }
+        }
+
+        override suspend fun addBookmark(mediaUri: String, timestampMs: Long, note: String): Long {
+            val id = nextBookmarkId++
+            val item = Bookmark(id, mediaUri, timestampMs, note, System.currentTimeMillis() / 1000)
+            bookmarksState.value = bookmarksState.value + item
+            return id
+        }
+
+        override suspend fun deleteBookmark(id: Long) {
+            bookmarksState.value = bookmarksState.value.filter { it.id != id }
         }
 
         override suspend fun getLibraryStatistics(): org.aptura.player.domain.repository.LibraryStatistics {
@@ -881,6 +901,53 @@ class PlayerViewModelTest {
 
         viewModel.setSubtitleBackgroundEnabled(true)
         assertTrue(viewModel.uiState.value.subtitleBackgroundEnabled)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun bookmarks_addAndRemove_reflectedInState() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        repository.items[sampleVideo.uri] = sampleVideo
+        viewModel.loadAndPlay(sampleVideo.uri)
+        runCurrent()
+
+        assertEquals(0, viewModel.uiState.value.bookmarks.size)
+
+        // Add bookmark
+        viewModel.addBookmark("Highlight 1")
+        runCurrent()
+
+        assertEquals(1, viewModel.uiState.value.bookmarks.size)
+        val created = viewModel.uiState.value.bookmarks.first()
+        assertEquals("Highlight 1", created.note)
+        assertEquals(sampleVideo.uri, created.mediaUri)
+
+        // Delete bookmark
+        viewModel.deleteBookmark(created.id)
+        runCurrent()
+
+        assertEquals(0, viewModel.uiState.value.bookmarks.size)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun decoderStrategy_updatesStateCorrectly() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        assertEquals(0, viewModel.uiState.value.decoderStrategy)
+
+        viewModel.setDecoderStrategy(1)
+        assertEquals(1, viewModel.uiState.value.decoderStrategy)
+
+        viewModel.setDecoderStrategy(2)
+        assertEquals(2, viewModel.uiState.value.decoderStrategy)
 
         viewModel.clearForTesting()
     }

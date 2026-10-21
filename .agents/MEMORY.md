@@ -93,6 +93,22 @@
   - **Priority 4 (Quality Gate & Validation):**
     - Unit tests added to `PlayerViewModelTest` and `ApturaSettingsRepositoryTest` (97 unit tests across 16 suites, 100% passing).
     - Atomic verification gate `tools/gate.ps1` 100% green (0 errors, 0 warnings).
+- **Part 65: Chapters & Bookmarks Engine, Live Decoder Strategy & Thumbnail Cache Optimization:**
+  - **Tier 1 (Core Interactive Feature — `FR-CTRL-011`):**
+    - Created pure Kotlin `Bookmark` domain model (`id`, `mediaUri`, `timestampMs`, `note`, `createdAtSec`) adhering to zero Android framework dependencies.
+    - Added Room `BookmarkEntity` and `BookmarkDao` (`@Query`, `@Insert`, `@Delete`) indexed by `mediaUri`. Bumped `ApturaDatabase` schema to version 2.
+    - Implemented reactive `getBookmarks(mediaUri): Flow<List<Bookmark>>`, `addBookmark`, and `deleteBookmark` in `MediaRepositoryImpl` on `Dispatchers.IO`.
+    - Rendered high-contrast timeline bookmark pips directly onto custom scrubber Canvas at `pipFraction * totalW`.
+    - Added dedicated "Bookmarks & Chapters" section in `AdvancedSheet` (Tab 0) with 1-tap "Bookmark @ [timecode]" action, quick-jump timestamp chips, and individual deletion controls.
+  - **Tier 2 (Platform & Decoding Architecture — `FR-PLAY-003`, `Q13`):**
+    - Added `defaultDecoderStrategy` preference (0: Auto, 1: Hardware, 2: Software) in `ApturaSettingsRepository` backed by DataStore.
+    - Added decoder strategy chip group with plain-language explanatory copy to `SettingsScreen` (Section 1).
+    - Added live decoder selector in `AdvancedSheet` (Tab 1) in `PlayerScreen` synced with `PlayerViewModel` and persisted settings.
+  - **Tier 3 (Storage Optimization — `FR-LIB-022`):**
+    - Added Thumbnail Cache footprint measurement and 1-tap cache clearance action in `SettingsScreen` (Section 2), resetting memory and disk caches (`cacheDir` and Coil `imageLoader`).
+  - **Tier 4 (Quality Gate & Validation):**
+    - Comprehensive unit tests added to `MediaRepositoryTest`, `PlayerViewModelTest`, and `ApturaSettingsRepositoryTest`.
+    - `tools/gate.ps1` 100% green (Compilation: 7.88s, Unit Tests: 16.46s, Lint: 43.89s, 0 errors, 0 warnings).
 - **Mandatory Quality Gate:** Every commit and review must pass `tools/gate.ps1` (100% tests green, 0 lint errors) and adhere to the visual inspection and contextual IA invariants.
 
 

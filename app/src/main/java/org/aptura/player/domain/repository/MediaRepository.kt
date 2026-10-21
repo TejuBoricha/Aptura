@@ -49,6 +49,21 @@ interface MediaRepository {
      * Computes high-level library statistics for SCR-014 (total videos, duration, and disk footprint).
      */
     suspend fun getLibraryStatistics(): LibraryStatistics
+
+    /**
+     * Emits the saved bookmarks for a media item, ordered chronologically by timestamp (FR-CTRL-011).
+     */
+    fun getBookmarks(mediaUri: String): Flow<List<org.aptura.player.domain.model.Bookmark>>
+
+    /**
+     * Saves a new bookmark at the given timestamp with an optional note (FR-CTRL-011).
+     */
+    suspend fun addBookmark(mediaUri: String, timestampMs: Long, note: String = ""): Long
+
+    /**
+     * Deletes a bookmark by its ID (FR-CTRL-011).
+     */
+    suspend fun deleteBookmark(id: Long)
 }
 
 /**

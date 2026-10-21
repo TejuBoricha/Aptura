@@ -45,6 +45,13 @@ class MediaLibraryViewModelTest {
             videosFlow.value = videosFlow.value.filter { it.uri != uri }
         }
 
+        override fun getBookmarks(mediaUri: String): Flow<List<org.aptura.player.domain.model.Bookmark>> =
+            MutableStateFlow(emptyList())
+
+        override suspend fun addBookmark(mediaUri: String, timestampMs: Long, note: String): Long = 0L
+
+        override suspend fun deleteBookmark(id: Long) {}
+
         override suspend fun getLibraryStatistics(): org.aptura.player.domain.repository.LibraryStatistics {
             val list = videosFlow.value
             return org.aptura.player.domain.repository.LibraryStatistics(

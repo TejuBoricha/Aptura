@@ -57,6 +57,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import org.aptura.player.core.diagnostics.ApturaDiagnostics
 import org.aptura.player.data.settings.ApturaSettings
 import org.aptura.player.domain.repository.LibraryStatistics
@@ -81,10 +87,18 @@ fun SettingsScreen(
     onUpdateAutoAdvanceCountdown: (Int) -> Unit,
     onRescanClick: () -> Unit,
     onReplayOnboardingClick: () -> Unit,
+    onUpdateDecoderStrategy: (Int) -> Unit = {},
+    onClearThumbnailCache: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     var isLicensesDialogOpen by remember { mutableStateOf(false) }
+    var cacheSizeBytes by remember { mutableStateOf(0L) }
+
+    LaunchedEffect(Unit) {
+        cacheSizeBytes = context.cacheDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -244,6 +258,48 @@ fun SettingsScreen(
                                 )
                             )
                         }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Decoder Engine Strategy (FR-PLAY-003, Q13)
+                        Text(
+                            text = "Decoder Engine Strategy",
+                            style = ApturaTypography.titleMedium,
+                            color = ApturaColors.TextHighEmphasis
+                        )
+                        val decoderExplanation = when (settings.defaultDecoderStrategy) {
+                            1 -> "Hardware · Low battery consumption, relies on GPU decoders"
+                            2 -> "Software · CPU decoding fallback for problematic streams"
+                            else -> "Auto · Optimal balance between hardware decoders and compatibility"
+                        }
+                        Text(
+                            text = decoderExplanation,
+                            style = ApturaTypography.bodySmall,
+                            color = ApturaColors.TextMediumEmphasis,
+                            modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf(
+                                0 to "Auto",
+                                1 to "Hardware",
+                                2 to "Software"
+                            ).forEach { (strategy, label) ->
+                                FilterChip(
+                                    selected = settings.defaultDecoderStrategy == strategy,
+                                    onClick = { onUpdateDecoderStrategy(strategy) },
+                                    label = { Text(label, style = ApturaTypography.labelSmall) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = ApturaColors.AccentPrimary,
+                                        selectedLabelColor = ApturaColors.SurfacePureBlack,
+                                        containerColor = ApturaColors.SurfaceElevated2,
+                                        labelColor = ApturaColors.TextHighEmphasis
+                                    )
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -297,6 +353,56 @@ fun SettingsScreen(
                                     text = "Discover newly added, renamed or moved video files",
                                     style = ApturaTypography.bodyMedium,
                                     color = ApturaColors.TextMediumEmphasis
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Thumbnail Cache Management (FR-LIB-022)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(ApturaColors.SurfaceElevated2)
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DeleteSweep,
+                                contentDescription = null,
+                                tint = ApturaColors.AccentPrimary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Thumbnail Cache",
+                                    style = ApturaTypography.titleMedium,
+                                    color = ApturaColors.TextHighEmphasis
+                                )
+                                Text(
+                                    text = "Preview storage: ${MediaFormatters.formatFileSize(cacheSizeBytes)}",
+                                    style = ApturaTypography.bodyMedium.copy(fontFeatureSettings = "tnum"),
+                                    color = ApturaColors.TextMediumEmphasis
+                                )
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = ApturaColors.SurfaceElevated3,
+                                border = BorderStroke(1.dp, ApturaColors.BorderSubtle),
+                                modifier = Modifier.clickable {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onClearThumbnailCache()
+                                    cacheSizeBytes = 0L
+                                }
+                            ) {
+                                Text(
+                                    text = "Clear",
+                                    style = ApturaTypography.labelSmall,
+                                    color = ApturaColors.StatusError,
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
                         }

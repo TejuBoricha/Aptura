@@ -10,8 +10,9 @@ This dossier consolidates every analysis produced for Aptura into one file. Noth
 | B | Consolidated UI/UX Review (v1) | §1–9 · findings F-01…F-12 | Visual/UX defects + doc critique |
 | C | Deep-Dive (skills · subagents · web validation) | §10–17 · findings F-13…F-19, gesture parity, insets/adaptive/perf audits | Code-verified defect layer |
 | D | Competitive Feature Gap Analysis & Roadmap ("Honest Player") | §1–12 + Appendices A–C · gaps G-01…G-29, sources [1]–[106] | Product/feature layer + roadmap |
+| E | Engineering & Quality Audit (build · security · perf · quality · tests · compliance/ASO) | E.1–E.12 · findings B/S/P/Q/T/C-registers · app. E.A | Engineering layer (Oct 21, later snapshot) |
 
-**Reading conventions:** findings `F-nn` are defined in Parts B–C; section numbers are per-part; `file:line` anchors reflect repo state post-`ee726cc`; `[n]` citations resolve to Part D Appendix A; recommendations crossing an R1 non-goal carry `⚠ Requires ADR`; Part D's Now/Next tiers are the authoritative sequencing for Part C's §17 action plan.
+**Reading conventions:** findings `F-nn` are defined in Parts B–C; section numbers are per-part; `file:line` anchors reflect their respective snapshot dates (Parts A–D: post-`ee726cc`; Part E: the Oct 21 later snapshot — see §E.A reconciliation where claims drifted); `[n]` citations resolve to Part D Appendix A; recommendations crossing an R1 non-goal carry `⚠ Requires ADR`; Part D's Now/Next tiers are the authoritative sequencing for Part C's §17 action plan; Part E's finding IDs are domain-prefixed (B·build, S·security, P·performance, Q·quality, T·testing, C·compliance/ASO).
 
 **External artifacts (referenced, unchanged):** research notes `research_notes/Aptura media player competitive roadmap/` (4 files, incl. `code_gap_brief.md`); spec package `spec/`; capture set `review/captures/`.
 
@@ -1268,3 +1269,206 @@ Decision-ready; each names the decision and its default if left unanswered:
 **Closing note.** Two takeaways sharpen the plan. First, Aptura's biggest sin this cycle is not missing features but *lying states* — every P0 fix converts an existing component into an honest one, which is why the cheapest week of work is also the most valuable. Second, the category is sorting itself into bloat and honesty camps precisely as Aptura's owners chose their boundary; the research shows the honest camp wins only when it is *finished* — Just Player and VLC both lose users on unfinished UX, not missing ideals. Ship the promises the spec already made, then spend the same discipline on the four pillars of the honest player, and the roadmap above is little more than the app's own documents, finally sequenced.
 
 
+
+---
+# Part E — Engineering & Quality Audit (build · security · performance · quality · tests · compliance)
+
+**Snapshot:** 2026-10-21, ~1 day after Parts A–D. **Critical caveat:** the codebase was *actively changing during this audit* — `PlayerScreen.kt` was observed growing 2,250 → 2,444 lines mid-audit, and four new feature files appeared (`SettingsScreen`, `OnboardingScreen`, `MediaDetailsSheet`, `AudioEnhancementController`). A large slice of Part D's Now-tier is now implemented. Line anchors in `PlayerScreen.kt`/`PlayerViewModel.kt` carry ±drift; everything else was stable. See §E.A for the reconciliation list.
+
+**Method:** 4 specialized code-audit agents (build/release; security & privacy; code quality & tests; performance & resources) + 1 platform-policy researcher (Play requirements, Android 16/17, version currency) + two applied skills: `testing-setup` (testing-strategy methodology) and `jetpack-compose-performance` (7-category recomposition audit methodology).
+
+## E.1 Verdict dashboard
+
+| Domain | Grade | Headline | P0/P1 count |
+|---|---|---|---|
+| **Build & release engineering** | **D** | A Play release literally cannot be produced today: unsigned artifact, R8 disabled, keep-rules file referenced but missing, targetSdk below Play gate | 3 blockers + 3 |
+| **Security & privacy** | **B→A− after 3 fixes** | The zero-network claim is *real and strong*; but watch history silently syncs to Google cloud backup, and the "verifiable" gates test source files, not the shipped artifact | 2 High + 4 Med |
+| **Performance** | **C** | Whole-body recomposition of a 2.4k-line screen, frozen progress bar, main-thread library transforms, thumbnail decode storms | 7 High |
+| **Code quality** | **C+** | Strong layered skeleton with test-enforced domain purity; rot concentrated in two god-files, 22 silent catches, ~250 hardcoded strings | 2 High + 5 Med |
+| **Testing** | **B−** | 66+ real tests incl. Robolectric Compose and a genuinely good invariant suite — but 4 tautology suites and 0% coverage on the most critical classes (scanner, worker, service) | 3 P1 |
+| **Compliance & store readiness ("SEO"/ASO)** | **C** | 10 hard gates for Play publishing; 2 have already passed their deadline; permission policy needs a decision | 4 blockers |
+| **Energy / battery & Play vitals** | **B+** | No periodic scans, no alarms, no wake locks (good) — but full-REPLACE scan storms, idling service, and keeper-screen flags missing | 3 |
+| **Accessibility & i18n** | **C−** | Content descriptions partially present; ~250 hardcoded English strings make localization impossible without a rewrite; zero `testTag`s | 2 P1 |
+
+**Overall:** the skeleton is genuinely good and unusually honest for an early-stage app (layer purity enforced *by test*, zero telemetry debt, no TODO sprawl). The rot is concentrated and fixable in roughly **two sprints**. Ship-readiness is blocked by a **one-week release-engineering package**, not by product work.
+
+---
+
+## E.2 Ship blockers (release engineering)
+
+| ID | Sev | Finding | Evidence | Fix | Effort |
+|---|---|---|---|---|---|
+| B-01 | **Critical** | No `signingConfig`, no keystore anywhere in repo — `assembleRelease` produces an unsigned AAB/APK that Play cannot accept | `app\build.gradle.kts:10–26`; repo scan: no `.jks` | Create upload keystore (Play App Signing: Google holds the app key); wire `signingConfig` via `local.properties`/CI secrets | S |
+| B-02 | **High** | `isMinifyEnabled = false` — R8 never runs. Measured: debug APK **25.4 MB**, uncompressed dex **71.8 MB** (`classes.dex` 41.8 MB — `material-icons-extended` ships ~7k icon classes for 20 usages). Realistic post-R8 release: **~7–10 MB** | `app\build.gradle.kts:22–24`; build-output measurement | Enable minify + `shrinkResources`; audit icon imports | S |
+| B-03 | **High** | `proguard-rules.pro` is **referenced but does not exist** — flipping minify on (B-02's fix) fails immediately; zero keep rules exist for Media3/Room/kotlinx-serialization | `app\build.gradle.kts:24`; glob `**/proguard*` → 0 | Create the file with Media3 `*.keep` / Room / serialization keeps, then enable minify in the same change | S |
+| B-04 | **High** | **targetSdk 35 vs Play's API-36 requirement — the deadline (Aug 31, 2026) has already passed.** compileSdk is already 36, so the bump is cheap, but behavior must be retested (see §E.9 Android 16 impacts) | `app\build.gradle.kts:15,16` | Bump `targetSdk = 36`; run the invariant + E2E gate; verify predictive-back/FGS | S–M |
+| B-05 | **Medium** | No CI of any kind (` .github/workflows` empty). Quality gates are two Windows-only PowerShell scripts (`tools\gate.ps1`, `tools\run_e2e.ps1` — `gradlew.bat`, `%LOCALAPPDATA%` adb). The privacy invariants only run if a human remembers | repo scan | Add GitHub Actions (or local runner) workflow: `assembleRelease` + unit tests + lint + merged-manifest assertion (see S-02) | S |
+| B-06 | **Medium** | `android:windowSoftInputMode` sits on `<application>` — invalid placement, silently ignored (MainActivity never gets it) | `AndroidManifest.xml:24` | Move to `<activity>` | XS |
+| B-07 | **Low** | `androidx-media3-extractor` explicitly declared but unused in code (api-transitive of exoplayer) | `app\build.gradle.kts:115` | Drop or comment | XS |
+| B-08 | **Low** | `unitTests.isReturnDefaultValues=true` (masks unmocked Android calls); Gradle heap 2 GB (tight for R8+KSP); `org.gradle.parallel` commented out | `app\build.gradle.kts:39`; `gradle.properties:9,19` | Comment + raise to 4 GB when R8 lands | XS |
+| B-09 | **Low (watch)** | Compose BOM 2026.03.01 is fine on compileSdk 36 today, but Compose **1.12 requires compileSdk 37 / AGP 9.1.1+** — next BOM bump drags an upgrade | `libs.versions.toml:6` | Plan BOM+compileSdk+AGP upgrades together | M |
+| ✅ | — | Verified-good: AGP 9.0.1 + Gradle 9.1.0 (exact min pair), JDK 17 toolchain, KSP 2.3.12, K2 Kotlin, **zero TODO/FIXME debt across 59 files**, no debug `Log.*`/StrictMode leftovers, no bundled `.so` bloat, FFmpeg dir contains scripts only, repo allowlist supply-chain hygiene, adaptive icon with `monochrome` layer | `settings.gradle.kts:3–25`; `PlatformInvariantsTest.kt:54–55` | — | — |
+
+---
+
+## E.3 Security & privacy posture
+
+**Genuinely strong core (fair-audit credits):** zero `INTERNET` is enforced *by the platform* — network URIs fail closed via the permission gate; zero WebViews / providers / receivers / dynamic code loading / crypto / device identifiers; **zero `Log.*` calls anywhere** (and `buildConfig=false` removes future sloppy logging raw material); Room stores **content URIs + bucket display names, never filesystem paths** (this design choice makes most path-leak classes structurally impossible); all DAO queries parameterized; metadata is MASVS-L1-compliant without SQLCipher (watch history of a local-only player is not "sensitive data" under MASVS-STORAGE-1 — encryption is optional hardening, not a gap).
+
+| ID | Sev | Finding | Evidence | Fix | Effort |
+|---|---|---|---|---|---|
+| S-01 | **High** | **The privacy claim's biggest own-goal:** `allowBackup="true"` with **no wired rules** — the two rule XMLs are untouched template stubs and are not referenced by the manifest. Consequence: the full library inventory + watch history (Room `aptura_media.db`) + settings sync to **Google cloud backup / device-to-device transfer** — while the new Settings screen advertises "100% Offline & Private · Zero INTERNET · 0 telemetry" (`SettingsScreen.kt:338–346`) | `AndroidManifest.xml:19`; `res/xml/backup_rules.xml:8–12`, `data_extraction_rules.xml:6–12` (stub TODOs); `MediaItemEntity.kt:22–41` | Set `allowBackup="false"` (cleanest for this product) — or wire real rules excluding `databases/` + `files/datastore/`; add an invariant test for the attribute | XS |
+| S-02 | **High** | **The "verifiable" gate has a verification hole:** all invariant checks regex-scan the **source** `AndroidManifest.xml` and `build.gradle.kts` — never the **merged** manifest or resolved dependency graph. A future dependency whose AAR carries `INTERNET` (or a telemetry SDK in a transitive POM) merges silently and every gate stays green. And with no CI (B-05), nothing runs these tests automatically anyway | `PlatformInvariantsTest.kt:27–93`; no CI | Assert on `intermediates/merged_manifest*/…` post-build (or `apkanalyzer manifest` in CI); ban network-capable dependency coordinates on `releaseRuntimeClasspath`; enable `gradle dependencyVerifyMaven` + lockfiles | M |
+| S-03 | **Medium** | `READ_MEDIA_AUDIO` is declared + runtime-requested but **never checked** (`hasStoragePermission` checks video only) and **never used** in any query (scanner reads `MediaStore.Video` only). Over-broad permission vs the stated posture of a video-only player — and an internally inconsistent grant flow | `AndroidManifest.xml:6`; `PermissionHelper.kt:18–19` vs `:28–31`; `MediaStoreScanner.kt:46–50` | Delete the permission + request entry; extend the permission invariant to cover the request list | XS |
+| S-04 | **Medium** | `MainActivity` reads `intent?.data` **unconditionally** (no `action` check, `BROWSABLE` filter, schemes `content|file`) — any crafted `ACTION_SEND`/extras/web handoff URI flows unvalidated into Media3 parsing. Parser CVEs are the historic Media3 risk class, and the installed **1.5.1 is ~6 minor versions behind current** (see E.10) | `MainActivity.kt:26–44`; `Navigation.kt:112–118`; `Media3PlaybackController.kt:134–143` | Validate `action == ACTION_VIEW` + scheme whitelist; upgrade Media3; consider dropping `BROWSABLE` | S + M |
+| S-05 | **Medium** | `RedactionEngine` misses `content://` URIs entirely (leaks enumerable MediaStore IDs) and relative paths; `includeFileName=true` can retain the sensitive datum itself ("kids_birthday.mp4"); its *own verifier test* embeds a `content://` URI without asserting anything about it | `RedactionEngine.kt:12–15,40–44`; `DiagnosticRedactionTest.kt:119` vs `:152–154` | Add content-URI redaction `[URI_REDACTED]:<id>`; close the test gap; gate filename retention | S |
+| S-06 | **Medium** | The diagnostics pipeline is dead: `ApturaDiagnostics.logEvent` has **zero production call sites**, so the Settings-screen "Export Redacted Diagnostics" always exports an **empty** error history — an honest-privacy outcome delivered by starvation, not by working machinery. And `settingsSnapshot` is exported verbatim with no redaction pass (safe today; one future path-valued setting = leak) | `ApturaDiagnostics.kt:15–23` (0 callers); `SettingsScreen.kt:360`; `DiagnosticBundleExporter.kt:56–57` | Wire diagnostics producers into scanner/playback catch-blocks (this also feeds Q-02); add redaction pass over settings export | S–M |
+| S-07 | **Medium** | Supply chain: repository allowlist is genuinely good, but no `dependencyVerification` (checksum/signature) and no lockfiles | `settings.gradle.kts:1–26` | Enable checksums with a baseline trust file | S |
+| S-08 | **Low** | Share intents via `EXTRA_STREAM` without grant flags/ClipData (receiving apps may be denied read); IP regex over-redacts version tokens; diagnostics export hardcodes `"debug"/"aptura-part63"` build metadata as fact | `MediaLibraryScreen.kt:469–473`; `RedactionEngine.kt:21–23`; `ApturaDiagnostics.kt:39` | Add ClipData + `FLAG_GRANT_READ_URI_PERMISSION`; derive metadata from `PackageInfo` | XS |
+| S-09 | **Low** | `LgplBuildVerificationTest` is **tautological** — asserts invariants about a hardcoded constant list, not about any real FFmpeg artifact (none exists). If the extension ships, this gate confers false confidence | `LgplBuildVerificationTest.kt:13–58` | Re-point at an actual build artifact when the module lands, or mark spec-conformance-only | XS |
+
+---
+
+## E.4 Performance audit (startup · recomposition · decoding · media3 · scan · memory)
+
+**Credits first:** rotation-safe by `configChanges` (no surface rebuild/decoder rebind), **one single shared ExoPlayer** (the "two disconnected players" from Part D is fixed — the service now attaches to the same singleton), `collectAsStateWithLifecycle` everywhere, stable grid keys + contentType verified in place (F-16 ✅), correct layered `pointerInput` gesture modifiers, one haptic per gesture (no per-frame haptics), no `GlobalScope`, no wakelock leaks.
+
+| ID | Impact | Effort | Finding | Evidence |
+|---|---|---|---|---|
+| P-01 | High | S | **No splash API + light container flash:** dark-first app boots on `android:Theme.Material.Light.NoActionBar` with no `core-splashscreen`, no dark `windowBackground` → white flash before Compose paints. Visually contradicts the entire dark-first brand | `MainActivity.kt:23–40`; `themes.xml:3`; no `installSplashScreen` anywhere |
+| P-02 | High | S | **ExoPlayer is built synchronously on the main thread during first composition** (`remember { PlayerManager.getOrCreate(context) }`), and the service is force-started at construction (`startService` — deprecated pattern for MediaSessionService) → direct first-frame cost + process-wide service churn at app entry | `Navigation.kt:55`; `PlayerManager.kt:28–47` |
+| P-03 | High | M | **Whole-library list transform runs on `Dispatchers.Main.immediate` on every emission** — filter + `contains` search + sort + per-item `String.format`×2 + regex `cleanTitle` for 10k items re-runs on main per keystroke/refresh/Room invalidation (only the Room query itself is on IO) | `MediaLibraryViewModel.kt:59–105`; `MediaRepositoryImpl.kt:23–27` |
+| P-04 | High | S | **No search debounce** — every keystroke re-runs P-03's O(n·m) main-thread pass; the indexed DAO `searchVideos` exists but is unused; query text round-trips VM→flow→back, adding IME latency | `VM:117–119`; `MediaItemDao.kt:40–41` |
+| P-05 | High | M | **The 2.4k-line `PlayerScreen` body re-executes on every state change** — one `PlayerUiState` (40+ fields) read flat across the root; zero `derivedStateOf`/`snapshotFlow`/`rememberUpdatedState` occurrences project-wide; `AndroidView.update` re-parses the subtitle hex color + rebuilds `CaptionStyleCompat` per pass; 2×-speed/toast root-read `var` states re-run everything | `PlayerScreen.kt:143–1121`; `PlayerUiState.kt:42–88`; grep-derived |
+| P-06 | High | S | **Progress bar is frozen during playback** — no position ticker anywhere (listener fires on state changes only) and `bufferedPositionMs` is never written (its render branch is permanently dead). Functionally visible, not just perf | `Media3PlaybackController.kt:53–79`; `PlayerUiState.kt:47,97–100` |
+| P-07 | High | M | **Double auto-advance race** — the controller auto-advances on `STATE_ENDED` *and* the ViewModel runs its own 10s ended-countdown that also calls `skipToNext` → duplicate item loads, double persistence, decoder churn on every queue end | `Media3PlaybackController.kt:56–58,388–408`; `PlayerViewModel.kt:136–156,272–299` |
+| P-08 | High | S | **Thumbnail pipeline untuned** — no explicit request size, no placeholder/error, per-cell 100ms crossfade on *every recycle*, default memory cache (~25% heap), no RGB_565, and on minSdk-26 devices **full-res `getFrameAtTime`** (≈33 MB ARGB frames just to fill a 160dp cell) | `MediaLibraryScreen.kt:521–533`; `ApturaApplication.kt:15–22` |
+| P-09 | High | M | **10k fling = MediaMetadataRetriever storm** — each cache miss spawns a retriever (10s–100s of ms), dozens concurrent, no throttle; frames re-decode forever after process death | `Screen:524` + Coil-video defaults |
+| P-10 | High | S | **Brightness drag recomposes the entire 2.4k-line body per pointer event** (state round-trip through the ViewModel for every move); scrub move same shape; the drag overlays' `AnimatedVisibility` restarts per step → "twitchy" under jank | `PlayerScreen.kt:354,910–918,489–590` |
+| P-11 | Med | S | Gesture detectors are keyed on `isPlaying`/`isLocked` → both half-screen handlers tear down and rebuild on every play/pause toggle | `PlayerScreen.kt:307,368` |
+| P-12 | Med | M | Default `LoadControl` buffers ~50 s / up to ~128 MB even for *local files* — trim to 5–10 s for faster seeks and lower RAM | no LoadControl config; `PlayerManager.kt:28–37` |
+| P-13 | High | M | **Manual refresh = full MediaStore pull + unconditional REPLACE of every row + prune** — ~10k row-writes per refresh even when nothing changed → Room invalidation storm → P-03's main-thread transform re-runs (compounding). KDoc falsely claims "differential/incremental" | `MediaScanWorker.kt:26–83`; `MediaStoreScanner.kt:43–115` |
+| P-14 | Med | S | **Data-loss edge:** `MediaScanWorker` calls `clearAll()` whenever the scanner returns empty — a transient MediaStore outage wipes the library (keeping only positions is common here; an empty result should not be trusted) | `MediaScanWorker.kt:75–77` |
+| P-15 | Med | S | Periodic scan (battery-constrained 6h) is dead code with zero call sites — the app never auto-refreshes; one-time work has no backoff/constraints and REPLACE-cancels in-flight work | `MediaScanScheduler.kt:36–51` (0 refs) |
+| P-16 | Med | S | **No `FLAG_KEEP_SCREEN_ON` during playback** — the screen can dim/lock mid-video; spec 10 §92 explicitly planned this; one-line fix in the existing system-bar `DisposableEffect` | grep: absent; spec/10:92 |
+| P-17 | Med | S | Per-call `Regex("\\.(mp4|mkv|…)")` compile + double `String.format` in the hot list path (compounds P-03/P-04) | `MediaLibraryUiState.kt:52–83,91–95` |
+| P-18 | Low | S | Idling started-state service (only stops on `onTaskRemoved`); dead `backgroundAudioEnabled` setting read by nothing; gap | `PlayerManager.kt:42–47`; `Service:44–50`; `ApturaSettingsRepository.kt:26` |
+
+**Top-leverage sequence:** P-16+P-06+P-07+P-14 (correctness, all ≤1 day total) → P-01+P-02 (first frame) → P-04+P-03 (scroll jank) → P-08+P-09 (thumbnails) → P-13 (refresh cost) → P-05/P-10 (the big recomposition refactor, see E.6 skill notes).
+
+---
+
+## E.5 Code quality & maintainability
+
+**Scorecard (per quality agent):** Architecture **C+** · Smells **C−** · Error handling **C−** · Tests **B−** · Testability **B** · Docs **B** → overall **C+**, with the caveat that the audit ran *during* an active build-out.
+
+| ID | Sev | Finding | Evidence | Fix | Effort |
+|---|---|---|---|---|---|
+| Q-01 | High | **Two god-files:** `PlayerScreen.kt` ≈2.4k+ lines — one composable, **52 callback parameters**, 7 inline `ModalBottomSheet`s, gestures + scrubber + error banner + PiP inline; `PlayerViewModel.kt` 694 LOC, 40+ public handlers, 6 nullable `Job` fields (multiple sheet-visibility booleans live in the same 40+-field state object) | `PlayerScreen.kt:144–197,...`; `PlayerViewModel.kt:53–58` | Extract each sheet + gesture/scrubber into own composables; retain VM params | M |
+| Q-02 | High | **No `CoroutineExceptionHandler` anywhere** — an uncaught Room exception in any `viewModelScope.launch` **crashes the app** (a Play-vitals liability, see E.8). Meanwhile scan failures are swallowed to invisible `Result.failure()` (no UI trace), and `takePersistableUriPermission` vanish is silent | grep 0 hits; `MediaScanWorker.kt:80–82`; `Navigation.kt:101` | One app-level handler → diagnostics event (S-06); surface Worker failures to library UI | S |
+| Q-03 | Med | **~250 hardcoded English strings vs exactly 1 `strings.xml` entry** (`app_name`) — localization is impossible without a rewrite; tests literally assert English text (rename breaks E2E) | counted across `ui/`; `strings.xml:2` | Incremental sweep: per-screen, move to resources as screens are touched | L (incremental) |
+| Q-04 | Med | **Dead-code islands ≥14:** 5 persisted-but-never-consumed settings (`defaultResizeMode`, `seekDeltaSeconds` *(part consumed)*, `backgroundAudioEnabled`, `autoAdvanceCountdownSeconds` — the VM hardcodes `10 downTo 1` and ignores the preference), `bufferedPositionMs` render branch, `PlaybackStateJournal`+`KillPointSimulator` (289 LOC unwired — the process-death restore they were built for doesn't exist end-to-end), DAO `searchVideos`/`getAllVideosSortedByTitle`/`getVideoByMediaStoreId`/`deleteRemovedVideos` (one of which is *tested* — a test guarding dead code), stale sheet-visibility flags, `DomainPlaybackState.Error.suggestedAction` never assigned, unused theme tokens (`AccentSecondary`, `SurfaceGlass`, `StatusSuccess`, `StatusInfo`) | listed per file | Drive settings through the VM or delete; delete or wire the journal; drop dead DAO methods + their tests | S–M |
+| Q-05 | Med | **27 catch sites, 22 silent** — `AudioEnhancementController` swallows 13 (`catch (_: Throwable)`) with zero diagnostics emission (graceful HW degrade is intended, but nothing records *that it fell back*, which would be the famous "honesty" differentiator); duplicated logic: gesture halves copy-pasted (`:308–335` vs `:369–396`), preset chips ×3, resume pre-roll ×2 | `AudioEnhancementController.kt` (13 sites) | Emit `AudioEffectFallback` diagnostics events; factor shared gesture block | S |
+| Q-06 | Med | **Manual DI inside a Composable** (`Navigation.kt:46–66` constructs repository/db/manager/effects in `remember{}`, recreated per config change with stale-instance risk); no DI framework; `PlayerManager` is an `object` singleton (unsubstitutable); `AudioEnhancementController` concrete class wired into the VM; controller builds its own lifecycle-unowned `CoroutineScope(SupervisorJob())` | `Navigation.kt:46–66`; `PlayerViewModel.kt:20,35`; `Media3PlaybackController.kt:37–38` | Introduce an app-scoped `Graph` (or Hilt later); inject the controller as an interface | M |
+| Q-07 | Med | **~80 magic-number sites** (`400L` press, `2000f` brightness divisor, `30f` volume threshold, `150L/250L/-100L` delay presets each appearing twice, `0.4184f..2.39f` ratio ladder, `42L` frame-step, `>3000L/−2000L` resume rule duplicated again, `1024L` duplicated in SQL *and* post-filter, `250/500` chunk limits) + alpha-surgery `copy(alpha=…)` ×15 + no Dimens file | listed per file | Name the playback constants once (`PlaybackDefaults` object); token radii/paddings | S |
+| Q-08 | Low | 2 `@Suppress` (one cargo-cult on a non-deprecated API); public `clearForTesting()` without `@VisibleForTesting`; `MediaScanWorker` KDoc **claims differential/incremental scanning but performs full pull + full rewrite** (doc integrity); `KillPointSimulator` KDoc claims "adjudication" while 8 of 12 kill points hardcode `survives = true` | `MediaLibraryScreen.kt:234`; `PlayerViewModel.kt:763–765`; `MediaScanWorker.kt`; `KillPointSimulator.kt:30–131` | Fix docs; annotate; reconcile doc↔behavior | XS |
+| ✅ | — | Zero `!!` asserts across 42 production files; genuine 4-layer split with **domain purity enforced by an architecture test** (`ArchitectureDecouplingTest.kt:16–47`); top-level KDoc ~85–90% with spec anchors; ViewModels are constructor-injectable with injectable dispatchers (both are pure-JVM testable); consistent `Aptura*` naming | — | — | — |
+
+---
+
+## E.6 Testing audit & strategy (via `testing-setup` skill)
+
+**Inventory reality:** 16 test files ≈ **2,890 LOC**, 66+ assertion-bearing tests. Strong: `PlayerViewModel` (18 tests, hand fakes + `StandardTestDispatcher`), `Media3PlaybackController` (9, incl. a hand-rolled reflective `Proxy` Player mock and an error→IDLE clobber guard), Robolectric Compose UI tests on **both** screens, DataStore defaults, `MediaRepository` fake-DAO tests — plus the genuinely valuable `PlatformInvariantsTest`. Frameworks present: JUnit4, coroutines-test, **Turbine**, Robolectric 4.14, Compose ui-test (both source sets), Espresso/UIAutomator on device. No MockK (fine — fakes preferred per skill), **no coverage tooling, no Room in-memory tests, no screenshot tests**.
+
+| ID | Sev | Finding | Fix (per skill) |
+|---|---|---|---|
+| T-01 | High | **Four tautology suites** grade themselves: `MediaScanLogicTest` re-implements the merge in the test; `AbiSplitStrategyTest` tests local constants; `LgplBuildVerificationTest` tests a hardcoded list; the RQ-10 "spike adjudication" test fabricates the payload it grades (self-fulfilling). `KillPointSimulator` hardcodes `survives = true` for 8/12 kill points, so `PlaybackStateRestorationTest` validates a simulation of literals | Re-point each at a real artifact or delete; kill-point engine must consult real state |
+| T-02 | High | **Zero coverage on the most critical classes:** `MediaStoreScanner` (the entire ingest path), `MediaScanWorker`, `PlayerManager`, `AudioEnhancementController` (230 LOC of audio math), `ApturaPlaybackService`, real Room DAO SQL, `PermissionHelper`, `Navigation`/`MainActivity` wiring. Estimated critical-logic coverage: scan ~10%, diagnostics pipeline 0%, restore-path real ~0% | Room in-memory DAO tests (skill step 7); Robolectric scanner/worker suites; service session tests |
+| T-03 | High | **Zero `testTag`s and no semantics states** — device + JVM UI tests are hostage to English strings and content descriptions (Q-03); a string rename breaks E2E. `unitTests.isReturnDefaultValues=true` additionally masks unmocked calls | Add `testTag`s per player control; publish playing/locked states via `semantics {}; ` turn off returnDefaultValues and fix fallout |
+| T-04 | P1 | No end-to-end journey coverage beyond a 3-test launch/rotation smoke; no navigation tests; no font-scale/window-size variation tests | Tooling exists (UIAutomator dep installed) — drive one player journey (cue → play → seek → background → resume) |
+
+**Recommended pyramid (target state):** ~55% unit (ViewModels/usecases/rules — present, keep) · ~25% Robolectric compose UI (present, extend) · ~10% Room in-memory DAO (add) · screenshot tests per skill step 8 (compose preview screenshot tool; 9 sizes: widths 400/610/900dp × heights 400/500/1000dp, plus font-scale 1.5 and RTL) · ~5% instrumented E2E/UI Automator (extend existing) · **JaCoCo** coverage gate on critical classes (install) → then the tautologies get replaced by artifact-pointed checks as the suite grows.
+
+---
+
+## E.7 Accessibility & internationalization
+
+- **Content structure exists but is text-bonded:** ~25 `contentDescription`s on player controls (good instinct), but UI tests and (future) UI automation bind to **English literals**; `isPlaying`/isLocked/scrubbing are not published to `semantics` — TalkBack cannot announce playback state.
+- The Part D a11y verdict stands: the bar in this category is *latifully low* (MX Pro ships unlabeled buttons) — matching it is free; beating it deliberately needs: semantics states on transport + scrubber, `testTag`s (T-03), and 200% font-scale screenshot tests (E.6 pyramid).
+- **i18n is structurally absent:** 1 strings.xml entry vs ~250 literals (Q-03). RTL: untested; large-font: untested; date/size formatting uses default locale formats (fine) but titles/durations composed inline.
+- **Recommendation:** do **not** attempt a one-shot localization PR; instead: (1) sweep strings screen-by-screen as each is touched (Q-03), (2) add the font-scale + RTL screenshot matrix when the screenshot tooling lands, (3) gate the summit: "no new hardcoded `Text("…")` literals" via detekt rule (B-09/J prep).
+
+---
+
+## E.8 Energy, stability & Play-vitals readiness
+
+- **Energy is mostly healthy:** scans are explicit user actions only (periodic scheduling dead — actually good for battery, P-15 says wire it *deliberately* if wanted); no alarms; no wake locks; the media-notification FGS runs only with playback. Two drains: the full-REPLACE refresh storm (P-13) and the idling started service (P-18).
+- **Stability vs vitals thresholds** (user-perceived crash 1.09% / ANR 0.47% DAU — visibility-relevant): current known crash paths: uncaught coroutine exceptions (Q-02), untrusted-URI parse edge (S-04), N-writes-per-refresh jank (P-13). The vitals bar at launch is winnable precisely because zero telemetry means **pre-launch report + vitals** become the only incident telemetry — which reinforces wiring the on-device diagnostics pipeline (S-06) before launch, not after.
+- **Pre-launch report** runs free on every closed-track upload (Robo crawler; stability/compat/perf/a11y/security sections with stack traces) — use the first closed-test upload as the free CI-by-Google pass.
+
+---
+
+## E.9 Compliance & store readiness (the "SEO/ASO" layer)
+
+**The 10 hard gates for getting a listed app (researched, URL-cited in E.D sources):**
+
+| # | Gate | Status | Action |
+|---|---|---|---|
+| 1 | **targetSdk 36** (required from Aug 31, 2026 — deadline passed) | ❌ at 35 | B-04 — bump + retest |
+| 2 | **Privacy policy URL** (required even for zero-collection apps) | ❌ none | Publish on GitHub (standard OSS pattern) |
+| 3 | **Data Safety form** — zero-collection route is valid (on-device-only ≠ collection) but must be submitted | ❌ | Submit "no data collected/shared" |
+| 4 | **Content rating (IARC)** — unrated apps can't ship | ❌ | Answer questionnaire (non-UGC player ⇒ "Everyone") |
+| 5 | **Closed testing: 12 testers × 14 consecutive days** (personal accounts; was 20, reduced Dec 2024) + production-access approval | ❌ | Schedule the cohort now — it's calendar-gated |
+| 6 | **`READ_MEDIA_VIDEO` = restricted permission (Jan 22, 2025 policy)** — core-use declaration approval required; photo/embedded picker is the compliant fallback | ⚠ | File declaration (persistent library access *is* the core use) or migrate to picker/SAF-first |
+| 7 | **FGS `mediaPlayback` declaration** in Play Console (use case + demo video) | ❌ | Console paperwork |
+| 8 | **AAB + Play App Signing enrollment** | ❌ (no signing at all — B-01) | B-01 then enroll |
+| 9 | **Listing assets:** title ≤30ch, short desc ≤80ch, feature graphic 1024×500, ≥2 screenshots, 512×512 icon | ❌ | Produce from existing capture set + dark brand |
+| ✅ | `MANAGE_EXTERNAL_STORAGE` — correctly absent (video players are **not** a permitted use case; requesting it would likely fail review) | ✅ | Keep the invariant |
+| ✅ | 16 KB page-size compliance | n/a | No native libs |
+
+**Android 16 (target 36) behavior impacts to plan for:** the orientation/aspect-ratio lock is **ignored on ≥600dp-smallest-width screens** (tablets, foldables' inner screens, desktop windowing) — the player's landscape lock must become window-responsive, or reference the temporary compat property `PROPERTY_COMPAT_ALLOW_RESTRICTED_RESIZABILITY`; **edge-to-edge opt-out is disabled** (already compatible per Part C §13 ✅); **predictive back signals are mandatory** (no `onBackPressed` dispatch). Android 17 (target 37, required ~mid-2027) removes the compat property — plan adaptive orientation now.
+
+---
+
+## E.10 Dependency currency matrix (vs latest stable, Oct 21 2026)
+
+| Component | Current | Latest stable | Delta verdict |
+|---|---|---|---|
+| AGP | 9.0.1 | 9.4.0 (Sep 2026) | Behind; OK for now, catch up when Compose BOM forces compileSdk 37 (B-09) |
+| Gradle | 9.1.0 | 9.8.2 | Routine bump |
+| Kotlin | 2.3.20 (K2) | 2.4.21 | One minor behind; low |
+| Compose BOM | 2026.03.01 | 2026.09.00 (+1.12.x stable) | ⚠ next bump requires compileSdk 37 + AGP ≥9.1.1 — bundle as one train |
+| **Media3** | **1.5.1** | **1.11.0 (Aug 2026)** | **~6 minor versions behind — the app's parser attack surface + compose widgets improvements; highest-value bump** |
+| Room | 2.7.2 | 2.8.5 (3.0 in alpha) | Current 2.x; Room 3.0 migration later |
+| Coil | 2.7.0 | 3.6.3 | ⚠ 2.x is the legacy line (also parses untrusted media); plan Coil 3 migration |
+| WorkManager | 2.10.0 | 2.11.2 | Routine |
+| Navigation 3 | 1.0.1 | 1.2.0 (stable since Nov 2025) | Routine |
+| Coroutines | 1.10.2 | 1.10.2 | ✅ current |
+| DataStore | 1.1.2 | 1.2.1 | Routine |
+| Robolectric | 4.14.1 | 4.17 (supports API 37) | Bump alongside target 36 testing |
+| Turbine | 1.2.0 | 1.2.1 | Trivial |
+
+---
+
+## E.11 Legal, licensing & documentation integrity
+
+- **FFmpeg/LGPL:** no binaries exist (scripts only) — nothing shipped today requires attribution mechanics. The LGPL gate test is tautological (S-09) and the audio-extension AAC contradiction flagged in Part D §11 remains unresolved-by-design until the extension is built.
+- **Documentation honesty (the "spec-shaped concrete" problem):** `MediaScanWorker` KDoc claims differential scanning (it doesn't), `KillPointSimulator` claims adjudication (8/12 hardcoded `true`), diagnostics claims redaction guarantees that an always-empty buffer can't exercise. For a product whose brand platform is "honest," **doc-vs-behavior drift is a brand-consistency bug**, not just hygiene. Reconcile in the same PR as each behavior change.
+- **Settings-screen claim vs manifest reality:** the "100% Offline & Private" statement is *true* for the network surface and *false* for the backup surface (S-01) — fix the manifest, then the copy is fully honest.
+
+---
+
+## E.12 Consolidated remediation backlog & two-week plan
+
+| Tier | Items |
+|---|---|
+| **Week 1 — Unblock & stop the bleeding** | Release package: keystore + signingConfig (B-01), proguard file + minify/shrink on (B-02/B-03), icons audit. Privacy: `allowBackup=false` + invariant (S-01). Drop `READ_MEDIA_AUDIO` (S-03). Correctness fixes: position ticker + wire `bufferedPositionMs` (P-06), single-owner auto-advance (P-07), `FLAG_KEEP_SCREEN_ON` (P-16), scan-wipe guard (P-14), splash + dark window bg (P-01), app-level `CoroutineExceptionHandler` + Worker failure surfacing (Q-02). |
+| **Week 2 — Verification + hot paths** | CI workflow incl. merged-manifest privacy assertion + `dependencyVerifyMaven` (S-02/B-05); Room in-memory DAO tests + scanner/worker Robolectric suites (T-02); first player journey E2E w/ testTags (T-03/T-04); search debounce + `flowOn(Default)` transform (P-04/P-03); lazy ExoPlayer construction (P-02); thumbnail sizing/crossfade/565 (P-08); targetSdk 36 bump + Android-16 orientation plan (B-04/C-gates). |
+| **Train after** | PlayerScreen decomposition + draw-phase deferrals (Q-01/P-05/P-10, per compose-perf skill categories); scan delta logic (P-13); strings sweep start (Q-03); Media3 1.11 + Coil 3 trains (E.10); diagnostics producers wired (S-06); dead-code purge (Q-04); screenshot-test pyramid + JaCoCo (E.6). |
+| **Discipline backlog** | detekt/ktlint; `PlaybackDefaults` constants; doc-vs-behavior reconciliation; `@VisibleForTesting`; per-feature icon imports; gradle heap/parallel flags; testOptions screenshot suites if AGP ≥9.5 lands. |
+
+## E.A Reconciliation — what changed since Parts A–D were written
+
+Parts A–D audited an earlier snapshot (~958-line `PlayerScreen`, 2 screens). The current wave already contains: **Settings screen** (SCR-013/014, incl. the offline/private claim block), **Onboarding flow**, **MediaDetailsSheet** + per-item actions, **equalizer/audio-enhancement** suite (bass/virtualizer/loudness/picture adjustments), **AB-loop, sleep timer, up-next countdown with 2h guard**, **PiP-enabled MainActivity + ACTION_VIEW/share handoff**, a **unified single ExoPlayer** (the "dead MediaSessionService" P0 is resolved via `PlayerManager.getOrCreate` shared by service), and **real track selection** behavior (per controller tests). DataStore is fully wired (Part D's "unused dep" is stale). Verified in-place fixes from Part C: grid keys/contentType (F-16 ✅), insets/immersive behavior. **Reading rule:** where Part D says "absent," consult §E.A first; where Part D's P0 "broken promises" remain true *in the newest code* (consumed-but-unusaled settings Q-04, diagnostics starvation S-06, backup contradiction S-01, frozen progress P-06), this part supersedes with corrected anchors.
+
+*Source note for E.9/E.10: platform-gate + version claims come from the Oct 21, 2026 policy researcher pass (Play Console help/docs, Android 16/17 behavior changes, release pages); the 10 hard-gates register exists so every publishing requirement is dispositioned — none is optional.*
