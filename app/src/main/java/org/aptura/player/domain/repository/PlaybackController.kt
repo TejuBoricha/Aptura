@@ -20,6 +20,10 @@ interface PlaybackController {
     val isCompatibilityMode: StateFlow<Boolean> get() = kotlinx.coroutines.flow.MutableStateFlow(false)
     val compatibilityNotice: StateFlow<String?> get() = kotlinx.coroutines.flow.MutableStateFlow(null)
     val decoderStrategy: StateFlow<Int> get() = kotlinx.coroutines.flow.MutableStateFlow(0)
+    val playbackStats: StateFlow<org.aptura.player.domain.model.PlaybackStatsInfo>
+        get() = kotlinx.coroutines.flow.MutableStateFlow(org.aptura.player.domain.model.PlaybackStatsInfo())
+    val failedCodecName: StateFlow<String?> get() = kotlinx.coroutines.flow.MutableStateFlow(null)
+    val failureReason: StateFlow<String?> get() = kotlinx.coroutines.flow.MutableStateFlow(null)
 
     suspend fun playMediaItem(item: DomainMediaItem)
     suspend fun playQueue(items: List<DomainMediaItem>, startIndex: Int = 0)

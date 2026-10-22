@@ -79,6 +79,23 @@ interface MediaRepository {
      * Deletes a bookmark by its ID (FR-CTRL-011).
      */
     suspend fun deleteBookmark(id: Long)
+
+    /**
+     * Persists per-video playback preferences (FR-CTRL-012, FR-PLAY-003).
+     */
+    suspend fun savePlaybackPreferences(
+        uri: String,
+        resizeMode: String,
+        playbackSpeed: Float,
+        decoderStrategy: Int,
+        audioDelayMs: Long,
+        subtitleDelayMs: Long
+    )
+
+    /**
+     * Resets per-video playback preferences back to global defaults (FR-CTRL-012).
+     */
+    suspend fun resetPlaybackPreferences(uri: String)
 }
 
 /**

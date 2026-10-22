@@ -18,6 +18,7 @@ import org.aptura.player.domain.model.DomainPlaybackQueue
 import org.aptura.player.domain.model.DomainPlaybackState
 import org.aptura.player.domain.model.DomainTrackSelection
 import org.aptura.player.domain.model.EqualizerPreset
+import org.aptura.player.domain.model.PlaybackStatsInfo
 import org.aptura.player.domain.model.PlayMode
 import org.aptura.player.domain.repository.MediaRepository
 import org.aptura.player.domain.repository.PlaybackController
@@ -51,6 +52,15 @@ class PlayerViewModelTest {
 
         val _trackSelection = MutableStateFlow(DomainTrackSelection())
         override val trackSelection: StateFlow<DomainTrackSelection> = _trackSelection.asStateFlow()
+
+        val _playbackStats = MutableStateFlow(PlaybackStatsInfo())
+        override val playbackStats: StateFlow<PlaybackStatsInfo> = _playbackStats.asStateFlow()
+
+        val _failedCodecName = MutableStateFlow<String?>(null)
+        override val failedCodecName: StateFlow<String?> = _failedCodecName.asStateFlow()
+
+        val _failureReason = MutableStateFlow<String?>(null)
+        override val failureReason: StateFlow<String?> = _failureReason.asStateFlow()
 
         var lastPlayedItem: DomainMediaItem? = null
         var isPlaying = false
@@ -301,6 +311,48 @@ class PlayerViewModelTest {
                 totalDurationMs = items.values.sumOf { it.durationMs },
                 totalSizeBytes = items.values.sumOf { it.sizeBytes }
             )
+        }
+
+        var lastSavedPreferencesUri: String? = null
+        var lastSavedResizeMode: String? = null
+        var lastSavedSpeed: Float? = null
+        var lastSavedDecoderStrategy: Int? = null
+
+        override suspend fun savePlaybackPreferences(
+            uri: String,
+            resizeMode: String,
+            playbackSpeed: Float,
+            decoderStrategy: Int,
+            audioDelayMs: Long,
+            subtitleDelayMs: Long
+        ) {
+            lastSavedPreferencesUri = uri
+            lastSavedResizeMode = resizeMode
+            lastSavedSpeed = playbackSpeed
+            lastSavedDecoderStrategy = decoderStrategy
+            items[uri]?.let {
+                items[uri] = it.copy(
+                    resizeMode = resizeMode,
+                    playbackSpeed = playbackSpeed,
+                    decoderStrategy = decoderStrategy,
+                    audioDelayMs = audioDelayMs,
+                    subtitleDelayMs = subtitleDelayMs
+                )
+            }
+        }
+
+        var lastResetPreferencesUri: String? = null
+        override suspend fun resetPlaybackPreferences(uri: String) {
+            lastResetPreferencesUri = uri
+            items[uri]?.let {
+                items[uri] = it.copy(
+                    resizeMode = "FIT",
+                    playbackSpeed = 1.0f,
+                    decoderStrategy = 0,
+                    audioDelayMs = 0L,
+                    subtitleDelayMs = 0L
+                )
+            }
         }
     }
 
@@ -1415,6 +1467,119 @@ class PlayerViewModelTest {
         assertEquals(0L, controller.lastSeekPosition)
         assertTrue(controller.isPlaying)
         assertFalse(viewModel.uiState.value.isEnded)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun testToggleStatsOverlay() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        assertFalse(viewModel.uiState.value.isStatsOverlayVisible)
+
+        viewModel.toggleStatsOverlay()
+        runCurrent()
+        assertTrue(viewModel.uiState.value.isStatsOverlayVisible)
+
+        viewModel.toggleStatsOverlay(false)
+        runCurrent()
+        assertFalse(viewModel.uiState.value.isStatsOverlayVisible)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun testWhyCompatibilitySheetVisibility() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        assertFalse(viewModel.uiState.value.isWhyCompatibilitySheetVisible)
+
+        viewModel.setWhyCompatibilitySheetVisible(true)
+        runCurrent()
+        assertTrue(viewModel.uiState.value.isWhyCompatibilitySheetVisible)
+
+        viewModel.setWhyCompatibilitySheetVisible(false)
+        runCurrent()
+        assertFalse(viewModel.uiState.value.isWhyCompatibilitySheetVisible)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun testRestorePerVideoPlaybackPreferencesOnPlayQueue() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        val customVideo = DomainMediaItem(
+            uri = "content://media/custom",
+            title = "Custom Preferences Video",
+            durationMs = 90000L,
+            sizeBytes = 4096L,
+            mimeType = "video/mp4",
+            resizeMode = "ZOOM",
+            playbackSpeed = 1.75f,
+            decoderStrategy = 2,
+            audioDelayMs = 250L,
+            subtitleDelayMs = -150L
+        )
+
+        viewModel.playQueue(listOf(customVideo), 0)
+        runCurrent()
+
+        assertEquals(AspectRatioMode.ZOOM, viewModel.uiState.value.resizeMode)
+        assertEquals(1.75f, viewModel.uiState.value.playbackSpeed)
+        assertEquals(2, viewModel.uiState.value.decoderStrategy)
+        assertEquals(250L, viewModel.uiState.value.audioDelayMs)
+        assertEquals(-150L, viewModel.uiState.value.subtitleDelayMs)
+
+        assertEquals(1.75f, controller.lastSpeed)
+        assertEquals(2, controller.lastDecoderStrategy)
+        assertEquals(250L, controller.lastAudioDelay)
+        assertEquals(-150L, controller.lastSubtitleDelay)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun testResetVideoPreferencesRestoresDefaults() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        val customVideo = DomainMediaItem(
+            uri = "content://media/to_reset",
+            title = "To Reset Video",
+            durationMs = 90000L,
+            sizeBytes = 4096L,
+            mimeType = "video/mp4",
+            resizeMode = "ZOOM",
+            playbackSpeed = 1.5f,
+            decoderStrategy = 1,
+            audioDelayMs = 100L,
+            subtitleDelayMs = 50L
+        )
+        repository.items[customVideo.uri] = customVideo
+
+        viewModel.playQueue(listOf(customVideo), 0)
+        runCurrent()
+
+        assertEquals(AspectRatioMode.ZOOM, viewModel.uiState.value.resizeMode)
+        assertEquals(1.5f, viewModel.uiState.value.playbackSpeed)
+
+        viewModel.resetVideoPreferences()
+        runCurrent()
+
+        assertEquals(AspectRatioMode.FIT, viewModel.uiState.value.resizeMode)
+        assertEquals(1.0f, viewModel.uiState.value.playbackSpeed)
+        assertEquals(0, viewModel.uiState.value.decoderStrategy)
+        assertEquals(0L, viewModel.uiState.value.audioDelayMs)
+        assertEquals(0L, viewModel.uiState.value.subtitleDelayMs)
+        assertEquals("content://media/to_reset", repository.lastResetPreferencesUri)
 
         viewModel.clearForTesting()
     }

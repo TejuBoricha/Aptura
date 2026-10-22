@@ -14,7 +14,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  */
 @Database(
     entities = [MediaItemEntity::class, BookmarkEntity::class],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class ApturaDatabase : RoomDatabase() {
@@ -31,6 +31,16 @@ abstract class ApturaDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE media_items ADD COLUMN resizeMode TEXT NOT NULL DEFAULT 'FIT'")
+                db.execSQL("ALTER TABLE media_items ADD COLUMN playbackSpeed REAL NOT NULL DEFAULT 1.0")
+                db.execSQL("ALTER TABLE media_items ADD COLUMN decoderStrategy INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE media_items ADD COLUMN audioDelayMs INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE media_items ADD COLUMN subtitleDelayMs INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         @Volatile
         private var INSTANCE: ApturaDatabase? = null
 
@@ -41,7 +51,7 @@ abstract class ApturaDatabase : RoomDatabase() {
                     ApturaDatabase::class.java,
                     DATABASE_NAME
                 )
-                .addMigrations(MIGRATION_2_3)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
                 .fallbackToDestructiveMigration(dropAllTables = true)
                 .build()
                 .also { INSTANCE = it }

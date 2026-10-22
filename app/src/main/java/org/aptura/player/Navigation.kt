@@ -605,7 +605,11 @@ fun MainNavigation(
                     onMoveQueueItem = playerViewModel::moveQueueItem,
                     onRemoveQueueItem = playerViewModel::removeFromQueue,
                     onClearQueue = playerViewModel::clearQueue,
-                    onReplayCurrentItem = playerViewModel::replayCurrentItem
+                    onReplayCurrentItem = playerViewModel::replayCurrentItem,
+                    onToggleStatsOverlay = playerViewModel::toggleStatsOverlay,
+                    onWhyCompatibilityClick = { playerViewModel.setWhyCompatibilitySheetVisible(true) },
+                    onDismissWhyCompatibilitySheet = { playerViewModel.setWhyCompatibilitySheetVisible(false) },
+                    onResetVideoPreferences = playerViewModel::resetVideoPreferences
                 )
             }
         }

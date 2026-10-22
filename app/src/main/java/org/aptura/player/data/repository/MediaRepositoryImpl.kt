@@ -121,4 +121,26 @@ class MediaRepositoryImpl(
             bookmarkDao?.deleteBookmarkById(id)
         }
     }
+
+    override suspend fun savePlaybackPreferences(
+        uri: String,
+        resizeMode: String,
+        playbackSpeed: Float,
+        decoderStrategy: Int,
+        audioDelayMs: Long,
+        subtitleDelayMs: Long
+    ): Unit = withContext(ioDispatcher) {
+        mediaItemDao.updatePlaybackPreferences(
+            uri = uri,
+            resizeMode = resizeMode,
+            playbackSpeed = playbackSpeed,
+            decoderStrategy = decoderStrategy,
+            audioDelayMs = audioDelayMs,
+            subtitleDelayMs = subtitleDelayMs
+        )
+    }
+
+    override suspend fun resetPlaybackPreferences(uri: String): Unit = withContext(ioDispatcher) {
+        mediaItemDao.resetPlaybackPreferences(uri)
+    }
 }

@@ -234,6 +234,10 @@ fun PlayerScreen(
     onRemoveQueueItem: (Int) -> Unit = {},
     onClearQueue: () -> Unit = {},
     onReplayCurrentItem: () -> Unit = {},
+    onToggleStatsOverlay: () -> Unit = {},
+    onWhyCompatibilityClick: () -> Unit = {},
+    onDismissWhyCompatibilitySheet: () -> Unit = {},
+    onResetVideoPreferences: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -1369,10 +1373,25 @@ fun PlayerScreen(
                         style = ApturaTypography.labelSmall,
                         color = ApturaColors.TextHighEmphasis
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    // "Why?" Explainer button per SCR-010h and FR-PLAY-003
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = ApturaColors.AccentPrimary.copy(alpha = 0.2f),
+                        modifier = Modifier.clickable { onWhyCompatibilityClick() }
+                    ) {
+                        Text(
+                            text = "Why?",
+                            style = ApturaTypography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = ApturaColors.AccentPrimary,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
                     IconButton(
                         onClick = onDismissCompatibilityNotice,
-                        modifier = Modifier.size(40.dp)
+                        modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Close,
@@ -1383,6 +1402,18 @@ fun PlayerScreen(
                     }
                 }
             }
+        }
+
+        // 5b. Playback Stats Studio HUD Overlay (SCR-010e, FR-DIAG-001)
+        if (uiState.isStatsOverlayVisible && !isPipMode) {
+            StatsOverlay(
+                stats = uiState.playbackStats,
+                onCloseClick = onToggleStatsOverlay,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .padding(top = 64.dp, end = 16.dp)
+            )
         }
 
         // 6. Playback Error State Banner (SCR-010x)
@@ -2549,6 +2580,78 @@ fun PlayerScreen(
                             }
                         }
 
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        // 6. Playback Stats Studio Toggle (SCR-010e, FR-DIAG-001)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "PLAYBACK STATS OVERLAY",
+                                    style = ApturaTypography.labelSmall,
+                                    color = ApturaColors.AccentPrimary
+                                )
+                                Text(
+                                    text = "Live decode path, resolution, FPS, bitrate & frame drops",
+                                    style = ApturaTypography.labelSmall,
+                                    color = ApturaColors.TextLowEmphasis
+                                )
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (uiState.isStatsOverlayVisible) ApturaColors.AccentPrimary else ApturaColors.SurfaceElevated3,
+                                modifier = Modifier.clickable { onToggleStatsOverlay() }
+                            ) {
+                                Text(
+                                    text = if (uiState.isStatsOverlayVisible) "ON" else "OFF",
+                                    style = ApturaTypography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (uiState.isStatsOverlayVisible) ApturaColors.SurfacePureBlack else ApturaColors.TextMediumEmphasis,
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        // 7. Reset Video Preferences (FR-CTRL-012)
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = ApturaColors.SurfaceElevated3,
+                            border = BorderStroke(1.dp, ApturaColors.BorderSubtle),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onResetVideoPreferences()
+                                    android.widget.Toast.makeText(context, "Video preferences reset to defaults", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 12.dp, horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Replay,
+                                    contentDescription = null,
+                                    tint = ApturaColors.AccentPrimary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Reset This Video's Settings",
+                                    style = ApturaTypography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = ApturaColors.AccentPrimary
+                                )
+                            }
+                        }
                     } else {
                         // TAB 1: PICTURE & DISPLAY
 
@@ -2780,39 +2883,78 @@ fun PlayerScreen(
                                 color = ApturaColors.TextMediumEmphasis
                             )
                         }
-                        Row(
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(top = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                .padding(top = 10.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             listOf(
-                                0 to "Auto",
-                                1 to "Hardware",
-                                2 to "Software"
-                            ).forEach { (strategy, label) ->
+                                Triple(0, "Auto", "Picks the best decoder automatically (recommended)"),
+                                Triple(1, "Hardware", "Faster and easier on the battery; keep this if playback is smooth"),
+                                Triple(2, "Software", "Most compatible; may stutter or drain battery on large 4K files")
+                            ).forEach { (strategy, title, description) ->
                                 val isSelected = uiState.decoderStrategy == strategy
                                 Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = if (isSelected) ApturaColors.AccentPrimary else ApturaColors.SurfaceElevated3,
-                                    border = if (isSelected) null else BorderStroke(1.dp, ApturaColors.BorderSubtle),
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = if (isSelected) ApturaColors.AccentPrimary.copy(alpha = 0.12f) else ApturaColors.SurfaceElevated3,
+                                    border = BorderStroke(
+                                        1.dp,
+                                        if (isSelected) ApturaColors.AccentPrimary else ApturaColors.BorderSubtle
+                                    ),
                                     modifier = Modifier
-                                        .weight(1f)
+                                        .fillMaxWidth()
                                         .clickable { onDecoderStrategyChanged(strategy) }
                                 ) {
-                                    Text(
-                                        text = label,
-                                        style = ApturaTypography.labelSmall,
-                                        color = if (isSelected) ApturaColors.SurfacePureBlack else ApturaColors.TextHighEmphasis,
-                                        textAlign = TextAlign.Center,
-                                        modifier = Modifier.padding(vertical = 10.dp)
-                                    )
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = title,
+                                                style = ApturaTypography.labelMedium,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = if (isSelected) ApturaColors.AccentPrimary else ApturaColors.TextHighEmphasis
+                                            )
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = description,
+                                                style = ApturaTypography.labelSmall,
+                                                color = ApturaColors.TextMediumEmphasis
+                                            )
+                                        }
+                                        if (isSelected) {
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Icon(
+                                                imageVector = Icons.Filled.Check,
+                                                contentDescription = "Selected",
+                                                tint = ApturaColors.AccentPrimary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
+        }
+
+        // 11. Compatibility Explainer Sheet (SCR-010h, FR-PLAY-003)
+        if (uiState.isWhyCompatibilitySheetVisible) {
+            CompatibilityExplainerSheet(
+                failedCodecName = uiState.failedCodecName,
+                failureReason = uiState.failureReason,
+                activeDecoderPath = uiState.playbackStats.decoderPath,
+                currentStrategy = uiState.decoderStrategy,
+                onStrategySelected = onDecoderStrategyChanged,
+                onDismissRequest = { onDismissWhyCompatibilitySheet() }
+            )
         }
     }
 }

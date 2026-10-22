@@ -57,7 +57,38 @@ data class DomainMediaItem(
     val folderPath: String = "",
     val playbackPositionMs: Long = 0L,
     val isCompleted: Boolean = false,
-    val isMissing: Boolean = false
+    val isMissing: Boolean = false,
+    val resizeMode: String = "FIT",
+    val playbackSpeed: Float = 1.0f,
+    val decoderStrategy: Int = 0,
+    val audioDelayMs: Long = 0L,
+    val subtitleDelayMs: Long = 0L
+)
+
+/**
+ * Detailed telemetry metrics for in-player stats overlay (SCR-010e, FR-DIAG-001).
+ * Reports true decode path, codec identifiers, performance metrics, and A/V sync.
+ */
+data class PlaybackStatsInfo(
+    val decoderPath: String = "Auto (Hardware)",
+    val isHardwareAccelerated: Boolean = true,
+    val videoDecoderName: String = "Auto",
+    val videoMimeType: String = "",
+    val videoCodec: String = "",
+    val videoResolution: String = "",
+    val frameRate: Float = 0f,
+    val videoBitrateKbps: Int = 0,
+    val droppedFrames: Int = 0,
+    val dropPercentage: Float = 0f,
+    val audioDecoderName: String = "Auto",
+    val audioMimeType: String = "",
+    val audioCodec: String = "",
+    val audioChannels: String = "Stereo (2 ch)",
+    val audioSampleRateHz: Int = 48000,
+    val audioBitrateKbps: Int = 0,
+    val audioDelayMs: Long = 0L,
+    val subtitleDelayMs: Long = 0L,
+    val hdrFormat: String = "SDR"
 )
 
 data class DomainTrackInfo(

@@ -114,6 +114,21 @@ class PlayerViewModel(
                 _uiState.update { it.copy(decoderStrategy = strategy) }
             }
         }
+        viewModelScope.launch(dispatcher + errorHandler) {
+            playbackController.playbackStats.collect { stats ->
+                _uiState.update { it.copy(playbackStats = stats) }
+            }
+        }
+        viewModelScope.launch(dispatcher + errorHandler) {
+            playbackController.failedCodecName.collect { codec ->
+                _uiState.update { it.copy(failedCodecName = codec) }
+            }
+        }
+        viewModelScope.launch(dispatcher + errorHandler) {
+            playbackController.failureReason.collect { reason ->
+                _uiState.update { it.copy(failureReason = reason) }
+            }
+        }
     }
 
     private fun observeAudioEnhancements() {
@@ -286,6 +301,16 @@ class PlayerViewModel(
             val currentItem = items[clampedIndex]
 
             val sanitized = SubtitleQuerySanitizer.sanitize(currentItem.title)
+            val restoredResizeMode = try {
+                AspectRatioMode.valueOf(currentItem.resizeMode)
+            } catch (_: Throwable) {
+                AspectRatioMode.FIT
+            }
+            val restoredSpeed = if (currentItem.playbackSpeed > 0f) currentItem.playbackSpeed else 1.0f
+            val restoredDecoder = currentItem.decoderStrategy
+            val restoredAudioDelay = currentItem.audioDelayMs
+            val restoredSubDelay = currentItem.subtitleDelayMs
+
             _uiState.update {
                 it.copy(
                     videoUri = currentItem.uri,
@@ -293,10 +318,27 @@ class PlayerViewModel(
                     durationMs = currentItem.durationMs,
                     cleanSearchQuery = sanitized.searchQuery,
                     sanitizedTitle = sanitized.displayTitle,
+                    resizeMode = restoredResizeMode,
+                    playbackSpeed = restoredSpeed,
+                    decoderStrategy = restoredDecoder,
+                    audioDelayMs = restoredAudioDelay,
+                    subtitleDelayMs = restoredSubDelay,
                     isControlsVisible = true
                 )
             }
             playbackController.playQueue(items, clampedIndex)
+            if (restoredDecoder != 0) {
+                playbackController.setDecoderStrategy(restoredDecoder)
+            }
+            if (restoredSpeed != 1.0f) {
+                playbackController.setPlaybackSpeed(restoredSpeed)
+            }
+            if (restoredAudioDelay != 0L) {
+                playbackController.setAudioDelay(restoredAudioDelay)
+            }
+            if (restoredSubDelay != 0L) {
+                playbackController.setSubtitleDelay(restoredSubDelay)
+            }
             observeBookmarks(currentItem.uri)
 
             val savedPosition = currentItem.playbackPositionMs
@@ -635,6 +677,7 @@ class PlayerViewModel(
                     isSpeedSheetVisible = false
                 )
             }
+            persistPlaybackPreferences()
             scheduleAutoHide()
         }
     }
@@ -643,6 +686,15 @@ class PlayerViewModel(
         _uiState.update {
             it.copy(resizeMode = it.resizeMode.next())
         }
+        persistPlaybackPreferences()
+        scheduleAutoHide()
+    }
+
+    fun setResizeMode(mode: AspectRatioMode) {
+        _uiState.update {
+            it.copy(resizeMode = mode)
+        }
+        persistPlaybackPreferences()
         scheduleAutoHide()
     }
 
@@ -732,6 +784,7 @@ class PlayerViewModel(
         viewModelScope.launch(dispatcher + errorHandler) {
             playbackController.setSubtitleDelay(delayMs)
             _uiState.update { it.copy(subtitleDelayMs = delayMs) }
+            persistPlaybackPreferences()
         }
     }
 
@@ -739,6 +792,7 @@ class PlayerViewModel(
         viewModelScope.launch(dispatcher + errorHandler) {
             playbackController.setAudioDelay(delayMs)
             _uiState.update { it.copy(audioDelayMs = delayMs) }
+            persistPlaybackPreferences()
         }
     }
 
@@ -843,6 +897,58 @@ class PlayerViewModel(
         _uiState.update { it.copy(decoderStrategy = strategy) }
         viewModelScope.launch(dispatcher + errorHandler) {
             playbackController.setDecoderStrategy(strategy)
+            persistPlaybackPreferences()
+        }
+    }
+
+    fun toggleStatsOverlay(visible: Boolean? = null) {
+        _uiState.update {
+            it.copy(isStatsOverlayVisible = visible ?: !it.isStatsOverlayVisible)
+        }
+    }
+
+    fun setWhyCompatibilitySheetVisible(visible: Boolean) {
+        _uiState.update {
+            it.copy(isWhyCompatibilitySheetVisible = visible)
+        }
+        if (visible) autoHideJob?.cancel() else scheduleAutoHide()
+    }
+
+    fun resetVideoPreferences() {
+        val uri = _uiState.value.videoUri
+        if (uri.isNotBlank()) {
+            viewModelScope.launch(dispatcher + errorHandler) {
+                mediaRepository.resetPlaybackPreferences(uri)
+                playbackController.setPlaybackSpeed(1.0f)
+                playbackController.setDecoderStrategy(0)
+                playbackController.setAudioDelay(0L)
+                playbackController.setSubtitleDelay(0L)
+                _uiState.update {
+                    it.copy(
+                        resizeMode = AspectRatioMode.FIT,
+                        playbackSpeed = 1.0f,
+                        decoderStrategy = 0,
+                        audioDelayMs = 0L,
+                        subtitleDelayMs = 0L
+                    )
+                }
+            }
+        }
+    }
+
+    private fun persistPlaybackPreferences() {
+        val uri = _uiState.value.videoUri
+        if (uri.isBlank()) return
+        val state = _uiState.value
+        viewModelScope.launch(dispatcher + errorHandler) {
+            mediaRepository.savePlaybackPreferences(
+                uri = uri,
+                resizeMode = state.resizeMode.name,
+                playbackSpeed = state.playbackSpeed,
+                decoderStrategy = state.decoderStrategy,
+                audioDelayMs = state.audioDelayMs,
+                subtitleDelayMs = state.subtitleDelayMs
+            )
         }
     }
 

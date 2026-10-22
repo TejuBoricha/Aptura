@@ -9,6 +9,9 @@ import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.analytics.AnalyticsListener
+import org.aptura.player.domain.model.PlaybackStatsInfo
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -63,6 +66,27 @@ class Media3PlaybackController(
     private val _decoderStrategy = MutableStateFlow(initialDecoderStrategy)
     override val decoderStrategy: StateFlow<Int> = _decoderStrategy.asStateFlow()
 
+    private var totalDroppedFrames = 0
+    private var renderedVideoFrames = 0
+    private var currentVideoDecoderName = "Auto"
+    private var currentAudioDecoderName = "Auto"
+    private var isVideoHardware = true
+    private var currentVideoFormat: androidx.media3.common.Format? = null
+    private var currentAudioFormat: androidx.media3.common.Format? = null
+
+    private val _playbackStats = MutableStateFlow(PlaybackStatsInfo())
+    override val playbackStats: StateFlow<PlaybackStatsInfo> = _playbackStats.asStateFlow()
+
+    private val _failedCodecName = MutableStateFlow<String?>(
+        if (initialDecoderStrategy == 2) "Hardware Decoder (Manual Override)" else null
+    )
+    override val failedCodecName: StateFlow<String?> = _failedCodecName.asStateFlow()
+
+    private val _failureReason = MutableStateFlow<String?>(
+        if (initialDecoderStrategy == 2) "Software decoding explicitly enabled via advanced playback settings." else null
+    )
+    override val failureReason: StateFlow<String?> = _failureReason.asStateFlow()
+
     val audioSessionId: Int
         get() = (player as? androidx.media3.exoplayer.ExoPlayer)?.audioSessionId ?: 0
 
@@ -79,6 +103,7 @@ class Media3PlaybackController(
                     while (isActive && player.isPlaying) {
                         delay(250L)
                         updatePlaybackState()
+                        updatePlaybackStats()
                     }
                 }
             }
@@ -100,6 +125,7 @@ class Media3PlaybackController(
                 checkPositionTicker(false)
             }
             updatePlaybackState()
+            updatePlaybackStats()
             if (state == Player.STATE_ENDED) {
                 handleAutoAdvance()
             }
@@ -108,6 +134,7 @@ class Media3PlaybackController(
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             checkPositionTicker(isPlaying)
             updatePlaybackState()
+            updatePlaybackStats()
         }
 
         override fun onPlayerError(error: PlaybackException) {
@@ -123,7 +150,10 @@ class Media3PlaybackController(
                 currentDecoderStrategy = 2
                 _decoderStrategy.value = 2
                 _isCompatibilityMode.value = true
+                _failedCodecName.value = currentVideoDecoderName.ifBlank { "Hardware Decoder" }
+                _failureReason.value = "${error.errorCodeName}: Hardware decoder initialization or capability failed for media profile. Automatically engaged software fallback."
                 _compatibilityNotice.value = "Playing in compatibility mode (Software Decoder)"
+                updatePlaybackStats()
 
                 ApturaDiagnostics.logEvent(
                     code = EventCode.EV_010,
@@ -168,6 +198,7 @@ class Media3PlaybackController(
             )
 
             updatePlaybackState()
+            updatePlaybackStats()
         }
 
         override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
@@ -175,16 +206,77 @@ class Media3PlaybackController(
                 playbackSpeed = playbackParameters.speed
             )
             updatePlaybackState()
+            updatePlaybackStats()
         }
 
         override fun onTracksChanged(tracks: Tracks) {
             updateTracks(tracks)
+            updatePlaybackStats()
+        }
+    }
+
+    private val analyticsListener = object : AnalyticsListener {
+        override fun onVideoDecoderInitialized(
+            eventTime: AnalyticsListener.EventTime,
+            decoderName: String,
+            initializedTimestampMs: Long,
+            initializationDurationMs: Long
+        ) {
+            currentVideoDecoderName = decoderName
+            isVideoHardware = !decoderName.startsWith("c2.android.") && !decoderName.startsWith("OMX.google.")
+            updatePlaybackStats()
+        }
+
+        override fun onAudioDecoderInitialized(
+            eventTime: AnalyticsListener.EventTime,
+            decoderName: String,
+            initializedTimestampMs: Long,
+            initializationDurationMs: Long
+        ) {
+            currentAudioDecoderName = decoderName
+            updatePlaybackStats()
+        }
+
+        override fun onDroppedVideoFrames(
+            eventTime: AnalyticsListener.EventTime,
+            droppedFrames: Int,
+            elapsedMs: Long
+        ) {
+            totalDroppedFrames += droppedFrames
+            updatePlaybackStats()
+        }
+
+        override fun onVideoSizeChanged(
+            eventTime: AnalyticsListener.EventTime,
+            videoSize: androidx.media3.common.VideoSize
+        ) {
+            updatePlaybackStats()
+        }
+
+        override fun onVideoInputFormatChanged(
+            eventTime: AnalyticsListener.EventTime,
+            format: androidx.media3.common.Format,
+            decoderReuseEvaluation: androidx.media3.exoplayer.DecoderReuseEvaluation?
+        ) {
+            currentVideoFormat = format
+            updatePlaybackStats()
+        }
+
+        override fun onAudioInputFormatChanged(
+            eventTime: AnalyticsListener.EventTime,
+            format: androidx.media3.common.Format,
+            decoderReuseEvaluation: androidx.media3.exoplayer.DecoderReuseEvaluation?
+        ) {
+            currentAudioFormat = format
+            updatePlaybackStats()
         }
     }
 
     init {
         player.addListener(playerListener)
+        (player as? ExoPlayer)?.addAnalyticsListener(analyticsListener)
         updatePlaybackState()
+        updatePlaybackStats()
         val currentTracks = try { player.currentTracks } catch (_: Throwable) { null } ?: Tracks.EMPTY
         updateTracks(currentTracks)
     }
@@ -222,6 +314,67 @@ class Media3PlaybackController(
         checkPositionTicker(player.isPlaying)
     }
 
+    fun updatePlaybackStats() {
+        val exo = player as? ExoPlayer
+        val videoFormat = exo?.videoFormat ?: currentVideoFormat
+        val audioFormat = exo?.audioFormat ?: currentAudioFormat
+
+        val size = try { player.videoSize } catch (_: Throwable) { null }
+        val width = videoFormat?.width?.takeIf { it > 0 } ?: size?.width ?: 0
+        val height = videoFormat?.height?.takeIf { it > 0 } ?: size?.height ?: 0
+        val frameRate = if (videoFormat != null && videoFormat.frameRate > 0f) videoFormat.frameRate else 0f
+        val videoBitrateKbps = if (videoFormat != null && videoFormat.bitrate > 0) videoFormat.bitrate / 1000 else 0
+
+        val audioChannels = when (audioFormat?.channelCount) {
+            1 -> "Mono (1 ch)"
+            2 -> "Stereo (2 ch)"
+            6 -> "5.1 Surround (6 ch)"
+            8 -> "7.1 Surround (8 ch)"
+            null -> "Stereo (2 ch)"
+            else -> "${audioFormat.channelCount} ch"
+        }
+        val audioSampleRateHz = audioFormat?.sampleRate ?: 48000
+        val audioBitrateKbps = if (audioFormat != null && audioFormat.bitrate > 0) audioFormat.bitrate / 1000 else 0
+
+        val hdrFormat = when (videoFormat?.colorInfo?.colorTransfer) {
+            C.COLOR_TRANSFER_ST2084 -> "HDR10 (PQ)"
+            C.COLOR_TRANSFER_HLG -> "HDR (HLG)"
+            else -> "SDR"
+        }
+
+        val decoderPath = when {
+            currentDecoderStrategy == 2 -> "Software Override"
+            !isVideoHardware -> "Software Fallback"
+            currentDecoderStrategy == 1 -> "Hardware Forced"
+            else -> "Auto (Hardware)"
+        }
+
+        val totalFrames = (totalDroppedFrames + renderedVideoFrames).coerceAtLeast(1)
+        val dropPct = (totalDroppedFrames.toFloat() / totalFrames.toFloat()) * 100f
+
+        _playbackStats.value = PlaybackStatsInfo(
+            decoderPath = decoderPath,
+            isHardwareAccelerated = isVideoHardware && currentDecoderStrategy != 2,
+            videoDecoderName = currentVideoDecoderName,
+            videoMimeType = videoFormat?.sampleMimeType ?: "video/mp4",
+            videoCodec = videoFormat?.codecs ?: videoFormat?.sampleMimeType?.substringAfter('/') ?: "",
+            videoResolution = if (width > 0 && height > 0) "${width}x${height}" else "",
+            frameRate = frameRate,
+            videoBitrateKbps = videoBitrateKbps,
+            droppedFrames = totalDroppedFrames,
+            dropPercentage = dropPct,
+            audioDecoderName = currentAudioDecoderName,
+            audioMimeType = audioFormat?.sampleMimeType ?: "audio/mp4a-latm",
+            audioCodec = audioFormat?.codecs ?: audioFormat?.sampleMimeType?.substringAfter('/') ?: "",
+            audioChannels = audioChannels,
+            audioSampleRateHz = audioSampleRateHz,
+            audioBitrateKbps = audioBitrateKbps,
+            audioDelayMs = _trackSelection.value.audioDelayMs,
+            subtitleDelayMs = _trackSelection.value.subtitleDelayMs,
+            hdrFormat = hdrFormat
+        )
+    }
+
     override suspend fun playMediaItem(item: DomainMediaItem) {
         playQueue(listOf(item), 0)
     }
@@ -245,9 +398,19 @@ class Media3PlaybackController(
         apturaTextRenderer?.subtitleDelayMs = 0L
         _trackSelection.value = _trackSelection.value.copy(subtitleDelayMs = 0L)
         hasAttemptedSoftwareFallback = false
+        totalDroppedFrames = 0
+        renderedVideoFrames = 0
         _decoderStrategy.value = currentDecoderStrategy
         _isCompatibilityMode.value = (currentDecoderStrategy == 2)
         _compatibilityNotice.value = if (currentDecoderStrategy == 2) "Playing in compatibility mode (Software Decoder)" else null
+        if (currentDecoderStrategy == 2) {
+            _failedCodecName.value = "Hardware Decoder (Manual Override)"
+            _failureReason.value = "Software decoding explicitly selected in playback settings."
+        } else {
+            _failedCodecName.value = null
+            _failureReason.value = null
+        }
+        updatePlaybackStats()
 
         val mediaItem = try {
             MediaItem.fromUri(item.uri)
@@ -499,10 +662,12 @@ class Media3PlaybackController(
     override suspend fun setSubtitleDelay(delayMs: Long) {
         apturaTextRenderer?.subtitleDelayMs = delayMs
         _trackSelection.value = _trackSelection.value.copy(subtitleDelayMs = delayMs)
+        updatePlaybackStats()
     }
 
     override suspend fun setAudioDelay(delayMs: Long) {
         _trackSelection.value = _trackSelection.value.copy(audioDelayMs = delayMs)
+        updatePlaybackStats()
     }
 
     private val externalSubtitleLabels = mutableSetOf<String>()
@@ -652,6 +817,14 @@ class Media3PlaybackController(
         hasAttemptedSoftwareFallback = (strategy == 2)
         _isCompatibilityMode.value = (strategy == 2)
         _compatibilityNotice.value = if (strategy == 2) "Playing in compatibility mode (Software Decoder)" else null
+        if (strategy == 2) {
+            _failedCodecName.value = "Hardware Decoder (Manual Override)"
+            _failureReason.value = "Software decoding explicitly enabled via advanced playback settings."
+        } else {
+            _failedCodecName.value = null
+            _failureReason.value = null
+        }
+        updatePlaybackStats()
 
         val currentItem = player.currentMediaItem
         if (currentItem != null && player.playbackState != Player.STATE_IDLE) {
@@ -681,6 +854,7 @@ class Media3PlaybackController(
         positionTickerJob?.cancel()
         positionTickerJob = null
         player.removeListener(playerListener)
+        (player as? ExoPlayer)?.removeAnalyticsListener(analyticsListener)
         player.release()
         _playbackState.value = DomainPlaybackState.Idle
     }

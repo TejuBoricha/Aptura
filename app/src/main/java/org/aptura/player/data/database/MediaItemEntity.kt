@@ -38,7 +38,12 @@ data class MediaItemEntity(
     val playbackPositionMs: Long = 0L,
     val isCompleted: Boolean = false,
     val lastPlayedTimestamp: Long = 0L,
-    val isMissing: Boolean = false
+    val isMissing: Boolean = false,
+    val resizeMode: String = "FIT",
+    val playbackSpeed: Float = 1.0f,
+    val decoderStrategy: Int = 0,
+    val audioDelayMs: Long = 0L,
+    val subtitleDelayMs: Long = 0L
 )
 
 fun MediaItemEntity.toDomainMediaItem(): DomainMediaItem {
@@ -56,6 +61,11 @@ fun MediaItemEntity.toDomainMediaItem(): DomainMediaItem {
         folderPath = folderPath,
         playbackPositionMs = playbackPositionMs,
         isCompleted = isCompleted,
-        isMissing = isMissing
+        isMissing = isMissing,
+        resizeMode = resizeMode,
+        playbackSpeed = playbackSpeed,
+        decoderStrategy = decoderStrategy,
+        audioDelayMs = audioDelayMs,
+        subtitleDelayMs = subtitleDelayMs
     )
 }

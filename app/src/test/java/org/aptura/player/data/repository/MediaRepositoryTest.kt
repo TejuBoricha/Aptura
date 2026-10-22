@@ -139,6 +139,41 @@ class MediaRepositoryTest {
         override suspend fun getTotalSizeBytes(): Long? =
             items.value.sumOf { it.sizeBytes }.takeIf { items.value.isNotEmpty() }
 
+        override suspend fun updatePlaybackPreferences(
+            uri: String,
+            resizeMode: String,
+            playbackSpeed: Float,
+            decoderStrategy: Int,
+            audioDelayMs: Long,
+            subtitleDelayMs: Long
+        ) {
+            items.value = items.value.map {
+                if (it.uri == uri) {
+                    it.copy(
+                        resizeMode = resizeMode,
+                        playbackSpeed = playbackSpeed,
+                        decoderStrategy = decoderStrategy,
+                        audioDelayMs = audioDelayMs,
+                        subtitleDelayMs = subtitleDelayMs
+                    )
+                } else it
+            }
+        }
+
+        override suspend fun resetPlaybackPreferences(uri: String) {
+            items.value = items.value.map {
+                if (it.uri == uri) {
+                    it.copy(
+                        resizeMode = "FIT",
+                        playbackSpeed = 1.0f,
+                        decoderStrategy = 0,
+                        audioDelayMs = 0L,
+                        subtitleDelayMs = 0L
+                    )
+                } else it
+            }
+        }
+
         override suspend fun clearAll() {
             items.value = emptyList()
         }
@@ -387,5 +422,54 @@ class MediaRepositoryTest {
         val updated = repo.getVideoByUri("content://media/1")
         assertNotNull(updated)
         assertEquals("New Cinematic Title", updated?.title)
+    }
+
+    @Test
+    fun savePlaybackPreferences_persistsPerVideoSettings_and_resetRestoresDefaults() = runTest(testDispatcher) {
+        val fakeMediaDao = FakeMediaItemDao()
+        val repo = MediaRepositoryImpl(fakeMediaDao, testDispatcher)
+
+        val item = MediaItemEntity(
+            id = 1L,
+            mediaStoreId = 100L,
+            uri = "content://media/sample_vid",
+            title = "Sample Video",
+            displayName = "sample.mp4",
+            durationMs = 120000L,
+            sizeBytes = 2048L,
+            mimeType = "video/mp4",
+            dateAddedSec = 1000L,
+            folderPath = "Movies"
+        )
+        fakeMediaDao.insertOrUpdate(item)
+
+        // 1. Save per-video preferences (FR-CTRL-012)
+        repo.savePlaybackPreferences(
+            uri = "content://media/sample_vid",
+            resizeMode = "ZOOM",
+            playbackSpeed = 1.5f,
+            decoderStrategy = 2,
+            audioDelayMs = 150L,
+            subtitleDelayMs = -200L
+        )
+
+        val updated = repo.getVideoByUri("content://media/sample_vid")
+        assertNotNull(updated)
+        assertEquals("ZOOM", updated?.resizeMode)
+        assertEquals(1.5f, updated?.playbackSpeed)
+        assertEquals(2, updated?.decoderStrategy)
+        assertEquals(150L, updated?.audioDelayMs)
+        assertEquals(-200L, updated?.subtitleDelayMs)
+
+        // 2. Reset preferences restores defaults
+        repo.resetPlaybackPreferences("content://media/sample_vid")
+
+        val resetItem = repo.getVideoByUri("content://media/sample_vid")
+        assertNotNull(resetItem)
+        assertEquals("FIT", resetItem?.resizeMode)
+        assertEquals(1.0f, resetItem?.playbackSpeed)
+        assertEquals(0, resetItem?.decoderStrategy)
+        assertEquals(0L, resetItem?.audioDelayMs)
+        assertEquals(0L, resetItem?.subtitleDelayMs)
     }
 }

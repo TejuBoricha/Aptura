@@ -73,6 +73,17 @@ class MediaLibraryViewModelTest {
                 totalSizeBytes = list.sumOf { it.sizeBytes }
             )
         }
+
+        override suspend fun savePlaybackPreferences(
+            uri: String,
+            resizeMode: String,
+            playbackSpeed: Float,
+            decoderStrategy: Int,
+            audioDelayMs: Long,
+            subtitleDelayMs: Long
+        ) {}
+
+        override suspend fun resetPlaybackPreferences(uri: String) {}
     }
 
     private val item1 = DomainMediaItem(

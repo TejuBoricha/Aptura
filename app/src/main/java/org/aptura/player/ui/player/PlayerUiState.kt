@@ -102,7 +102,12 @@ data class PlayerUiState(
     val isQueueSheetVisible: Boolean = false,
     val isPlayModeSheetVisible: Boolean = false,
     val nextItemDurationMs: Long? = null,
-    val nextItemUri: String? = null
+    val nextItemUri: String? = null,
+    val isStatsOverlayVisible: Boolean = false,
+    val playbackStats: org.aptura.player.domain.model.PlaybackStatsInfo = org.aptura.player.domain.model.PlaybackStatsInfo(),
+    val isWhyCompatibilitySheetVisible: Boolean = false,
+    val failedCodecName: String? = null,
+    val failureReason: String? = null
 ) {
     val effectivePositionMs: Long
         get() = if (isScrubbing) scrubPositionMs else currentPositionMs
