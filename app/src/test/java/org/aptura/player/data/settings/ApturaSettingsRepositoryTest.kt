@@ -92,6 +92,16 @@ class ApturaSettingsRepositoryTest {
             repository.updateDefaultDecoderStrategy(1)
             assertEquals(1, awaitItem().defaultDecoderStrategy)
 
+            // Add and remove SAF folders
+            val sampleFolder = "content://com.android.externalstorage.documents/tree/primary%3AMovies"
+            repository.addSafFolder(sampleFolder)
+            val withFolder = awaitItem()
+            assertTrue(withFolder.persistedSafFolders.contains(sampleFolder))
+
+            repository.removeSafFolder(sampleFolder)
+            val withoutFolder = awaitItem()
+            assertFalse(withoutFolder.persistedSafFolders.contains(sampleFolder))
+
             cancelAndIgnoreRemainingEvents()
         }
     }

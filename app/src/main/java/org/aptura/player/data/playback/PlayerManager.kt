@@ -17,6 +17,9 @@ object PlayerManager {
     @Volatile
     private var controllerInstance: Media3PlaybackController? = null
 
+    val activeController: Media3PlaybackController?
+        get() = controllerInstance
+
     @Synchronized
     fun getOrCreate(context: Context): Media3PlaybackController {
         val existing = controllerInstance

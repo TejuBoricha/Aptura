@@ -1,16 +1,21 @@
 package org.aptura.player.data.scanner
 
 import android.content.Context
+import android.net.Uri
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import org.aptura.player.core.platform.PermissionHelper
 import org.aptura.player.data.database.ApturaDatabase
 import org.aptura.player.data.database.MediaItemEntity
+import org.aptura.player.data.settings.ApturaSettingsRepository
 
 /**
  * Background worker for local media library ingest using WorkManager.
- * Runs battery-conscious, unkillable differential scans without blocking the UI (ADR-013, NFR-RES-007).
+ * Ingests MediaStore videos and persisted SAF document trees, applying FileReconciliationEngine
+ * to preserve user progress, bookmarks, and detect moved/renamed/unmounted files (FR-LIB-004, FR-LIB-018, FR-LIB-021).
  */
 class MediaScanWorker(
     appContext: Context,
@@ -24,57 +29,64 @@ class MediaScanWorker(
     }
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
-        if (!org.aptura.player.core.platform.PermissionHelper.hasStoragePermission(applicationContext)) {
+        val hasStorage = PermissionHelper.hasStoragePermission(applicationContext)
+
+        val settingsRepo = ApturaSettingsRepository(applicationContext)
+        val persistedFolders = try {
+            settingsRepo.settingsFlow.first().persistedSafFolders
+        } catch (_: Throwable) {
+            emptySet()
+        }
+
+        // If user has neither platform storage permission nor any SAF custom folder, fail early
+        if (!hasStorage && persistedFolders.isEmpty()) {
             return@withContext Result.failure()
         }
+
         try {
-            val scanner = MediaStoreScanner(applicationContext.contentResolver)
-            val scannedItems = scanner.scanAllVideos()
+            val allScanned = mutableListOf<MediaItemEntity>()
 
-            val database = ApturaDatabase.getInstance(applicationContext)
-            val dao = database.mediaItemDao()
+            // 1. Scan Android MediaStore if platform permission is granted
+            if (hasStorage) {
+                val mediaStoreScanner = MediaStoreScanner(applicationContext.contentResolver)
+                allScanned.addAll(mediaStoreScanner.scanAllVideos())
+            }
 
-            val existingVideos = dao.getAllVideosRaw()
-            val existingMap = existingVideos.associateBy { it.mediaStoreId }
-
-            val scannedIds = mutableSetOf<Long>()
-            val itemsToInsert = mutableListOf<MediaItemEntity>()
-
-            // Merge with existing records to preserve user playback progress & timestamps
-            for (item in scannedItems) {
-                scannedIds.add(item.mediaStoreId)
-                val existing = existingMap[item.mediaStoreId]
-                if (existing != null) {
-                    itemsToInsert.add(
-                        item.copy(
-                            id = existing.id,
-                            playbackPositionMs = existing.playbackPositionMs,
-                            isCompleted = existing.isCompleted,
-                            lastPlayedTimestamp = existing.lastPlayedTimestamp
-                        )
-                    )
-                } else {
-                    itemsToInsert.add(item)
+            // 2. Scan each persisted SAF folder tree
+            if (persistedFolders.isNotEmpty()) {
+                val safScanner = SafTreeScanner(applicationContext)
+                for (folderUriStr in persistedFolders) {
+                    try {
+                        val treeUri = Uri.parse(folderUriStr)
+                        val safItems = safScanner.scanTree(treeUri)
+                        allScanned.addAll(safItems)
+                    } catch (_: Throwable) {
+                        // Skip unreadable or revoked SAF tree without failing overall scan
+                    }
                 }
             }
 
-            // Write in batches to prevent SQLite transaction memory pressure
-            itemsToInsert.chunked(BATCH_SIZE).forEach { batch ->
-                dao.insertOrUpdateAll(batch)
+            val database = ApturaDatabase.getInstance(applicationContext)
+            val dao = database.mediaItemDao()
+            val existingVideos = dao.getAllVideosRaw()
+
+            // 3. Reconcile scanned items against existing database items
+            val reconciliation = FileReconciliationEngine.reconcile(
+                scannedItems = allScanned,
+                existingItems = existingVideos
+            )
+
+            // 4. Batch upsert reconciled items into SQLite database
+            if (reconciliation.itemsToUpsert.isNotEmpty()) {
+                reconciliation.itemsToUpsert.chunked(BATCH_SIZE).forEach { batch ->
+                    dao.insertOrUpdateAll(batch)
+                }
             }
 
-            // Prune files deleted from disk in safe 500-item chunks (prevents SQLite 999 parameter limit)
-            // If scanner returned empty while existing videos exist, do not wipe:
-            // transient MediaStore failure or unmounted volume must never wipe user library (P-14).
-            if (scannedItems.isNotEmpty()) {
-                val idsToDelete = existingVideos
-                    .filter { it.mediaStoreId !in scannedIds }
-                    .map { it.id }
-
-                if (idsToDelete.isNotEmpty()) {
-                    idsToDelete.chunked(500).forEach { batch ->
-                        dao.deleteByIds(batch)
-                    }
+            // 5. Delete obsolete IDs if any were explicitly flagged
+            if (reconciliation.idsToDelete.isNotEmpty()) {
+                reconciliation.idsToDelete.chunked(500).forEach { batch ->
+                    dao.deleteByIds(batch)
                 }
             }
 

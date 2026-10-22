@@ -44,6 +44,7 @@ data class VideoCardUiModel(
     val folderName: String,
     val progressFraction: Float = 0f,
     val isCompleted: Boolean = false,
+    val isMissing: Boolean = false,
     val rawItem: DomainMediaItem
 )
 

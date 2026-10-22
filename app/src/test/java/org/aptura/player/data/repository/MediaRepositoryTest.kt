@@ -107,6 +107,26 @@ class MediaRepositoryTest {
             items.value = items.value.filter { it.uri != uri }
         }
 
+        override suspend fun updateMissingStatusByIds(ids: List<Long>, isMissing: Boolean) {
+            items.value = items.value.map {
+                if (it.id in ids) it.copy(isMissing = isMissing) else it
+            }
+        }
+
+        override suspend fun updateMissingStatusByUri(uri: String, isMissing: Boolean) {
+            items.value = items.value.map {
+                if (it.uri == uri) it.copy(isMissing = isMissing) else it
+            }
+        }
+
+        override fun getMissingVideos(): Flow<List<MediaItemEntity>> {
+            return items.map { list -> list.filter { it.isMissing } }
+        }
+
+        override suspend fun clearMissingVideos() {
+            items.value = items.value.filter { !it.isMissing }
+        }
+
         override suspend fun deleteRemovedVideos(existingMediaStoreIds: List<Long>) {
             items.value = items.value.filter { it.mediaStoreId in existingMediaStoreIds }
         }

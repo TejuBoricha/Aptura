@@ -37,7 +37,8 @@ data class MediaItemEntity(
     val folderPath: String = "",
     val playbackPositionMs: Long = 0L,
     val isCompleted: Boolean = false,
-    val lastPlayedTimestamp: Long = 0L
+    val lastPlayedTimestamp: Long = 0L,
+    val isMissing: Boolean = false
 )
 
 fun MediaItemEntity.toDomainMediaItem(): DomainMediaItem {
@@ -54,6 +55,7 @@ fun MediaItemEntity.toDomainMediaItem(): DomainMediaItem {
         dateModifiedSec = dateModifiedSec,
         folderPath = folderPath,
         playbackPositionMs = playbackPositionMs,
-        isCompleted = isCompleted
+        isCompleted = isCompleted,
+        isMissing = isMissing
     )
 }

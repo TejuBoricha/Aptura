@@ -73,6 +73,11 @@ import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
 import org.aptura.player.ui.library.MediaFormatters
 
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.ui.text.style.TextOverflow
+
 /**
  * Settings Root Screen (SCR-013, SCR-014, SCR-015, SCR-016).
  * Unified configuration for playback preferences, storage statistics, diagnostics, and privacy proof.
@@ -92,6 +97,8 @@ fun SettingsScreen(
     onReplayOnboardingClick: () -> Unit,
     onUpdateDecoderStrategy: (Int) -> Unit = {},
     onClearThumbnailCache: () -> Unit = {},
+    onAddFolderClick: () -> Unit = {},
+    onRemoveSafFolder: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -337,6 +344,107 @@ fun SettingsScreen(
                             StorageStatPill("Videos", "${libraryStats.totalVideos}")
                             StorageStatPill("Total Time", MediaFormatters.formatDuration(libraryStats.totalDurationMs))
                             StorageStatPill("Footprint", MediaFormatters.formatFileSize(libraryStats.totalSizeBytes))
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Custom Storage Folders (SAF - FR-LIB-005)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Custom Storage Folders",
+                                    style = ApturaTypography.titleMedium,
+                                    color = ApturaColors.TextHighEmphasis
+                                )
+                                Text(
+                                    text = "Additional SAF directories & external SD cards",
+                                    style = ApturaTypography.bodyMedium,
+                                    color = ApturaColors.TextMediumEmphasis
+                                )
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = ApturaColors.AccentPrimary.copy(alpha = 0.15f),
+                                border = BorderStroke(1.dp, ApturaColors.AccentPrimary.copy(alpha = 0.4f)),
+                                modifier = Modifier.clickable {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onAddFolderClick()
+                                }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = null,
+                                        tint = ApturaColors.AccentPrimary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Add",
+                                        style = ApturaTypography.labelSmall,
+                                        color = ApturaColors.AccentPrimary,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+
+                        if (settings.persistedSafFolders.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                settings.persistedSafFolders.forEach { folderUri ->
+                                    val displayName = try {
+                                        android.net.Uri.decode(folderUri).substringAfterLast(':').substringAfterLast('/').ifBlank { folderUri }
+                                    } catch (_: Throwable) {
+                                        folderUri
+                                    }
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(ApturaColors.SurfaceElevated2)
+                                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.FolderOpen,
+                                            contentDescription = null,
+                                            tint = ApturaColors.AccentPrimary,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Text(
+                                            text = displayName,
+                                            style = ApturaTypography.bodyMedium,
+                                            color = ApturaColors.TextHighEmphasis,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        IconButton(
+                                            onClick = {
+                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                onRemoveSafFolder(folderUri)
+                                            },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.DeleteOutline,
+                                                contentDescription = "Remove folder",
+                                                tint = ApturaColors.StatusError,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
 
                         Spacer(modifier = Modifier.height(16.dp))

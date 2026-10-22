@@ -55,6 +55,18 @@ interface MediaItemDao {
     @Query("DELETE FROM media_items WHERE uri = :uri")
     suspend fun deleteByUri(uri: String)
 
+    @Query("UPDATE media_items SET isMissing = :isMissing WHERE id IN (:ids)")
+    suspend fun updateMissingStatusByIds(ids: List<Long>, isMissing: Boolean)
+
+    @Query("UPDATE media_items SET isMissing = :isMissing WHERE uri = :uri")
+    suspend fun updateMissingStatusByUri(uri: String, isMissing: Boolean)
+
+    @Query("SELECT * FROM media_items WHERE isMissing = 1")
+    fun getMissingVideos(): Flow<List<MediaItemEntity>>
+
+    @Query("DELETE FROM media_items WHERE isMissing = 1")
+    suspend fun clearMissingVideos()
+
     @Query("DELETE FROM media_items WHERE mediaStoreId NOT IN (:existingMediaStoreIds)")
     suspend fun deleteRemovedVideos(existingMediaStoreIds: List<Long>)
 

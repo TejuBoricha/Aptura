@@ -56,7 +56,8 @@ data class DomainMediaItem(
     val dateModifiedSec: Long = 0,
     val folderPath: String = "",
     val playbackPositionMs: Long = 0L,
-    val isCompleted: Boolean = false
+    val isCompleted: Boolean = false,
+    val isMissing: Boolean = false
 )
 
 data class DomainTrackInfo(

@@ -238,6 +238,14 @@ class PlayerViewModelTest {
             bookmarksState.value = bookmarksState.value.filter { it.id != id }
         }
 
+        override fun getMissingVideos(): Flow<List<DomainMediaItem>> =
+            MutableStateFlow(items.values.filter { it.isMissing })
+
+        override suspend fun clearMissingVideos() {
+            val missingUris = items.values.filter { it.isMissing }.map { it.uri }
+            missingUris.forEach { items.remove(it) }
+        }
+
         override suspend fun getLibraryStatistics(): org.aptura.player.domain.repository.LibraryStatistics {
             return org.aptura.player.domain.repository.LibraryStatistics(
                 totalVideos = items.size,

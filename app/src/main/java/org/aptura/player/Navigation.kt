@@ -126,6 +126,24 @@ fun MainNavigation(
         }
     }
 
+    // SAF Directory Tree Picker Launcher (Custom Storage Folders & SD Card, FR-LIB-005)
+    val folderPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { treeUri ->
+        if (treeUri != null) {
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    treeUri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: Throwable) {}
+            coroutineScope.launch {
+                settingsRepository.addSafFolder(treeUri.toString())
+                MediaScanScheduler.scheduleImmediateScan(context)
+            }
+        }
+    }
+
     // Storage access state synchronization
     LaunchedEffect(Unit) {
         libraryViewModel.setPermissionDenied(!PermissionHelper.hasStoragePermission(context))
@@ -226,7 +244,8 @@ fun MainNavigation(
                     },
                     onRemoveVideo = libraryViewModel::removeVideoFromLibrary,
                     onResetProgress = libraryViewModel::resetVideoProgress,
-                    onRenameVideo = libraryViewModel::renameVideo
+                    onRenameVideo = libraryViewModel::renameVideo,
+                    onAddFolderClick = { folderPickerLauncher.launch(null) }
                 )
             }
 
@@ -382,6 +401,19 @@ fun MainNavigation(
                                 coil.Coil.imageLoader(context).diskCache?.clear()
                                 coil.Coil.imageLoader(context).memoryCache?.clear()
                             } catch (_: Throwable) {}
+                        }
+                    },
+                    onAddFolderClick = { folderPickerLauncher.launch(null) },
+                    onRemoveSafFolder = { folderUriStr ->
+                        try {
+                            context.contentResolver.releasePersistableUriPermission(
+                                android.net.Uri.parse(folderUriStr),
+                                Intent.FLAG_GRANT_READ_URI_PERMISSION
+                            )
+                        } catch (_: Throwable) {}
+                        coroutineScope.launch {
+                            settingsRepository.removeSafFolder(folderUriStr)
+                            MediaScanScheduler.scheduleImmediateScan(context)
                         }
                     }
                 )

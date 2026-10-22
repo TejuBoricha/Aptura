@@ -205,6 +205,7 @@ class MediaLibraryViewModel(
             folderName = folderDisplay,
             progressFraction = progress,
             isCompleted = isCompleted,
+            isMissing = isMissing,
             rawItem = this
         )
     }

@@ -115,6 +115,7 @@ fun MediaLibraryScreen(
     onResetProgress: (String) -> Unit = {},
     onRenameVideo: (String, String) -> Unit = { _, _ -> },
     onShowDetails: ((DomainMediaItem) -> Unit)? = null,
+    onAddFolderClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -144,6 +145,7 @@ fun MediaLibraryScreen(
                         onRefresh = onRefresh,
                         onOpenFilePicker = onOpenFilePicker,
                         onRequestPermission = onRequestPermission,
+                        onAddFolderClick = onAddFolderClick,
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(bottom = innerPadding.calculateBottomPadding())
@@ -165,6 +167,7 @@ fun MediaLibraryScreen(
                         onResetProgress = onResetProgress,
                         onRenameVideo = onRenameVideo,
                         onShowDetails = onShowDetails,
+                        onAddFolderClick = onAddFolderClick,
                         bottomPadding = innerPadding.calculateBottomPadding()
                     )
                 }
@@ -188,6 +191,7 @@ private fun MediaLibraryContentView(
     onResetProgress: (String) -> Unit,
     onRenameVideo: (String, String) -> Unit = { _, _ -> },
     onShowDetails: ((DomainMediaItem) -> Unit)? = null,
+    onAddFolderClick: () -> Unit = {},
     bottomPadding: androidx.compose.ui.unit.Dp,
     modifier: Modifier = Modifier
 ) {
@@ -527,6 +531,32 @@ private fun MediaLibraryContentView(
                         shape = RoundedCornerShape(8.dp)
                     )
                 }
+
+                item {
+                    FilterChip(
+                        selected = false,
+                        onClick = onAddFolderClick,
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.FolderOpen,
+                                contentDescription = "Add custom media folder",
+                                modifier = Modifier.size(16.dp),
+                                tint = ApturaColors.AccentPrimary
+                            )
+                        },
+                        label = { Text("+ Folder", style = ApturaTypography.labelSmall) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            containerColor = ApturaColors.SurfaceElevated1,
+                            labelColor = ApturaColors.AccentPrimary
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = false,
+                            borderColor = ApturaColors.AccentPrimary.copy(alpha = 0.4f)
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                }
             }
         }
 
@@ -796,6 +826,37 @@ fun VideoGridCard(
                     )
                 }
 
+                // Missing / Unmounted Badge (FR-LIB-018, FR-LIB-021)
+                if (card.isMissing) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(ApturaColors.SurfacePureBlack.copy(alpha = 0.55f))
+                    )
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(6.dp)
+                            .background(ApturaColors.StatusError.copy(alpha = 0.9f), RoundedCornerShape(4.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.FolderOff,
+                                contentDescription = null,
+                                tint = ApturaColors.TextHighEmphasis,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                text = "Missing",
+                                style = ApturaTypography.labelSmall,
+                                color = ApturaColors.TextHighEmphasis
+                            )
+                        }
+                    }
+                }
+
                 // Playback Progress Bar (Linear indicator along bottom edge)
                 if (card.progressFraction > 0f) {
                     LinearProgressIndicator(
@@ -872,6 +933,7 @@ private fun MediaLibraryEmptyView(
     onRefresh: () -> Unit,
     onOpenFilePicker: () -> Unit = {},
     onRequestPermission: () -> Unit = {},
+    onAddFolderClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -917,9 +979,9 @@ private fun MediaLibraryEmptyView(
 
             Text(
                 text = when {
-                    isPermissionDenied -> "Aptura needs access to your device media to index and display videos. Grant permission, or open a video file directly."
+                    isPermissionDenied -> "Aptura needs access to your device media to index and display videos. Grant permission, or add custom storage directories."
                     isFiltered -> "Try checking for spelling errors or searching for a different title"
-                    else -> "Videos stored on your device storage or SD card can be scanned into your library."
+                    else -> "Videos stored on your device storage, SD card, or custom folders can be scanned into your library."
                 },
                 style = ApturaTypography.bodyMedium,
                 color = ApturaColors.TextMediumEmphasis,
@@ -943,10 +1005,10 @@ private fun MediaLibraryEmptyView(
                     }
 
                     androidx.compose.material3.OutlinedButton(
-                        onClick = onOpenFilePicker,
+                        onClick = onAddFolderClick,
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("Open File", style = ApturaTypography.titleSmall, color = ApturaColors.TextHighEmphasis)
+                        Text("Add Folder", style = ApturaTypography.titleSmall, color = ApturaColors.TextHighEmphasis)
                     }
                 }
             } else if (isFiltered) {
@@ -961,21 +1023,37 @@ private fun MediaLibraryEmptyView(
                     Text("Clear Search", style = ApturaTypography.titleMedium)
                 }
             } else {
-                Button(
-                    onClick = onRefresh,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = ApturaColors.AccentPrimary,
-                        contentColor = ApturaColors.TextOnAccent
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Refresh,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Scan Device", style = ApturaTypography.titleMedium)
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(
+                        onClick = onRefresh,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = ApturaColors.AccentPrimary,
+                            contentColor = ApturaColors.TextOnAccent
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Scan Device", style = ApturaTypography.titleMedium)
+                    }
+
+                    androidx.compose.material3.OutlinedButton(
+                        onClick = onAddFolderClick,
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FolderOpen,
+                            contentDescription = null,
+                            tint = ApturaColors.AccentPrimary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Add Folder", style = ApturaTypography.titleMedium, color = ApturaColors.TextHighEmphasis)
+                    }
                 }
             }
         }

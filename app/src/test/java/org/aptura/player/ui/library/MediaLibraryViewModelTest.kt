@@ -58,6 +58,13 @@ class MediaLibraryViewModelTest {
 
         override suspend fun deleteBookmark(id: Long) {}
 
+        override fun getMissingVideos(): Flow<List<DomainMediaItem>> =
+            MutableStateFlow(videosFlow.value.filter { it.isMissing })
+
+        override suspend fun clearMissingVideos() {
+            videosFlow.value = videosFlow.value.filter { !it.isMissing }
+        }
+
         override suspend fun getLibraryStatistics(): org.aptura.player.domain.repository.LibraryStatistics {
             val list = videosFlow.value
             return org.aptura.player.domain.repository.LibraryStatistics(

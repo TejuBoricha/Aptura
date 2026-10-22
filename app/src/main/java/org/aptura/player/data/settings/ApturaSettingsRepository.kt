@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -29,7 +30,8 @@ data class ApturaSettings(
     val subtitleFontSizeSp: Int = 18,
     val subtitleTextColorHex: String = "#FFFFFF",
     val subtitleBackgroundEnabled: Boolean = false,
-    val defaultDecoderStrategy: Int = 0 // 0: Auto, 1: Hardware, 2: Software
+    val defaultDecoderStrategy: Int = 0, // 0: Auto, 1: Hardware, 2: Software
+    val persistedSafFolders: Set<String> = emptySet()
 )
 
 /**
@@ -49,6 +51,7 @@ class ApturaSettingsRepository(private val context: Context) {
         val SUBTITLE_TEXT_COLOR_HEX = stringPreferencesKey("subtitle_text_color_hex")
         val SUBTITLE_BACKGROUND_ENABLED = booleanPreferencesKey("subtitle_background_enabled")
         val DEFAULT_DECODER_STRATEGY = intPreferencesKey("default_decoder_strategy")
+        val PERSISTED_SAF_FOLDERS = stringSetPreferencesKey("persisted_saf_folders")
     }
 
     val settingsFlow: Flow<ApturaSettings> = context.dataStore.data
@@ -70,7 +73,8 @@ class ApturaSettingsRepository(private val context: Context) {
                 subtitleFontSizeSp = preferences[PreferencesKeys.SUBTITLE_FONT_SIZE_SP] ?: 18,
                 subtitleTextColorHex = preferences[PreferencesKeys.SUBTITLE_TEXT_COLOR_HEX] ?: "#FFFFFF",
                 subtitleBackgroundEnabled = preferences[PreferencesKeys.SUBTITLE_BACKGROUND_ENABLED] ?: false,
-                defaultDecoderStrategy = preferences[PreferencesKeys.DEFAULT_DECODER_STRATEGY] ?: 0
+                defaultDecoderStrategy = preferences[PreferencesKeys.DEFAULT_DECODER_STRATEGY] ?: 0,
+                persistedSafFolders = preferences[PreferencesKeys.PERSISTED_SAF_FOLDERS] ?: emptySet()
             )
         }
 
@@ -131,6 +135,22 @@ class ApturaSettingsRepository(private val context: Context) {
     suspend fun updateDefaultDecoderStrategy(strategy: Int) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.DEFAULT_DECODER_STRATEGY] = strategy
+        }
+    }
+
+    suspend fun addSafFolder(treeUri: String) {
+        val clean = treeUri.trim()
+        if (clean.isBlank()) return
+        context.dataStore.edit { preferences ->
+            val current = preferences[PreferencesKeys.PERSISTED_SAF_FOLDERS] ?: emptySet()
+            preferences[PreferencesKeys.PERSISTED_SAF_FOLDERS] = current + clean
+        }
+    }
+
+    suspend fun removeSafFolder(treeUri: String) {
+        context.dataStore.edit { preferences ->
+            val current = preferences[PreferencesKeys.PERSISTED_SAF_FOLDERS] ?: emptySet()
+            preferences[PreferencesKeys.PERSISTED_SAF_FOLDERS] = current - treeUri
         }
     }
 

@@ -12,6 +12,14 @@ import coil.decode.VideoFrameDecoder
  */
 class ApturaApplication : Application(), ImageLoaderFactory {
 
+    override fun onCreate() {
+        super.onCreate()
+        try {
+            val filter = org.aptura.player.core.platform.StorageVolumeReceiver.createIntentFilter()
+            registerReceiver(org.aptura.player.core.platform.StorageVolumeReceiver(), filter)
+        } catch (_: Throwable) {}
+    }
+
     override fun newImageLoader(): ImageLoader {
         return ImageLoader.Builder(this)
             .components {

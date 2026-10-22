@@ -106,6 +106,16 @@ class MediaRepositoryImpl(
         }
     }
 
+    override fun getMissingVideos(): Flow<List<DomainMediaItem>> {
+        return mediaItemDao.getMissingVideos()
+            .map { list -> list.map { it.toDomainMediaItem() } }
+            .flowOn(ioDispatcher)
+    }
+
+    override suspend fun clearMissingVideos(): Unit = withContext(ioDispatcher) {
+        mediaItemDao.clearMissingVideos()
+    }
+
     override suspend fun deleteBookmark(id: Long) {
         withContext(ioDispatcher) {
             bookmarkDao?.deleteBookmarkById(id)

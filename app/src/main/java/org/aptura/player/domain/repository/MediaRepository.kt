@@ -66,6 +66,16 @@ interface MediaRepository {
     suspend fun addBookmark(mediaUri: String, timestampMs: Long, note: String = ""): Long
 
     /**
+     * Emits videos flagged as missing (unmounted storage, moved or deleted) (FR-LIB-018, FR-LIB-021).
+     */
+    fun getMissingVideos(): Flow<List<DomainMediaItem>>
+
+    /**
+     * Purges missing items from the library database.
+     */
+    suspend fun clearMissingVideos()
+
+    /**
      * Deletes a bookmark by its ID (FR-CTRL-011).
      */
     suspend fun deleteBookmark(id: Long)
