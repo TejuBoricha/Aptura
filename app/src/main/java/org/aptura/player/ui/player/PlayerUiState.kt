@@ -96,7 +96,13 @@ data class PlayerUiState(
     val sanitizedTitle: String = "",
     val recentDownloadedSubtitle: org.aptura.player.data.repository.DetectedSidecarSubtitle? = null,
     val autoPairedSubtitleToast: String? = null,
-    val isWebSearchDialogVisible: Boolean = false
+    val isWebSearchDialogVisible: Boolean = false,
+    val queueItems: List<org.aptura.player.domain.model.DomainMediaItem> = emptyList(),
+    val currentQueueIndex: Int = -1,
+    val isQueueSheetVisible: Boolean = false,
+    val isPlayModeSheetVisible: Boolean = false,
+    val nextItemDurationMs: Long? = null,
+    val nextItemUri: String? = null
 ) {
     val effectivePositionMs: Long
         get() = if (isScrubbing) scrubPositionMs else currentPositionMs

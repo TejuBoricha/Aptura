@@ -222,6 +222,8 @@ class PlayerViewModel(
                 val sanitized = currentItem?.let { SubtitleQuerySanitizer.sanitize(it.title) }
                 _uiState.update {
                     it.copy(
+                        queueItems = queue.items,
+                        currentQueueIndex = queue.currentIndex,
                         playMode = queue.playMode,
                         hasNext = queue.hasNext,
                         hasPrevious = queue.hasPrevious,
@@ -334,19 +336,28 @@ class PlayerViewModel(
             }
             val nextItem = if (nextIndex in queue.items.indices) queue.items[nextIndex] else null
             val nextTitle = nextItem?.title?.let { MediaFormatters.cleanTitle(it) } ?: "Next Video"
+            val nextDuration = nextItem?.durationMs
+            val nextUri = nextItem?.uri
 
             autoAdvanceJob = viewModelScope.launch(dispatcher + errorHandler) {
                 for (s in 10 downTo 1) {
                     _uiState.update {
                         it.copy(
                             autoAdvanceCountdownSeconds = s,
-                            nextItemTitle = nextTitle
+                            nextItemTitle = nextTitle,
+                            nextItemDurationMs = nextDuration,
+                            nextItemUri = nextUri
                         )
                     }
                     delay(1000L)
                 }
                 _uiState.update {
-                    it.copy(autoAdvanceCountdownSeconds = null, nextItemTitle = null)
+                    it.copy(
+                        autoAdvanceCountdownSeconds = null,
+                        nextItemTitle = null,
+                        nextItemDurationMs = null,
+                        nextItemUri = null
+                    )
                 }
                 skipToNext()
             }
@@ -356,16 +367,109 @@ class PlayerViewModel(
     fun cancelAutoAdvance() {
         autoAdvanceJob?.cancel()
         _uiState.update {
-            it.copy(autoAdvanceCountdownSeconds = null, nextItemTitle = null)
+            it.copy(
+                autoAdvanceCountdownSeconds = null,
+                nextItemTitle = null,
+                nextItemDurationMs = null,
+                nextItemUri = null
+            )
         }
     }
 
     fun playNextImmediately() {
         autoAdvanceJob?.cancel()
         _uiState.update {
-            it.copy(autoAdvanceCountdownSeconds = null, nextItemTitle = null)
+            it.copy(
+                autoAdvanceCountdownSeconds = null,
+                nextItemTitle = null,
+                nextItemDurationMs = null,
+                nextItemUri = null
+            )
         }
         skipToNext()
+    }
+
+    fun replayCurrentItem() {
+        autoAdvanceJob?.cancel()
+        _uiState.update {
+            it.copy(
+                autoAdvanceCountdownSeconds = null,
+                nextItemTitle = null,
+                nextItemDurationMs = null,
+                nextItemUri = null,
+                isEnded = false
+            )
+        }
+        viewModelScope.launch(dispatcher + errorHandler) {
+            playbackController.seekTo(0L)
+            playbackController.play()
+            scheduleAutoHide()
+        }
+    }
+
+    fun showQueueSheet(visible: Boolean) {
+        _uiState.update { it.copy(isQueueSheetVisible = visible) }
+        if (!visible) scheduleAutoHide()
+    }
+
+    fun showPlayModeSheet(visible: Boolean) {
+        _uiState.update { it.copy(isPlayModeSheetVisible = visible) }
+        if (!visible) scheduleAutoHide()
+    }
+
+    fun setPlayMode(mode: PlayMode) {
+        viewModelScope.launch(dispatcher + errorHandler) {
+            playbackController.setPlayMode(mode)
+            _uiState.update { it.copy(playMode = mode) }
+            scheduleAutoHide()
+        }
+    }
+
+    fun jumpToQueueItem(index: Int) {
+        autoAdvanceJob?.cancel()
+        _uiState.update {
+            it.copy(
+                autoAdvanceCountdownSeconds = null,
+                nextItemTitle = null,
+                nextItemDurationMs = null,
+                nextItemUri = null,
+                isQueueSheetVisible = false
+            )
+        }
+        viewModelScope.launch(dispatcher + errorHandler) {
+            playbackController.playQueueItem(index)
+            scheduleAutoHide()
+        }
+    }
+
+    fun moveQueueItem(fromIndex: Int, toIndex: Int) {
+        viewModelScope.launch(dispatcher + errorHandler) {
+            playbackController.moveQueueItem(fromIndex, toIndex)
+        }
+    }
+
+    fun removeFromQueue(index: Int) {
+        viewModelScope.launch(dispatcher + errorHandler) {
+            playbackController.removeFromQueue(index)
+        }
+    }
+
+    fun clearQueue() {
+        viewModelScope.launch(dispatcher + errorHandler) {
+            playbackController.clearQueue()
+        }
+    }
+
+    fun addToQueue(item: DomainMediaItem) {
+        viewModelScope.launch(dispatcher + errorHandler) {
+            playbackController.addToQueue(item)
+        }
+    }
+
+    fun playNext(item: DomainMediaItem) {
+        viewModelScope.launch(dispatcher + errorHandler) {
+            playbackController.playNext(item)
+        }
     }
 
     fun loadAndPlay(videoUri: String) {

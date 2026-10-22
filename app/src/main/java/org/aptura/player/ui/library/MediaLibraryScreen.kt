@@ -116,6 +116,8 @@ fun MediaLibraryScreen(
     onRenameVideo: (String, String) -> Unit = { _, _ -> },
     onShowDetails: ((DomainMediaItem) -> Unit)? = null,
     onAddFolderClick: () -> Unit = {},
+    onPlayNext: (DomainMediaItem) -> Unit = {},
+    onAddToQueue: (DomainMediaItem) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -168,6 +170,8 @@ fun MediaLibraryScreen(
                         onRenameVideo = onRenameVideo,
                         onShowDetails = onShowDetails,
                         onAddFolderClick = onAddFolderClick,
+                        onPlayNext = onPlayNext,
+                        onAddToQueue = onAddToQueue,
                         bottomPadding = innerPadding.calculateBottomPadding()
                     )
                 }
@@ -192,6 +196,8 @@ private fun MediaLibraryContentView(
     onRenameVideo: (String, String) -> Unit = { _, _ -> },
     onShowDetails: ((DomainMediaItem) -> Unit)? = null,
     onAddFolderClick: () -> Unit = {},
+    onPlayNext: (DomainMediaItem) -> Unit = {},
+    onAddToQueue: (DomainMediaItem) -> Unit = {},
     bottomPadding: androidx.compose.ui.unit.Dp,
     modifier: Modifier = Modifier
 ) {
@@ -659,6 +665,14 @@ private fun MediaLibraryContentView(
                 onPlayAudioOnlyClick = {
                     selectedDetailItem = null
                     onVideoClick(item, allRawVideos)
+                },
+                onPlayNextClick = {
+                    selectedDetailItem = null
+                    onPlayNext(item)
+                },
+                onAddToQueueClick = {
+                    selectedDetailItem = null
+                    onAddToQueue(item)
                 },
                 onOpenWithClick = {
                     val viewIntent = Intent(Intent.ACTION_VIEW).apply {

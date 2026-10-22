@@ -312,6 +312,91 @@ class Media3PlaybackController(
         }
     }
 
+    override suspend fun playQueueItem(index: Int) {
+        val queue = _playbackQueue.value
+        if (index in queue.items.indices) {
+            val item = queue.items[index]
+            _playbackQueue.value = queue.copy(currentIndex = index)
+            playMediaItemInternal(item)
+        }
+    }
+
+    override suspend fun addToQueue(item: DomainMediaItem) {
+        val queue = _playbackQueue.value
+        if (queue.items.isEmpty()) {
+            playQueue(listOf(item), 0)
+        } else {
+            val newItems = queue.items + item
+            _playbackQueue.value = queue.copy(items = newItems)
+        }
+    }
+
+    override suspend fun playNext(item: DomainMediaItem) {
+        val queue = _playbackQueue.value
+        if (queue.items.isEmpty()) {
+            playQueue(listOf(item), 0)
+        } else {
+            val insertIndex = (queue.currentIndex + 1).coerceAtMost(queue.items.size)
+            val newItems = queue.items.toMutableList().apply {
+                add(insertIndex, item)
+            }
+            _playbackQueue.value = queue.copy(items = newItems)
+        }
+    }
+
+    override suspend fun removeFromQueue(index: Int) {
+        val queue = _playbackQueue.value
+        if (index !in queue.items.indices) return
+        val newItems = queue.items.toMutableList().apply { removeAt(index) }
+        if (newItems.isEmpty()) {
+            player.stop()
+            player.clearMediaItems()
+            _playbackQueue.value = DomainPlaybackQueue()
+            _playbackState.value = DomainPlaybackState.Idle
+            return
+        }
+        val currentIdx = queue.currentIndex
+        val newCurrentIndex = when {
+            index < currentIdx -> currentIdx - 1
+            index == currentIdx -> currentIdx.coerceAtMost(newItems.size - 1)
+            else -> currentIdx
+        }
+        _playbackQueue.value = queue.copy(items = newItems, currentIndex = newCurrentIndex)
+        if (index == currentIdx) {
+            playMediaItemInternal(newItems[newCurrentIndex])
+        }
+    }
+
+    override suspend fun moveQueueItem(fromIndex: Int, toIndex: Int) {
+        val queue = _playbackQueue.value
+        if (fromIndex !in queue.items.indices || toIndex !in queue.items.indices || fromIndex == toIndex) return
+        val newItems = queue.items.toMutableList()
+        val item = newItems.removeAt(fromIndex)
+        newItems.add(toIndex, item)
+
+        val oldCurrent = queue.currentIndex
+        val newCurrent = when {
+            oldCurrent == fromIndex -> toIndex
+            fromIndex < oldCurrent && toIndex >= oldCurrent -> oldCurrent - 1
+            fromIndex > oldCurrent && toIndex <= oldCurrent -> oldCurrent + 1
+            else -> oldCurrent
+        }
+        _playbackQueue.value = queue.copy(items = newItems, currentIndex = newCurrent)
+    }
+
+    override suspend fun clearQueue() {
+        val queue = _playbackQueue.value
+        val current = queue.currentItem
+        if (current != null) {
+            _playbackQueue.value = queue.copy(items = listOf(current), currentIndex = 0)
+        } else {
+            player.stop()
+            player.clearMediaItems()
+            _playbackQueue.value = DomainPlaybackQueue()
+            _playbackState.value = DomainPlaybackState.Idle
+        }
+    }
+
     override suspend fun setPlaybackSpeed(speed: Float) {
         val clampedSpeed = speed.coerceIn(0.1f, 4.0f)
         player.setPlaybackSpeed(clampedSpeed)

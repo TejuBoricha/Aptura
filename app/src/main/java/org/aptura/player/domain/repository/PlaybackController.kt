@@ -39,5 +39,11 @@ interface PlaybackController {
     suspend fun removeExternalSubtitles() {}
     suspend fun setDecoderStrategy(strategy: Int) {}
     suspend fun retryPlayback() {}
+    suspend fun playQueueItem(index: Int) {}
+    suspend fun addToQueue(item: DomainMediaItem) {}
+    suspend fun playNext(item: DomainMediaItem) {}
+    suspend fun removeFromQueue(index: Int) {}
+    suspend fun moveQueueItem(fromIndex: Int, toIndex: Int) {}
+    suspend fun clearQueue() {}
     suspend fun release()
 }

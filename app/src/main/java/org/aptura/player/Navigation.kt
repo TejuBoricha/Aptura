@@ -245,7 +245,15 @@ fun MainNavigation(
                     onRemoveVideo = libraryViewModel::removeVideoFromLibrary,
                     onResetProgress = libraryViewModel::resetVideoProgress,
                     onRenameVideo = libraryViewModel::renameVideo,
-                    onAddFolderClick = { folderPickerLauncher.launch(null) }
+                    onAddFolderClick = { folderPickerLauncher.launch(null) },
+                    onPlayNext = { videoItem ->
+                        playerViewModel.playNext(videoItem)
+                        android.widget.Toast.makeText(context, "Will play next: ${videoItem.title}", android.widget.Toast.LENGTH_SHORT).show()
+                    },
+                    onAddToQueue = { videoItem ->
+                        playerViewModel.addToQueue(videoItem)
+                        android.widget.Toast.makeText(context, "Added to queue: ${videoItem.title}", android.widget.Toast.LENGTH_SHORT).show()
+                    }
                 )
             }
 
@@ -315,6 +323,14 @@ fun MainNavigation(
                     },
                     onDeleteClick = {
                         itemToDelete = item
+                    },
+                    onPlayNextClick = {
+                        playerViewModel.playNext(item)
+                        android.widget.Toast.makeText(context, "Will play next: ${item.title}", android.widget.Toast.LENGTH_SHORT).show()
+                    },
+                    onAddToQueueClick = {
+                        playerViewModel.addToQueue(item)
+                        android.widget.Toast.makeText(context, "Added to queue: ${item.title}", android.widget.Toast.LENGTH_SHORT).show()
                     },
                     showCloseButton = true,
                     modifier = Modifier
@@ -583,7 +599,13 @@ fun MainNavigation(
                     onDismissRecentSubtitle = {
                         playerViewModel.setRecentDownloadedSubtitle(null)
                     },
-                    onDismissAutoPairToast = playerViewModel::dismissAutoPairToast
+                    onDismissAutoPairToast = playerViewModel::dismissAutoPairToast,
+                    onQueueSheetVisible = playerViewModel::showQueueSheet,
+                    onJumpToQueueItem = playerViewModel::jumpToQueueItem,
+                    onMoveQueueItem = playerViewModel::moveQueueItem,
+                    onRemoveQueueItem = playerViewModel::removeFromQueue,
+                    onClearQueue = playerViewModel::clearQueue,
+                    onReplayCurrentItem = playerViewModel::replayCurrentItem
                 )
             }
         }

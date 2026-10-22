@@ -31,9 +31,11 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlayCircleOutline
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -147,6 +149,8 @@ fun MediaDetailsContent(
     onRenameClick: () -> Unit = {},
     onHideClick: () -> Unit = {},
     onDeleteClick: () -> Unit = {},
+    onPlayNextClick: () -> Unit = {},
+    onAddToQueueClick: () -> Unit = {},
     showCloseButton: Boolean = true,
     modifier: Modifier = Modifier
 ) {
@@ -475,6 +479,38 @@ fun MediaDetailsContent(
 
         Spacer(modifier = Modifier.height(10.dp))
 
+        // Queue Actions Row: Play Next & Add to Queue (FR-CTRL-017, SCR-009)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            OutlinedButton(
+                onClick = onPlayNextClick,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = ApturaColors.TextHighEmphasis),
+                border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3)
+            ) {
+                Icon(imageVector = Icons.Default.FastForward, contentDescription = null, modifier = Modifier.size(16.dp), tint = ApturaColors.AccentPrimary)
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(text = "Play Next", style = ApturaTypography.labelMedium)
+            }
+
+            OutlinedButton(
+                onClick = onAddToQueueClick,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = ApturaColors.TextHighEmphasis),
+                border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3)
+            ) {
+                Icon(imageVector = Icons.AutoMirrored.Filled.QueueMusic, contentDescription = null, modifier = Modifier.size(16.dp), tint = ApturaColors.AccentSecondary)
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(text = "Add to Queue", style = ApturaTypography.labelMedium)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
         // Action Buttons: Secondary Management Row 1 (Rename, Open With)
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -574,6 +610,8 @@ fun MediaDetailsSheet(
     onRenameClick: () -> Unit = {},
     onHideClick: () -> Unit = {},
     onDeleteClick: () -> Unit = {},
+    onPlayNextClick: () -> Unit = {},
+    onAddToQueueClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -612,6 +650,14 @@ fun MediaDetailsSheet(
             onDeleteClick = {
                 onDismiss()
                 onDeleteClick()
+            },
+            onPlayNextClick = {
+                onDismiss()
+                onPlayNextClick()
+            },
+            onAddToQueueClick = {
+                onDismiss()
+                onAddToQueueClick()
             },
             showCloseButton = false,
             modifier = Modifier.padding(bottom = 24.dp)

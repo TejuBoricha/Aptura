@@ -87,6 +87,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.Replay
@@ -227,6 +228,12 @@ fun PlayerScreen(
     onAttachRecentSubtitle: (org.aptura.player.data.repository.DetectedSidecarSubtitle) -> Unit = {},
     onDismissRecentSubtitle: () -> Unit = {},
     onDismissAutoPairToast: () -> Unit = {},
+    onQueueSheetVisible: (Boolean) -> Unit = {},
+    onJumpToQueueItem: (Int) -> Unit = {},
+    onMoveQueueItem: (Int, Int) -> Unit = { _, _ -> },
+    onRemoveQueueItem: (Int) -> Unit = {},
+    onClearQueue: () -> Unit = {},
+    onReplayCurrentItem: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -901,47 +908,29 @@ fun PlayerScreen(
                             )
                         }
 
-                        // Aspect ratio badge button
-                        Surface(
-                            shape = RoundedCornerShape(20.dp),
-                            color = ApturaColors.SurfaceScrim.copy(alpha = 0.65f),
-                            border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3.copy(alpha = 0.6f)),
-                            modifier = Modifier
-                                .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
-                                .clickable { onResizeModeToggle() }
-                                .padding(horizontal = 4.dp)
+                        // Aspect ratio button
+                        IconButton(
+                            onClick = onResizeModeToggle,
+                            modifier = Modifier.size(40.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.AspectRatio,
-                                    contentDescription = "Aspect Ratio",
-                                    tint = ApturaColors.AccentPrimary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
-                                    text = uiState.resizeMode.label,
-                                    style = ApturaTypography.labelSmall,
-                                    color = ApturaColors.AccentPrimary
-                                )
-                            }
+                            Icon(
+                                imageVector = Icons.Filled.AspectRatio,
+                                contentDescription = "Aspect Ratio",
+                                tint = if (uiState.resizeMode != AspectRatioMode.FIT) ApturaColors.AccentPrimary else ApturaColors.TextMediumEmphasis,
+                                modifier = Modifier.size(20.dp)
+                            )
                         }
 
                         // Speed selector button
                         Surface(
-                            shape = RoundedCornerShape(20.dp),
+                            onClick = { onSpeedSheetVisible(true) },
+                            shape = RoundedCornerShape(16.dp),
                             color = ApturaColors.SurfaceScrim.copy(alpha = 0.65f),
                             border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3.copy(alpha = 0.6f)),
-                            modifier = Modifier
-                                .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
-                                .clickable { onSpeedSheetVisible(true) }
-                                .padding(horizontal = 4.dp)
+                            modifier = Modifier.padding(horizontal = 2.dp)
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
@@ -956,6 +945,38 @@ fun PlayerScreen(
                                     style = ApturaTypography.labelSmall,
                                     color = ApturaColors.TextHighEmphasis
                                 )
+                            }
+                        }
+
+                        // Queue button (SCR-010f, FR-CTRL-001) - prominent chip when queue has multiple items
+                        if (uiState.queueItems.size > 1) {
+                            Surface(
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onQueueSheetVisible(true)
+                                },
+                                shape = RoundedCornerShape(16.dp),
+                                color = ApturaColors.AccentSubtle,
+                                border = BorderStroke(1.dp, ApturaColors.AccentPrimary),
+                                modifier = Modifier.padding(horizontal = 2.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.QueueMusic,
+                                        contentDescription = "Playback Queue",
+                                        tint = ApturaColors.AccentPrimary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        text = "${uiState.queueItems.size}",
+                                        style = ApturaTypography.labelSmall,
+                                        color = ApturaColors.AccentPrimary
+                                    )
+                                }
                             }
                         }
                     }
@@ -1566,16 +1587,32 @@ fun PlayerScreen(
 
         // 7. Up Next Auto-Advance Countdown Overlay (SCR-010g)
         if (uiState.isEnded && uiState.autoAdvanceCountdownSeconds != null) {
-            UpNextCountdownOverlay(
-                nextTitle = uiState.nextItemTitle ?: "Next Video",
+            UpNextOverlay(
                 countdownSeconds = uiState.autoAdvanceCountdownSeconds,
-                onPlayNext = onPlayNextImmediately,
-                onCancel = onCancelAutoAdvance,
-                modifier = Modifier.align(Alignment.Center)
+                nextTitle = uiState.nextItemTitle ?: "Next Video",
+                nextDurationMs = uiState.nextItemDurationMs,
+                onPlayNow = onPlayNextImmediately,
+                onReplay = onReplayCurrentItem,
+                onCancel = onCancelAutoAdvance
             )
         }
 
-        // 7. Speed Selection Sheet (SCR-010b)
+        // 7b. Playback Queue Sheet (SCR-010f, FR-CTRL-001, FR-CTRL-017)
+        if (uiState.isQueueSheetVisible) {
+            PlaybackQueueSheet(
+                queueItems = uiState.queueItems,
+                currentIndex = uiState.currentQueueIndex,
+                playMode = uiState.playMode,
+                onDismiss = { onQueueSheetVisible(false) },
+                onJumpToItem = onJumpToQueueItem,
+                onMoveItem = onMoveQueueItem,
+                onRemoveItem = onRemoveQueueItem,
+                onClearQueue = onClearQueue,
+                onTogglePlayMode = onPlayModeToggle
+            )
+        }
+
+        // 7c. Speed Selection Sheet (SCR-010b)
         if (uiState.isSpeedSheetVisible) {
             ModalBottomSheet(
                 onDismissRequest = { onSpeedSheetVisible(false) },
@@ -2774,99 +2811,6 @@ fun PlayerScreen(
                             }
                         }
                     }
-                }
-            }
-        }
-    }
-}
-
-/**
- * Up Next Auto-Advance Countdown Overlay (SCR-010g, FR-CTRL-017).
- * Displays a 10s countdown ring with play-now and cancellable controls.
- */
-@Composable
-private fun UpNextCountdownOverlay(
-    nextTitle: String,
-    countdownSeconds: Int,
-    onPlayNext: () -> Unit,
-    onCancel: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier
-            .padding(24.dp)
-            .widthIn(max = 380.dp),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = ApturaColors.SurfaceElevated1.copy(alpha = 0.95f)
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "UP NEXT",
-                style = ApturaTypography.labelSmall,
-                color = ApturaColors.AccentPrimary,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = nextTitle,
-                style = ApturaTypography.headlineSmall,
-                color = ApturaColors.TextHighEmphasis,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Countdown circular ring
-            val fontScale = androidx.compose.ui.platform.LocalConfiguration.current.fontScale
-            Box(
-                modifier = Modifier.size(if (fontScale >= 1.3f) 88.dp else 72.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(
-                    progress = { countdownSeconds / 10f },
-                    modifier = Modifier.fillMaxSize(),
-                    color = ApturaColors.AccentPrimary,
-                    trackColor = ApturaColors.SurfaceElevated2,
-                    strokeWidth = 4.dp
-                )
-                Text(
-                    text = "$countdownSeconds",
-                    style = ApturaTypography.headlineMedium.copy(fontFeatureSettings = "tnum"),
-                    color = ApturaColors.TextHighEmphasis,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                OutlinedButton(
-                    onClick = onCancel,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text("Cancel", color = ApturaColors.TextMediumEmphasis)
-                }
-
-                Button(
-                    onClick = onPlayNext,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = ApturaColors.AccentPrimary,
-                        contentColor = ApturaColors.SurfacePureBlack
-                    )
-                ) {
-                    Text("Play Now", fontWeight = FontWeight.Bold)
                 }
             }
         }

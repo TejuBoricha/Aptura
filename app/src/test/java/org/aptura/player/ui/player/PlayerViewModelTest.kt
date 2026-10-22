@@ -194,6 +194,55 @@ class PlayerViewModelTest {
             _decoderStrategy.value = strategy
         }
 
+        override suspend fun playQueueItem(index: Int) {
+            val queue = _playbackQueue.value
+            if (index in queue.items.indices) {
+                _playbackQueue.value = queue.copy(currentIndex = index)
+                playMediaItem(queue.items[index])
+            }
+        }
+
+        override suspend fun addToQueue(item: DomainMediaItem) {
+            val queue = _playbackQueue.value
+            _playbackQueue.value = queue.copy(items = queue.items + item)
+        }
+
+        override suspend fun playNext(item: DomainMediaItem) {
+            val queue = _playbackQueue.value
+            val insertIndex = (queue.currentIndex + 1).coerceAtMost(queue.items.size)
+            val newItems = queue.items.toMutableList().apply { add(insertIndex, item) }
+            _playbackQueue.value = queue.copy(items = newItems)
+        }
+
+        override suspend fun removeFromQueue(index: Int) {
+            val queue = _playbackQueue.value
+            if (index in queue.items.indices) {
+                val newItems = queue.items.toMutableList().apply { removeAt(index) }
+                val newIndex = when {
+                    index < queue.currentIndex -> queue.currentIndex - 1
+                    index == queue.currentIndex -> queue.currentIndex.coerceAtMost(newItems.size - 1)
+                    else -> queue.currentIndex
+                }
+                _playbackQueue.value = queue.copy(items = newItems, currentIndex = newIndex)
+            }
+        }
+
+        override suspend fun moveQueueItem(fromIndex: Int, toIndex: Int) {
+            val queue = _playbackQueue.value
+            if (fromIndex in queue.items.indices && toIndex in queue.items.indices) {
+                val newItems = queue.items.toMutableList()
+                val item = newItems.removeAt(fromIndex)
+                newItems.add(toIndex, item)
+                _playbackQueue.value = queue.copy(items = newItems)
+            }
+        }
+
+        override suspend fun clearQueue() {
+            val queue = _playbackQueue.value
+            val current = queue.currentItem
+            _playbackQueue.value = if (current != null) queue.copy(items = listOf(current), currentIndex = 0) else DomainPlaybackQueue()
+        }
+
         override suspend fun release() {}
     }
 
@@ -1158,6 +1207,214 @@ class PlayerViewModelTest {
 
         assertFalse(controller.isPlaying)
         assertEquals(1420500L, repository.savedPositions[sampleVideo.uri]?.first)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun testQueueItemsEmittedToUiState() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        val items = listOf(
+            DomainMediaItem("uri:1", "Video 1", 60000L, 1000L, "video/mp4"),
+            DomainMediaItem("uri:2", "Video 2", 120000L, 2000L, "video/mp4"),
+            DomainMediaItem("uri:3", "Video 3", 180000L, 3000L, "video/mp4")
+        )
+
+        viewModel.playQueue(items, 1)
+        runCurrent()
+
+        assertEquals(3, viewModel.uiState.value.queueItems.size)
+        assertEquals(1, viewModel.uiState.value.currentQueueIndex)
+        assertEquals("uri:2", viewModel.uiState.value.videoUri)
+        assertTrue(viewModel.uiState.value.hasNext)
+        assertTrue(viewModel.uiState.value.hasPrevious)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun testJumpToQueueItem() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        val items = listOf(
+            DomainMediaItem("uri:1", "Video 1", 60000L, 1000L, "video/mp4"),
+            DomainMediaItem("uri:2", "Video 2", 120000L, 2000L, "video/mp4"),
+            DomainMediaItem("uri:3", "Video 3", 180000L, 3000L, "video/mp4")
+        )
+
+        viewModel.playQueue(items, 0)
+        runCurrent()
+
+        viewModel.jumpToQueueItem(2)
+        runCurrent()
+
+        assertEquals(2, viewModel.uiState.value.currentQueueIndex)
+        assertEquals("uri:3", viewModel.uiState.value.videoUri)
+        assertFalse(viewModel.uiState.value.hasNext)
+        assertTrue(viewModel.uiState.value.hasPrevious)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun testMoveQueueItem() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        val items = listOf(
+            DomainMediaItem("uri:1", "Video 1", 60000L, 1000L, "video/mp4"),
+            DomainMediaItem("uri:2", "Video 2", 120000L, 2000L, "video/mp4"),
+            DomainMediaItem("uri:3", "Video 3", 180000L, 3000L, "video/mp4")
+        )
+
+        viewModel.playQueue(items, 0)
+        runCurrent()
+
+        // Move Video 1 from index 0 to index 2
+        viewModel.moveQueueItem(0, 2)
+        runCurrent()
+
+        assertEquals(3, viewModel.uiState.value.queueItems.size)
+        assertEquals("uri:2", viewModel.uiState.value.queueItems[0].uri)
+        assertEquals("uri:3", viewModel.uiState.value.queueItems[1].uri)
+        assertEquals("uri:1", viewModel.uiState.value.queueItems[2].uri)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun testRemoveFromQueue() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        val items = listOf(
+            DomainMediaItem("uri:1", "Video 1", 60000L, 1000L, "video/mp4"),
+            DomainMediaItem("uri:2", "Video 2", 120000L, 2000L, "video/mp4"),
+            DomainMediaItem("uri:3", "Video 3", 180000L, 3000L, "video/mp4")
+        )
+
+        viewModel.playQueue(items, 0)
+        runCurrent()
+
+        // Remove item at index 1
+        viewModel.removeFromQueue(1)
+        runCurrent()
+
+        assertEquals(2, viewModel.uiState.value.queueItems.size)
+        assertEquals("uri:1", viewModel.uiState.value.queueItems[0].uri)
+        assertEquals("uri:3", viewModel.uiState.value.queueItems[1].uri)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun testClearQueue() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        val items = listOf(
+            DomainMediaItem("uri:1", "Video 1", 60000L, 1000L, "video/mp4"),
+            DomainMediaItem("uri:2", "Video 2", 120000L, 2000L, "video/mp4")
+        )
+
+        viewModel.playQueue(items, 1)
+        runCurrent()
+
+        viewModel.clearQueue()
+        runCurrent()
+
+        assertEquals(1, viewModel.uiState.value.queueItems.size)
+        assertEquals("uri:2", viewModel.uiState.value.queueItems[0].uri)
+        assertEquals(0, viewModel.uiState.value.currentQueueIndex)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun testCyclePlayMode() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        assertEquals(PlayMode.NORMAL, viewModel.uiState.value.playMode)
+
+        viewModel.togglePlayMode()
+        runCurrent()
+        assertEquals(PlayMode.REPEAT_ALL, viewModel.uiState.value.playMode)
+
+        viewModel.togglePlayMode()
+        runCurrent()
+        assertEquals(PlayMode.REPEAT_ONE, viewModel.uiState.value.playMode)
+
+        viewModel.togglePlayMode()
+        runCurrent()
+        assertEquals(PlayMode.SHUFFLE, viewModel.uiState.value.playMode)
+
+        viewModel.togglePlayMode()
+        runCurrent()
+        assertEquals(PlayMode.NORMAL, viewModel.uiState.value.playMode)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun testAddToQueueAndPlayNext() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        val items = listOf(
+            DomainMediaItem("uri:1", "Video 1", 60000L, 1000L, "video/mp4"),
+            DomainMediaItem("uri:2", "Video 2", 120000L, 2000L, "video/mp4")
+        )
+
+        viewModel.playQueue(items, 0)
+        runCurrent()
+
+        val itemToInsert = DomainMediaItem("uri:inserted", "Inserted Next", 90000L, 1500L, "video/mp4")
+        viewModel.playNext(itemToInsert)
+        runCurrent()
+
+        assertEquals(3, viewModel.uiState.value.queueItems.size)
+        assertEquals("uri:inserted", viewModel.uiState.value.queueItems[1].uri)
+
+        val itemToAppend = DomainMediaItem("uri:appended", "Appended Last", 45000L, 800L, "video/mp4")
+        viewModel.addToQueue(itemToAppend)
+        runCurrent()
+
+        assertEquals(4, viewModel.uiState.value.queueItems.size)
+        assertEquals("uri:appended", viewModel.uiState.value.queueItems[3].uri)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun testReplayCurrentItem() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        viewModel.loadAndPlay(sampleVideo.uri)
+        runCurrent()
+
+        controller._playbackState.value = DomainPlaybackState.Ended(sampleVideo.durationMs)
+        runCurrent()
+        assertTrue(viewModel.uiState.value.isEnded)
+
+        viewModel.replayCurrentItem()
+        runCurrent()
+
+        assertEquals(0L, controller.lastSeekPosition)
+        assertTrue(controller.isPlaying)
+        assertFalse(viewModel.uiState.value.isEnded)
 
         viewModel.clearForTesting()
     }
