@@ -747,7 +747,29 @@ class Media3PlaybackController(
                 val format = group.getTrackFormat(i)
                 val id = format.id ?: "${group.mediaTrackGroup.id}_$i"
                 val language = format.language
-                val label = format.label ?: language?.uppercase() ?: "Track ${i + 1}"
+                val resolvedLanguage = if (!language.isNullOrBlank() && !language.equals("und", ignoreCase = true)) {
+                    try {
+                        val loc = java.util.Locale.forLanguageTag(language)
+                        val display = loc.getDisplayLanguage(java.util.Locale.ENGLISH)
+                        if (display.isNotBlank()) display else language.uppercase()
+                    } catch (_: Throwable) {
+                        language.uppercase()
+                    }
+                } else null
+
+                val channelDesc = when (format.channelCount) {
+                    1 -> "Mono"
+                    2 -> "Stereo"
+                    6 -> "5.1 Surround"
+                    8 -> "7.1 Surround"
+                    else -> null
+                }
+
+                val label = when {
+                    !format.label.isNullOrBlank() && !format.label.equals("und", ignoreCase = true) -> format.label!!
+                    resolvedLanguage != null -> if (channelDesc != null) "$resolvedLanguage ($channelDesc)" else resolvedLanguage
+                    else -> if (channelDesc != null) "Track ${i + 1} ($channelDesc)" else "Track ${i + 1}"
+                }
 
                 when (trackType) {
                     C.TRACK_TYPE_AUDIO -> {
