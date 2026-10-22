@@ -75,6 +75,7 @@ class PlayerViewModel(
     private var volumeFeedbackJob: Job? = null
     private var brightnessFeedbackJob: Job? = null
     private var seekFeedbackJob: Job? = null
+    private var lockHintJob: Job? = null
     private var sleepTimerJob: Job? = null
     private var autoAdvanceJob: Job? = null
     private var bookmarksJob: Job? = null
@@ -82,6 +83,8 @@ class PlayerViewModel(
 
     private var lastSeekTimestampMs: Long = 0L
     private var accumulatedSeekDeltaMs: Long = 0L
+    private var accumulatedTargetPosMs: Long? = null
+    private var swipeSeekStartPosMs: Long = 0L
 
     companion object {
         const val AUTO_HIDE_DELAY_MS = 5000L // FR-CTRL-001, Media3 DEFAULT_SHOW_TIMEOUT_MS
@@ -590,38 +593,99 @@ class PlayerViewModel(
         }
     }
 
-    fun seekRelative(deltaMs: Long) {
+    fun seekRelative(deltaMs: Long, side: SeekTapSide? = null) {
         viewModelScope.launch(dispatcher + errorHandler) {
             val now = System.currentTimeMillis()
             val isSameDirection = (deltaMs > 0 && accumulatedSeekDeltaMs > 0) ||
                     (deltaMs < 0 && accumulatedSeekDeltaMs < 0)
 
-            if (now - lastSeekTimestampMs < SEEK_ACCUMULATION_THRESHOLD_MS && isSameDirection) {
+            val baseTarget = if (now - lastSeekTimestampMs < SEEK_ACCUMULATION_THRESHOLD_MS && isSameDirection && accumulatedTargetPosMs != null) {
                 accumulatedSeekDeltaMs += deltaMs
+                accumulatedTargetPosMs!!
             } else {
                 accumulatedSeekDeltaMs = deltaMs
+                _uiState.value.currentPositionMs
             }
             lastSeekTimestampMs = now
 
-            val currentPos = _uiState.value.currentPositionMs
             val duration = _uiState.value.durationMs
-            val targetPos = (currentPos + deltaMs).coerceIn(0L, duration.coerceAtLeast(0L))
+            val targetPos = (baseTarget + deltaMs).coerceIn(0L, duration.coerceAtLeast(0L))
+            accumulatedTargetPosMs = targetPos
 
             playbackController.seekTo(targetPos)
 
+            val assignedSide = side ?: if (deltaMs < 0) SeekTapSide.LEFT else SeekTapSide.RIGHT
+
             _uiState.update {
-                it.copy(seekDeltaSeconds = (accumulatedSeekDeltaMs / 1000).toInt())
+                it.copy(
+                    seekDeltaSeconds = (accumulatedSeekDeltaMs / 1000).toInt(),
+                    doubleTapSeekSide = assignedSide
+                )
             }
 
             seekFeedbackJob?.cancel()
             seekFeedbackJob = viewModelScope.launch(dispatcher + errorHandler) {
                 delay(FEEDBACK_OVERLAY_DELAY_MS)
-                _uiState.update { it.copy(seekDeltaSeconds = null) }
+                _uiState.update {
+                    it.copy(
+                        seekDeltaSeconds = null,
+                        doubleTapSeekSide = null
+                    )
+                }
                 accumulatedSeekDeltaMs = 0L
+                accumulatedTargetPosMs = null
             }
 
             scheduleAutoHide()
         }
+    }
+
+    fun onHorizontalSwipeSeekStart() {
+        autoHideJob?.cancel()
+        val startPos = _uiState.value.effectivePositionMs
+        swipeSeekStartPosMs = startPos
+        _uiState.update {
+            it.copy(
+                swipeSeekTargetMs = startPos,
+                swipeSeekDeltaMs = 0L
+            )
+        }
+    }
+
+    fun onHorizontalSwipeSeek(deltaMs: Long) {
+        val duration = _uiState.value.durationMs.coerceAtLeast(0L)
+        val targetPos = (swipeSeekStartPosMs + deltaMs).coerceIn(0L, duration)
+        val effectiveDelta = targetPos - swipeSeekStartPosMs
+        _uiState.update {
+            it.copy(
+                swipeSeekTargetMs = targetPos,
+                swipeSeekDeltaMs = effectiveDelta
+            )
+        }
+    }
+
+    fun onHorizontalSwipeSeekCommit() {
+        val targetMs = _uiState.value.swipeSeekTargetMs ?: swipeSeekStartPosMs
+        _uiState.update {
+            it.copy(
+                swipeSeekTargetMs = null,
+                swipeSeekDeltaMs = null
+            )
+        }
+        viewModelScope.launch(dispatcher + errorHandler) {
+            playbackController.seekTo(targetMs)
+            scheduleAutoHide()
+        }
+    }
+
+    fun onHorizontalSwipeSeekCancel() {
+        _uiState.update {
+            it.copy(
+                swipeSeekTargetMs = null,
+                swipeSeekDeltaMs = null
+            )
+        }
+        scheduleAutoHide()
     }
 
     fun onScrubStart(positionMs: Long) {
@@ -651,9 +715,18 @@ class PlayerViewModel(
         }
     }
 
+    fun triggerLockHint() {
+        _uiState.update { it.copy(isLockHintVisible = true) }
+        lockHintJob?.cancel()
+        lockHintJob = viewModelScope.launch(dispatcher + errorHandler) {
+            delay(1200L)
+            _uiState.update { it.copy(isLockHintVisible = false) }
+        }
+    }
+
     fun toggleControlsVisibility() {
         if (_uiState.value.isLocked) {
-            // Briefly trigger unlock hint
+            triggerLockHint()
             return
         }
         val willBeVisible = !_uiState.value.isControlsVisible
@@ -1196,6 +1269,7 @@ class PlayerViewModel(
         volumeFeedbackJob?.cancel()
         brightnessFeedbackJob?.cancel()
         seekFeedbackJob?.cancel()
+        lockHintJob?.cancel()
         sleepTimerJob?.cancel()
         autoAdvanceJob?.cancel()
         bookmarksJob?.cancel()

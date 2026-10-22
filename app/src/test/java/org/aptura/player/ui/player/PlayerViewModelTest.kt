@@ -1671,5 +1671,158 @@ class PlayerViewModelTest {
 
         viewModel.clearForTesting()
     }
+
+    @Test
+    fun testSeekRelative_rapidAccumulation_preservesTargetPositionAndSide() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        controller._playbackState.value = DomainPlaybackState.Ready(
+            positionMs = 20000L,
+            durationMs = 100000L,
+            isPlaying = true
+        )
+        runCurrent()
+
+        // 1st tap: +10s
+        viewModel.seekRelative(10000L, SeekTapSide.RIGHT)
+        runCurrent()
+        assertEquals(30000L, controller.lastSeekPosition)
+        assertEquals(10, viewModel.uiState.value.seekDeltaSeconds)
+        assertEquals(SeekTapSide.RIGHT, viewModel.uiState.value.doubleTapSeekSide)
+
+        // 2nd tap within 800ms: target should accumulate to 40000L even if currentPositionMs in state is still 20000L
+        advanceTimeBy(200L)
+        viewModel.seekRelative(10000L, SeekTapSide.RIGHT)
+        runCurrent()
+        assertEquals(40000L, controller.lastSeekPosition)
+        assertEquals(20, viewModel.uiState.value.seekDeltaSeconds)
+        assertEquals(SeekTapSide.RIGHT, viewModel.uiState.value.doubleTapSeekSide)
+
+        // 3rd tap within 800ms: target accumulates to 50000L
+        advanceTimeBy(200L)
+        viewModel.seekRelative(10000L, SeekTapSide.RIGHT)
+        runCurrent()
+        assertEquals(50000L, controller.lastSeekPosition)
+        assertEquals(30, viewModel.uiState.value.seekDeltaSeconds)
+        assertEquals(SeekTapSide.RIGHT, viewModel.uiState.value.doubleTapSeekSide)
+
+        // After feedback overlay delay (1200ms), state clears
+        advanceTimeBy(1300L)
+        runCurrent()
+        assertNull(viewModel.uiState.value.seekDeltaSeconds)
+        assertNull(viewModel.uiState.value.doubleTapSeekSide)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun testHorizontalSwipeSeek_lifecycle_calculatesDeltaAndCommits() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        controller._playbackState.value = DomainPlaybackState.Ready(
+            positionMs = 30000L,
+            durationMs = 120000L,
+            isPlaying = true
+        )
+        runCurrent()
+
+        // 1. Start swipe seek
+        viewModel.onHorizontalSwipeSeekStart()
+        assertEquals(30000L, viewModel.uiState.value.swipeSeekTargetMs)
+        assertEquals(0L, viewModel.uiState.value.swipeSeekDeltaMs)
+
+        // 2. Drag forward +15s
+        viewModel.onHorizontalSwipeSeek(15000L)
+        assertEquals(45000L, viewModel.uiState.value.swipeSeekTargetMs)
+        assertEquals(15000L, viewModel.uiState.value.swipeSeekDeltaMs)
+
+        // 3. Drag backward -10s relative to start
+        viewModel.onHorizontalSwipeSeek(-10000L)
+        assertEquals(20000L, viewModel.uiState.value.swipeSeekTargetMs)
+        assertEquals(-10000L, viewModel.uiState.value.swipeSeekDeltaMs)
+
+        // 4. Commit seek
+        viewModel.onHorizontalSwipeSeekCommit()
+        runCurrent()
+        assertEquals(20000L, controller.lastSeekPosition)
+        assertNull(viewModel.uiState.value.swipeSeekTargetMs)
+        assertNull(viewModel.uiState.value.swipeSeekDeltaMs)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun testHorizontalSwipeSeek_cancel_revertsWithoutSeeking() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        controller._playbackState.value = DomainPlaybackState.Ready(
+            positionMs = 30000L,
+            durationMs = 120000L,
+            isPlaying = true
+        )
+        runCurrent()
+
+        val initialSeekPos = controller.lastSeekPosition
+
+        viewModel.onHorizontalSwipeSeekStart()
+        viewModel.onHorizontalSwipeSeek(25000L)
+        assertEquals(55000L, viewModel.uiState.value.swipeSeekTargetMs)
+
+        // Cancel
+        viewModel.onHorizontalSwipeSeekCancel()
+        runCurrent()
+        assertEquals(initialSeekPos, controller.lastSeekPosition)
+        assertNull(viewModel.uiState.value.swipeSeekTargetMs)
+        assertNull(viewModel.uiState.value.swipeSeekDeltaMs)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun testTriggerLockHint_showsAndAutoDismisses() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        assertFalse(viewModel.uiState.value.isLockHintVisible)
+
+        viewModel.triggerLockHint()
+        assertTrue(viewModel.uiState.value.isLockHintVisible)
+
+        advanceTimeBy(1300L)
+        runCurrent()
+        assertFalse(viewModel.uiState.value.isLockHintVisible)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun testToggleControlsVisibility_whenLocked_triggersLockHintWithoutTogglingControls() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        viewModel.toggleLock() // Lock screen
+        assertTrue(viewModel.uiState.value.isLocked)
+        assertFalse(viewModel.uiState.value.isControlsVisible)
+        assertFalse(viewModel.uiState.value.isLockHintVisible)
+
+        // Attempting to toggle controls should not make controls visible, but should trigger lock hint
+        viewModel.toggleControlsVisibility()
+        assertFalse(viewModel.uiState.value.isControlsVisible)
+        assertTrue(viewModel.uiState.value.isLockHintVisible)
+
+        advanceTimeBy(1300L)
+        runCurrent()
+        assertFalse(viewModel.uiState.value.isLockHintVisible)
+
+        viewModel.clearForTesting()
+    }
 }
 

@@ -21,6 +21,8 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -169,7 +171,14 @@ fun PlayerScreen(
     player: Player?,
     onBackClick: () -> Unit,
     onPlayPauseClick: () -> Unit,
-    onSeekRelative: (Long) -> Unit,
+    onSeekRelative: (Long) -> Unit = {},
+    onSeekRelativeWithSide: (Long, SeekTapSide?) -> Unit = { delta, _ -> onSeekRelative(delta) },
+    onHorizontalSwipeSeekStart: () -> Unit = {},
+    onHorizontalSwipeSeek: (Long) -> Unit = {},
+    onHorizontalSwipeSeekCommit: () -> Unit = {},
+    onHorizontalSwipeSeekCancel: () -> Unit = {},
+    onTriggerLockHint: () -> Unit = {},
+    onTwoFingerTap: () -> Unit = {},
     onScrubStart: (Long) -> Unit,
     onScrubMove: (Long) -> Unit,
     onScrubEnd: () -> Unit,
@@ -392,135 +401,234 @@ fun PlayerScreen(
             )
         }
 
-        // 2. Gesture Detector Layer (Left Half: Brightness & Rewind, Right Half: Volume & Fast-forward)
-        Row(modifier = Modifier.fillMaxSize()) {
-            // Left half
-            var leftDragAccumulator by remember { mutableFloatStateOf(0f) }
-            var leftBoxHeightPx by remember { mutableFloatStateOf(1000f) }
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .onSizeChanged { leftBoxHeightPx = it.height.toFloat().coerceAtLeast(200f) }
-                    .pointerInput(uiState.isLocked, uiState.isPlaying) {
-                        detectTapGestures(
-                            onTap = { onControlsVisibilityToggle() },
-                            onDoubleTap = {
-                                if (!uiState.isLocked) {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    onSeekRelative(-10_000L)
-                                }
-                            },
-                            onPress = {
-                                var longPressActive = false
-                                val job = coroutineScope.launch {
-                                    kotlinx.coroutines.delay(400L)
-                                    if (!uiState.isLocked && uiState.isPlaying) {
-                                        longPressActive = true
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        is2xSpeedActive = true
-                                        onSpeedSelected(2.0f)
-                                    }
-                                }
-                                tryAwaitRelease()
-                                job.cancel()
-                                if (longPressActive) {
-                                    is2xSpeedActive = false
-                                    onSpeedSelected(uiState.playbackSpeed)
-                                }
-                            }
-                        )
-                    }
-                    .pointerInput(uiState.isLocked) {
-                        if (!uiState.isLocked) {
-                            detectVerticalDragGestures(
-                                onDragStart = { leftDragAccumulator = 0f },
-                                onVerticalDrag = { change, dragAmount ->
-                                    change.consume()
-                                    leftDragAccumulator -= dragAmount
-                                    val activity = context as? Activity
-                                    val window = activity?.window
-                                    if (window != null) {
-                                        val currentBrightness = window.attributes.screenBrightness.let {
-                                            if (it < 0f) 0.5f else it
-                                        }
-                                        val delta = -dragAmount / leftBoxHeightPx
-                                        val newBrightness = (currentBrightness + delta).coerceIn(0.01f, 1.0f)
-                                        val lp = window.attributes
-                                        lp.screenBrightness = newBrightness
-                                        window.attributes = lp
-                                        onBrightnessPercentChanged((newBrightness * 100).toInt())
-                                    }
-                                }
-                            )
-                        }
-                    }
-            )
+        // 2. Gesture Detector Layer
+        var swipeDragAccumulator by remember { mutableFloatStateOf(0f) }
+        val swipeSensitivityMsPerPixel = remember(uiState.durationMs) {
+            (uiState.durationMs.toFloat() / 1500f).coerceIn(50f, 500f)
+        }
 
-            // Right half
-            var rightDragAccumulator by remember { mutableFloatStateOf(0f) }
-            var rightBoxHeightPx by remember { mutableFloatStateOf(1000f) }
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .onSizeChanged { rightBoxHeightPx = it.height.toFloat().coerceAtLeast(200f) }
-                    .pointerInput(uiState.isLocked, uiState.isPlaying) {
-                        detectTapGestures(
-                            onTap = { onControlsVisibilityToggle() },
-                            onDoubleTap = {
-                                if (!uiState.isLocked) {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    onSeekRelative(10_000L)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(uiState.isLocked) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        var twoFingerDetected = false
+                        val startTime = System.currentTimeMillis()
+                        var movedPastSlop = false
+                        val touchSlop = viewConfiguration.touchSlop
+                        val startPos = down.position
+
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            if (event.changes.size >= 2) {
+                                twoFingerDetected = true
+                            }
+                            for (change in event.changes) {
+                                if ((change.position - startPos).getDistance() > touchSlop * 2) {
+                                    movedPastSlop = true
                                 }
+                            }
+                            val allUp = event.changes.all { !it.pressed }
+                            if (allUp) {
+                                val elapsed = System.currentTimeMillis() - startTime
+                                if (twoFingerDetected && !movedPastSlop && elapsed < 500L && !uiState.isLocked) {
+                                    event.changes.forEach { it.consume() }
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onTwoFingerTap()
+                                }
+                                break
+                            }
+                        }
+                    }
+                }
+                .pointerInput(uiState.isLocked, uiState.durationMs) {
+                    if (!uiState.isLocked && uiState.durationMs > 0L) {
+                        detectHorizontalDragGestures(
+                            onDragStart = {
+                                swipeDragAccumulator = 0f
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onHorizontalSwipeSeekStart()
                             },
-                            onPress = {
-                                var longPressActive = false
-                                val job = coroutineScope.launch {
-                                    kotlinx.coroutines.delay(400L)
-                                    if (!uiState.isLocked && uiState.isPlaying) {
-                                        longPressActive = true
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        is2xSpeedActive = true
-                                        onSpeedSelected(2.0f)
-                                    }
-                                }
-                                tryAwaitRelease()
-                                job.cancel()
-                                if (longPressActive) {
-                                    is2xSpeedActive = false
-                                    onSpeedSelected(uiState.playbackSpeed)
-                                }
+                            onHorizontalDrag = { change, dragAmount ->
+                                change.consume()
+                                swipeDragAccumulator += dragAmount
+                                val deltaMs = (swipeDragAccumulator * swipeSensitivityMsPerPixel).toLong()
+                                onHorizontalSwipeSeek(deltaMs)
+                            },
+                            onDragEnd = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onHorizontalSwipeSeekCommit()
+                            },
+                            onDragCancel = {
+                                onHorizontalSwipeSeekCancel()
                             }
                         )
                     }
-                    .pointerInput(uiState.isLocked) {
-                        if (!uiState.isLocked) {
-                            detectVerticalDragGestures(
-                                onDragStart = { rightDragAccumulator = 0f },
-                                onVerticalDrag = { change, dragAmount ->
-                                    change.consume()
-                                    rightDragAccumulator -= dragAmount
-                                    if (audioManager != null && maxVolume > 0) {
-                                        val currentVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
-                                        val stepThreshold = (rightBoxHeightPx / maxVolume.toFloat()).coerceIn(20f, 60f)
-                                        if (rightDragAccumulator > stepThreshold) {
-                                            val newVol = (currentVol + 1).coerceIn(0, maxVolume)
-                                            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
-                                            rightDragAccumulator = 0f
-                                            onVolumePercentChanged((newVol * 100 / maxVolume))
-                                        } else if (rightDragAccumulator < -stepThreshold) {
-                                            val newVol = (currentVol - 1).coerceIn(0, maxVolume)
-                                            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
-                                            rightDragAccumulator = 0f
-                                            onVolumePercentChanged((newVol * 100 / maxVolume))
+                }
+        ) {
+            Row(modifier = Modifier.fillMaxSize()) {
+                // Left half: Brightness & Rewind
+                var leftDragAccumulator by remember { mutableFloatStateOf(0f) }
+                var leftBoxHeightPx by remember { mutableFloatStateOf(1000f) }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .onSizeChanged { leftBoxHeightPx = it.height.toFloat().coerceAtLeast(200f) }
+                        .pointerInput(uiState.isLocked, uiState.isPlaying, uiState.seekDeltaSeconds, uiState.doubleTapSeekSide) {
+                            detectTapGestures(
+                                onTap = {
+                                    if (uiState.isLocked) {
+                                        onTriggerLockHint()
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    } else if (uiState.seekDeltaSeconds != null && uiState.doubleTapSeekSide == SeekTapSide.LEFT) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        onSeekRelativeWithSide(-10_000L, SeekTapSide.LEFT)
+                                    } else {
+                                        onControlsVisibilityToggle()
+                                    }
+                                },
+                                onDoubleTap = {
+                                    if (!uiState.isLocked) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        onSeekRelativeWithSide(-10_000L, SeekTapSide.LEFT)
+                                    } else {
+                                        onTriggerLockHint()
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    }
+                                },
+                                onPress = {
+                                    var longPressActive = false
+                                    val job = coroutineScope.launch {
+                                        kotlinx.coroutines.delay(400L)
+                                        if (!uiState.isLocked && uiState.isPlaying) {
+                                            longPressActive = true
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            is2xSpeedActive = true
+                                            onSpeedSelected(2.0f)
                                         }
+                                    }
+                                    tryAwaitRelease()
+                                    job.cancel()
+                                    if (longPressActive) {
+                                        is2xSpeedActive = false
+                                        onSpeedSelected(uiState.playbackSpeed)
                                     }
                                 }
                             )
                         }
-                    }
-            )
+                        .pointerInput(uiState.isLocked) {
+                            if (!uiState.isLocked) {
+                                detectVerticalDragGestures(
+                                    onDragStart = { leftDragAccumulator = 0f },
+                                    onVerticalDrag = { change, dragAmount ->
+                                        change.consume()
+                                        leftDragAccumulator -= dragAmount
+                                        val activity = context as? Activity
+                                        val window = activity?.window
+                                        if (window != null) {
+                                            val currentBrightness = window.attributes.screenBrightness.let {
+                                                if (it < 0f) 0.5f else it
+                                            }
+                                            val delta = -dragAmount / leftBoxHeightPx
+                                            val newBrightness = (currentBrightness + delta).coerceIn(0.01f, 1.0f)
+                                            val lp = window.attributes
+                                            lp.screenBrightness = newBrightness
+                                            window.attributes = lp
+                                            val oldPercent = (currentBrightness * 100).toInt()
+                                            val newPercent = (newBrightness * 100).toInt()
+                                            if (newPercent / 10 != oldPercent / 10 || newPercent == 100 || newPercent == 1) {
+                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            }
+                                            onBrightnessPercentChanged(newPercent)
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                )
+
+                // Right half: Volume & Fast-forward
+                var rightDragAccumulator by remember { mutableFloatStateOf(0f) }
+                var rightBoxHeightPx by remember { mutableFloatStateOf(1000f) }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .onSizeChanged { rightBoxHeightPx = it.height.toFloat().coerceAtLeast(200f) }
+                        .pointerInput(uiState.isLocked, uiState.isPlaying, uiState.seekDeltaSeconds, uiState.doubleTapSeekSide) {
+                            detectTapGestures(
+                                onTap = {
+                                    if (uiState.isLocked) {
+                                        onTriggerLockHint()
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    } else if (uiState.seekDeltaSeconds != null && uiState.doubleTapSeekSide == SeekTapSide.RIGHT) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        onSeekRelativeWithSide(10_000L, SeekTapSide.RIGHT)
+                                    } else {
+                                        onControlsVisibilityToggle()
+                                    }
+                                },
+                                onDoubleTap = {
+                                    if (!uiState.isLocked) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        onSeekRelativeWithSide(10_000L, SeekTapSide.RIGHT)
+                                    } else {
+                                        onTriggerLockHint()
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    }
+                                },
+                                onPress = {
+                                    var longPressActive = false
+                                    val job = coroutineScope.launch {
+                                        kotlinx.coroutines.delay(400L)
+                                        if (!uiState.isLocked && uiState.isPlaying) {
+                                            longPressActive = true
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            is2xSpeedActive = true
+                                            onSpeedSelected(2.0f)
+                                        }
+                                    }
+                                    tryAwaitRelease()
+                                    job.cancel()
+                                    if (longPressActive) {
+                                        is2xSpeedActive = false
+                                        onSpeedSelected(uiState.playbackSpeed)
+                                    }
+                                }
+                            )
+                        }
+                        .pointerInput(uiState.isLocked) {
+                            if (!uiState.isLocked) {
+                                detectVerticalDragGestures(
+                                    onDragStart = { rightDragAccumulator = 0f },
+                                    onVerticalDrag = { change, dragAmount ->
+                                        change.consume()
+                                        rightDragAccumulator -= dragAmount
+                                        if (audioManager != null && maxVolume > 0) {
+                                            val currentVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+                                            val stepThreshold = (rightBoxHeightPx / maxVolume.toFloat()).coerceIn(20f, 60f)
+                                            if (rightDragAccumulator > stepThreshold) {
+                                                val newVol = (currentVol + 1).coerceIn(0, maxVolume)
+                                                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
+                                                rightDragAccumulator = 0f
+                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                onVolumePercentChanged((newVol * 100 / maxVolume))
+                                            } else if (rightDragAccumulator < -stepThreshold) {
+                                                val newVol = (currentVol - 1).coerceIn(0, maxVolume)
+                                                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
+                                                rightDragAccumulator = 0f
+                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                onVolumePercentChanged((newVol * 100 / maxVolume))
+                                            }
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                )
+            }
         }
 
         // Floating 2.0x Fast-Forward Indicator (SCR-010f)
@@ -661,109 +769,90 @@ fun PlayerScreen(
             }
         }
 
-        // 3. Transient Feedback Overlays (Volume, Brightness, Double-Tap Seek)
-        // Center Volume Indicator
+        // 3. Transient Feedback Overlays (Volume, Brightness, Double-Tap Seek, Horizontal Swipe Seek, Lock Hint)
+        // Right-side Volume Indicator (FR-CTRL-005, FR-CTRL-015)
         AnimatedVisibility(
             visible = uiState.volumePercent != null,
             enter = fadeIn() + scaleIn(),
             exit = fadeOut() + scaleOut(),
-            modifier = Modifier.align(Alignment.Center)
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .padding(end = 32.dp)
         ) {
             uiState.volumePercent?.let { vol ->
-                Surface(
-                    color = ApturaColors.SurfaceElevated2.copy(alpha = 0.9f),
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier.padding(16.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.VolumeUp,
-                            contentDescription = "Volume",
-                            tint = ApturaColors.AccentPrimary
-                        )
-                        Text(
-                            text = "$vol%",
-                            style = ApturaTypography.titleMedium,
-                            color = ApturaColors.TextHighEmphasis
-                        )
-                    }
-                }
+                VerticalLevelGaugeHud(
+                    valuePercent = vol,
+                    icon = Icons.AutoMirrored.Filled.VolumeUp,
+                    label = "Volume"
+                )
             }
         }
 
-        // Center Brightness Indicator
+        // Left-side Brightness Indicator (FR-CTRL-005, FR-CTRL-015)
         AnimatedVisibility(
             visible = uiState.brightnessPercent != null,
             enter = fadeIn() + scaleIn(),
             exit = fadeOut() + scaleOut(),
-            modifier = Modifier.align(Alignment.Center)
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .padding(start = 32.dp)
         ) {
             uiState.brightnessPercent?.let { bri ->
-                Surface(
-                    color = ApturaColors.SurfaceElevated2.copy(alpha = 0.9f),
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier.padding(16.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.BrightnessMedium,
-                            contentDescription = "Brightness",
-                            tint = ApturaColors.AccentPrimary
-                        )
-                        Text(
-                            text = "$bri%",
-                            style = ApturaTypography.titleMedium,
-                            color = ApturaColors.TextHighEmphasis
-                        )
-                    }
-                }
+                VerticalLevelGaugeHud(
+                    valuePercent = bri,
+                    icon = Icons.Filled.BrightnessMedium,
+                    label = "Brightness"
+                )
             }
         }
 
-        // Double-Tap Seek Delta Pulse Indicator
+        // Double-Tap Seek Curved Ripple Overlay (FR-CTRL-002)
         AnimatedVisibility(
             visible = uiState.seekDeltaSeconds != null,
             enter = fadeIn() + scaleIn(),
             exit = fadeOut() + scaleOut(),
             modifier = Modifier.align(
-                if ((uiState.seekDeltaSeconds ?: 0) >= 0) Alignment.CenterEnd else Alignment.CenterStart
+                if (uiState.doubleTapSeekSide == SeekTapSide.LEFT || (uiState.seekDeltaSeconds ?: 0) < 0) {
+                    Alignment.CenterStart
+                } else {
+                    Alignment.CenterEnd
+                }
             )
         ) {
-            uiState.seekDeltaSeconds?.let { delta ->
-                val isForward = delta >= 0
-                Surface(
-                    color = ApturaColors.SurfaceElevated2.copy(alpha = 0.85f),
-                    shape = CircleShape,
-                    modifier = Modifier.padding(horizontal = 48.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(20.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            imageVector = if (isForward) Icons.Filled.Forward10 else Icons.Filled.Replay10,
-                            contentDescription = null,
-                            tint = ApturaColors.AccentPrimary,
-                            modifier = Modifier.size(36.dp)
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = if (isForward) "+${delta}s" else "${delta}s",
-                            style = ApturaTypography.labelSmall,
-                            color = ApturaColors.TextHighEmphasis
-                        )
-                    }
-                }
-            }
+            val delta = uiState.seekDeltaSeconds ?: 0
+            val side = uiState.doubleTapSeekSide ?: if (delta < 0) SeekTapSide.LEFT else SeekTapSide.RIGHT
+            DoubleTapSeekRippleOverlay(
+                seekDeltaSeconds = delta,
+                side = side
+            )
+        }
+
+        // Horizontal Swipe Seek HUD (FR-CTRL-005, FR-CTRL-003)
+        AnimatedVisibility(
+            visible = uiState.swipeSeekTargetMs != null,
+            enter = fadeIn() + scaleIn(),
+            exit = fadeOut() + scaleOut(),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            val targetMs = uiState.swipeSeekTargetMs ?: 0L
+            val deltaMs = uiState.swipeSeekDeltaMs ?: 0L
+            HorizontalSwipeSeekHud(
+                targetMs = targetMs,
+                durationMs = uiState.durationMs,
+                deltaMs = deltaMs
+            )
+        }
+
+        // Lock Mode Touch Guard Hint (FR-CTRL-006)
+        AnimatedVisibility(
+            visible = uiState.isLockHintVisible,
+            enter = fadeIn() + scaleIn(),
+            exit = fadeOut() + scaleOut(),
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(24.dp)
+        ) {
+            LockModeGuardHint()
         }
 
         // Center Buffering Spinner

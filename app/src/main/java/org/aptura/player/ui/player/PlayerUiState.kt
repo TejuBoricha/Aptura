@@ -23,6 +23,14 @@ enum class AspectRatioMode(val label: String) {
 }
 
 /**
+ * Edge side for double-tap seek gesture feedback (FR-CTRL-002).
+ */
+enum class SeekTapSide {
+    LEFT,
+    RIGHT
+}
+
+/**
  * Track metadata for audio and subtitle track selection sheets (FR-CTRL-009, SCR-010c/d).
  */
 @Immutable
@@ -76,6 +84,10 @@ data class PlayerUiState(
     val volumePercent: Int? = null,
     val brightnessPercent: Int? = null,
     val seekDeltaSeconds: Int? = null,
+    val doubleTapSeekSide: SeekTapSide? = null,
+    val swipeSeekTargetMs: Long? = null,
+    val swipeSeekDeltaMs: Long? = null,
+    val isLockHintVisible: Boolean = false,
     val errorMessage: String? = null,
     val errorCode: String? = null,
     val errorTaxonomyCode: String? = null,
