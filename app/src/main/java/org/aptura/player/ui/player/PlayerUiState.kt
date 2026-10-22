@@ -121,4 +121,16 @@ data class PlayerUiState(
         get() = if (durationMs > 0L) {
             (bufferedPositionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
         } else 0f
+
+    val isAnySheetVisible: Boolean
+        get() = isAudioSheetVisible ||
+                isSubtitleSheetVisible ||
+                isSpeedSheetVisible ||
+                isAdvancedSheetVisible ||
+                isEqualizerSheetVisible ||
+                isPictureSheetVisible ||
+                isQueueSheetVisible ||
+                isPlayModeSheetVisible ||
+                isWhyCompatibilitySheetVisible ||
+                isWebSearchDialogVisible
 }

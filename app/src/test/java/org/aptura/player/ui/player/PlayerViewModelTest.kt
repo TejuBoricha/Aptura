@@ -1583,5 +1583,93 @@ class PlayerViewModelTest {
 
         viewModel.clearForTesting()
     }
+
+    @Test
+    fun testModalMutualExclusivity_openingWhySheetDismissesQueueSheet() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        viewModel.showQueueSheet(true)
+        assertTrue(viewModel.uiState.value.isQueueSheetVisible)
+        assertFalse(viewModel.uiState.value.isWhyCompatibilitySheetVisible)
+
+        // Opening Why sheet must atomically dismiss Queue sheet
+        viewModel.setWhyCompatibilitySheetVisible(true)
+        assertTrue(viewModel.uiState.value.isWhyCompatibilitySheetVisible)
+        assertFalse(viewModel.uiState.value.isQueueSheetVisible)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun testModalMutualExclusivity_openingAdvancedSheetDismissesAudioSheet() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        viewModel.setAudioSheetVisible(true)
+        assertTrue(viewModel.uiState.value.isAudioSheetVisible)
+        assertFalse(viewModel.uiState.value.isAdvancedSheetVisible)
+
+        // Opening Advanced sheet must atomically dismiss Audio sheet
+        viewModel.setAdvancedSheetVisible(true)
+        assertTrue(viewModel.uiState.value.isAdvancedSheetVisible)
+        assertFalse(viewModel.uiState.value.isAudioSheetVisible)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun testModalMutualExclusivity_strictSingleActiveModalInvariant() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        fun countVisibleSheets(): Int {
+            val s = viewModel.uiState.value
+            return listOf(
+                s.isAudioSheetVisible,
+                s.isSubtitleSheetVisible,
+                s.isSpeedSheetVisible,
+                s.isAdvancedSheetVisible,
+                s.isEqualizerSheetVisible,
+                s.isPictureSheetVisible,
+                s.isQueueSheetVisible,
+                s.isPlayModeSheetVisible,
+                s.isWhyCompatibilitySheetVisible,
+                s.isWebSearchDialogVisible
+            ).count { it }
+        }
+
+        assertEquals(0, countVisibleSheets())
+        assertFalse(viewModel.uiState.value.isAnySheetVisible)
+
+        val sheetOpeners: List<() -> Unit> = listOf(
+            { viewModel.showQueueSheet(true) },
+            { viewModel.showPlayModeSheet(true) },
+            { viewModel.setAudioSheetVisible(true) },
+            { viewModel.setSubtitleSheetVisible(true) },
+            { viewModel.setSpeedSheetVisible(true) },
+            { viewModel.setWhyCompatibilitySheetVisible(true) },
+            { viewModel.setAdvancedSheetVisible(true) },
+            { viewModel.setEqualizerSheetVisible(true) },
+            { viewModel.setPictureSheetVisible(true) },
+            { viewModel.showWebSearchDialog(true) }
+        )
+
+        for (opener in sheetOpeners) {
+            opener()
+            assertEquals("Exactly one sheet must be visible at any given time", 1, countVisibleSheets())
+            assertTrue(viewModel.uiState.value.isAnySheetVisible)
+        }
+
+        // Dismissing the last active sheet leaves 0 visible
+        viewModel.showWebSearchDialog(false)
+        assertEquals(0, countVisibleSheets())
+        assertFalse(viewModel.uiState.value.isAnySheetVisible)
+
+        viewModel.clearForTesting()
+    }
 }
 
