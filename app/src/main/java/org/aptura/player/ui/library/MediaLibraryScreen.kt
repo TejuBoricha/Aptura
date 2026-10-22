@@ -58,6 +58,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
+import androidx.window.core.layout.WindowSizeClass
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -112,6 +114,7 @@ fun MediaLibraryScreen(
     onRemoveVideo: (String) -> Unit = {},
     onResetProgress: (String) -> Unit = {},
     onRenameVideo: (String, String) -> Unit = { _, _ -> },
+    onShowDetails: ((DomainMediaItem) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -161,6 +164,7 @@ fun MediaLibraryScreen(
                         onRemoveVideo = onRemoveVideo,
                         onResetProgress = onResetProgress,
                         onRenameVideo = onRenameVideo,
+                        onShowDetails = onShowDetails,
                         bottomPadding = innerPadding.calculateBottomPadding()
                     )
                 }
@@ -183,6 +187,7 @@ private fun MediaLibraryContentView(
     onRemoveVideo: (String) -> Unit,
     onResetProgress: (String) -> Unit,
     onRenameVideo: (String, String) -> Unit = { _, _ -> },
+    onShowDetails: ((DomainMediaItem) -> Unit)? = null,
     bottomPadding: androidx.compose.ui.unit.Dp,
     modifier: Modifier = Modifier
 ) {
@@ -223,8 +228,10 @@ private fun MediaLibraryContentView(
         itemPendingRenameNewName = null
     }
 
+    val windowAdaptiveInfo = currentWindowAdaptiveInfoV2()
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-        val isWideScreen = maxWidth >= 600.dp
+        val containerWidth = maxWidth
+        val isWideScreen = containerWidth >= 600.dp && windowAdaptiveInfo.windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND)
 
         Row(modifier = Modifier.fillMaxSize()) {
             if (isWideScreen) {
@@ -573,8 +580,14 @@ private fun MediaLibraryContentView(
         // Adaptive Video Grid (Responds from 1 to 4+ columns automatically)
         val allRawVideos = remember(state.videos) { state.videos.map { it.rawItem } }
 
+        val gridMinSize = when {
+            containerWidth >= 1200.dp -> 240.dp
+            isWideScreen -> 200.dp
+            else -> 140.dp
+        }
+
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = if (isWideScreen) 200.dp else 140.dp),
+            columns = GridCells.Adaptive(minSize = gridMinSize),
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(
                 start = 16.dp,
@@ -593,7 +606,13 @@ private fun MediaLibraryContentView(
                 VideoGridCard(
                     card = card,
                     onClick = { onVideoClick(card.rawItem, allRawVideos) },
-                    onMoreClick = { selectedDetailItem = card.rawItem }
+                    onMoreClick = {
+                        if (onShowDetails != null) {
+                            onShowDetails(card.rawItem)
+                        } else {
+                            selectedDetailItem = card.rawItem
+                        }
+                    }
                 )
             }
         }

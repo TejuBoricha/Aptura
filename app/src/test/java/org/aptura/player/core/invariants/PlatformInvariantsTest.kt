@@ -122,4 +122,34 @@ class PlatformInvariantsTest {
             content.contains("enableSplit = false")
         )
     }
+
+    @Test
+    fun manifest_declaresResizableActivity() {
+        assertTrue("AndroidManifest.xml must exist", manifestFile.exists())
+        val content = manifestFile.readText()
+        assertTrue(
+            "CRITICAL INVARIANT VIOLATION (R-A11): AndroidManifest.xml must declare android:resizeableActivity=\"true\"",
+            content.contains("android:resizeableActivity=\"true\"")
+        )
+    }
+
+    @Test
+    fun manifest_declaresDisplayCutoutShortEdges() {
+        assertTrue("AndroidManifest.xml must exist", manifestFile.exists())
+        val content = manifestFile.readText()
+        assertTrue(
+            "CRITICAL INVARIANT VIOLATION (R-B14): AndroidManifest.xml must declare android:windowLayoutInDisplayCutoutMode=\"shortEdges\"",
+            content.contains("android:windowLayoutInDisplayCutoutMode=\"shortEdges\"")
+        )
+    }
+
+    @Test
+    fun manifest_declaresZeroFixedScreenOrientation() {
+        assertTrue("AndroidManifest.xml must exist", manifestFile.exists())
+        val content = manifestFile.readText()
+        assertFalse(
+            "CRITICAL INVARIANT VIOLATION (R-B02): MainActivity must never declare android:screenOrientation; it must remain resizable and continuum-fluid",
+            content.contains("android:screenOrientation")
+        )
+    }
 }

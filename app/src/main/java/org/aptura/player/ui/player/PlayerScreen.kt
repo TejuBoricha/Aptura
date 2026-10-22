@@ -35,6 +35,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import org.aptura.player.domain.model.EqualizerPreset
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -298,11 +299,12 @@ fun PlayerScreen(
         audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 100
     }
 
-    Box(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .background(ApturaColors.SurfacePureBlack)
     ) {
+        val screenWidth = maxWidth
         // 1. Video Surface (Media3 PlayerView)
         AndroidView(
             modifier = Modifier.fillMaxSize(),
@@ -361,6 +363,7 @@ fun PlayerScreen(
                 playerView.subtitleView?.apply {
                     setFixedTextSize(TypedValue.COMPLEX_UNIT_SP, uiState.subtitleFontSizeSp.toFloat())
                     setStyle(CaptionStyleCompat(fgColor, bgColor, android.graphics.Color.TRANSPARENT, edgeType, android.graphics.Color.BLACK, null))
+                    setBottomPaddingFraction(0.09f)
                 }
             }
         )
@@ -959,9 +962,21 @@ fun PlayerScreen(
                 }
 
                 // Center Transport Cluster (⏮ Prev • ⏪10s • ⏯ • ⏩10s • ⏭ Next)
+                // Window-aware adaptive cluster sizing (R-B09, R-A10):
+                // Protects gesture seek zones from being swallowed on narrow split windows (< 340dp).
+                val isNarrowWindow = screenWidth < 340.dp
+                val isCompactCluster = screenWidth < 480.dp
+                val clusterSpacing = if (isNarrowWindow) 6.dp else if (isCompactCluster) 10.dp else 16.dp
+                val playSize = if (isNarrowWindow) 52.dp else if (isCompactCluster) 62.dp else 72.dp
+                val playIconSize = if (isNarrowWindow) 28.dp else if (isCompactCluster) 34.dp else 40.dp
+                val seekSize = if (isNarrowWindow) 40.dp else if (isCompactCluster) 46.dp else 52.dp
+                val seekIconSize = if (isNarrowWindow) 22.dp else if (isCompactCluster) 26.dp else 30.dp
+                val skipSize = if (isNarrowWindow) 36.dp else if (isCompactCluster) 42.dp else 48.dp
+                val skipIconSize = if (isNarrowWindow) 20.dp else if (isCompactCluster) 24.dp else 28.dp
+
                 Row(
                     modifier = Modifier.align(Alignment.Center),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(clusterSpacing),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(
@@ -971,14 +986,14 @@ fun PlayerScreen(
                         },
                         enabled = uiState.hasPrevious,
                         modifier = Modifier
-                            .size(48.dp)
+                            .size(skipSize)
                             .background(ApturaColors.SurfaceScrim.copy(alpha = 0.5f), CircleShape)
                     ) {
                         Icon(
                             imageVector = Icons.Filled.SkipPrevious,
                             contentDescription = "Previous Video",
                             tint = if (uiState.hasPrevious) ApturaColors.TextHighEmphasis else ApturaColors.TextLowEmphasis.copy(alpha = 0.38f),
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(skipIconSize)
                         )
                     }
 
@@ -988,14 +1003,14 @@ fun PlayerScreen(
                             onSeekRelative(-10_000L)
                         },
                         modifier = Modifier
-                            .size(52.dp)
+                            .size(seekSize)
                             .background(ApturaColors.SurfaceScrim.copy(alpha = 0.5f), CircleShape)
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Replay10,
                             contentDescription = "Rewind 10s",
                             tint = ApturaColors.TextHighEmphasis,
-                            modifier = Modifier.size(30.dp)
+                            modifier = Modifier.size(seekIconSize)
                         )
                     }
 
@@ -1005,7 +1020,7 @@ fun PlayerScreen(
                             onPlayPauseClick()
                         },
                         modifier = Modifier
-                            .size(72.dp)
+                            .size(playSize)
                             .background(ApturaColors.AccentPrimary, CircleShape)
                     ) {
                         Icon(
@@ -1016,7 +1031,7 @@ fun PlayerScreen(
                             },
                             contentDescription = if (uiState.isPlaying) "Pause" else "Play",
                             tint = ApturaColors.TextOnAccent,
-                            modifier = Modifier.size(40.dp)
+                            modifier = Modifier.size(playIconSize)
                         )
                     }
 
@@ -1026,14 +1041,14 @@ fun PlayerScreen(
                             onSeekRelative(10_000L)
                         },
                         modifier = Modifier
-                            .size(52.dp)
+                            .size(seekSize)
                             .background(ApturaColors.SurfaceScrim.copy(alpha = 0.5f), CircleShape)
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Forward10,
                             contentDescription = "Forward 10s",
                             tint = ApturaColors.TextHighEmphasis,
-                            modifier = Modifier.size(30.dp)
+                            modifier = Modifier.size(seekIconSize)
                         )
                     }
 
@@ -1044,14 +1059,14 @@ fun PlayerScreen(
                         },
                         enabled = uiState.hasNext,
                         modifier = Modifier
-                            .size(48.dp)
+                            .size(skipSize)
                             .background(ApturaColors.SurfaceScrim.copy(alpha = 0.5f), CircleShape)
                     ) {
                         Icon(
                             imageVector = Icons.Filled.SkipNext,
                             contentDescription = "Next Video",
                             tint = if (uiState.hasNext) ApturaColors.TextHighEmphasis else ApturaColors.TextLowEmphasis.copy(alpha = 0.38f),
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(skipIconSize)
                         )
                     }
                 }

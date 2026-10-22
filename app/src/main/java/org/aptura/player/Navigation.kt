@@ -1,10 +1,18 @@
-@file:OptIn(coil.annotation.ExperimentalCoilApi::class)
+@file:OptIn(
+    coil.annotation.ExperimentalCoilApi::class,
+    androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi::class
+)
 
 package org.aptura.player
 
 import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
+import androidx.compose.material3.adaptive.layout.calculatePaneScaffoldDirective
+import androidx.compose.material3.adaptive.navigation3.ListDetailSceneStrategy
+import androidx.compose.material3.adaptive.navigation3.rememberListDetailSceneStrategy
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -12,9 +20,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
@@ -30,8 +43,14 @@ import org.aptura.player.data.settings.ApturaSettings
 import org.aptura.player.data.settings.ApturaSettingsRepository
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.domain.repository.LibraryStatistics
+import org.aptura.player.ui.library.DeleteFromDeviceDialog
+import org.aptura.player.ui.library.HideFromLibraryDialog
+import org.aptura.player.ui.library.MediaDetailsContent
+import org.aptura.player.ui.library.MediaDetailsPlaceholder
 import org.aptura.player.ui.library.MediaLibraryScreen
+import org.aptura.player.ui.library.MediaLibraryUiState
 import org.aptura.player.ui.library.MediaLibraryViewModel
+import org.aptura.player.ui.library.RenameVideoDialog
 import org.aptura.player.ui.onboarding.OnboardingScreen
 import org.aptura.player.ui.player.PlayerScreen
 import org.aptura.player.ui.player.PlayerViewModel
@@ -128,9 +147,17 @@ fun MainNavigation(
         playerViewModel.setDecoderStrategy(settings.defaultDecoderStrategy)
     }
 
+    val windowAdaptiveInfo = currentWindowAdaptiveInfoV2()
+    val directive = remember(windowAdaptiveInfo) {
+        calculatePaneScaffoldDirective(windowAdaptiveInfo)
+            .copy(horizontalPartitionSpacerSize = 0.dp)
+    }
+    val listDetailStrategy = rememberListDetailSceneStrategy<NavKey>(directive = directive)
+
     NavDisplay(
         backStack = backStack,
         onBack = { backStack.removeLastOrNull() },
+        sceneStrategy = listDetailStrategy,
         entryProvider = entryProvider {
             entry<Onboarding> {
                 OnboardingScreen(
@@ -146,7 +173,17 @@ fun MainNavigation(
                 )
             }
 
-            entry<MediaLibrary> {
+            entry<MediaLibrary>(
+                metadata = ListDetailSceneStrategy.listPane(
+                    detailPlaceholder = {
+                        MediaDetailsPlaceholder(
+                            modifier = Modifier
+                                .statusBarsPadding()
+                                .padding(top = 8.dp)
+                        )
+                    }
+                )
+            ) {
                 val uiState by libraryViewModel.uiState.collectAsStateWithLifecycle()
                 MediaLibraryScreen(
                     uiState = uiState,
@@ -163,6 +200,12 @@ fun MainNavigation(
                         val clickedIndex = items.indexOfFirst { it.uri == item.uri }.coerceAtLeast(0)
                         playerViewModel.playQueue(domainItems, clickedIndex)
                         backStack.add(PlayerKey(item.uri))
+                    },
+                    onShowDetails = { item ->
+                        if (backStack.lastOrNull() is MediaDetailsKey) {
+                            backStack.removeLastOrNull()
+                        }
+                        backStack.add(MediaDetailsKey(item.uri))
                     },
                     onSearchQueryChanged = libraryViewModel::onSearchQueryChanged,
                     onFolderSelected = libraryViewModel::onFolderSelected,
@@ -185,6 +228,115 @@ fun MainNavigation(
                     onResetProgress = libraryViewModel::resetVideoProgress,
                     onRenameVideo = libraryViewModel::renameVideo
                 )
+            }
+
+            entry<MediaDetailsKey>(
+                metadata = ListDetailSceneStrategy.detailPane()
+            ) { detailsKey ->
+                val uiState by libraryViewModel.uiState.collectAsStateWithLifecycle()
+                val domainItems = (uiState as? MediaLibraryUiState.Success)?.videos?.map { it.rawItem } ?: emptyList()
+                val item = domainItems.find { it.uri == detailsKey.videoUri }
+                    ?: remember(detailsKey.videoUri) {
+                        DomainMediaItem(
+                            uri = detailsKey.videoUri,
+                            title = detailsKey.videoUri.substringAfterLast('/'),
+                            durationMs = 0L,
+                            sizeBytes = 0L,
+                            mimeType = "video/*"
+                        )
+                    }
+
+                var itemToRename by remember { mutableStateOf<DomainMediaItem?>(null) }
+                var itemToDelete by remember { mutableStateOf<DomainMediaItem?>(null) }
+                var itemToHide by remember { mutableStateOf<DomainMediaItem?>(null) }
+
+                MediaDetailsContent(
+                    item = item,
+                    onClose = { backStack.removeLastOrNull() },
+                    onPlayClick = {
+                        val clickedIndex = domainItems.indexOfFirst { it.uri == item.uri }.coerceAtLeast(0)
+                        if (domainItems.isNotEmpty()) {
+                            playerViewModel.playQueue(domainItems, clickedIndex)
+                        } else {
+                            playerViewModel.loadAndPlay(item.uri)
+                        }
+                        backStack.add(PlayerKey(item.uri))
+                    },
+                    onPlayAudioOnlyClick = {
+                        playerViewModel.loadAndPlay(item.uri)
+                        backStack.add(PlayerKey(item.uri))
+                    },
+                    onOpenWithClick = {
+                        val viewIntent = Intent(Intent.ACTION_VIEW).apply {
+                            setDataAndType(Uri.parse(item.uri), item.mimeType ?: "video/*")
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        try {
+                            context.startActivity(Intent.createChooser(viewIntent, "Open Video With..."))
+                        } catch (_: Exception) {}
+                    },
+                    onShareClick = {
+                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = item.mimeType ?: "video/*"
+                            putExtra(Intent.EXTRA_STREAM, Uri.parse(item.uri))
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        try {
+                            context.startActivity(Intent.createChooser(shareIntent, "Share Video"))
+                        } catch (_: Exception) {}
+                    },
+                    onResetProgressClick = {
+                        libraryViewModel.resetVideoProgress(item.uri)
+                    },
+                    onRenameClick = {
+                        itemToRename = item
+                    },
+                    onHideClick = {
+                        itemToHide = item
+                    },
+                    onDeleteClick = {
+                        itemToDelete = item
+                    },
+                    showCloseButton = true,
+                    modifier = Modifier
+                        .statusBarsPadding()
+                        .padding(top = 8.dp)
+                )
+
+                itemToRename?.let { target ->
+                    RenameVideoDialog(
+                        itemTitle = target.title,
+                        onConfirm = { newName ->
+                            libraryViewModel.renameVideo(target.uri, newName)
+                            itemToRename = null
+                        },
+                        onDismiss = { itemToRename = null }
+                    )
+                }
+
+                itemToHide?.let { target ->
+                    HideFromLibraryDialog(
+                        itemTitle = target.title,
+                        onConfirm = {
+                            libraryViewModel.removeVideoFromLibrary(target.uri)
+                            itemToHide = null
+                            backStack.removeLastOrNull()
+                        },
+                        onDismiss = { itemToHide = null }
+                    )
+                }
+
+                itemToDelete?.let { target ->
+                    DeleteFromDeviceDialog(
+                        itemTitle = target.title,
+                        onConfirm = {
+                            libraryViewModel.removeVideoFromLibrary(target.uri)
+                            itemToDelete = null
+                            backStack.removeLastOrNull()
+                        },
+                        onDismiss = { itemToDelete = null }
+                    )
+                }
             }
 
             entry<Settings> {

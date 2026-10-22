@@ -8,4 +8,5 @@ import kotlinx.serialization.Serializable
 @Serializable data object Onboarding : NavKey
 @Serializable data object Settings : NavKey
 @Serializable data class PlayerKey(val videoUri: String) : NavKey
+@Serializable data class MediaDetailsKey(val videoUri: String) : NavKey
 
