@@ -64,30 +64,6 @@ fun OnboardingScreen(
             .fillMaxSize()
             .background(ApturaColors.SurfaceBase)
     ) {
-        // Top Skip Button (shown on first 2 pages)
-        AnimatedVisibility(
-            visible = pagerState.currentPage < 2,
-            enter = fadeIn(),
-            exit = fadeOut(),
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 40.dp, end = 20.dp)
-        ) {
-            TextButton(
-                onClick = {
-                    coroutineScope.launch {
-                        pagerState.animateScrollToPage(2)
-                    }
-                }
-            ) {
-                Text(
-                    text = "Skip",
-                    style = ApturaTypography.labelLarge,
-                    color = ApturaColors.TextMediumEmphasis
-                )
-            }
-        }
-
         // Pager Content
         HorizontalPager(
             state = pagerState,
@@ -111,6 +87,32 @@ fun OnboardingScreen(
                     badgeText = "ON-DEVICE STORAGE · PRIVACY FIRST",
                     title = "Access Your Library",
                     description = "To scan and organize your video collection, Aptura requests standard media read access. We never alter, rename, or delete your files without your explicit confirmation."
+                )
+            }
+        }
+
+        // Top Skip Button (shown on first 2 pages).
+        // Declared AFTER the pager: later siblings draw and receive touches on top. When it was declared
+        // before the full-screen pager, the pager swallowed every tap and Skip never worked (audit P1-03).
+        AnimatedVisibility(
+            visible = pagerState.currentPage < 2,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 40.dp, end = 20.dp)
+        ) {
+            TextButton(
+                onClick = {
+                    coroutineScope.launch {
+                        pagerState.animateScrollToPage(2)
+                    }
+                }
+            ) {
+                Text(
+                    text = "Skip",
+                    style = ApturaTypography.labelLarge,
+                    color = ApturaColors.TextMediumEmphasis
                 )
             }
         }

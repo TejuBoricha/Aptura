@@ -14,6 +14,13 @@ import androidx.compose.material3.adaptive.layout.calculatePaneScaffoldDirective
 import androidx.compose.material3.adaptive.navigation3.ListDetailSceneStrategy
 import androidx.compose.material3.adaptive.navigation3.rememberListDetailSceneStrategy
 import androidx.compose.runtime.Composable
+import org.aptura.player.theme.ApturaColors
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Box
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.Flow
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -51,27 +58,100 @@ import org.aptura.player.ui.library.MediaLibraryScreen
 import org.aptura.player.ui.library.MediaLibraryUiState
 import org.aptura.player.ui.library.MediaLibraryViewModel
 import org.aptura.player.ui.library.RenameVideoDialog
+import org.aptura.player.ui.library.buildPlayQueueRequest
+import org.aptura.player.ui.library.rememberMediaDeleteFlow
 import org.aptura.player.ui.onboarding.OnboardingScreen
 import org.aptura.player.ui.player.PlayerScreen
 import org.aptura.player.ui.player.PlayerViewModel
 import org.aptura.player.ui.settings.SettingsScreen
 
+/**
+ * Single back-navigation policy used by the system Back gesture/button *and* the top-bar arrow.
+ * Leaving the player by any route must pause playback and persist the position (audit P0-02);
+ * previously only the arrow did, so system Back left the video playing under the library.
+ */
+internal fun handleBack(backStack: MutableList<NavKey>, onPlayerDismissed: () -> Unit) {
+    if (backStack.lastOrNull() is PlayerKey) {
+        onPlayerDismissed()
+    }
+    backStack.removeLastOrNull()
+}
+
+/** Where the app starts: onboarding only for users who neither granted access nor finished onboarding. */
+internal fun startDestinationFor(hasStorageAccess: Boolean, onboardingCompleted: Boolean): NavKey =
+    if (!hasStorageAccess && !onboardingCompleted) Onboarding else MediaLibrary
+
+/**
+ * Decides the start destination only AFTER the persisted settings have loaded. It used to be computed from the
+ * default `ApturaSettings()` (onboardingCompleted = false) on the very first frame, so users who had chosen
+ * "Continue without access" were sent back through onboarding on every cold start (audit P1-03).
+ */
+@Composable
+internal fun StartDestinationGate(
+    settingsFlow: Flow<ApturaSettings>,
+    hasStorageAccess: Boolean,
+    content: @Composable (initialSettings: ApturaSettings, startKey: NavKey) -> Unit
+) {
+    val loaded by produceState<ApturaSettings?>(initialValue = null, settingsFlow) {
+        value = settingsFlow.first()
+    }
+    val initialSettings = loaded
+    if (initialSettings == null) {
+        Box(modifier = Modifier.fillMaxSize().background(ApturaColors.SurfaceBase))
+        return
+    }
+    val startKey = remember(initialSettings.onboardingCompleted, hasStorageAccess) {
+        startDestinationFor(hasStorageAccess, initialSettings.onboardingCompleted)
+    }
+    content(initialSettings, startKey)
+}
+
 @Composable
 fun MainNavigation(
     initialLaunchUri: String? = null,
+    onLaunchUriConsumed: () -> Unit = {},
     isPipMode: Boolean = false,
     onEnterPip: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val settingsRepository = remember { ApturaSettingsRepository(context) }
+    val hasStorageAccess = remember { PermissionHelper.hasStoragePermission(context) }
+
+    StartDestinationGate(settingsRepository.settingsFlow, hasStorageAccess) { initialSettings, startKey ->
+        AppNavHost(
+            settingsRepository = settingsRepository,
+            initialSettings = initialSettings,
+            startKey = startKey,
+            initialLaunchUri = initialLaunchUri,
+            onLaunchUriConsumed = onLaunchUriConsumed,
+            isPipMode = isPipMode,
+            onEnterPip = onEnterPip
+        )
+    }
+}
+
+@Composable
+private fun AppNavHost(
+    settingsRepository: ApturaSettingsRepository,
+    initialSettings: ApturaSettings,
+    startKey: NavKey,
+    initialLaunchUri: String?,
+    onLaunchUriConsumed: () -> Unit,
+    isPipMode: Boolean,
+    onEnterPip: () -> Unit
+) {
+    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
-    val settingsRepository = remember { ApturaSettingsRepository(context) }
-    val settings by settingsRepository.settingsFlow.collectAsStateWithLifecycle(initialValue = ApturaSettings())
+    val settings by settingsRepository.settingsFlow.collectAsStateWithLifecycle(initialValue = initialSettings)
 
     val database = remember { ApturaDatabase.getInstance(context) }
     val mediaRepository = remember { MediaRepositoryImpl(database.mediaItemDao(), database.bookmarkDao()) }
     val libraryViewModel: MediaLibraryViewModel = viewModel {
-        MediaLibraryViewModel(mediaRepository)
+        MediaLibraryViewModel(
+            mediaRepository,
+            scanActivity = MediaScanScheduler.isScanning(context.applicationContext)
+        )
     }
 
     val playbackController = remember { PlayerManager.getOrCreate(context) }
@@ -87,10 +167,6 @@ fun MainNavigation(
         PlayerViewModel(playbackController, mediaRepository, audioEnhancementController, settingsRepository)
     }
 
-    val hasStorageAccess = remember { PermissionHelper.hasStoragePermission(context) }
-    val startKey = remember {
-        if (!hasStorageAccess && !settings.onboardingCompleted) Onboarding else MediaLibrary
-    }
     val backStack = rememberNavBackStack(startKey)
 
     // Permission Request Launcher (SCR-001)
@@ -154,6 +230,7 @@ fun MainNavigation(
         if (initialLaunchUri != null) {
             playerViewModel.loadAndPlay(initialLaunchUri)
             backStack.add(PlayerKey(initialLaunchUri))
+            onLaunchUriConsumed()
         }
     }
 
@@ -174,7 +251,7 @@ fun MainNavigation(
 
     NavDisplay(
         backStack = backStack,
-        onBack = { backStack.removeLastOrNull() },
+        onBack = { handleBack(backStack, playerViewModel::onPlayerDismissed) },
         sceneStrategy = listDetailStrategy,
         entryProvider = entryProvider {
             entry<Onboarding> {
@@ -206,17 +283,8 @@ fun MainNavigation(
                 MediaLibraryScreen(
                     uiState = uiState,
                     onVideoClick = { item, items ->
-                        val domainItems = items.map { uiItem ->
-                            DomainMediaItem(
-                                uri = uiItem.uri,
-                                title = uiItem.title,
-                                durationMs = uiItem.durationMs,
-                                sizeBytes = uiItem.sizeBytes,
-                                mimeType = "video/*"
-                            )
-                        }
-                        val clickedIndex = items.indexOfFirst { it.uri == item.uri }.coerceAtLeast(0)
-                        playerViewModel.playQueue(domainItems, clickedIndex)
+                        val request = buildPlayQueueRequest(item, items)
+                        playerViewModel.playQueue(request.items, request.startIndex)
                         backStack.add(PlayerKey(item.uri))
                     },
                     onShowDetails = { item ->
@@ -242,7 +310,8 @@ fun MainNavigation(
                     onRequestPermission = {
                         permissionLauncher.launch(PermissionHelper.getRequiredPermissions())
                     },
-                    onRemoveVideo = libraryViewModel::removeVideoFromLibrary,
+                    onRemoveVideo = libraryViewModel::hideVideo,
+                    onVideoDeleted = libraryViewModel::onVideoDeleted,
                     onResetProgress = libraryViewModel::resetVideoProgress,
                     onRenameVideo = libraryViewModel::renameVideo,
                     onAddFolderClick = { folderPickerLauncher.launch(null) },
@@ -276,21 +345,22 @@ fun MainNavigation(
                 var itemToRename by remember { mutableStateOf<DomainMediaItem?>(null) }
                 var itemToDelete by remember { mutableStateOf<DomainMediaItem?>(null) }
                 var itemToHide by remember { mutableStateOf<DomainMediaItem?>(null) }
+                val deleteFlow = rememberMediaDeleteFlow(onDeleted = { uri ->
+                    libraryViewModel.onVideoDeleted(uri)
+                    backStack.removeLastOrNull()
+                })
 
                 MediaDetailsContent(
                     item = item,
                     onClose = { backStack.removeLastOrNull() },
                     onPlayClick = {
-                        val clickedIndex = domainItems.indexOfFirst { it.uri == item.uri }.coerceAtLeast(0)
-                        if (domainItems.isNotEmpty()) {
-                            playerViewModel.playQueue(domainItems, clickedIndex)
-                        } else {
-                            playerViewModel.loadAndPlay(item.uri)
-                        }
+                        val request = buildPlayQueueRequest(item, domainItems)
+                        playerViewModel.playQueue(request.items, request.startIndex)
                         backStack.add(PlayerKey(item.uri))
                     },
                     onPlayAudioOnlyClick = {
-                        playerViewModel.loadAndPlay(item.uri)
+                        val request = buildPlayQueueRequest(item, domainItems)
+                        playerViewModel.playQueue(request.items, request.startIndex, audioOnly = true)
                         backStack.add(PlayerKey(item.uri))
                     },
                     onOpenWithClick = {
@@ -353,7 +423,7 @@ fun MainNavigation(
                     HideFromLibraryDialog(
                         itemTitle = target.title,
                         onConfirm = {
-                            libraryViewModel.removeVideoFromLibrary(target.uri)
+                            libraryViewModel.hideVideo(target.uri)
                             itemToHide = null
                             backStack.removeLastOrNull()
                         },
@@ -365,9 +435,9 @@ fun MainNavigation(
                     DeleteFromDeviceDialog(
                         itemTitle = target.title,
                         onConfirm = {
-                            libraryViewModel.removeVideoFromLibrary(target.uri)
+                            // Real deletion (system consent when required); the screen closes only on success.
+                            deleteFlow.delete(target.uri)
                             itemToDelete = null
-                            backStack.removeLastOrNull()
                         },
                         onDismiss = { itemToDelete = null }
                     )
@@ -380,9 +450,12 @@ fun MainNavigation(
                     libraryStats = mediaRepository.getLibraryStatistics()
                 }
 
+                val hiddenVideoCount by libraryViewModel.hiddenVideoCount.collectAsStateWithLifecycle()
                 SettingsScreen(
                     settings = settings,
                     libraryStats = libraryStats,
+                    hiddenVideoCount = hiddenVideoCount,
+                    onRestoreHiddenVideos = libraryViewModel::restoreHiddenVideos,
                     onBackClick = { backStack.removeLastOrNull() },
                     onUpdateSpeed = { speed ->
                         coroutineScope.launch { settingsRepository.updateDefaultPlaybackSpeed(speed) }
@@ -447,30 +520,6 @@ fun MainNavigation(
                     playerViewModel.setSubtitleFontSize(settings.subtitleFontSizeSp)
                     playerViewModel.setSubtitleTextColor(settings.subtitleTextColorHex)
                     playerViewModel.setSubtitleBackgroundEnabled(settings.subtitleBackgroundEnabled)
-
-                    // Auto-discover and pair sidecar subtitles (.srt, .vtt, etc. in video directory or /subs/)
-                    try {
-                        val videoUri = android.net.Uri.parse(playerKey.videoUri)
-                        val sidecars = org.aptura.player.data.repository.SidecarSubtitleDetector.detectSidecars(
-                            context = context,
-                            videoUri = videoUri,
-                            videoDisplayName = playerViewModel.uiState.value.videoTitle
-                        )
-                        if (sidecars.isNotEmpty()) {
-                            val domainSidecars = sidecars.map { sidecar ->
-                                org.aptura.player.domain.model.DomainExternalSubtitle(
-                                    uri = sidecar.uri.toString(),
-                                    mimeType = sidecar.mimeType,
-                                    label = "${sidecar.languageLabel} (${sidecar.displayName})",
-                                    language = sidecar.languageCode,
-                                    isDefault = sidecar.isDefault
-                                )
-                            }
-                            playerViewModel.addExternalSubtitles(domainSidecars)
-                            val defaultSidecar = sidecars.firstOrNull { it.isDefault } ?: sidecars.first()
-                            playerViewModel.setAutoPairedSubtitleToast("Auto-paired: ${defaultSidecar.languageLabel}")
-                        }
-                    } catch (_: Throwable) {}
                 }
 
                 val uiState by playerViewModel.uiState.collectAsStateWithLifecycle()
@@ -502,10 +551,7 @@ fun MainNavigation(
                     player = playbackController.player,
                     isPipMode = isPipMode,
                     onEnterPip = onEnterPip,
-                    onBackClick = {
-                        playerViewModel.onPlayerDismissed()
-                        backStack.removeLastOrNull()
-                    },
+                    onBackClick = { handleBack(backStack, playerViewModel::onPlayerDismissed) },
                     onPlayPauseClick = playerViewModel::togglePlayPause,
                     onSeekRelative = { delta -> playerViewModel.seekRelative(delta) },
                     onSeekRelativeWithSide = playerViewModel::seekRelative,
@@ -616,7 +662,8 @@ fun MainNavigation(
                     onToggleStatsOverlay = playerViewModel::toggleStatsOverlay,
                     onWhyCompatibilityClick = { playerViewModel.setWhyCompatibilitySheetVisible(true) },
                     onDismissWhyCompatibilitySheet = { playerViewModel.setWhyCompatibilitySheetVisible(false) },
-                    onResetVideoPreferences = playerViewModel::resetVideoPreferences
+                    onResetVideoPreferences = playerViewModel::resetVideoPreferences,
+                    onAudioOnlyChanged = playerViewModel::setAudioOnly
                 )
             }
         }

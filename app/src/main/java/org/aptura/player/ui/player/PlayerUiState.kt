@@ -119,7 +119,11 @@ data class PlayerUiState(
     val playbackStats: org.aptura.player.domain.model.PlaybackStatsInfo = org.aptura.player.domain.model.PlaybackStatsInfo(),
     val isWhyCompatibilitySheetVisible: Boolean = false,
     val failedCodecName: String? = null,
-    val failureReason: String? = null
+    val failureReason: String? = null,
+    /** Double-tap / transport seek step from Settings (was hard-coded to 10 s). */
+    val seekStepMs: Long = 10_000L,
+    /** Audio-only mode: video is not decoded or rendered; audio keeps playing. */
+    val isAudioOnly: Boolean = false
 ) {
     val effectivePositionMs: Long
         get() = if (isScrubbing) scrubPositionMs else currentPositionMs

@@ -149,7 +149,16 @@ class Media3PlaybackControllerTest {
                     released = true
                     null
                 }
-                else -> null
+                // The controller now also asks queue questions (index, next/previous availability, ...). A Java
+                // proxy must answer with a real primitive default, never null.
+                else -> when (method.returnType) {
+                    java.lang.Integer.TYPE -> 0
+                    java.lang.Long.TYPE -> 0L
+                    java.lang.Boolean.TYPE -> false
+                    java.lang.Float.TYPE -> 0f
+                    java.lang.Double.TYPE -> 0.0
+                    else -> null
+                }
             }
         }
     }
@@ -325,49 +334,45 @@ class Media3PlaybackControllerTest {
         }
     }
 
+    // Queue navigation (playQueue / skipToNext / skipToPrevious / repeat / shuffle) now lives in the player's own
+    // playlist and is covered against a real ExoPlayer in Media3PlaybackControllerQueueTest.
+
     @Test
-    fun skipToPrevious_navigatesToPreviousItem_whenUnderThreeSeconds() = runTest(testDispatcher) {
+    fun stepFrame_pausesAndMovesOneFrameAtATime_withoutDriftingOverManySteps() = runTest(testDispatcher) {
         val (player, state) = createMockPlayer()
         val controller = createController(player)
+        state.isPlaying = true
+        state.currentPosition = 5000L
+        state.duration = 60000L
 
-        // Queue with 2 items, currently at index 1
-        controller.playQueue(listOf(sampleItem1, sampleItem2), startIndex = 1)
-        assertEquals(1, controller.playbackQueue.value.currentIndex)
+        controller.stepFrame(forward = true)
+        assertFalse("stepping frames pauses playback", state.isPlaying)
+        assertEquals(5033L, state.lastSeekPosition) // 1000 ms / 30 fps = 33.33 ms
 
-        state.currentPosition = 1500L // Under 3000ms threshold -> previous item
-        controller.skipToPrevious()
+        controller.stepFrame(forward = true)
+        assertEquals(5067L, state.lastSeekPosition)
+        controller.stepFrame(forward = true)
+        assertEquals("three frames forward from 5000 ms at 30 fps", 5100L, state.lastSeekPosition)
 
-        assertEquals(0, controller.playbackQueue.value.currentIndex)
-        assertEquals(sampleItem1, controller.playbackQueue.value.currentItem)
+        controller.stepFrame(forward = false)
+        controller.stepFrame(forward = false)
+        controller.stepFrame(forward = false)
+        assertEquals("and three back again lands exactly where it started", 5000L, state.lastSeekPosition)
     }
 
     @Test
-    fun skipToNext_advancesQueue_andPlaysNextItem() = runTest(testDispatcher) {
-        val (player, _) = createMockPlayer()
-        val controller = createController(player)
-
-        controller.playQueue(listOf(sampleItem1, sampleItem2), startIndex = 0)
-        assertEquals(0, controller.playbackQueue.value.currentIndex)
-
-        controller.skipToNext()
-
-        assertEquals(1, controller.playbackQueue.value.currentIndex)
-        assertEquals(sampleItem2, controller.playbackQueue.value.currentItem)
-    }
-
-    @Test
-    fun playQueue_initializesQueue_andPlaysTargetItem() = runTest(testDispatcher) {
+    fun stepFrame_neverSeeksOutsideTheVideo() = runTest(testDispatcher) {
         val (player, state) = createMockPlayer()
         val controller = createController(player)
+        state.duration = 60000L
 
-        val queueItems = listOf(sampleItem1, sampleItem2)
-        controller.playQueue(queueItems, startIndex = 1)
+        state.currentPosition = 0L
+        controller.stepFrame(forward = false)
+        assertEquals(0L, state.lastSeekPosition)
 
-        val queue = controller.playbackQueue.value
-        assertEquals(2, queue.items.size)
-        assertEquals(1, queue.currentIndex)
-        assertEquals(sampleItem2, queue.currentItem)
-        assertTrue(state.isPlaying)
+        state.currentPosition = 60000L
+        controller.stepFrame(forward = true)
+        assertEquals(60000L, state.lastSeekPosition)
     }
 
     @Test

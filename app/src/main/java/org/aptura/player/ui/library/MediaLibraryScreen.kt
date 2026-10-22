@@ -118,6 +118,7 @@ fun MediaLibraryScreen(
     onAddFolderClick: () -> Unit = {},
     onPlayNext: (DomainMediaItem) -> Unit = {},
     onAddToQueue: (DomainMediaItem) -> Unit = {},
+    onVideoDeleted: (String) -> Unit = onRemoveVideo,
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -172,6 +173,7 @@ fun MediaLibraryScreen(
                         onAddFolderClick = onAddFolderClick,
                         onPlayNext = onPlayNext,
                         onAddToQueue = onAddToQueue,
+                        onVideoDeleted = onVideoDeleted,
                         bottomPadding = innerPadding.calculateBottomPadding()
                     )
                 }
@@ -198,6 +200,7 @@ private fun MediaLibraryContentView(
     onAddFolderClick: () -> Unit = {},
     onPlayNext: (DomainMediaItem) -> Unit = {},
     onAddToQueue: (DomainMediaItem) -> Unit = {},
+    onVideoDeleted: (String) -> Unit = onRemoveVideo,
     bottomPadding: androidx.compose.ui.unit.Dp,
     modifier: Modifier = Modifier
 ) {
@@ -210,18 +213,10 @@ private fun MediaLibraryContentView(
     var itemPendingRenameNewName by remember { mutableStateOf<String?>(null) }
     var itemToHide by remember { mutableStateOf<DomainMediaItem?>(null) }
     var itemToDelete by remember { mutableStateOf<DomainMediaItem?>(null) }
-    var itemPendingSystemDeleteUri by remember { mutableStateOf<String?>(null) }
-
-    val deleteLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartIntentSenderForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            itemPendingSystemDeleteUri?.let { uri ->
-                onRemoveVideo(uri)
-                itemPendingSystemDeleteUri = null
-            }
-        }
-    }
+    val deleteFlow = rememberMediaDeleteFlow(onDeleted = { uri ->
+        selectedDetailItem = null
+        onVideoDeleted(uri)
+    })
 
     val renameLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartIntentSenderForResult()
@@ -747,23 +742,7 @@ private fun MediaLibraryContentView(
             DeleteFromDeviceDialog(
                 itemTitle = item.title,
                 onConfirm = {
-                    val uri = Uri.parse(item.uri)
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        try {
-                            val pi = MediaStore.createDeleteRequest(context.contentResolver, listOf(uri))
-                            itemPendingSystemDeleteUri = item.uri
-                            deleteLauncher.launch(IntentSenderRequest.Builder(pi.intentSender).build())
-                        } catch (e: Exception) {
-                            onRemoveVideo(item.uri)
-                        }
-                    } else {
-                        try {
-                            context.contentResolver.delete(uri, null, null)
-                            onRemoveVideo(item.uri)
-                        } catch (e: Exception) {
-                            onRemoveVideo(item.uri)
-                        }
-                    }
+                    deleteFlow.delete(item.uri)
                     itemToDelete = null
                 },
                 onDismiss = { itemToDelete = null }

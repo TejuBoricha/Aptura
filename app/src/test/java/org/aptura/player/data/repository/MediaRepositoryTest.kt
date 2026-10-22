@@ -89,13 +89,19 @@ class MediaRepositoryTest {
             }
         }
 
-        override suspend fun updateTitleAndDisplayName(uri: String, newTitle: String, newDisplayName: String) {
-            items.value = items.value.map {
-                if (it.uri == uri) {
-                    it.copy(title = newTitle, displayName = newDisplayName)
-                } else it
-            }
+        override suspend fun updateCustomTitle(uri: String, customTitle: String?) {
+            items.value = items.value.map { if (it.uri == uri) it.copy(customTitle = customTitle) else it }
         }
+
+        override suspend fun hideByUri(uri: String) {
+            items.value = items.value.map { if (it.uri == uri) it.copy(isHidden = true) else it }
+        }
+
+        override suspend fun restoreAllHidden() {
+            items.value = items.value.map { it.copy(isHidden = false) }
+        }
+
+        override fun getHiddenCount(): Flow<Int> = items.map { list -> list.count { it.isHidden } }
 
         override suspend fun getAllVideosRaw(): List<MediaItemEntity> = items.value
 
@@ -204,6 +210,10 @@ class MediaRepositoryTest {
 
         override suspend fun deleteBookmarksForMedia(mediaUri: String) {
             bookmarks.value = bookmarks.value.filter { it.mediaUri != mediaUri }
+        }
+
+        override suspend fun remapMediaUri(oldUri: String, newUri: String) {
+            bookmarks.value = bookmarks.value.map { if (it.mediaUri == oldUri) it.copy(mediaUri = newUri) else it }
         }
     }
 
@@ -399,7 +409,7 @@ class MediaRepositoryTest {
     }
 
     @Test
-    fun renameVideo_updatesTitleAndDisplayName_inRepository() = runTest(testDispatcher) {
+    fun renameVideo_setsCustomTitle_shownByRepository() = runTest(testDispatcher) {
         val fakeMediaDao = FakeMediaItemDao()
         val repo = MediaRepositoryImpl(fakeMediaDao, testDispatcher)
 

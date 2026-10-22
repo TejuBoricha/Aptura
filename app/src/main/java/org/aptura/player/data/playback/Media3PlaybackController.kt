@@ -4,42 +4,60 @@ package org.aptura.player.data.playback
 
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.SeekParameters
 import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.source.ShuffleOrder.DefaultShuffleOrder
 import org.aptura.player.domain.model.PlaybackStatsInfo
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.aptura.player.core.diagnostics.ApturaDiagnostics
 import org.aptura.player.core.diagnostics.ErrorTaxonomy
 import org.aptura.player.core.diagnostics.EventCode
+import org.aptura.player.domain.model.DomainExternalSubtitle
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.domain.model.DomainPlaybackQueue
 import org.aptura.player.domain.model.DomainPlaybackState
 import org.aptura.player.domain.model.DomainTrackInfo
 import org.aptura.player.domain.model.DomainTrackSelection
 import org.aptura.player.domain.model.PlayMode
+import org.aptura.player.domain.model.cleanDisplayTitle
 import org.aptura.player.domain.repository.PlaybackController
+import org.aptura.player.domain.repository.SidecarSubtitleResolver
 import org.aptura.player.domain.usecase.PlaybackNavigationRules
 import org.aptura.player.domain.usecase.PreviousActionOutcome
+import kotlin.math.abs
+import kotlin.math.roundToLong
 
 /**
  * Concrete implementation of domain PlaybackController backed by Media3 Player.
  * Maps low-level ExoPlayer/MediaController events into immutable domain states
  * and enforces platform navigation rules (FR-CTRL-002, W8, W9).
+ *
+ * The queue lives INSIDE the player's playlist (audit P0-03/P0-07). Earlier versions played one item at a time with
+ * `setMediaItem`, which made `REPEAT_MODE_ALL` loop a single file, made shuffle a no-op, and disabled next/previous
+ * in the notification, lock screen and Bluetooth headsets. Now repeat/shuffle/next/previous are the player's own.
  */
 class Media3PlaybackController(
     val player: Player,
@@ -47,7 +65,11 @@ class Media3PlaybackController(
     private val mainDispatcher: CoroutineDispatcher = Dispatchers.Main,
     private val enablePositionTicker: Boolean = true,
     initialDecoderStrategy: Int = 0,
-    var apturaTextRenderer: ApturaTextRenderer? = null
+    var apturaTextRenderer: ApturaTextRenderer? = null,
+    private val sidecarResolver: SidecarSubtitleResolver? = null,
+    private val artworkProvider: (suspend (mediaUri: String) -> ByteArray?)? = null,
+    var audioDelayProcessor: AudioDelayProcessor? = null,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : PlaybackController {
 
     var currentDecoderStrategy: Int = initialDecoderStrategy
@@ -93,7 +115,23 @@ class Media3PlaybackController(
     private val _playbackState = MutableStateFlow<DomainPlaybackState>(DomainPlaybackState.Idle)
     override val playbackState: StateFlow<DomainPlaybackState> = _playbackState.asStateFlow()
 
+    private val _autoPairedSubtitles = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    override val autoPairedSubtitles: SharedFlow<String> = _autoPairedSubtitles.asSharedFlow()
+
     private var positionTickerJob: Job? = null
+
+    // ---- Queue (mirror of the player's playlist; index N here == media item N in the player) ----------------
+    private val queueItems = mutableListOf<DomainMediaItem>()
+    private val externalSubtitleLabels = mutableSetOf<String>()
+    private var playMode: PlayMode = PlayMode.NORMAL
+    private var pauseAtEndOfItems = false
+
+    /** Sidecar subtitles already resolved per media URI (they are baked into that item's MediaItem). */
+    private val sidecarsByUri = mutableMapOf<String, List<DomainExternalSubtitle>>()
+    private var currentMediaId: String? = null
+
+    /** True while an item has finished and the player is parked at its end waiting for the Up Next decision. */
+    private var pausedAtItemEnd = false
 
     private fun checkPositionTicker(isPlaying: Boolean) {
         if (!enablePositionTicker) return
@@ -126,15 +164,42 @@ class Media3PlaybackController(
             }
             updatePlaybackState()
             updatePlaybackStats()
-            if (state == Player.STATE_ENDED) {
-                handleAutoAdvance()
-            }
+            publishQueue()
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
+            if (isPlaying) pausedAtItemEnd = false
             checkPositionTicker(isPlaying)
             updatePlaybackState()
             updatePlaybackStats()
+        }
+
+        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            // `pauseAtEndOfMediaItems`: the player parks at the end of a finished item instead of advancing.
+            // Surface that as "Ended" so the Up Next countdown can run (same contract as the last item ending).
+            if (!playWhenReady && reason == Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM) {
+                pausedAtItemEnd = true
+                checkPositionTicker(false)
+                updatePlaybackState()
+            }
+        }
+
+        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            pausedAtItemEnd = false
+            val newId = mediaItem?.mediaId
+            if (newId != currentMediaId) {
+                currentMediaId = newId
+                resetPerItemState()
+                registerExternalLabels(sidecarsByUri[newId].orEmpty())
+                announceAutoPair(sidecarsByUri[newId].orEmpty())
+                prefetchNeighbours()
+            }
+            publishQueue()
+            updatePlaybackState()
+        }
+
+        override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
+            publishQueue()
         }
 
         override fun onPlayerError(error: PlaybackException) {
@@ -178,12 +243,9 @@ class Media3PlaybackController(
                     )
                 )
 
-                val currentItem = player.currentMediaItem
-                val resumePos = player.currentPosition.coerceAtLeast(0L)
-                if (currentItem != null) {
+                if (player.currentMediaItem != null) {
+                    // Keeps the playlist and the position; prepare() clears the error and re-selects decoders.
                     player.stop()
-                    player.clearMediaItems()
-                    player.setMediaItem(currentItem, resumePos)
                     player.prepare()
                     player.play()
                     return
@@ -320,6 +382,11 @@ class Media3PlaybackController(
         val duration = player.duration.coerceAtLeast(0L)
         val bufferedPosition = player.bufferedPosition.coerceAtLeast(0L)
 
+        if (pausedAtItemEnd && player.playbackState == Player.STATE_READY) {
+            _playbackState.value = DomainPlaybackState.Ended(duration)
+            return
+        }
+
         _playbackState.value = when (player.playbackState) {
             Player.STATE_IDLE -> DomainPlaybackState.Idle
             Player.STATE_BUFFERING -> DomainPlaybackState.Buffering(currentPosition)
@@ -397,25 +464,112 @@ class Media3PlaybackController(
         )
     }
 
-    override suspend fun playMediaItem(item: DomainMediaItem) {
-        playQueue(listOf(item), 0)
-    }
+    // ------------------------------------------------------------------------------------------------------
+    // Queue
+    // ------------------------------------------------------------------------------------------------------
 
-    override suspend fun playQueue(items: List<DomainMediaItem>, startIndex: Int) {
-        if (items.isEmpty()) return
-        val clampedIndex = startIndex.coerceIn(0, items.size - 1)
-        val targetItem = items[clampedIndex]
-
-        playMediaItemInternal(targetItem)
-
+    /** Pushes the player's real queue state (index, next/previous availability incl. shuffle order) to the domain. */
+    private fun publishQueue() {
+        val index = if (queueItems.isEmpty()) -1 else player.currentMediaItemIndex.coerceIn(0, queueItems.lastIndex)
         _playbackQueue.value = DomainPlaybackQueue(
-            items = items,
-            currentIndex = clampedIndex,
-            playMode = _playbackQueue.value.playMode
+            items = queueItems.toList(),
+            currentIndex = index,
+            playMode = playMode,
+            nextAvailable = player.hasNextMediaItem(),
+            previousAvailable = player.hasPreviousMediaItem(),
+            nextIndex = player.nextMediaItemIndex.takeIf { it != C.INDEX_UNSET }
         )
     }
 
-    private fun playMediaItemInternal(item: DomainMediaItem, startPositionMs: Long = 0L) {
+    private fun buildMediaItem(
+        item: DomainMediaItem,
+        subtitles: List<DomainExternalSubtitle>,
+        artwork: ByteArray?
+    ): MediaItem {
+        val metadata = MediaMetadata.Builder()
+            .setTitle(cleanDisplayTitle(item.title))
+            .setDisplayTitle(cleanDisplayTitle(item.title))
+            .apply { if (artwork != null) setArtworkData(artwork, MediaMetadata.PICTURE_TYPE_FRONT_COVER) }
+            .build()
+        return MediaItem.Builder()
+            .setUri(item.uri)
+            .setMediaId(item.uri)
+            .setMediaMetadata(metadata)
+            .setSubtitleConfigurations(subtitles.map { sub ->
+                MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(sub.uri))
+                    .setMimeType(sub.mimeType)
+                    .setLanguage(sub.language ?: "und")
+                    .setLabel(sub.label)
+                    .setSelectionFlags(if (sub.isDefault) C.SELECTION_FLAG_DEFAULT else 0)
+                    .build()
+            })
+            .build()
+    }
+
+    private suspend fun resolveSidecars(item: DomainMediaItem): List<DomainExternalSubtitle> {
+        val resolver = sidecarResolver ?: return emptyList()
+        return try {
+            withContext(ioDispatcher) { resolver.resolve(item.uri) }
+        } catch (_: Throwable) {
+            emptyList()
+        }
+    }
+
+    private suspend fun resolveArtwork(item: DomainMediaItem): ByteArray? {
+        val provider = artworkProvider ?: return null
+        return try {
+            withContext(ioDispatcher) { provider(item.uri) }
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    private fun registerExternalLabels(subs: List<DomainExternalSubtitle>) {
+        subs.forEach { externalSubtitleLabels.add(it.label) }
+    }
+
+    private fun announceAutoPair(subs: List<DomainExternalSubtitle>) {
+        subs.firstOrNull { it.isDefault }?.let {
+            _autoPairedSubtitles.tryEmit(it.label.substringBefore(" ("))
+        }
+    }
+
+    /** A default sidecar must actually turn subtitles on, even if the user switched them off for a previous video. */
+    private fun enableSubtitlesFor(subs: List<DomainExternalSubtitle>) {
+        if (subs.none { it.isDefault }) return
+        val params = try { player.trackSelectionParameters } catch (_: Throwable) { null } ?: return
+        player.trackSelectionParameters = params.buildUpon()
+            .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+            .build()
+    }
+
+    /** Resolves subtitles for the next/previous items in the background and bakes them into those media items. */
+    private fun prefetchNeighbours() {
+        if (sidecarResolver == null) return
+        val candidates = listOf(player.nextMediaItemIndex, player.previousMediaItemIndex)
+            .filter { it != C.INDEX_UNSET && it in queueItems.indices }
+            .distinct()
+        for (index in candidates) {
+            val item = queueItems[index]
+            if (sidecarsByUri.containsKey(item.uri)) continue
+            scope.launch(mainDispatcher) {
+                val subs = resolveSidecars(item)
+                sidecarsByUri[item.uri] = subs
+                if (subs.isEmpty()) return@launch
+                val liveIndex = queueItems.indexOfFirst { it.uri == item.uri }
+                // Never replace the item that is playing now (that would restart it); it was resolved up front.
+                if (liveIndex >= 0 && liveIndex != player.currentMediaItemIndex &&
+                    liveIndex < player.mediaItemCount && player.getMediaItemAt(liveIndex).mediaId == item.uri
+                ) {
+                    player.replaceMediaItem(liveIndex, buildMediaItem(item, subs, null))
+                }
+            }
+        }
+    }
+
+    /** Everything that belongs to "the video that is playing" and must start fresh for each new item. */
+    private fun resetPerItemState() {
         externalSubtitleLabels.clear()
         apturaTextRenderer?.subtitleDelayMs = 0L
         _trackSelection.value = _trackSelection.value.copy(subtitleDelayMs = 0L)
@@ -433,18 +587,76 @@ class Media3PlaybackController(
             _failureReason.value = null
         }
         updatePlaybackStats()
+    }
 
-        val mediaItem = try {
-            MediaItem.fromUri(item.uri)
-        } catch (_: Throwable) {
-            MediaItem.Builder().setMediaId(item.uri).build()
+    private fun applyPlayModeToPlayer() {
+        player.repeatMode = when (playMode) {
+            PlayMode.REPEAT_ONE -> Player.REPEAT_MODE_ONE
+            PlayMode.REPEAT_ALL -> Player.REPEAT_MODE_ALL
+            PlayMode.NORMAL, PlayMode.SHUFFLE -> Player.REPEAT_MODE_OFF
         }
-        player.setMediaItem(mediaItem, startPositionMs)
+        player.shuffleModeEnabled = (playMode == PlayMode.SHUFFLE)
+        (player as? ExoPlayer)?.pauseAtEndOfMediaItems = pauseAtEndOfItems && playMode != PlayMode.REPEAT_ONE
+    }
+
+    /**
+     * ExoPlayer's default shuffle order is a random permutation in which the playing item can sit anywhere; "next"
+     * then only reaches the items AFTER it in that permutation, silently skipping the rest. Make the playing item
+     * the head of the order so that one pass visits every other video exactly once.
+     */
+    private fun shuffleRemainingAfterCurrent() {
+        val exo = player as? ExoPlayer ?: return
+        val count = exo.mediaItemCount
+        if (count == 0) return
+        val current = exo.currentMediaItemIndex.coerceIn(0, count - 1)
+        val others = (0 until count).filter { it != current }.shuffled()
+        exo.setShuffleOrder(DefaultShuffleOrder((listOf(current) + others).toIntArray(), System.nanoTime()))
+    }
+
+    override suspend fun playMediaItem(item: DomainMediaItem) {
+        playQueue(listOf(item), 0)
+    }
+
+    override suspend fun playQueue(items: List<DomainMediaItem>, startIndex: Int) {
+        if (items.isEmpty()) return
+        val clampedIndex = startIndex.coerceIn(0, items.size - 1)
+        val target = items[clampedIndex]
+
+        // Resolve everything that has to be baked into the first MediaItem BEFORE touching the player, off the main
+        // thread, so playback never starts and then restarts when subtitles are found (audit P0-10).
+        val (subtitles, artwork) = coroutineScope {
+            val subs = async { resolveSidecars(target) }
+            val art = async { resolveArtwork(target) }
+            subs.await() to art.await()
+        }
+
+        pausedAtItemEnd = false
+        queueItems.clear()
+        queueItems.addAll(items)
+        sidecarsByUri.clear()
+        sidecarsByUri[target.uri] = subtitles
+        currentMediaId = target.uri
+
+        resetPerItemState()
+        registerExternalLabels(subtitles)
+        enableSubtitlesFor(subtitles)
+
+        val mediaItems = items.mapIndexed { index, item ->
+            if (index == clampedIndex) buildMediaItem(item, subtitles, artwork) else buildMediaItem(item, emptyList(), null)
+        }
+        player.setMediaItems(mediaItems, clampedIndex, 0L)
+        applyPlayModeToPlayer()
+        if (playMode == PlayMode.SHUFFLE) shuffleRemainingAfterCurrent()
         player.prepare()
         player.play()
+
+        publishQueue()
+        announceAutoPair(subtitles)
+        prefetchNeighbours()
     }
 
     override suspend fun play() {
+        pausedAtItemEnd = false
         player.play()
     }
 
@@ -453,133 +665,107 @@ class Media3PlaybackController(
     }
 
     override suspend fun seekTo(positionMs: Long) {
-        val duration = player.duration.coerceAtLeast(0L)
-        val clampedPosition = PlaybackNavigationRules.clampSeekPosition(positionMs, duration)
+        // Right after a queue is loaded the player does not know the duration yet (TIME_UNSET). Clamping to that
+        // "duration" used to turn every early seek — notably "resume where you left off" — into a seek to 0:00.
+        val duration = player.duration
+        val clampedPosition = if (duration == C.TIME_UNSET || duration <= 0L) {
+            positionMs.coerceAtLeast(0L)
+        } else {
+            PlaybackNavigationRules.clampSeekPosition(positionMs, duration)
+        }
+        pausedAtItemEnd = false
         player.seekTo(clampedPosition)
     }
 
     override suspend fun skipToNext() {
-        val queue = _playbackQueue.value
-        if (queue.hasNext) {
-            val nextIndex = when (queue.playMode) {
-                PlayMode.REPEAT_ONE -> queue.currentIndex
-                PlayMode.REPEAT_ALL -> if (queue.items.isEmpty()) -1 else (queue.currentIndex + 1) % queue.items.size
-                PlayMode.NORMAL, PlayMode.SHUFFLE -> (queue.currentIndex + 1).coerceAtMost(queue.items.size - 1)
-            }
-            if (nextIndex in queue.items.indices) {
-                val nextItem = queue.items[nextIndex]
-                _playbackQueue.value = queue.copy(currentIndex = nextIndex)
-                playMediaItemInternal(nextItem)
-            }
-        }
+        if (!player.hasNextMediaItem()) return
+        pausedAtItemEnd = false
+        player.seekToNextMediaItem()
+        player.play()
     }
 
     override suspend fun skipToPrevious() {
         val currentPosition = player.currentPosition.coerceAtLeast(0L)
         val queue = _playbackQueue.value
-
+        pausedAtItemEnd = false
         when (PlaybackNavigationRules.evaluatePreviousAction(currentPosition, queue)) {
-            PreviousActionOutcome.RestartCurrentItem -> {
-                player.seekTo(0L)
-            }
+            PreviousActionOutcome.RestartCurrentItem -> player.seekTo(0L)
             PreviousActionOutcome.NavigateToPreviousItem -> {
-                val prevIndex = when (queue.playMode) {
-                    PlayMode.REPEAT_ONE -> queue.currentIndex
-                    PlayMode.REPEAT_ALL -> if (queue.items.isEmpty()) -1 else (queue.currentIndex - 1 + queue.items.size) % queue.items.size
-                    PlayMode.NORMAL, PlayMode.SHUFFLE -> (queue.currentIndex - 1).coerceAtLeast(0)
-                }
-                if (prevIndex in queue.items.indices) {
-                    val prevItem = queue.items[prevIndex]
-                    _playbackQueue.value = queue.copy(currentIndex = prevIndex)
-                    playMediaItemInternal(prevItem)
-                }
+                player.seekToPreviousMediaItem()
+                player.play()
             }
         }
     }
 
     override suspend fun playQueueItem(index: Int) {
-        val queue = _playbackQueue.value
-        if (index in queue.items.indices) {
-            val item = queue.items[index]
-            _playbackQueue.value = queue.copy(currentIndex = index)
-            playMediaItemInternal(item)
-        }
+        if (index !in queueItems.indices) return
+        pausedAtItemEnd = false
+        player.seekToDefaultPosition(index)
+        if (player.playbackState == Player.STATE_IDLE) player.prepare()
+        player.play()
     }
 
     override suspend fun addToQueue(item: DomainMediaItem) {
-        val queue = _playbackQueue.value
-        if (queue.items.isEmpty()) {
+        if (queueItems.isEmpty()) {
             playQueue(listOf(item), 0)
-        } else {
-            val newItems = queue.items + item
-            _playbackQueue.value = queue.copy(items = newItems)
+            return
         }
+        queueItems.add(item)
+        player.addMediaItem(buildMediaItem(item, emptyList(), null))
+        publishQueue()
     }
 
     override suspend fun playNext(item: DomainMediaItem) {
-        val queue = _playbackQueue.value
-        if (queue.items.isEmpty()) {
+        if (queueItems.isEmpty()) {
             playQueue(listOf(item), 0)
-        } else {
-            val insertIndex = (queue.currentIndex + 1).coerceAtMost(queue.items.size)
-            val newItems = queue.items.toMutableList().apply {
-                add(insertIndex, item)
-            }
-            _playbackQueue.value = queue.copy(items = newItems)
+            return
         }
+        val insertIndex = (player.currentMediaItemIndex + 1).coerceIn(0, queueItems.size)
+        queueItems.add(insertIndex, item)
+        player.addMediaItem(insertIndex, buildMediaItem(item, emptyList(), null))
+        publishQueue()
     }
 
     override suspend fun removeFromQueue(index: Int) {
-        val queue = _playbackQueue.value
-        if (index !in queue.items.indices) return
-        val newItems = queue.items.toMutableList().apply { removeAt(index) }
-        if (newItems.isEmpty()) {
+        if (index !in queueItems.indices) return
+        queueItems.removeAt(index)
+        player.removeMediaItem(index)
+        if (queueItems.isEmpty()) {
             player.stop()
             player.clearMediaItems()
+            currentMediaId = null
             _playbackQueue.value = DomainPlaybackQueue()
             _playbackState.value = DomainPlaybackState.Idle
             return
         }
-        val currentIdx = queue.currentIndex
-        val newCurrentIndex = when {
-            index < currentIdx -> currentIdx - 1
-            index == currentIdx -> currentIdx.coerceAtMost(newItems.size - 1)
-            else -> currentIdx
-        }
-        _playbackQueue.value = queue.copy(items = newItems, currentIndex = newCurrentIndex)
-        if (index == currentIdx) {
-            playMediaItemInternal(newItems[newCurrentIndex])
-        }
+        publishQueue()
     }
 
     override suspend fun moveQueueItem(fromIndex: Int, toIndex: Int) {
-        val queue = _playbackQueue.value
-        if (fromIndex !in queue.items.indices || toIndex !in queue.items.indices || fromIndex == toIndex) return
-        val newItems = queue.items.toMutableList()
-        val item = newItems.removeAt(fromIndex)
-        newItems.add(toIndex, item)
-
-        val oldCurrent = queue.currentIndex
-        val newCurrent = when {
-            oldCurrent == fromIndex -> toIndex
-            fromIndex < oldCurrent && toIndex >= oldCurrent -> oldCurrent - 1
-            fromIndex > oldCurrent && toIndex <= oldCurrent -> oldCurrent + 1
-            else -> oldCurrent
-        }
-        _playbackQueue.value = queue.copy(items = newItems, currentIndex = newCurrent)
+        if (fromIndex !in queueItems.indices || toIndex !in queueItems.indices || fromIndex == toIndex) return
+        queueItems.add(toIndex, queueItems.removeAt(fromIndex))
+        player.moveMediaItem(fromIndex, toIndex)
+        publishQueue()
     }
 
     override suspend fun clearQueue() {
-        val queue = _playbackQueue.value
-        val current = queue.currentItem
-        if (current != null) {
-            _playbackQueue.value = queue.copy(items = listOf(current), currentIndex = 0)
-        } else {
+        if (queueItems.isEmpty()) return
+        val current = player.currentMediaItemIndex
+        if (current !in queueItems.indices) {
             player.stop()
             player.clearMediaItems()
+            queueItems.clear()
+            currentMediaId = null
             _playbackQueue.value = DomainPlaybackQueue()
             _playbackState.value = DomainPlaybackState.Idle
+            return
         }
+        val keep = queueItems[current]
+        if (current < queueItems.lastIndex) player.removeMediaItems(current + 1, queueItems.size)
+        if (current > 0) player.removeMediaItems(0, current)
+        queueItems.clear()
+        queueItems.add(keep)
+        publishQueue()
     }
 
     override suspend fun setPlaybackSpeed(speed: Float) {
@@ -588,13 +774,16 @@ class Media3PlaybackController(
     }
 
     override suspend fun setPlayMode(mode: PlayMode) {
-        _playbackQueue.value = _playbackQueue.value.copy(playMode = mode)
-        player.repeatMode = when (mode) {
-            PlayMode.REPEAT_ONE -> Player.REPEAT_MODE_ONE
-            PlayMode.REPEAT_ALL -> Player.REPEAT_MODE_ALL
-            PlayMode.NORMAL, PlayMode.SHUFFLE -> Player.REPEAT_MODE_OFF
-        }
-        player.shuffleModeEnabled = (mode == PlayMode.SHUFFLE)
+        val enteringShuffle = mode == PlayMode.SHUFFLE && playMode != PlayMode.SHUFFLE
+        playMode = mode
+        applyPlayModeToPlayer()
+        if (enteringShuffle) shuffleRemainingAfterCurrent()
+        publishQueue()
+    }
+
+    override suspend fun setPauseAtEndOfItems(enabled: Boolean) {
+        pauseAtEndOfItems = enabled
+        (player as? ExoPlayer)?.pauseAtEndOfMediaItems = enabled && playMode != PlayMode.REPEAT_ONE
     }
 
     override suspend fun selectAudioTrack(index: Int?) {
@@ -688,16 +877,15 @@ class Media3PlaybackController(
     }
 
     override suspend fun setAudioDelay(delayMs: Long) {
+        audioDelayProcessor?.delayMs = delayMs
         _trackSelection.value = _trackSelection.value.copy(audioDelayMs = delayMs)
         updatePlaybackStats()
     }
 
-    private val externalSubtitleLabels = mutableSetOf<String>()
-
     override suspend fun addExternalSubtitle(uri: String, mimeType: String, label: String) {
         addExternalSubtitles(
             listOf(
-                org.aptura.player.domain.model.DomainExternalSubtitle(
+                DomainExternalSubtitle(
                     uri = uri,
                     mimeType = mimeType,
                     label = label,
@@ -707,7 +895,8 @@ class Media3PlaybackController(
         )
     }
 
-    override suspend fun addExternalSubtitles(subtitles: List<org.aptura.player.domain.model.DomainExternalSubtitle>) {
+    /** Manual import: rebuilds the playing item with the extra subtitle(s) and resumes exactly where it was. */
+    override suspend fun addExternalSubtitles(subtitles: List<DomainExternalSubtitle>) {
         if (subtitles.isEmpty()) return
         val currentItem = player.currentMediaItem ?: return
         val existingConfigs = currentItem.localConfiguration?.subtitleConfigurations ?: emptyList()
@@ -725,32 +914,24 @@ class Media3PlaybackController(
                 .build()
         }
 
-        val updatedItem = currentItem.buildUpon()
-            .setSubtitleConfigurations(retainedConfigs + newConfigs)
-            .build()
-
-        val currentPosition = player.currentPosition
-        val wasPlaying = player.isPlaying
-        (player as? androidx.media3.exoplayer.ExoPlayer)?.setSeekParameters(androidx.media3.exoplayer.SeekParameters.EXACT)
-        player.setMediaItem(updatedItem, currentPosition)
-        if (wasPlaying) {
-            player.play()
-        }
+        replaceCurrentItem(currentItem.buildUpon().setSubtitleConfigurations(retainedConfigs + newConfigs).build())
+        enableSubtitlesFor(subtitles)
     }
 
     override suspend fun removeExternalSubtitles() {
         externalSubtitleLabels.clear()
         val currentItem = player.currentMediaItem ?: return
-        val updatedItem = currentItem.buildUpon()
-            .setSubtitleConfigurations(emptyList())
-            .build()
+        replaceCurrentItem(currentItem.buildUpon().setSubtitleConfigurations(emptyList()).build())
+    }
 
-        val currentPosition = player.currentPosition
-        val wasPlaying = player.isPlaying
-        player.setMediaItem(updatedItem, currentPosition)
-        if (wasPlaying) {
-            player.play()
-        }
+    /** Swaps the playing media item in place and restores position + play state (no global seek-mode side effects). */
+    private fun replaceCurrentItem(updated: MediaItem) {
+        val index = player.currentMediaItemIndex
+        val position = player.currentPosition
+        val playWhenReady = player.playWhenReady
+        player.replaceMediaItem(index, updated)
+        player.seekTo(index, position)
+        player.playWhenReady = playWhenReady
     }
 
     private fun updateTracks(tracks: Tracks) {
@@ -839,21 +1020,6 @@ class Media3PlaybackController(
         )
     }
 
-    private fun handleAutoAdvance() {
-        scope.launch {
-            val queue = _playbackQueue.value
-            when (queue.playMode) {
-                PlayMode.REPEAT_ONE -> {
-                    seekTo(0L)
-                    play()
-                }
-                PlayMode.REPEAT_ALL, PlayMode.NORMAL, PlayMode.SHUFFLE -> {
-                    // Delegated to ViewModel's UpNext auto-advance countdown overlay
-                }
-            }
-        }
-    }
-
     override suspend fun setDecoderStrategy(strategy: Int) {
         if (currentDecoderStrategy == strategy) return
         currentDecoderStrategy = strategy
@@ -870,28 +1036,48 @@ class Media3PlaybackController(
         }
         updatePlaybackStats()
 
-        val currentItem = player.currentMediaItem
-        if (currentItem != null && player.playbackState != Player.STATE_IDLE) {
-            val currentPos = player.currentPosition.coerceAtLeast(0L)
-            val wasPlaying = player.isPlaying
+        if (player.currentMediaItem != null && player.playbackState != Player.STATE_IDLE) {
+            val wasPlaying = player.playWhenReady
+            // stop() keeps the playlist and position; prepare() re-creates the codecs with the new strategy.
             player.stop()
-            player.clearMediaItems()
-            player.setMediaItem(currentItem, currentPos)
             player.prepare()
-            if (wasPlaying) {
-                player.play()
-            }
+            player.playWhenReady = wasPlaying
         }
     }
 
     override suspend fun retryPlayback() {
-        val currentItem = player.currentMediaItem ?: return
-        val currentPos = player.currentPosition.coerceAtLeast(0L)
-        player.stop()
-        player.clearMediaItems()
-        player.setMediaItem(currentItem, currentPos)
+        if (player.currentMediaItem == null) return
         player.prepare()
         player.play()
+    }
+
+    /** Frame stepping: pauses, seeks *exactly* one frame (using the real frame rate), then restores seek mode. */
+    private var lastStepTargetMs: Double? = null
+
+    override suspend fun stepFrame(forward: Boolean) {
+        player.pause()
+        val exo = player as? ExoPlayer
+        val fps = (exo?.videoFormat ?: currentVideoFormat)?.frameRate?.takeIf { it > 0f } ?: DEFAULT_FRAME_RATE
+        val frameMs = 1000.0 / fps
+        val position = player.currentPosition.coerceAtLeast(0L)
+        // Continue from the previous *unrounded* target while stepping repeatedly: rounding every step to whole
+        // milliseconds drifts and eventually repeats or skips frames.
+        val base = lastStepTargetMs?.takeIf { abs(it - position) <= 2.0 } ?: position.toDouble()
+        val duration = player.duration.coerceAtLeast(0L).toDouble()
+        val target = (base + if (forward) frameMs else -frameMs).coerceIn(0.0, duration)
+        lastStepTargetMs = target
+
+        val previous = exo?.seekParameters
+        exo?.setSeekParameters(SeekParameters.EXACT)
+        player.seekTo(target.roundToLong())
+        exo?.setSeekParameters(previous ?: SeekParameters.DEFAULT)
+    }
+
+    override suspend fun setVideoEnabled(enabled: Boolean) {
+        val params = try { player.trackSelectionParameters } catch (_: Throwable) { null } ?: return
+        player.trackSelectionParameters = params.buildUpon()
+            .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, !enabled)
+            .build()
     }
 
     override suspend fun release() {
@@ -901,5 +1087,9 @@ class Media3PlaybackController(
         (player as? ExoPlayer)?.removeAnalyticsListener(analyticsListener)
         player.release()
         _playbackState.value = DomainPlaybackState.Idle
+    }
+
+    private companion object {
+        const val DEFAULT_FRAME_RATE = 30f
     }
 }

@@ -123,20 +123,28 @@ data class DomainTrackSelection(
 data class DomainPlaybackQueue(
     val items: List<DomainMediaItem> = emptyList(),
     val currentIndex: Int = -1,
-    val playMode: PlayMode = PlayMode.NORMAL
+    val playMode: PlayMode = PlayMode.NORMAL,
+    /**
+     * Authoritative answers from the player (which knows the real shuffle order). When null (pure-domain use and
+     * tests) they are derived from the index and play mode.
+     */
+    val nextAvailable: Boolean? = null,
+    val previousAvailable: Boolean? = null,
+    /** Index the player will play next (shuffle-aware); null when unknown or there is none. */
+    val nextIndex: Int? = null
 ) {
     val currentItem: DomainMediaItem?
         get() = if (currentIndex in items.indices) items[currentIndex] else null
 
     val hasNext: Boolean
-        get() = when (playMode) {
+        get() = nextAvailable ?: when (playMode) {
             PlayMode.REPEAT_ONE -> currentItem != null
             PlayMode.REPEAT_ALL -> items.isNotEmpty()
             PlayMode.NORMAL, PlayMode.SHUFFLE -> currentIndex + 1 < items.size
         }
 
     val hasPrevious: Boolean
-        get() = when (playMode) {
+        get() = previousAvailable ?: when (playMode) {
             PlayMode.REPEAT_ONE -> currentItem != null
             PlayMode.REPEAT_ALL -> items.isNotEmpty()
             PlayMode.NORMAL, PlayMode.SHUFFLE -> currentIndex > 0

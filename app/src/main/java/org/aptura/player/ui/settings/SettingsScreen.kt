@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Speed
@@ -44,6 +45,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -99,6 +101,8 @@ fun SettingsScreen(
     onClearThumbnailCache: () -> Unit = {},
     onAddFolderClick: () -> Unit = {},
     onRemoveSafFolder: (String) -> Unit = {},
+    hiddenVideoCount: Int = 0,
+    onRestoreHiddenVideos: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -476,6 +480,41 @@ fun SettingsScreen(
                                     style = ApturaTypography.bodyMedium,
                                     color = ApturaColors.TextMediumEmphasis
                                 )
+                            }
+                        }
+
+                        if (hiddenVideoCount > 0) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(ApturaColors.SurfaceElevated2)
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.VisibilityOff,
+                                    contentDescription = null,
+                                    tint = ApturaColors.AccentPrimary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Hidden Videos",
+                                        style = ApturaTypography.titleMedium,
+                                        color = ApturaColors.TextHighEmphasis
+                                    )
+                                    Text(
+                                        text = "$hiddenVideoCount hidden from your library",
+                                        style = ApturaTypography.bodyMedium,
+                                        color = ApturaColors.TextMediumEmphasis
+                                    )
+                                }
+                                TextButton(onClick = onRestoreHiddenVideos) {
+                                    Text("Restore all", color = ApturaColors.AccentPrimary)
+                                }
                             }
                         }
 

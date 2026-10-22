@@ -171,6 +171,7 @@ dependencies {
   testImplementation(libs.kotlinx.coroutines.test)
   testImplementation(libs.turbine)
   testImplementation(libs.robolectric)
+  testImplementation(libs.androidx.work.testing) // in-memory WorkManager database for the cold-start scan test
   testImplementation(libs.androidx.compose.ui.test.junit4)
 
   // Instrumented tests: jUnit rules and runners

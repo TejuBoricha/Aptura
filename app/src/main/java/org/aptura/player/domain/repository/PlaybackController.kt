@@ -25,6 +25,10 @@ interface PlaybackController {
     val failedCodecName: StateFlow<String?> get() = kotlinx.coroutines.flow.MutableStateFlow(null)
     val failureReason: StateFlow<String?> get() = kotlinx.coroutines.flow.MutableStateFlow(null)
 
+    /** Emits a user-facing label (e.g. "English") each time a sidecar subtitle was found and enabled for the current item. */
+    val autoPairedSubtitles: kotlinx.coroutines.flow.SharedFlow<String>
+        get() = kotlinx.coroutines.flow.MutableSharedFlow()
+
     suspend fun playMediaItem(item: DomainMediaItem)
     suspend fun playQueue(items: List<DomainMediaItem>, startIndex: Int = 0)
     suspend fun play()
@@ -49,5 +53,15 @@ interface PlaybackController {
     suspend fun removeFromQueue(index: Int) {}
     suspend fun moveQueueItem(fromIndex: Int, toIndex: Int) {}
     suspend fun clearQueue() {}
+
+    /** When true the player pauses at the end of every item (so the Up Next countdown can run); false = gapless. */
+    suspend fun setPauseAtEndOfItems(enabled: Boolean) {}
+
+    /** Steps exactly one video frame (pauses first). */
+    suspend fun stepFrame(forward: Boolean) {}
+
+    /** Audio-only mode: disables video decoding/rendering while audio keeps playing. */
+    suspend fun setVideoEnabled(enabled: Boolean) {}
+
     suspend fun release()
 }

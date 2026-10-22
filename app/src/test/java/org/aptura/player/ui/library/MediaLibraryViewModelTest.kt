@@ -51,6 +51,14 @@ class MediaLibraryViewModelTest {
             }
         }
 
+        val hiddenUris = MutableStateFlow<Set<String>>(emptySet())
+        override suspend fun hideVideo(uri: String) {
+            hiddenUris.value = hiddenUris.value + uri
+            videosFlow.value = videosFlow.value.filter { it.uri != uri }
+        }
+        override suspend fun restoreHiddenVideos() { hiddenUris.value = emptySet() }
+        override fun getHiddenVideoCount(): Flow<Int> = kotlinx.coroutines.flow.MutableStateFlow(0)
+
         override fun getBookmarks(mediaUri: String): Flow<List<org.aptura.player.domain.model.Bookmark>> =
             MutableStateFlow(emptyList())
 
@@ -121,6 +129,32 @@ class MediaLibraryViewModelTest {
         playbackPositionMs = 125000L,
         isCompleted = true
     )
+
+    /** Regression (audit P0-09): the spinner used to flip back to false the instant the scan was merely enqueued. */
+    @Test
+    fun refreshSpinner_staysOnUntilTheRealScanFinishes() = runTest(testDispatcher) {
+        val repo = FakeMediaRepository()
+        repo.videosFlow.value = listOf(item1)
+        val scan = MutableStateFlow(false)
+        val viewModel = MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 0L, scanActivity = scan)
+
+        viewModel.uiState.test {
+            assertEquals(MediaLibraryUiState.Loading, awaitItem())
+            val idle = awaitItem() as MediaLibraryUiState.Success
+            assertFalse(idle.isRefreshing)
+
+            viewModel.onRefresh { scan.value = true } // enqueue returns immediately; the work is now running
+            var state = awaitItem() as MediaLibraryUiState.Success
+            while (!state.isRefreshing) state = awaitItem() as MediaLibraryUiState.Success
+            assertTrue("spinner must stay on while the scan runs", state.isRefreshing)
+
+            scan.value = false // worker finished
+            state = awaitItem() as MediaLibraryUiState.Success
+            while (state.isRefreshing) state = awaitItem() as MediaLibraryUiState.Success
+            assertFalse(state.isRefreshing)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
 
     @Test
     fun initialState_whenRepositoryHasItems_emitsSuccessWithCards() = runTest(testDispatcher) {

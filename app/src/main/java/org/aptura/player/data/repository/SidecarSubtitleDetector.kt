@@ -17,7 +17,9 @@ data class DetectedSidecarSubtitle(
     val mimeType: String,
     val languageCode: String?,
     val languageLabel: String,
-    val isDefault: Boolean = false
+    val isDefault: Boolean = false,
+    /** True when the subtitle file name equals the video name (no language/role tags). */
+    val isExactMatch: Boolean = false
 )
 
 /**
@@ -47,6 +49,56 @@ object SidecarSubtitleDetector {
         "pl" to "Polish", "pol" to "Polish",
         "sv" to "Swedish", "swe" to "Swedish"
     )
+
+    private val VIDEO_EXTENSIONS = setOf(
+        "mp4", "mkv", "webm", "mov", "avi", "ts", "m4v", "3gp", "flv", "wmv", "ogv", "mpg", "mpeg", "m2ts"
+    )
+
+    /** Words that may follow the video name in a subtitle file name without changing which video it belongs to. */
+    private val SUBTITLE_TAGS = setOf(
+        "forced", "sdh", "cc", "default", "full", "signs", "songs", "commentary", "closed", "captions"
+    )
+
+    private val LANGUAGE_NAMES = LANGUAGE_MAP.values.map { it.lowercase() }.toSet()
+    private val LANGUAGE_TAG = Regex("^[a-z]{2,3}(-[a-z0-9]{2,8})?$")
+
+    /**
+     * Removes the file extension only when it really is a video extension. The previous implementation chopped
+     * everything after the last dot, so the extension-less MediaStore title `Show.S01E02` became `Show` and every
+     * `Show.*.srt` was attached (audit P0-10).
+     */
+    internal fun stripVideoExtension(name: String): String {
+        val ext = name.substringAfterLast('.', "").lowercase()
+        return if (ext in VIDEO_EXTENSIONS) name.substringBeforeLast('.') else name
+    }
+
+    /** How a subtitle file name relates to a video name. */
+    internal sealed interface SidecarMatch {
+        data object Exact : SidecarMatch
+        data class Tagged(val tokens: List<String>) : SidecarMatch
+    }
+
+    /**
+     * Strict sidecar rule: the subtitle name must equal the video name, or be the video name followed by a
+     * separator and only language/role tags (`.en`, `.pt-BR`, `.forced`, `.en.sdh`). `Show.S01E01` therefore never
+     * matches `Show.S01E02.srt` or `Show.S01E011.srt`.
+     */
+    internal fun matchSidecarName(videoBase: String, subtitleBase: String): SidecarMatch? {
+        fun attempt(video: String, sub: String): SidecarMatch? {
+            if (video.isBlank()) return null
+            if (sub == video) return SidecarMatch.Exact
+            if (!sub.startsWith(video)) return null
+            val remainder = sub.substring(video.length)
+            if (remainder.isEmpty() || remainder[0] !in "._- ") return null
+            val tokens = remainder.split('.', '_', ' ').filter { it.isNotBlank() }.map { it.trim('-') }.filter { it.isNotEmpty() }
+            if (tokens.isEmpty()) return null
+            val allTags = tokens.all { it in SUBTITLE_TAGS || it in LANGUAGE_NAMES || LANGUAGE_TAG.matches(it) }
+            return if (allTags) SidecarMatch.Tagged(tokens) else null
+        }
+        val v = videoBase.lowercase()
+        val sb = subtitleBase.lowercase()
+        return attempt(v, sb) ?: attempt(normalizeTitle(videoBase), normalizeTitle(subtitleBase))
+    }
 
     /**
      * Normalizes a filename or title by stripping punctuation and delimiters for fuzzy matching.
@@ -127,12 +179,14 @@ object SidecarSubtitleDetector {
         val results = mutableListOf<DetectedSidecarSubtitle>()
 
         val file = resolveFile(context, videoUri)
-        val resolvedName = videoDisplayName?.takeIf { it.isNotBlank() }
-            ?: file?.name
-            ?: resolveDisplayName(context, videoUri)
+        // Prefer the REAL file name. `videoDisplayName` is only a last resort: callers historically passed the
+        // cleaned/extension-less title, which cannot be matched against subtitle file names reliably.
+        val resolvedName = file?.name
+            ?: resolveDisplayName(context, videoUri)?.takeIf { it.isNotBlank() }
+            ?: videoDisplayName?.takeIf { it.isNotBlank() }
             ?: ""
 
-        val baseName = resolvedName.substringBeforeLast(".")
+        val baseName = stripVideoExtension(resolvedName)
         if (baseName.isBlank()) return emptyList()
 
         val candidateDirs = mutableListOf<File>()
@@ -171,7 +225,7 @@ object SidecarSubtitleDetector {
             results.addAll(scanDirectoryForBaseName(context, dir, baseName))
         }
 
-        return results.distinctBy {
+        val unique = results.distinctBy {
             try {
                 val p = it.uri.path
                 if (p != null) File(p).canonicalPath else it.uri.toString().lowercase()
@@ -179,6 +233,17 @@ object SidecarSubtitleDetector {
                 it.uri.toString().lowercase()
             }
         }
+        return markSingleDefault(unique)
+    }
+
+    /**
+     * Exactly one track may auto-select: the exact-name match, otherwise the English one. Everything else stays
+     * available in the sheet but isn't switched on behind the user's back.
+     */
+    private fun markSingleDefault(found: List<DetectedSidecarSubtitle>): List<DetectedSidecarSubtitle> {
+        val chosen = found.firstOrNull { it.isExactMatch }
+            ?: found.firstOrNull { it.languageCode == "en" || it.languageCode == "eng" }
+        return found.map { it.copy(isDefault = it === chosen) }
     }
 
     private fun scanDirectoryForBaseName(
@@ -189,47 +254,37 @@ object SidecarSubtitleDetector {
         val candidates = mutableListOf<DetectedSidecarSubtitle>()
         val files = dir.listFiles() ?: return emptyList()
 
-        val lowerBase = baseName.lowercase()
-        val normBase = normalizeTitle(baseName)
+        val matched = files
+            .filter { it.isFile && SUPPORTED_EXTENSIONS.contains(it.extension.lowercase()) }
+            .mapNotNull { f -> matchSidecarName(baseName, f.nameWithoutExtension)?.let { f to it } }
+            // Plain names first (no role tags), then alphabetical, so the default pick is stable and un-forced.
+            .sortedWith(compareBy({ (it.second as? SidecarMatch.Tagged)?.tokens?.size ?: 0 }, { it.first.name.lowercase() }))
 
-        for (f in files) {
-            if (!f.isFile) continue
-            val ext = f.extension.lowercase()
-            if (!SUPPORTED_EXTENSIONS.contains(ext)) continue
+        for ((f, match) in matched) {
+            val validation = SubtitleFileValidator.validate(context, Uri.fromFile(f))
+            if (validation !is SubtitleValidationResult.Valid) continue
 
-            val nameWithoutExt = f.nameWithoutExtension
-            val lowerName = nameWithoutExt.lowercase()
-            val normName = normalizeTitle(nameWithoutExt)
-
-            val isExact = lowerName == lowerBase || normName == normBase
-            val hasPrefix = lowerName.startsWith(lowerBase) || normName.startsWith(normBase)
-
-            if (isExact || hasPrefix) {
-                val validation = SubtitleFileValidator.validate(context, Uri.fromFile(f))
-                if (validation is SubtitleValidationResult.Valid) {
-                    val langPart = if (!isExact) {
-                        if (lowerName.startsWith(lowerBase)) {
-                            lowerName.removePrefix(lowerBase).trim('.', '_', '-', ' ')
-                        } else {
-                            normName.removePrefix(normBase).trim('.', '_', '-', ' ')
-                        }
-                    } else null
-
-                    val langCode = langPart?.takeIf { it.isNotBlank() }
-                    val label = resolveLanguageLabel(langCode, isExact)
-
-                    candidates.add(
-                        DetectedSidecarSubtitle(
-                            uri = validation.validatedUri ?: Uri.fromFile(f),
-                            displayName = f.name,
-                            mimeType = validation.mimeType,
-                            languageCode = langCode,
-                            languageLabel = label,
-                            isDefault = isExact || langCode == "en" || langCode == "eng"
-                        )
-                    )
-                }
+            val tokens = (match as? SidecarMatch.Tagged)?.tokens.orEmpty()
+            val langToken = tokens.firstOrNull { it in LANGUAGE_MAP.keys || it in LANGUAGE_NAMES }
+                ?: tokens.firstOrNull { it !in SUBTITLE_TAGS && LANGUAGE_TAG.matches(it) }
+            val langCode = langToken?.let { token ->
+                LANGUAGE_MAP.entries.firstOrNull { (code, name) -> code == token || name.equals(token, true) }?.key
+                    ?: token.substringBefore('-') // pt-BR -> pt
             }
+            val roles = tokens.filter { it in SUBTITLE_TAGS && it != "default" }
+            val label = buildLabel(langCode, roles)
+
+            candidates.add(
+                DetectedSidecarSubtitle(
+                    uri = validation.validatedUri ?: Uri.fromFile(f),
+                    displayName = f.name,
+                    mimeType = validation.mimeType,
+                    languageCode = langCode,
+                    languageLabel = label,
+                    isDefault = false,
+                    isExactMatch = match is SidecarMatch.Exact
+                )
+            )
         }
 
         return candidates
@@ -293,11 +348,20 @@ object SidecarSubtitleDetector {
         return matches.distinctBy { it.displayName }
     }
 
-    private fun resolveLanguageLabel(code: String?, isExact: Boolean): String {
-        if (code == null || isExact) return "External (Sidecar)"
-        val cleanCode = code.lowercase()
-        return LANGUAGE_MAP[cleanCode] ?: cleanCode.replaceFirstChar {
-            if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString()
+    private fun buildLabel(code: String?, roles: List<String>): String {
+        val language = code?.let { c ->
+            LANGUAGE_MAP[c.lowercase()]
+                ?: Locale.forLanguageTag(c).getDisplayLanguage(Locale.ENGLISH).takeIf { it.isNotBlank() }
+                ?: c.uppercase(Locale.ROOT)
         }
+        val roleText = roles.joinToString(" · ") { r ->
+            when (r) {
+                "sdh", "cc", "closed", "captions" -> "SDH"
+                else -> r.replaceFirstChar { it.titlecase(Locale.ROOT) }
+            }
+        }.let { text -> text.split(" · ").distinct().joinToString(" · ") }
+        return listOfNotNull(language, roleText.takeIf { it.isNotBlank() })
+            .joinToString(" · ")
+            .ifBlank { "External (Sidecar)" }
     }
 }

@@ -68,12 +68,25 @@ class MediaRepositoryImpl(
 
     override suspend fun removeVideoFromLibrary(uri: String): Unit = withContext(ioDispatcher) {
         mediaItemDao.deleteByUri(uri)
+        bookmarkDao?.deleteBookmarksForMedia(uri)
+    }
+
+    override suspend fun hideVideo(uri: String): Unit = withContext(ioDispatcher) {
+        mediaItemDao.hideByUri(uri)
+    }
+
+    override suspend fun restoreHiddenVideos(): Unit = withContext(ioDispatcher) {
+        mediaItemDao.restoreAllHidden()
+    }
+
+    override fun getHiddenVideoCount(): Flow<Int> {
+        return mediaItemDao.getHiddenCount().flowOn(ioDispatcher)
     }
 
     override suspend fun renameVideo(uri: String, newName: String): Unit = withContext(ioDispatcher) {
         val clean = newName.trim()
         if (clean.isNotBlank()) {
-            mediaItemDao.updateTitleAndDisplayName(uri, clean, clean)
+            mediaItemDao.updateCustomTitle(uri, clean)
         }
     }
 

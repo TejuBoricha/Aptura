@@ -9,6 +9,11 @@ import androidx.compose.ui.unit.sp
 /**
  * Aptura Typography Scale
  * Source of truth: DESIGN.md §3
+ *
+ * NOTE: these styles deliberately carry NO `color`. A colour baked into a TextStyle silently overrides the
+ * content colour that Material components provide (e.g. FilterChip `selectedLabelColor`), which made the
+ * selected option in every Settings chip group unreadable (audit P1-01). Colour comes from the container
+ * (LocalContentColor) or an explicit `color =` at the call site.
  */
 val ApturaTypography = Typography(
     displayLarge = TextStyle(
@@ -16,32 +21,28 @@ val ApturaTypography = Typography(
         fontSize = 32.sp,
         lineHeight = 40.sp,
         fontWeight = FontWeight.Bold,
-        letterSpacing = (-0.5).sp,
-        color = ApturaColors.TextHighEmphasis
+        letterSpacing = (-0.5).sp
     ),
     headlineMedium = TextStyle(
         fontFamily = FontFamily.Default,
         fontSize = 20.sp,
         lineHeight = 26.sp,
         fontWeight = FontWeight.SemiBold,
-        letterSpacing = (-0.2).sp,
-        color = ApturaColors.TextHighEmphasis
+        letterSpacing = (-0.2).sp
     ),
     titleMedium = TextStyle(
         fontFamily = FontFamily.Default,
         fontSize = 15.sp,
         lineHeight = 20.sp,
         fontWeight = FontWeight.Medium,
-        letterSpacing = 0.sp,
-        color = ApturaColors.TextHighEmphasis
+        letterSpacing = 0.sp
     ),
     bodyMedium = TextStyle(
         fontFamily = FontFamily.Default,
         fontSize = 13.sp,
         lineHeight = 18.sp,
         fontWeight = FontWeight.Normal,
-        letterSpacing = 0.2.sp,
-        color = ApturaColors.TextMediumEmphasis
+        letterSpacing = 0.2.sp
     ),
     labelSmall = TextStyle(
         fontFamily = FontFamily.Default,
@@ -49,7 +50,6 @@ val ApturaTypography = Typography(
         lineHeight = 14.sp,
         fontWeight = FontWeight.SemiBold,
         letterSpacing = 0.5.sp,
-        fontFeatureSettings = "tnum", // Tabular figures for jitter-free timers
-        color = ApturaColors.TextMediumEmphasis
+        fontFeatureSettings = "tnum" // Tabular figures for jitter-free timers
     )
 )

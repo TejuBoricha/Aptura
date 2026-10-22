@@ -127,6 +127,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import org.aptura.player.R
+import android.view.TextureView
+import android.view.LayoutInflater
+import androidx.compose.runtime.key
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -247,6 +251,7 @@ fun PlayerScreen(
     onWhyCompatibilityClick: () -> Unit = {},
     onDismissWhyCompatibilitySheet: () -> Unit = {},
     onResetVideoPreferences: () -> Unit = {},
+    onAudioOnlyChanged: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -314,6 +319,14 @@ fun PlayerScreen(
         }
     }
 
+    // Swipe-to-adjust brightness: seeded from the real system brightness and always restored on exit.
+    val windowBrightness = remember(activity) {
+        WindowBrightness(activity?.window) { WindowBrightness.systemBrightnessFraction(context) }
+    }
+    DisposableEffect(windowBrightness) {
+        onDispose { windowBrightness.restore() }
+    }
+
     val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager }
     val maxVolume = remember(audioManager) {
         audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 100
@@ -331,84 +344,99 @@ fun PlayerScreen(
             .background(ApturaColors.SurfacePureBlack)
     ) {
         val screenWidth = maxWidth
-        // 1. Video Surface (Media3 PlayerView)
-        AndroidView(
-            modifier = Modifier.fillMaxSize(),
-            factory = { ctx ->
-                PlayerView(ctx).apply {
-                    useController = false
-                    layoutParams = ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT
-                    )
-                    this.player = player
-                }
-            },
-            update = { playerView ->
-                if (playerView.player != player) {
-                    playerView.player = player
-                }
-                val contentFrame = playerView.findViewById<AspectRatioFrameLayout>(androidx.media3.ui.R.id.exo_content_frame)
-                when (uiState.resizeMode) {
-                    AspectRatioMode.FIT -> {
-                        playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                        val videoSize = player?.videoSize
-                        if (videoSize != null && videoSize.width > 0 && videoSize.height > 0) {
-                            contentFrame?.setAspectRatio(videoSize.width.toFloat() / videoSize.height.toFloat())
+        // 1. Video Surface (Media3 PlayerView).
+        // SurfaceView by default (HDR-capable, lowest power). While picture adjustments are active the view is swapped
+        // for a TextureView, the only surface that can be colour-filtered per frame (audit P0-08).
+        // Audio-only mode removes the video view entirely: no surface, no rendering.
+        val useColorFilterSurface = uiState.pictureAdjustment.isModified
+        if (!uiState.isAudioOnly) key(useColorFilterSurface) {
+            AndroidView(
+                modifier = Modifier.fillMaxSize(),
+                factory = { ctx ->
+                    val layout = if (useColorFilterSurface) {
+                        R.layout.aptura_player_view_texture
+                    } else {
+                        R.layout.aptura_player_view_surface
+                    }
+                    (LayoutInflater.from(ctx).inflate(layout, null, false) as PlayerView).apply {
+                        useController = false
+                        layoutParams = ViewGroup.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT
+                        )
+                        this.player = player
+                    }
+                },
+                update = { playerView ->
+                    if (playerView.player != player) {
+                        playerView.player = player
+                    }
+                    val contentFrame = playerView.findViewById<AspectRatioFrameLayout>(androidx.media3.ui.R.id.exo_content_frame)
+                    when (uiState.resizeMode) {
+                        AspectRatioMode.FIT -> {
+                            playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                            val videoSize = player?.videoSize
+                            if (videoSize != null && videoSize.width > 0 && videoSize.height > 0) {
+                                contentFrame?.setAspectRatio(videoSize.width.toFloat() / videoSize.height.toFloat())
+                            }
+                        }
+                        AspectRatioMode.FIXED_16_9 -> {
+                            playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                            contentFrame?.setAspectRatio(16f / 9f)
+                        }
+                        AspectRatioMode.FIXED_4_3 -> {
+                            playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                            contentFrame?.setAspectRatio(4f / 3f)
+                        }
+                        AspectRatioMode.FILL -> {
+                            playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+                        }
+                        AspectRatioMode.ZOOM -> {
+                            playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                         }
                     }
-                    AspectRatioMode.FIXED_16_9 -> {
-                        playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                        contentFrame?.setAspectRatio(16f / 9f)
-                    }
-                    AspectRatioMode.FIXED_4_3 -> {
-                        playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                        contentFrame?.setAspectRatio(4f / 3f)
-                    }
-                    AspectRatioMode.FILL -> {
-                        playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
-                    }
-                    AspectRatioMode.ZOOM -> {
-                        playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                    }
-                }
 
-                val fgColor = try {
-                    android.graphics.Color.parseColor(uiState.subtitleTextColorHex)
-                } catch (_: Throwable) {
-                    android.graphics.Color.WHITE
-                }
-                val bgColor = if (uiState.subtitleBackgroundEnabled) {
-                    android.graphics.Color.argb(160, 0, 0, 0)
-                } else {
-                    android.graphics.Color.TRANSPARENT
-                }
-                val edgeType = if (uiState.subtitleBackgroundEnabled) {
-                    CaptionStyleCompat.EDGE_TYPE_NONE
-                } else {
-                    CaptionStyleCompat.EDGE_TYPE_OUTLINE
-                }
-                playerView.subtitleView?.apply {
-                    setFixedTextSize(TypedValue.COMPLEX_UNIT_SP, uiState.subtitleFontSizeSp.toFloat())
-                    setStyle(CaptionStyleCompat(fgColor, bgColor, android.graphics.Color.TRANSPARENT, edgeType, android.graphics.Color.BLACK, null))
-                    setBottomPaddingFraction(0.09f)
-                }
-            },
-            onRelease = { playerView ->
-                playerView.player = null
-            }
-        )
+                    // Subtitle style: only touch the SubtitleView when something actually changed (this block runs on
+                    // every position tick; re-creating the style 4x/s was pure waste).
+                    val styleKey = "${uiState.subtitleTextColorHex}|${uiState.subtitleBackgroundEnabled}|${uiState.subtitleFontSizeSp}"
+                    if (playerView.tag != styleKey) {
+                        playerView.tag = styleKey
+                        val fgColor = try {
+                            android.graphics.Color.parseColor(uiState.subtitleTextColorHex)
+                        } catch (_: Throwable) {
+                            android.graphics.Color.WHITE
+                        }
+                        val bgColor = if (uiState.subtitleBackgroundEnabled) {
+                            android.graphics.Color.argb(160, 0, 0, 0)
+                        } else {
+                            android.graphics.Color.TRANSPARENT
+                        }
+                        val edgeType = if (uiState.subtitleBackgroundEnabled) {
+                            CaptionStyleCompat.EDGE_TYPE_NONE
+                        } else {
+                            CaptionStyleCompat.EDGE_TYPE_OUTLINE
+                        }
+                        playerView.subtitleView?.apply {
+                            setFixedTextSize(TypedValue.COMPLEX_UNIT_SP, uiState.subtitleFontSizeSp.toFloat())
+                            setStyle(CaptionStyleCompat(fgColor, bgColor, android.graphics.Color.TRANSPARENT, edgeType, android.graphics.Color.BLACK, null))
+                            setBottomPaddingFraction(0.09f)
+                        }
+                    }
 
-        // 1b. Eye-Comfort Night Mode Filter (Amber warmth attenuation)
-        if (uiState.pictureAdjustment.isNightModeEnabled) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Color(0xFFFF9800).copy(
-                            alpha = (0.12f + 0.18f * uiState.pictureAdjustment.nightModeWarmth)
-                        )
-                    )
+                    PictureFilter.apply(playerView.videoSurfaceView as? TextureView, uiState.pictureAdjustment)
+                },
+                onRelease = { playerView ->
+                    playerView.player = null
+                }
+            )
+        }
+
+        // 1b. Audio-only panel (the video view above is not composed in this mode)
+        if (uiState.isAudioOnly && !isPipMode) {
+            AudioOnlyPanel(
+                title = uiState.videoTitle,
+                onShowVideo = { onAudioOnlyChanged(false) },
+                modifier = Modifier.align(Alignment.Center)
             )
         }
 
@@ -487,7 +515,7 @@ fun PlayerScreen(
                         .weight(1f)
                         .fillMaxHeight()
                         .onSizeChanged { leftBoxHeightPx = it.height.toFloat().coerceAtLeast(200f) }
-                        .pointerInput(uiState.isLocked, uiState.isPlaying, uiState.seekDeltaSeconds, uiState.doubleTapSeekSide) {
+                        .pointerInput(uiState.isLocked, uiState.isPlaying, uiState.seekDeltaSeconds, uiState.doubleTapSeekSide, uiState.seekStepMs) {
                             detectTapGestures(
                                 onTap = {
                                     if (uiState.isLocked) {
@@ -495,7 +523,7 @@ fun PlayerScreen(
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     } else if (uiState.seekDeltaSeconds != null && uiState.doubleTapSeekSide == SeekTapSide.LEFT) {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        onSeekRelativeWithSide(-10_000L, SeekTapSide.LEFT)
+                                        onSeekRelativeWithSide(-uiState.seekStepMs, SeekTapSide.LEFT)
                                     } else {
                                         onControlsVisibilityToggle()
                                     }
@@ -503,7 +531,7 @@ fun PlayerScreen(
                                 onDoubleTap = {
                                     if (!uiState.isLocked) {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        onSeekRelativeWithSide(-10_000L, SeekTapSide.LEFT)
+                                        onSeekRelativeWithSide(-uiState.seekStepMs, SeekTapSide.LEFT)
                                     } else {
                                         onTriggerLockHint()
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -536,18 +564,9 @@ fun PlayerScreen(
                                     onVerticalDrag = { change, dragAmount ->
                                         change.consume()
                                         leftDragAccumulator -= dragAmount
-                                        val activity = context as? Activity
-                                        val window = activity?.window
-                                        if (window != null) {
-                                            val currentBrightness = window.attributes.screenBrightness.let {
-                                                if (it < 0f) 0.5f else it
-                                            }
-                                            val delta = -dragAmount / leftBoxHeightPx
-                                            val newBrightness = (currentBrightness + delta).coerceIn(0.01f, 1.0f)
-                                            val lp = window.attributes
-                                            lp.screenBrightness = newBrightness
-                                            window.attributes = lp
-                                            val oldPercent = (currentBrightness * 100).toInt()
+                                        val oldPercent = (windowBrightness.current() * 100).toInt()
+                                        val newBrightness = windowBrightness.adjustBy(-dragAmount / leftBoxHeightPx)
+                                        if (newBrightness != null) {
                                             val newPercent = (newBrightness * 100).toInt()
                                             if (newPercent / 10 != oldPercent / 10 || newPercent == 100 || newPercent == 1) {
                                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -568,7 +587,7 @@ fun PlayerScreen(
                         .weight(1f)
                         .fillMaxHeight()
                         .onSizeChanged { rightBoxHeightPx = it.height.toFloat().coerceAtLeast(200f) }
-                        .pointerInput(uiState.isLocked, uiState.isPlaying, uiState.seekDeltaSeconds, uiState.doubleTapSeekSide) {
+                        .pointerInput(uiState.isLocked, uiState.isPlaying, uiState.seekDeltaSeconds, uiState.doubleTapSeekSide, uiState.seekStepMs) {
                             detectTapGestures(
                                 onTap = {
                                     if (uiState.isLocked) {
@@ -576,7 +595,7 @@ fun PlayerScreen(
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     } else if (uiState.seekDeltaSeconds != null && uiState.doubleTapSeekSide == SeekTapSide.RIGHT) {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        onSeekRelativeWithSide(10_000L, SeekTapSide.RIGHT)
+                                        onSeekRelativeWithSide(uiState.seekStepMs, SeekTapSide.RIGHT)
                                     } else {
                                         onControlsVisibilityToggle()
                                     }
@@ -584,7 +603,7 @@ fun PlayerScreen(
                                 onDoubleTap = {
                                     if (!uiState.isLocked) {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        onSeekRelativeWithSide(10_000L, SeekTapSide.RIGHT)
+                                        onSeekRelativeWithSide(uiState.seekStepMs, SeekTapSide.RIGHT)
                                     } else {
                                         onTriggerLockHint()
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -1125,17 +1144,16 @@ fun PlayerScreen(
                     IconButton(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onSeekRelative(-10_000L)
+                            onSeekRelative(-uiState.seekStepMs)
                         },
                         modifier = Modifier
                             .size(seekSize)
                             .background(ApturaColors.SurfaceScrim.copy(alpha = 0.5f), CircleShape)
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.Replay10,
-                            contentDescription = "Rewind 10s",
-                            tint = ApturaColors.TextHighEmphasis,
-                            modifier = Modifier.size(seekIconSize)
+                        SeekStepIcon(
+                            forward = false,
+                            seconds = (uiState.seekStepMs / 1000L).toInt(),
+                            iconSize = seekIconSize
                         )
                     }
 
@@ -1163,17 +1181,16 @@ fun PlayerScreen(
                     IconButton(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onSeekRelative(10_000L)
+                            onSeekRelative(uiState.seekStepMs)
                         },
                         modifier = Modifier
                             .size(seekSize)
                             .background(ApturaColors.SurfaceScrim.copy(alpha = 0.5f), CircleShape)
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.Forward10,
-                            contentDescription = "Forward 10s",
-                            tint = ApturaColors.TextHighEmphasis,
-                            modifier = Modifier.size(seekIconSize)
+                        SeekStepIcon(
+                            forward = true,
+                            seconds = (uiState.seekStepMs / 1000L).toInt(),
+                            iconSize = seekIconSize
                         )
                     }
 
@@ -1418,7 +1435,12 @@ fun PlayerScreen(
                                             PlayMode.SHUFFLE -> Icons.Filled.Shuffle
                                             PlayMode.NORMAL -> Icons.Filled.Repeat
                                         },
-                                        contentDescription = "Play Mode: ${uiState.playMode.name}",
+                                        contentDescription = "Play mode: " + when (uiState.playMode) {
+                                            PlayMode.NORMAL -> "play in order"
+                                            PlayMode.REPEAT_ONE -> "repeat this video"
+                                            PlayMode.REPEAT_ALL -> "repeat all"
+                                            PlayMode.SHUFFLE -> "shuffle"
+                                        },
                                         tint = if (uiState.playMode != PlayMode.NORMAL)
                                             ApturaColors.AccentPrimary
                                         else
@@ -1942,6 +1964,36 @@ fun PlayerScreen(
                     if (selectedTab == 0) {
                         // TAB 0: PLAYBACK TOOLS
 
+                        // 0. Audio-only mode
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "AUDIO ONLY",
+                                    style = ApturaTypography.labelSmall,
+                                    color = ApturaColors.AccentPrimary
+                                )
+                                Text(
+                                    text = "Turn the video off and keep listening",
+                                    style = ApturaTypography.bodyMedium,
+                                    color = ApturaColors.TextMediumEmphasis
+                                )
+                            }
+                            androidx.compose.material3.Switch(
+                                checked = uiState.isAudioOnly,
+                                onCheckedChange = onAudioOnlyChanged,
+                                colors = androidx.compose.material3.SwitchDefaults.colors(
+                                    checkedTrackColor = ApturaColors.AccentPrimary,
+                                    checkedThumbColor = ApturaColors.SurfacePureBlack
+                                )
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
                         // 1. Playback Speed Selector (2 balanced rows, zero truncation)
                         Text(
                             text = "PLAYBACK SPEED",
@@ -2029,7 +2081,7 @@ fun PlayerScreen(
                             }
                             if (uiState.sleepTimerRemainingMs != null) {
                                 Text(
-                                    text = "Cancel (${(uiState.sleepTimerRemainingMs / 60000L).coerceAtLeast(1)}m remaining)",
+                                    text = "Cancel (${MediaFormatters.formatDuration(uiState.sleepTimerRemainingMs)} left)",
                                     style = ApturaTypography.labelSmall,
                                     color = ApturaColors.StatusError,
                                     modifier = Modifier.clickable { onCancelSleepTimer() }

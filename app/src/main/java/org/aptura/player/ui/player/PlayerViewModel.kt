@@ -81,6 +81,10 @@ class PlayerViewModel(
     private var bookmarksJob: Job? = null
     private var lastPersistedPositionMs: Long = 0L
 
+    /** URI whose saved per-video preferences were last applied (so they are applied once per item, not per emission). */
+    private var lastAppliedPreferencesUri: String? = null
+    private var autoAdvanceCountdownSeconds: Int = 10
+
     private var lastSeekTimestampMs: Long = 0L
     private var accumulatedSeekDeltaMs: Long = 0L
     private var accumulatedTargetPosMs: Long? = null
@@ -91,6 +95,7 @@ class PlayerViewModel(
         const val FEEDBACK_OVERLAY_DELAY_MS = 1200L
         const val SEEK_ACCUMULATION_THRESHOLD_MS = 800L
         const val CHECKPOINT_INTERVAL_MS = 5000L // TST-REST-01, spec/12A §3.3
+        const val SLEEP_TIMER_TICK_MS = 1000L
     }
 
     init {
@@ -99,6 +104,28 @@ class PlayerViewModel(
         observeTrackSelection()
         observeAudioEnhancements()
         observeCompatibilityMode()
+        observeAutoPairedSubtitles()
+        observePlaybackSettings()
+    }
+
+    private fun observeAutoPairedSubtitles() {
+        viewModelScope.launch(dispatcher + errorHandler) {
+            playbackController.autoPairedSubtitles.collect { label ->
+                setAutoPairedSubtitleToast("Auto-paired: $label")
+            }
+        }
+    }
+
+    /** Playback-affecting settings: double-tap seek step and the Up Next countdown (0 = advance immediately). */
+    private fun observePlaybackSettings() {
+        val repository = settingsRepository ?: return
+        viewModelScope.launch(dispatcher + errorHandler) {
+            repository.settingsFlow.collect { settings ->
+                autoAdvanceCountdownSeconds = settings.autoAdvanceCountdownSeconds
+                _uiState.update { it.copy(seekStepMs = settings.seekDeltaSeconds * 1000L) }
+                playbackController.setPauseAtEndOfItems(settings.autoAdvanceCountdownSeconds > 0)
+            }
+        }
     }
 
     private fun observeCompatibilityMode() {
@@ -167,6 +194,7 @@ class PlayerViewModel(
                         }
                     }
                     is DomainPlaybackState.Ready -> {
+                        val startedPlaying = state.isPlaying && !_uiState.value.isPlaying
                         _uiState.update {
                             it.copy(
                                 isBuffering = false,
@@ -188,7 +216,10 @@ class PlayerViewModel(
                                 lastPersistedPositionMs = state.positionMs
                                 persistCurrentPosition()
                             }
-                            if (_uiState.value.isControlsVisible) {
+                            // Only (re)arm the 5 s timer when playback *starts*. The controller emits a new Ready
+                            // state every 250 ms; rearming here on every tick would cancel the timer forever.
+                            // Every user interaction re-arms it explicitly (tap, seek, sheet close, ...).
+                            if (startedPlaying && _uiState.value.isControlsVisible) {
                                 scheduleAutoHide()
                             }
                         }
@@ -254,8 +285,50 @@ class PlayerViewModel(
                 }
                 if (currentItem != null && currentItem.uri.isNotBlank()) {
                     observeBookmarks(currentItem.uri)
+                    if (currentItem.uri != lastAppliedPreferencesUri) {
+                        // Auto-advance, Next/Previous and queue jumps arrive here: restore that video's own settings.
+                        lastAppliedPreferencesUri = currentItem.uri
+                        applyItemPreferences(currentItem, resume = true)
+                    }
                 }
             }
+        }
+    }
+
+    /**
+     * Restores a video's saved preferences (aspect, speed, A/V delays, decoder) and, when [resume] is set,
+     * its saved position with a 2 s pre-roll. Also clears state that must not leak between videos (A-B loop).
+     */
+    private suspend fun applyItemPreferences(item: DomainMediaItem, resume: Boolean) {
+        val restoredResizeMode = try {
+            AspectRatioMode.valueOf(item.resizeMode)
+        } catch (_: Throwable) {
+            AspectRatioMode.FIT
+        }
+        val restoredSpeed = if (item.playbackSpeed > 0f) item.playbackSpeed else 1.0f
+        _uiState.update {
+            it.copy(
+                resizeMode = restoredResizeMode,
+                playbackSpeed = restoredSpeed,
+                decoderStrategy = item.decoderStrategy,
+                audioDelayMs = item.audioDelayMs,
+                subtitleDelayMs = item.subtitleDelayMs,
+                abRepeat = AbRepeatState(),
+                isEnded = false
+            )
+        }
+        playbackController.setDecoderStrategy(item.decoderStrategy)
+        if (restoredSpeed != 1.0f) {
+            playbackController.setPlaybackSpeed(restoredSpeed)
+        }
+        if (item.audioDelayMs != 0L) {
+            playbackController.setAudioDelay(item.audioDelayMs)
+        }
+        if (item.subtitleDelayMs != 0L) {
+            playbackController.setSubtitleDelay(item.subtitleDelayMs)
+        }
+        if (resume && item.playbackPositionMs > 3000L && !item.isCompleted) {
+            playbackController.seekTo((item.playbackPositionMs - 2000L).coerceAtLeast(0L))
         }
     }
 
@@ -287,68 +360,54 @@ class PlayerViewModel(
                         selectedAudioTrackIndex = selection.selectedAudioTrackIndex,
                         selectedSubtitleTrackIndex = selection.selectedSubtitleTrackIndex,
                         subtitleDelayMs = selection.subtitleDelayMs,
-                        audioDelayMs = selection.audioDelayMs,
-                        sleepTimerRemainingMs = selection.sleepTimerRemainingMs
+                        audioDelayMs = selection.audioDelayMs
                     )
                 }
             }
         }
     }
 
-    fun playQueue(items: List<DomainMediaItem>, startIndex: Int = 0) {
+    fun playQueue(items: List<DomainMediaItem>, startIndex: Int = 0, audioOnly: Boolean = false) {
         autoAdvanceJob?.cancel()
         _uiState.update { it.copy(autoAdvanceCountdownSeconds = null, nextItemTitle = null) }
         viewModelScope.launch(dispatcher + errorHandler) {
-            if (items.isEmpty()) return@launch
-            val clampedIndex = startIndex.coerceIn(0, items.size - 1)
-            val currentItem = items[clampedIndex]
-
-            val sanitized = SubtitleQuerySanitizer.sanitize(currentItem.title)
-            val restoredResizeMode = try {
-                AspectRatioMode.valueOf(currentItem.resizeMode)
-            } catch (_: Throwable) {
-                AspectRatioMode.FIT
-            }
-            val restoredSpeed = if (currentItem.playbackSpeed > 0f) currentItem.playbackSpeed else 1.0f
-            val restoredDecoder = currentItem.decoderStrategy
-            val restoredAudioDelay = currentItem.audioDelayMs
-            val restoredSubDelay = currentItem.subtitleDelayMs
-
-            _uiState.update {
-                it.copy(
-                    videoUri = currentItem.uri,
-                    videoTitle = MediaFormatters.cleanTitle(currentItem.title),
-                    durationMs = currentItem.durationMs,
-                    cleanSearchQuery = sanitized.searchQuery,
-                    sanitizedTitle = sanitized.displayTitle,
-                    resizeMode = restoredResizeMode,
-                    playbackSpeed = restoredSpeed,
-                    decoderStrategy = restoredDecoder,
-                    audioDelayMs = restoredAudioDelay,
-                    subtitleDelayMs = restoredSubDelay,
-                    isControlsVisible = true
-                )
-            }
-            playbackController.playQueue(items, clampedIndex)
-            playbackController.setDecoderStrategy(restoredDecoder)
-            if (restoredSpeed != 1.0f) {
-                playbackController.setPlaybackSpeed(restoredSpeed)
-            }
-            if (restoredAudioDelay != 0L) {
-                playbackController.setAudioDelay(restoredAudioDelay)
-            }
-            if (restoredSubDelay != 0L) {
-                playbackController.setSubtitleDelay(restoredSubDelay)
-            }
-            observeBookmarks(currentItem.uri)
-
-            val savedPosition = currentItem.playbackPositionMs
-            if (savedPosition > 3000L && !currentItem.isCompleted) {
-                val preRollPosition = (savedPosition - 2000L).coerceAtLeast(0L)
-                playbackController.seekTo(preRollPosition)
-            }
-            scheduleAutoHide()
+            startQueue(items, startIndex, audioOnly)
         }
+    }
+
+    /** Turns audio-only mode on/off: stops decoding/rendering video (saves battery) while audio keeps playing. */
+    fun setAudioOnly(enabled: Boolean) {
+        _uiState.update { it.copy(isAudioOnly = enabled, isControlsVisible = true) }
+        viewModelScope.launch(dispatcher + errorHandler) {
+            playbackController.setVideoEnabled(!enabled)
+        }
+        if (enabled) autoHideJob?.cancel() else scheduleAutoHide()
+    }
+
+    private suspend fun startQueue(items: List<DomainMediaItem>, startIndex: Int, audioOnly: Boolean = false) {
+        if (items.isEmpty()) return
+        val clampedIndex = startIndex.coerceIn(0, items.size - 1)
+        val currentItem = items[clampedIndex]
+        val sanitized = SubtitleQuerySanitizer.sanitize(currentItem.title)
+
+        _uiState.update {
+            it.copy(
+                videoUri = currentItem.uri,
+                videoTitle = MediaFormatters.cleanTitle(currentItem.title),
+                durationMs = currentItem.durationMs,
+                cleanSearchQuery = sanitized.searchQuery,
+                sanitizedTitle = sanitized.displayTitle,
+                isControlsVisible = true
+            )
+        }
+        // Mark before starting so the queue emission below doesn't re-apply the same preferences.
+        lastAppliedPreferencesUri = currentItem.uri
+        _uiState.update { it.copy(isAudioOnly = audioOnly) }
+        playbackController.setVideoEnabled(!audioOnly)
+        playbackController.playQueue(items, clampedIndex)
+        applyItemPreferences(currentItem, resume = true)
+        observeBookmarks(currentItem.uri)
+        scheduleAutoHide()
     }
 
     fun skipToNext() {
@@ -373,7 +432,7 @@ class PlayerViewModel(
         autoAdvanceJob?.cancel()
         val queue = playbackController.playbackQueue.value
         if (queue.hasNext) {
-            val nextIndex = when (queue.playMode) {
+            val nextIndex = queue.nextIndex ?: when (queue.playMode) {
                 PlayMode.REPEAT_ALL -> (queue.currentIndex + 1) % queue.items.size
                 else -> queue.currentIndex + 1
             }
@@ -383,7 +442,7 @@ class PlayerViewModel(
             val nextUri = nextItem?.uri
 
             autoAdvanceJob = viewModelScope.launch(dispatcher + errorHandler) {
-                for (s in 10 downTo 1) {
+                for (s in autoAdvanceCountdownSeconds.coerceAtLeast(1) downTo 1) {
                     _uiState.update {
                         it.copy(
                             autoAdvanceCountdownSeconds = s,
@@ -537,41 +596,14 @@ class PlayerViewModel(
     fun loadAndPlay(videoUri: String) {
         viewModelScope.launch(dispatcher + errorHandler) {
             val item = mediaRepository.getVideoByUri(videoUri)
-            val rawTitle = item?.title ?: extractTitleFromUri(videoUri)
-            val title = MediaFormatters.cleanTitle(rawTitle)
-            val cleanQuery = org.aptura.player.core.media.SubtitleQuerySanitizer.sanitizeToSearchQuery(rawTitle)
-            val initialDuration = item?.durationMs ?: 0L
-
-            _uiState.update {
-                it.copy(
-                    videoUri = videoUri,
-                    videoTitle = title,
-                    cleanSearchQuery = cleanQuery,
-                    sanitizedTitle = cleanQuery,
-                    durationMs = initialDuration,
-                    isControlsVisible = true
-                )
-            }
-
             val domainItem = item ?: DomainMediaItem(
                 uri = videoUri,
-                title = title,
-                durationMs = initialDuration,
+                title = MediaFormatters.cleanTitle(extractTitleFromUri(videoUri)),
+                durationMs = 0L,
                 sizeBytes = 0L,
                 mimeType = "video/*"
             )
-
-            playbackController.playMediaItem(domainItem)
-            observeBookmarks(videoUri)
-
-            // Restore playback position if > 3s and not completed (spec/12A §3.3)
-            val savedPosition = item?.playbackPositionMs ?: 0L
-            if (savedPosition > 3000L && !(item?.isCompleted ?: false)) {
-                val preRollPosition = (savedPosition - 2000L).coerceAtLeast(0L)
-                playbackController.seekTo(preRollPosition)
-            }
-
-            scheduleAutoHide()
+            startQueue(listOf(domainItem), 0)
         }
     }
 
@@ -1067,9 +1099,16 @@ class PlayerViewModel(
         val durationMs = minutes * 60 * 1000L
         _uiState.update { it.copy(sleepTimerRemainingMs = durationMs) }
         sleepTimerJob = viewModelScope.launch(dispatcher + errorHandler) {
-            delay(durationMs)
+            // A real countdown: the UI shows the time left, and nothing else can overwrite it.
+            var remaining = durationMs
+            while (remaining > 0L) {
+                val step = minOf(SLEEP_TIMER_TICK_MS, remaining)
+                delay(step)
+                remaining -= step
+                _uiState.update { it.copy(sleepTimerRemainingMs = remaining.takeIf { r -> r > 0L }) }
+            }
             playbackController.pause()
-            _uiState.update { it.copy(sleepTimerRemainingMs = null) }
+            persistCurrentPosition()
         }
     }
 
@@ -1180,13 +1219,8 @@ class PlayerViewModel(
     }
 
     fun stepFrame(forward: Boolean) {
-        val delta = if (forward) 42L else -42L
-        val current = _uiState.value.currentPositionMs
-        val duration = _uiState.value.durationMs
-        val target = (current + delta).coerceIn(0L, duration.coerceAtLeast(0L))
         viewModelScope.launch(dispatcher + errorHandler) {
-            playbackController.seekTo(target)
-            _uiState.update { it.copy(currentPositionMs = target) }
+            playbackController.stepFrame(forward)
         }
     }
 

@@ -22,6 +22,9 @@ import org.aptura.player.domain.model.PlaybackStatsInfo
 import org.aptura.player.domain.model.PlayMode
 import org.aptura.player.domain.repository.MediaRepository
 import org.aptura.player.domain.repository.PlaybackController
+import org.aptura.player.ui.library.MediaLibraryUiState
+import org.aptura.player.ui.library.MediaLibraryViewModel
+import org.aptura.player.ui.library.buildPlayQueueRequest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -61,6 +64,18 @@ class PlayerViewModelTest {
 
         val _failureReason = MutableStateFlow<String?>(null)
         override val failureReason: StateFlow<String?> = _failureReason.asStateFlow()
+
+        /** Mirrors Media3PlaybackController's 250 ms position ticker: a *new* Ready state per tick. */
+        fun emitPlayingTick(positionMs: Long) {
+            val current = _playbackState.value as? DomainPlaybackState.Ready
+            _playbackState.value = DomainPlaybackState.Ready(
+                positionMs = positionMs,
+                durationMs = current?.durationMs ?: 0L,
+                isPlaying = true,
+                playbackSpeed = current?.playbackSpeed ?: 1.0f,
+                bufferedPositionMs = positionMs + 30_000L
+            )
+        }
 
         var lastPlayedItem: DomainMediaItem? = null
         var isPlaying = false
@@ -113,6 +128,11 @@ class PlayerViewModelTest {
 
         var lastSubtitleDelay: Long? = null
         var lastAudioDelay: Long? = null
+        val steppedFrames = mutableListOf<Boolean>()
+
+        override suspend fun stepFrame(forward: Boolean) {
+            steppedFrames += forward
+        }
 
         override suspend fun skipToNext() {
             val queue = _playbackQueue.value
@@ -278,6 +298,10 @@ class PlayerViewModelTest {
         override suspend fun renameVideo(uri: String, newName: String) {
             items[uri]?.let { items[uri] = it.copy(title = newName) }
         }
+
+        override suspend fun hideVideo(uri: String) {}
+        override suspend fun restoreHiddenVideos() {}
+        override fun getHiddenVideoCount(): Flow<Int> = MutableStateFlow(0)
 
         val bookmarksState = MutableStateFlow<List<Bookmark>>(emptyList())
         private var nextBookmarkId = 1L
@@ -566,6 +590,171 @@ class PlayerViewModelTest {
         runCurrent()
 
         assertFalse(viewModel.uiState.value.isControlsVisible)
+        viewModel.clearForTesting()
+    }
+
+    /**
+     * Regression (audit P0-01): the real Media3PlaybackController emits a *new* Ready state every 250 ms
+     * while playing. Every one of those emissions used to restart the 5 s auto-hide timer, so the HUD
+     * never hid. The static-state test above cannot see this; this one replays the real stream.
+     */
+    @Test
+    fun controlsAutoHide_whilePositionTicksEvery250ms_hidesAfter5Seconds() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        repository.items[sampleVideo.uri] = sampleVideo
+
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+        viewModel.loadAndPlay(sampleVideo.uri)
+        runCurrent()
+        assertTrue(viewModel.uiState.value.isControlsVisible)
+
+        var positionMs = 0L
+        repeat(16) { // t = 4.0 s: still inside the 5 s window
+            advanceTimeBy(250L)
+            positionMs += 250L
+            controller.emitPlayingTick(positionMs)
+            runCurrent()
+        }
+        assertTrue("HUD must still be visible at 4 s", viewModel.uiState.value.isControlsVisible)
+
+        repeat(14) { // t = 7.5 s
+            advanceTimeBy(250L)
+            positionMs += 250L
+            controller.emitPlayingTick(positionMs)
+            runCurrent()
+        }
+        assertFalse("HUD must auto-hide ~5 s after the last interaction", viewModel.uiState.value.isControlsVisible)
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun controlsAutoHide_afterTap_reshowsAndRehidesWhileTicking() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        repository.items[sampleVideo.uri] = sampleVideo
+
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+        viewModel.loadAndPlay(sampleVideo.uri)
+        runCurrent()
+
+        var positionMs = 0L
+        repeat(24) { // 6 s of ticking -> hidden
+            advanceTimeBy(250L)
+            positionMs += 250L
+            controller.emitPlayingTick(positionMs)
+            runCurrent()
+        }
+        assertFalse(viewModel.uiState.value.isControlsVisible)
+
+        viewModel.toggleControlsVisibility() // user taps the video
+        assertTrue(viewModel.uiState.value.isControlsVisible)
+
+        repeat(16) { // 4 s later: still visible
+            advanceTimeBy(250L)
+            positionMs += 250L
+            controller.emitPlayingTick(positionMs)
+            runCurrent()
+        }
+        assertTrue(viewModel.uiState.value.isControlsVisible)
+
+        repeat(6) { // 5.5 s after the tap: hidden again
+            advanceTimeBy(250L)
+            positionMs += 250L
+            controller.emitPlayingTick(positionMs)
+            runCurrent()
+        }
+        assertFalse(viewModel.uiState.value.isControlsVisible)
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun controlsAutoHide_afterResumeFromPause_hidesWhileTicking() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        repository.items[sampleVideo.uri] = sampleVideo
+
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+        viewModel.loadAndPlay(sampleVideo.uri)
+        runCurrent()
+        viewModel.togglePlayPause() // pause: HUD pinned open
+        runCurrent()
+        viewModel.showControls()
+        advanceTimeBy(6000L)
+        runCurrent()
+        assertTrue(viewModel.uiState.value.isControlsVisible)
+
+        viewModel.togglePlayPause() // resume
+        runCurrent()
+        var positionMs = 1000L
+        repeat(24) {
+            advanceTimeBy(250L)
+            positionMs += 250L
+            controller.emitPlayingTick(positionMs)
+            runCurrent()
+        }
+        assertFalse(viewModel.uiState.value.isControlsVisible)
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun controlsAutoHide_whileScrubbing_neverHides() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        repository.items[sampleVideo.uri] = sampleVideo
+
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+        viewModel.loadAndPlay(sampleVideo.uri)
+        runCurrent()
+        viewModel.onScrubStart(30_000L)
+
+        var positionMs = 0L
+        repeat(40) { // 10 s of ticks while the thumb is held
+            advanceTimeBy(250L)
+            positionMs += 250L
+            controller.emitPlayingTick(positionMs)
+            runCurrent()
+        }
+        assertTrue(viewModel.uiState.value.isControlsVisible)
+        viewModel.clearForTesting()
+    }
+
+    /**
+     * Regression (audit P0-04): the grid used to rebuild items from title/uri/duration, dropping the saved
+     * position and per-video preferences, so nothing was ever restored. This goes through the real library
+     * view-model -> the exact item list the grid hands to onVideoClick -> the real play-queue builder -> player.
+     */
+    @Test
+    fun playFromLibraryGrid_resumesSavedPositionAndPerVideoPreferences() = runTest(testDispatcher) {
+        val saved = sampleVideo.copy(
+            playbackPositionMs = 125_000L,
+            playbackSpeed = 1.5f,
+            resizeMode = "FILL",
+            audioDelayMs = 150L,
+            subtitleDelayMs = -200L
+        )
+        val repository = FakeMediaRepository()
+        repository.items[saved.uri] = saved
+
+        val libraryViewModel = MediaLibraryViewModel(repository, testDispatcher, testDispatcher, searchDebounceMs = 0L)
+        var visible: List<DomainMediaItem> = emptyList()
+        libraryViewModel.uiState.test {
+            assertEquals(MediaLibraryUiState.Loading, awaitItem())
+            visible = (awaitItem() as MediaLibraryUiState.Success).videos.map { it.rawItem }
+            cancelAndIgnoreRemainingEvents()
+        }
+
+        val request = buildPlayQueueRequest(clicked = visible.first(), visibleItems = visible)
+        val controller = FakePlaybackController()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+        viewModel.playQueue(request.items, request.startIndex)
+        runCurrent()
+
+        assertEquals("resume with 2 s pre-roll", 123_000L, controller.lastSeekPosition)
+        assertEquals(1.5f, controller.lastSpeed)
+        assertEquals(AspectRatioMode.FILL, viewModel.uiState.value.resizeMode)
+        assertEquals(150L, controller.lastAudioDelay)
+        assertEquals(-200L, controller.lastSubtitleDelay)
         viewModel.clearForTesting()
     }
 
@@ -916,7 +1105,7 @@ class PlayerViewModelTest {
     }
 
     @Test
-    fun stepFrame_seeksForwardAndBackwardByDelta() = runTest(testDispatcher) {
+    fun stepFrame_isDelegatedToThePlayerSoItCanStepByRealFrames() = runTest(testDispatcher) {
         val controller = FakePlaybackController()
         val repository = FakeMediaRepository()
         val viewModel = PlayerViewModel(controller, repository, testDispatcher)
@@ -924,22 +1113,13 @@ class PlayerViewModelTest {
         viewModel.loadAndPlay(sampleVideo.uri)
         runCurrent()
 
-        controller._playbackState.value = DomainPlaybackState.Ready(
-            positionMs = 5000L,
-            durationMs = sampleVideo.durationMs,
-            isPlaying = false
-        )
-        runCurrent()
-
         viewModel.stepFrame(forward = true)
-        runCurrent()
-        assertEquals(5042L, controller.lastSeekPosition)
-        assertEquals(5042L, viewModel.uiState.value.currentPositionMs)
-
         viewModel.stepFrame(forward = false)
         runCurrent()
-        assertEquals(5000L, controller.lastSeekPosition)
-        assertEquals(5000L, viewModel.uiState.value.currentPositionMs)
+
+        // The fixed "+42 ms" guess that used to live here is gone: the real player decides what a frame is
+        // (see Media3PlaybackControllerTest for the stepping behaviour against a real ExoPlayer).
+        assertEquals(listOf(true, false), controller.steppedFrames)
 
         viewModel.clearForTesting()
     }

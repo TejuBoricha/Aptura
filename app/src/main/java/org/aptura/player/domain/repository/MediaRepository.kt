@@ -41,9 +41,21 @@ interface MediaRepository {
     suspend fun savePlaybackPosition(uri: String, positionMs: Long, isCompleted: Boolean)
 
     /**
-     * Removes a video from the library index without deleting the physical file on storage (SCR-018).
+     * Removes a video's index row (and its bookmarks). Use after the physical file was really deleted.
      */
     suspend fun removeVideoFromLibrary(uri: String)
+
+    /**
+     * Hides a video from the library without touching the file. Unlike a plain index delete, the hide
+     * survives rescans until [restoreHiddenVideos] is called (SCR-018).
+     */
+    suspend fun hideVideo(uri: String)
+
+    /** Un-hides every hidden video. */
+    suspend fun restoreHiddenVideos()
+
+    /** Emits how many videos are currently hidden. */
+    fun getHiddenVideoCount(): Flow<Int>
 
     /**
      * Renames a video in the media library index and local database (FR-LIB-013).

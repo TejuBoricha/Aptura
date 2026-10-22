@@ -35,6 +35,11 @@ class ApturaPlaybackService : MediaSessionService() {
             .setSessionActivity(sessionActivityPendingIntent)
             .setCallback(ApturaSessionCallback())
             .build()
+
+        // Register the session with the service. Without this nothing connects a controller, so Media3 never posts the
+        // media notification and the service never enters the foreground: background playback had no notification,
+        // no lock-screen controls and could be killed at will (audit P0-03).
+        addSession(mediaSession!!)
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {

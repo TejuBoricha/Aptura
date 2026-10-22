@@ -20,7 +20,9 @@ object FileReconciliationEngine {
         val movedCount: Int,
         val missingCount: Int,
         val restoredCount: Int,
-        val newCount: Int
+        val newCount: Int,
+        /** old URI -> new URI for files detected as moved/renamed, so dependants (bookmarks) can follow. */
+        val uriRemaps: Map<String, String> = emptyMap()
     )
 
     /**
@@ -35,6 +37,7 @@ object FileReconciliationEngine {
     ): ReconciliationResult {
         val itemsToUpsert = mutableListOf<MediaItemEntity>()
         val idsToDelete = mutableListOf<Long>()
+        val uriRemaps = mutableMapOf<String, String>()
 
         var movedCount = 0
         var missingCount = 0
@@ -61,16 +64,8 @@ object FileReconciliationEngine {
                     restoredCount++
                 }
 
-                // Preserve user progress, bookmarks relation, and completion state
-                itemsToUpsert.add(
-                    matchedScanned.copy(
-                        id = existing.id,
-                        playbackPositionMs = existing.playbackPositionMs,
-                        isCompleted = existing.isCompleted,
-                        lastPlayedTimestamp = existing.lastPlayedTimestamp,
-                        isMissing = false
-                    )
-                )
+                // Preserve EVERY user-owned column (progress, per-video preferences, rename, hidden flag).
+                itemsToUpsert.add(matchedScanned.withUserDataFrom(existing).copy(isMissing = false))
             } else {
                 unmatchedExisting.add(existing)
             }
@@ -93,16 +88,11 @@ object FileReconciliationEngine {
                 matchedScannedUris.add(candidate.uri)
                 movedCount++
 
-                // Transfer progress from existing item to new location/name
-                itemsToUpsert.add(
-                    candidate.copy(
-                        id = existing.id,
-                        playbackPositionMs = existing.playbackPositionMs,
-                        isCompleted = existing.isCompleted,
-                        lastPlayedTimestamp = existing.lastPlayedTimestamp,
-                        isMissing = false
-                    )
-                )
+                // Transfer all user data from the existing item to its new location/name
+                itemsToUpsert.add(candidate.withUserDataFrom(existing).copy(isMissing = false))
+                if (candidate.uri != existing.uri) {
+                    uriRemaps[existing.uri] = candidate.uri
+                }
 
                 ApturaDiagnostics.logEvent(
                     code = EventCode.EV_006,
@@ -135,7 +125,8 @@ object FileReconciliationEngine {
             movedCount = movedCount,
             missingCount = missingCount,
             restoredCount = restoredCount,
-            newCount = newCount
+            newCount = newCount,
+            uriRemaps = uriRemaps
         )
     }
 }

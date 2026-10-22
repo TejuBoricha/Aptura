@@ -83,6 +83,12 @@ class MediaScanWorker(
                 }
             }
 
+            // 4b. Keep bookmarks attached to files whose URI changed (moved/renamed SAF documents)
+            val bookmarkDao = database.bookmarkDao()
+            reconciliation.uriRemaps.forEach { (oldUri, newUri) ->
+                bookmarkDao.remapMediaUri(oldUri, newUri)
+            }
+
             // 5. Delete obsolete IDs if any were explicitly flagged
             if (reconciliation.idsToDelete.isNotEmpty()) {
                 reconciliation.idsToDelete.chunked(500).forEach { batch ->

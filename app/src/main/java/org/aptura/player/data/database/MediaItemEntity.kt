@@ -43,13 +43,35 @@ data class MediaItemEntity(
     val playbackSpeed: Float = 1.0f,
     val decoderStrategy: Int = 0,
     val audioDelayMs: Long = 0L,
-    val subtitleDelayMs: Long = 0L
-)
+    val subtitleDelayMs: Long = 0L,
+    /** User-chosen title. Survives rescans (the scanner only owns [title]); null = use the scanned title. */
+    val customTitle: String? = null,
+    /** Hidden from the library by the user. Survives rescans until the user restores it. */
+    val isHidden: Boolean = false
+) {
+    /**
+     * Columns the *user* owns (as opposed to the scanner). A rescan must carry every one of these over
+     * from the existing row, otherwise REPLACE-on-conflict silently resets them (audit P0-05).
+     */
+    fun withUserDataFrom(existing: MediaItemEntity): MediaItemEntity = copy(
+        id = existing.id,
+        playbackPositionMs = existing.playbackPositionMs,
+        isCompleted = existing.isCompleted,
+        lastPlayedTimestamp = existing.lastPlayedTimestamp,
+        resizeMode = existing.resizeMode,
+        playbackSpeed = existing.playbackSpeed,
+        decoderStrategy = existing.decoderStrategy,
+        audioDelayMs = existing.audioDelayMs,
+        subtitleDelayMs = existing.subtitleDelayMs,
+        customTitle = existing.customTitle,
+        isHidden = existing.isHidden
+    )
+}
 
 fun MediaItemEntity.toDomainMediaItem(): DomainMediaItem {
     return DomainMediaItem(
         uri = uri,
-        title = title.ifBlank { displayName },
+        title = customTitle?.takeIf { it.isNotBlank() } ?: title.ifBlank { displayName },
         durationMs = durationMs,
         sizeBytes = sizeBytes,
         mimeType = mimeType,

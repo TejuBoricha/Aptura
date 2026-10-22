@@ -31,7 +31,9 @@ class MediaLibraryViewModel(
     private val mediaRepository: MediaRepository,
     private val dispatcher: CoroutineDispatcher = Dispatchers.Main,
     private val computeDispatcher: CoroutineDispatcher = Dispatchers.Default,
-    private val searchDebounceMs: Long = SEARCH_DEBOUNCE_MS
+    private val searchDebounceMs: Long = SEARCH_DEBOUNCE_MS,
+    /** Emits true while a library scan is queued/running. Null keeps the legacy "enqueue only" behaviour. */
+    private val scanActivity: kotlinx.coroutines.flow.Flow<Boolean>? = null
 ) : ViewModel() {
 
     companion object {
@@ -51,6 +53,15 @@ class MediaLibraryViewModel(
     val sortOrder: StateFlow<LibrarySortOrder> = _sortOrder
 
     private val _isRefreshing = MutableStateFlow(false)
+
+    init {
+        // The spinner reflects the real scan (WorkManager), not just the instant the request was enqueued.
+        scanActivity?.let { activity ->
+            viewModelScope.launch(dispatcher + errorHandler) {
+                activity.collect { scanning -> _isRefreshing.value = scanning }
+            }
+        }
+    }
     private val _isPermissionDenied = MutableStateFlow(false)
 
     private data class FilterState(
@@ -148,11 +159,31 @@ class MediaLibraryViewModel(
         _isPermissionDenied.value = denied
     }
 
+    /** Drops the index row of a video whose file no longer exists (after a real deletion). */
     fun removeVideoFromLibrary(uri: String) {
         viewModelScope.launch(dispatcher + errorHandler) {
             mediaRepository.removeVideoFromLibrary(uri)
         }
     }
+
+    /** Called once Android confirmed the file was deleted from storage. */
+    fun onVideoDeleted(uri: String) = removeVideoFromLibrary(uri)
+
+    /** Hides a video from the library; the hide survives rescans until restored. */
+    fun hideVideo(uri: String) {
+        viewModelScope.launch(dispatcher + errorHandler) {
+            mediaRepository.hideVideo(uri)
+        }
+    }
+
+    fun restoreHiddenVideos() {
+        viewModelScope.launch(dispatcher + errorHandler) {
+            mediaRepository.restoreHiddenVideos()
+        }
+    }
+
+    val hiddenVideoCount: StateFlow<Int> = mediaRepository.getHiddenVideoCount()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     fun renameVideo(uri: String, newName: String) {
         viewModelScope.launch(dispatcher + errorHandler) {
@@ -183,7 +214,11 @@ class MediaLibraryViewModel(
             _isRefreshing.value = true
             try {
                 onTriggerScan?.invoke()
-            } finally {
+            } catch (t: Throwable) {
+                _isRefreshing.value = false
+                throw t
+            }
+            if (scanActivity == null) {
                 _isRefreshing.value = false
             }
         }

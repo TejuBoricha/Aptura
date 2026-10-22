@@ -146,9 +146,5 @@ object MediaFormatters {
         }
     }
 
-    fun cleanTitle(rawTitle: String): String {
-        if (rawTitle.isBlank()) return "Untitled"
-        val stripped = rawTitle.replace(Regex("\\.(mp4|mkv|webm|avi|mov|ts|m4v|3gp)$", RegexOption.IGNORE_CASE), "")
-        return stripped.replace('_', ' ').trim()
-    }
+    fun cleanTitle(rawTitle: String): String = org.aptura.player.domain.model.cleanDisplayTitle(rawTitle)
 }

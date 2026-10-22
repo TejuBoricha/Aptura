@@ -798,7 +798,7 @@ fun DeleteFromDeviceDialog(
         },
         text = {
             Text(
-                text = "Permanently delete \"$itemTitle\" from your device's physical storage?\n\nThis will free up storage space. Android will prompt you to confirm the deletion.",
+                text = "Permanently delete \"$itemTitle\" from your device's storage?\n\nThis frees up space and cannot be undone. Android may ask you to confirm the deletion.",
                 style = ApturaTypography.bodyMedium,
                 color = ApturaColors.TextMediumEmphasis
             )
@@ -845,7 +845,7 @@ fun HideFromLibraryDialog(
         },
         text = {
             Text(
-                text = "Hide \"$itemTitle\" from Aptura's media index?\n\nYour actual video file on storage will NOT be deleted.",
+                text = "Hide \"$itemTitle\" from your Aptura library?\n\nThe video file stays on your device, and the video stays hidden when the library rescans. You can restore hidden videos in Settings.",
                 style = ApturaTypography.bodyMedium,
                 color = ApturaColors.TextMediumEmphasis
             )

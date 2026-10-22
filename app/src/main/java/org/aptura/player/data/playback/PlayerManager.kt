@@ -4,13 +4,23 @@ package org.aptura.player.data.playback
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.net.Uri
+import android.os.Build
+import android.util.Size
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.DefaultAudioSink
+import org.aptura.player.data.repository.AndroidSidecarSubtitleResolver
+import java.io.ByteArrayOutputStream
 
 /**
  * Thread-safe provider for the active Media3 player session and domain PlaybackController bridge.
- * Configures movie audio attributes, automatic audio focus, and audio-becoming-noisy handling.
+ * Configures movie audio attributes, automatic audio focus, audio-becoming-noisy handling, the real audio-delay
+ * processor, and the codec selector that implements the Auto / Hardware / Software decoder strategies.
  */
 object PlayerManager {
 
@@ -32,7 +42,8 @@ object PlayerManager {
             controllerInstance?.currentDecoderStrategy ?: 0
         }
         var textRendererRef: ApturaTextRenderer? = null
-        val renderersFactory = object : androidx.media3.exoplayer.DefaultRenderersFactory(appContext) {
+        val audioDelayProcessor = AudioDelayProcessor()
+        val renderersFactory = object : DefaultRenderersFactory(appContext) {
             override fun buildTextRenderers(
                 context: Context,
                 output: androidx.media3.exoplayer.text.TextOutput,
@@ -44,6 +55,17 @@ object PlayerManager {
                 textRendererRef = renderer
                 out.add(renderer)
             }
+
+            // Routes decoded PCM through AudioDelayProcessor so the lip-sync control really shifts the audio.
+            override fun buildAudioSink(
+                context: Context,
+                enableFloatOutput: Boolean,
+                enableAudioTrackPlaybackParams: Boolean
+            ): AudioSink = DefaultAudioSink.Builder(context)
+                .setEnableFloatOutput(enableFloatOutput)
+                .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                .setAudioProcessors(arrayOf(audioDelayProcessor))
+                .build()
         }
             .setEnableDecoderFallback(true)
             .setMediaCodecSelector(codecSelector)
@@ -61,7 +83,10 @@ object PlayerManager {
 
         val controller = Media3PlaybackController(
             player = player,
-            apturaTextRenderer = textRendererRef
+            apturaTextRenderer = textRendererRef,
+            sidecarResolver = AndroidSidecarSubtitleResolver(appContext),
+            artworkProvider = { uri -> loadArtwork(appContext, uri) },
+            audioDelayProcessor = audioDelayProcessor
         )
         controllerInstance = controller
 
@@ -73,6 +98,20 @@ object PlayerManager {
         }
 
         return controller
+    }
+
+    /** Lock-screen / notification artwork: a real video frame thumbnail (Android 10+). */
+    private fun loadArtwork(context: Context, mediaUri: String): ByteArray? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
+        return try {
+            val bitmap = context.contentResolver.loadThumbnail(Uri.parse(mediaUri), Size(512, 288), null)
+            ByteArrayOutputStream().use { out ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 85, out)
+                out.toByteArray()
+            }
+        } catch (_: Throwable) {
+            null
+        }
     }
 
     @Synchronized
