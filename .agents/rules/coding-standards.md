@@ -39,3 +39,12 @@ description: Coding standards, Kotlin conventions, StateFlow architecture, and t
 - **AVD Lock Hygiene:** Always purge stale lock files (`hardware-qemu.ini.lock`, `multiinstance.lock`) from `~/.android/avd/<name>.avd` before boot to prevent unhandled lock prompts.
 - **Fail-Safe ADB Timeouts:** Never call open-ended `adb wait-for-device` without an explicit timeout wrapper. If ADB hangs or port 5037 drops, terminate zombie `adb.exe` processes and restart the ADB server.
 - **No Headless Glitches:** Never pass `-no-window` on Windows hosts. API 34/35 SwiftShader software composition hangs SurfaceFlinger; use standard windowed execution with `-gpu auto`.
+
+## 6. Interaction & Invariant-Driven QA (Anti-Isolated-Testing Directives)
+- **Eliminate Boolean Explosion & Illegal States:** Mutually exclusive UI states (e.g. bottom sheets, full-screen dialogs, context menus) should ideally be modeled as a single algebraic sum type (`activeSheet: ActiveSheet?`) rather than a loose bag of independent booleans. Where booleans exist for Compose bindings, they MUST be governed by a centralized, atomic mutual-exclusion coordinator (e.g. `closeAllSheets()`).
+- **Mandatory Invariant Test Suites:** Every ViewModel or component managing multiple modal/sheet surfaces MUST include automated Invariant Permutation Tests asserting:
+  1. `countActiveModals() <= 1` across all entry permutations.
+  2. Opening any modal or sheet while another is open atomically dismisses the former without state leaking.
+- **No Isolated "Vacuum" Assertions:** Unit tests must never assert state transitions in a vacuum (e.g., asserting only `isSheetA == true` while ignoring `isSheetB`). Tests must assert collateral state invariants.
+- **Compose Semantics Hierarchy Invariants:** UI test suites must assert that at most one modal overlay node is composed in the semantics tree (`composeTestRule.onAllNodes(isDialog()).assertCountEquals(1)`).
+

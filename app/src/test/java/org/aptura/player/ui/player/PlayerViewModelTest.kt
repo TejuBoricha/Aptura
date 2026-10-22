@@ -1673,6 +1673,98 @@ class PlayerViewModelTest {
     }
 
     @Test
+    fun testModalMutualExclusivity_exhaustivePairwiseTransitionMatrix() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        data class SheetDescriptor(
+            val name: String,
+            val open: (PlayerViewModel) -> Unit,
+            val isVisible: (PlayerUiState) -> Boolean
+        )
+
+        val sheets = listOf(
+            SheetDescriptor("Queue", { it.showQueueSheet(true) }, { it.isQueueSheetVisible }),
+            SheetDescriptor("PlayMode", { it.showPlayModeSheet(true) }, { it.isPlayModeSheetVisible }),
+            SheetDescriptor("Audio", { it.setAudioSheetVisible(true) }, { it.isAudioSheetVisible }),
+            SheetDescriptor("Subtitle", { it.setSubtitleSheetVisible(true) }, { it.isSubtitleSheetVisible }),
+            SheetDescriptor("Speed", { it.setSpeedSheetVisible(true) }, { it.isSpeedSheetVisible }),
+            SheetDescriptor("WhyCompatibility", { it.setWhyCompatibilitySheetVisible(true) }, { it.isWhyCompatibilitySheetVisible }),
+            SheetDescriptor("Advanced", { it.setAdvancedSheetVisible(true) }, { it.isAdvancedSheetVisible }),
+            SheetDescriptor("Equalizer", { it.setEqualizerSheetVisible(true) }, { it.isEqualizerSheetVisible }),
+            SheetDescriptor("Picture", { it.setPictureSheetVisible(true) }, { it.isPictureSheetVisible }),
+            SheetDescriptor("WebSearch", { it.showWebSearchDialog(true) }, { it.isWebSearchDialogVisible })
+        )
+
+        fun countVisible(state: PlayerUiState): Int = sheets.count { it.isVisible(state) }
+
+        // Test all N x (N - 1) pairwise transitions (90 distinct permutations)
+        for (sheetA in sheets) {
+            for (sheetB in sheets) {
+                if (sheetA.name == sheetB.name) continue
+
+                sheetA.open(viewModel)
+                assertEquals("After opening ${sheetA.name}, exactly 1 sheet must be visible", 1, countVisible(viewModel.uiState.value))
+                assertTrue("Sheet ${sheetA.name} must be visible", sheetA.isVisible(viewModel.uiState.value))
+                assertFalse("Sheet ${sheetB.name} must NOT be visible yet", sheetB.isVisible(viewModel.uiState.value))
+
+                sheetB.open(viewModel)
+                assertEquals("Transitioning from ${sheetA.name} to ${sheetB.name} must maintain count == 1", 1, countVisible(viewModel.uiState.value))
+                assertTrue("Sheet ${sheetB.name} must now be visible", sheetB.isVisible(viewModel.uiState.value))
+                assertFalse("Sheet ${sheetA.name} must be atomically closed", sheetA.isVisible(viewModel.uiState.value))
+            }
+        }
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun testModalMutualExclusivity_rapidInterleavedTriggers_maintainsInvariant() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        data class SheetDescriptor(
+            val name: String,
+            val open: (PlayerViewModel) -> Unit,
+            val isVisible: (PlayerUiState) -> Boolean
+        )
+
+        val sheets = listOf(
+            SheetDescriptor("Queue", { it.showQueueSheet(true) }, { it.isQueueSheetVisible }),
+            SheetDescriptor("PlayMode", { it.showPlayModeSheet(true) }, { it.isPlayModeSheetVisible }),
+            SheetDescriptor("Audio", { it.setAudioSheetVisible(true) }, { it.isAudioSheetVisible }),
+            SheetDescriptor("Subtitle", { it.setSubtitleSheetVisible(true) }, { it.isSubtitleSheetVisible }),
+            SheetDescriptor("Speed", { it.setSpeedSheetVisible(true) }, { it.isSpeedSheetVisible }),
+            SheetDescriptor("WhyCompatibility", { it.setWhyCompatibilitySheetVisible(true) }, { it.isWhyCompatibilitySheetVisible }),
+            SheetDescriptor("Advanced", { it.setAdvancedSheetVisible(true) }, { it.isAdvancedSheetVisible }),
+            SheetDescriptor("Equalizer", { it.setEqualizerSheetVisible(true) }, { it.isEqualizerSheetVisible }),
+            SheetDescriptor("Picture", { it.setPictureSheetVisible(true) }, { it.isPictureSheetVisible }),
+            SheetDescriptor("WebSearch", { it.showWebSearchDialog(true) }, { it.isWebSearchDialogVisible })
+        )
+
+        fun countVisible(state: PlayerUiState): Int = sheets.count { it.isVisible(state) }
+
+        // Rapid interleaved firing simulating multi-touch race conditions
+        repeat(5) {
+            for (sheet in sheets) {
+                sheet.open(viewModel)
+                assertEquals(1, countVisible(viewModel.uiState.value))
+                assertTrue(sheet.isVisible(viewModel.uiState.value))
+                assertTrue(viewModel.uiState.value.isAnySheetVisible)
+            }
+        }
+
+        // Dismissing last sheet cleanly resets isAnySheetVisible
+        viewModel.showWebSearchDialog(false)
+        assertEquals(0, countVisible(viewModel.uiState.value))
+        assertFalse(viewModel.uiState.value.isAnySheetVisible)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
     fun testSeekRelative_rapidAccumulation_preservesTargetPositionAndSide() = runTest(testDispatcher) {
         val controller = FakePlaybackController()
         val repository = FakeMediaRepository()

@@ -86,6 +86,7 @@ Case IDs allocate inside these suites exactly as already cited (e.g. `TST-SCAN-0
 | Suite | Scope | Levels |
 |---|---|---|
 | TST-CTRL / TST-GEST | Every FR-CTRL control incl. scrub preview, lock mode, gesture zones vs system gesture conflicts | Instrumented + manual (real devices, OEM variance) |
+| TST-MODAL-EXCL ➕ | Modal & bottom sheet mutual exclusivity: strict single-active-surface invariant across all sheet openers, transition matrix permutations, back-stack integrity | Unit (permutations) + Compose UI semantics |
 | TST-QUEUE ➕ | End-of-item matrix: Single/Folder/Queue/Repeat one/Repeat all × auto-advance on/off × queue present/absent × missing next item × lock mode × background | Instrumented + manual |
 | TST-PREF / TST-ERGO | Preference persistence semantics; ergonomics charter (thumb reach, one-hand) | Unit + manual |
 | TST-EXT | External intent/assistant/media-key dispatch variance | Manual |
