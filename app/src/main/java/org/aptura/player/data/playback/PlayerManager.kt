@@ -28,7 +28,20 @@ object PlayerManager {
         val codecSelector = ApturaMediaCodecSelector {
             controllerInstance?.currentDecoderStrategy ?: 0
         }
-        val renderersFactory = androidx.media3.exoplayer.DefaultRenderersFactory(appContext)
+        var textRendererRef: ApturaTextRenderer? = null
+        val renderersFactory = object : androidx.media3.exoplayer.DefaultRenderersFactory(appContext) {
+            override fun buildTextRenderers(
+                context: Context,
+                output: androidx.media3.exoplayer.text.TextOutput,
+                outputLooper: android.os.Looper,
+                extensionRendererMode: Int,
+                out: java.util.ArrayList<androidx.media3.exoplayer.Renderer>
+            ) {
+                val renderer = ApturaTextRenderer(output, outputLooper)
+                textRendererRef = renderer
+                out.add(renderer)
+            }
+        }
             .setEnableDecoderFallback(true)
             .setMediaCodecSelector(codecSelector)
 
@@ -43,7 +56,10 @@ object PlayerManager {
             .setHandleAudioBecomingNoisy(true)
             .build()
 
-        val controller = Media3PlaybackController(player)
+        val controller = Media3PlaybackController(
+            player = player,
+            apturaTextRenderer = textRendererRef
+        )
         controllerInstance = controller
 
         try {

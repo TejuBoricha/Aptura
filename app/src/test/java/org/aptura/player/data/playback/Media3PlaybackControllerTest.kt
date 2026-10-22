@@ -166,13 +166,15 @@ class Media3PlaybackControllerTest {
 
     private fun createController(
         player: Player,
-        enablePositionTicker: Boolean = false
+        enablePositionTicker: Boolean = false,
+        textRenderer: ApturaTextRenderer? = null
     ): Media3PlaybackController {
         return Media3PlaybackController(
             player = player,
             scope = testScope,
             mainDispatcher = testDispatcher,
-            enablePositionTicker = enablePositionTicker
+            enablePositionTicker = enablePositionTicker,
+            apturaTextRenderer = textRenderer
         )
     }
 
@@ -415,5 +417,44 @@ class Media3PlaybackControllerTest {
 
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun setSubtitleDelay_updatesStateAndTextRenderer() = runTest(testDispatcher) {
+        val (player, _) = createMockPlayer()
+        val textRenderer = ApturaTextRenderer(
+            output = androidx.media3.exoplayer.text.TextOutput { },
+            outputLooper = null
+        )
+        val controller = createController(player, textRenderer = textRenderer)
+
+        assertEquals(0L, textRenderer.subtitleDelayMs)
+        assertEquals(0L, controller.trackSelection.value.subtitleDelayMs)
+
+        controller.setSubtitleDelay(750L)
+        assertEquals(750L, textRenderer.subtitleDelayMs)
+        assertEquals(750L, controller.trackSelection.value.subtitleDelayMs)
+
+        controller.setSubtitleDelay(-300L)
+        assertEquals(-300L, textRenderer.subtitleDelayMs)
+        assertEquals(-300L, controller.trackSelection.value.subtitleDelayMs)
+    }
+
+    @Test
+    fun playMediaItem_resetsSubtitleDelay() = runTest(testDispatcher) {
+        val (player, _) = createMockPlayer()
+        val textRenderer = ApturaTextRenderer(
+            output = androidx.media3.exoplayer.text.TextOutput { },
+            outputLooper = null
+        )
+        val controller = createController(player, textRenderer = textRenderer)
+
+        controller.setSubtitleDelay(1200L)
+        assertEquals(1200L, textRenderer.subtitleDelayMs)
+        assertEquals(1200L, controller.trackSelection.value.subtitleDelayMs)
+
+        controller.playMediaItem(sampleItem1)
+        assertEquals(0L, textRenderer.subtitleDelayMs)
+        assertEquals(0L, controller.trackSelection.value.subtitleDelayMs)
     }
 }

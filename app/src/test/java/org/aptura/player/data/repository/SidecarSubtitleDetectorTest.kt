@@ -89,4 +89,24 @@ class SidecarSubtitleDetectorTest {
         assertEquals(1, results.size)
         assertEquals("Interstellar.srt", results.first().displayName)
     }
+
+    @Test
+    fun detectSidecars_fuzzyDelimiterMatching_detectsSuccessfully() {
+        val mediaDir = tempFolder.newFolder("movies4")
+        val videoFile = File(mediaDir, "Gladiator_2000_Extended.mp4").apply { createNewFile() }
+        val srtFile = File(mediaDir, "Gladiator.2000.Extended.en.srt")
+        writeValidSrt(srtFile)
+
+        val results = SidecarSubtitleDetector.detectSidecars(context, Uri.fromFile(videoFile))
+
+        assertEquals(1, results.size)
+        assertEquals("Gladiator.2000.Extended.en.srt", results.first().displayName)
+        assertEquals("English", results.first().languageLabel)
+    }
+
+    @Test
+    fun normalizeTitle_replacesPunctuationWithSpaces() {
+        assertEquals("gladiator 2000 extended", SidecarSubtitleDetector.normalizeTitle("Gladiator_2000.Extended"))
+        assertEquals("movie title 1080p", SidecarSubtitleDetector.normalizeTitle("movie-title..1080p"))
+    }
 }

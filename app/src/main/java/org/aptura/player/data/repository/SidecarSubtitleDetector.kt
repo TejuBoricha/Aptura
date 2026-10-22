@@ -49,6 +49,74 @@ object SidecarSubtitleDetector {
     )
 
     /**
+     * Normalizes a filename or title by stripping punctuation and delimiters for fuzzy matching.
+     */
+    fun normalizeTitle(name: String): String =
+        name.lowercase()
+            .replace(Regex("[._\\-\\s]+"), " ")
+            .trim()
+
+    /**
+     * Resolves the underlying File for a given URI (handling file://, MediaStore content://, and SAF).
+     */
+    fun resolveFile(context: Context, uri: Uri): File? {
+        if (uri.scheme == "file") {
+            val p = uri.path
+            if (!p.isNullOrBlank()) {
+                val f = File(p)
+                if (f.exists()) return f
+            }
+        } else if (uri.scheme == "content") {
+            val directPath = uri.path
+            if (!directPath.isNullOrBlank()) {
+                val f = File(directPath)
+                if (f.exists()) return f
+            }
+
+            try {
+                val projection = arrayOf(android.provider.MediaStore.Video.Media.DATA)
+                context.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
+                    val dataIdx = cursor.getColumnIndex(android.provider.MediaStore.Video.Media.DATA)
+                    if (dataIdx != -1 && cursor.moveToFirst()) {
+                        val path = cursor.getString(dataIdx)
+                        if (!path.isNullOrBlank()) {
+                            val f = File(path)
+                            if (f.exists()) return f
+                        }
+                    }
+                }
+            } catch (_: Throwable) {}
+
+            try {
+                if (android.provider.DocumentsContract.isDocumentUri(context, uri)) {
+                    val docId = android.provider.DocumentsContract.getDocumentId(uri)
+                    if (docId.startsWith("primary:")) {
+                        val relPath = docId.substringAfter("primary:")
+                        val extDir = Environment.getExternalStorageDirectory()
+                        val candidate = File(extDir, relPath)
+                        if (candidate.exists()) return candidate
+                    }
+                }
+            } catch (_: Throwable) {}
+        }
+        return null
+    }
+
+    private fun resolveDisplayName(context: Context, uri: Uri): String? {
+        if (uri.scheme == "content") {
+            try {
+                context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                    val nameIdx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (nameIdx != -1 && cursor.moveToFirst()) {
+                        return cursor.getString(nameIdx)
+                    }
+                }
+            } catch (_: Throwable) {}
+        }
+        return uri.lastPathSegment
+    }
+
+    /**
      * Detects sidecar subtitles for a given video file.
      */
     fun detectSidecars(
@@ -58,33 +126,49 @@ object SidecarSubtitleDetector {
     ): List<DetectedSidecarSubtitle> {
         val results = mutableListOf<DetectedSidecarSubtitle>()
 
-        // 1. Resolve parent directory if direct file path is accessible
-        val file = if (videoUri.scheme == "file") {
-            File(videoUri.path ?: "")
-        } else {
-            // Check if path is encoded in URI or DATA
-            val path = videoUri.path
-            if (path != null && File(path).exists()) File(path) else null
-        }
+        val file = resolveFile(context, videoUri)
+        val resolvedName = videoDisplayName?.takeIf { it.isNotBlank() }
+            ?: file?.name
+            ?: resolveDisplayName(context, videoUri)
+            ?: ""
 
+        val baseName = resolvedName.substringBeforeLast(".")
+        if (baseName.isBlank()) return emptyList()
+
+        val candidateDirs = mutableListOf<File>()
         val parentDir = file?.parentFile
-        val baseName = (videoDisplayName ?: file?.name ?: "").substringBeforeLast(".")
-
-        if (parentDir != null && parentDir.isDirectory && baseName.isNotBlank()) {
-            results.addAll(scanDirectoryForBaseName(context, parentDir, baseName))
-
-            // Also check subdirectories: subs/, subtitles/, Subs/, Subtitles/
+        if (parentDir != null && parentDir.isDirectory) {
+            candidateDirs.add(parentDir)
             val subDirs = listOf(
                 File(parentDir, "subs"),
                 File(parentDir, "subtitles"),
                 File(parentDir, "Subs"),
                 File(parentDir, "Subtitles")
             ).filter { it.isDirectory }
-             .distinctBy { try { it.canonicalPath } catch (_: Throwable) { it.absolutePath } }
+            candidateDirs.addAll(subDirs)
+        }
 
-            for (subDir in subDirs) {
-                results.addAll(scanDirectoryForBaseName(context, subDir, baseName))
+        // Check common shared directories if parent is unknown or to search downloads
+        val commonDirs = listOfNotNull(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES),
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+            context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+        ).filter { it.isDirectory }
+
+        for (cd in commonDirs) {
+            if (candidateDirs.none { try { it.canonicalPath == cd.canonicalPath } catch (_: Throwable) { it.path == cd.path } }) {
+                candidateDirs.add(cd)
+                val subDirs = listOf(File(cd, "subs"), File(cd, "subtitles")).filter { it.isDirectory }
+                candidateDirs.addAll(subDirs)
             }
+        }
+
+        val distinctDirs = candidateDirs.distinctBy {
+            try { it.canonicalPath } catch (_: Throwable) { it.absolutePath }
+        }
+
+        for (dir in distinctDirs) {
+            results.addAll(scanDirectoryForBaseName(context, dir, baseName))
         }
 
         return results.distinctBy {
@@ -106,6 +190,7 @@ object SidecarSubtitleDetector {
         val files = dir.listFiles() ?: return emptyList()
 
         val lowerBase = baseName.lowercase()
+        val normBase = normalizeTitle(baseName)
 
         for (f in files) {
             if (!f.isFile) continue
@@ -114,18 +199,20 @@ object SidecarSubtitleDetector {
 
             val nameWithoutExt = f.nameWithoutExtension
             val lowerName = nameWithoutExt.lowercase()
+            val normName = normalizeTitle(nameWithoutExt)
 
-            // Match condition 1: Exact match "movie.srt"
-            val isExact = lowerName == lowerBase
-            // Match condition 2: Language suffix "movie.en.srt", "movie.eng.srt", "movie_es.srt"
-            val hasPrefix = lowerName.startsWith(lowerBase)
+            val isExact = lowerName == lowerBase || normName == normBase
+            val hasPrefix = lowerName.startsWith(lowerBase) || normName.startsWith(normBase)
 
             if (isExact || hasPrefix) {
                 val validation = SubtitleFileValidator.validate(context, Uri.fromFile(f))
                 if (validation is SubtitleValidationResult.Valid) {
                     val langPart = if (!isExact) {
-                        lowerName.removePrefix(lowerBase)
-                            .trim('.', '_', '-', ' ')
+                        if (lowerName.startsWith(lowerBase)) {
+                            lowerName.removePrefix(lowerBase).trim('.', '_', '-', ' ')
+                        } else {
+                            normName.removePrefix(normBase).trim('.', '_', '-', ' ')
+                        }
                     } else null
 
                     val langCode = langPart?.takeIf { it.isNotBlank() }

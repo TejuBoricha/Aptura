@@ -35,6 +35,7 @@ interface PlaybackController {
     suspend fun setSubtitleDelay(delayMs: Long)
     suspend fun setAudioDelay(delayMs: Long)
     suspend fun addExternalSubtitle(uri: String, mimeType: String = "application/x-subrip", label: String = "External Subtitle")
+    suspend fun addExternalSubtitles(subtitles: List<org.aptura.player.domain.model.DomainExternalSubtitle>) {}
     suspend fun removeExternalSubtitles() {}
     suspend fun setDecoderStrategy(strategy: Int) {}
     suspend fun retryPlayback() {}

@@ -46,6 +46,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -818,41 +819,184 @@ private fun SubtitleSyncTab(
                 )
 
                 // Quick Nudge Buttons
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Column(
+                    modifier = Modifier.padding(top = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    val quickNudges = listOf(
-                        "-250ms" to -250L,
-                        "-50ms" to -50L,
-                        "+50ms" to 50L,
-                        "+250ms" to 250L
-                    )
-                    quickNudges.forEach { (label, delta) ->
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = ApturaColors.SurfaceElevated1,
-                            border = BorderStroke(1.dp, ApturaColors.BorderSubtle),
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    onSubtitleDelayChanged(subtitleDelayMs + delta)
-                                }
-                        ) {
-                            Text(
-                                text = label,
-                                style = ApturaTypography.labelSmall.copy(
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontFeatureSettings = "tnum"
-                                ),
-                                color = ApturaColors.TextHighEmphasis,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(vertical = 10.dp)
-                            )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val row1 = listOf(
+                            "-250ms" to -250L,
+                            "-50ms" to -50L,
+                            "+50ms" to 50L,
+                            "+250ms" to 250L
+                        )
+                        row1.forEach { (label, delta) ->
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = ApturaColors.SurfaceElevated1,
+                                border = BorderStroke(1.dp, ApturaColors.BorderSubtle),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        onSubtitleDelayChanged(subtitleDelayMs + delta)
+                                    }
+                            ) {
+                                Text(
+                                    text = label,
+                                    style = ApturaTypography.labelSmall.copy(
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontFeatureSettings = "tnum"
+                                    ),
+                                    color = ApturaColors.TextHighEmphasis,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(vertical = 10.dp)
+                                )
+                            }
                         }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val row2 = listOf(
+                            "-1.0s (Quick Jump)" to -1000L,
+                            "+1.0s (Quick Jump)" to 1000L
+                        )
+                        row2.forEach { (label, delta) ->
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = ApturaColors.SurfaceElevated1,
+                                border = BorderStroke(1.dp, ApturaColors.BorderSubtle),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        onSubtitleDelayChanged(subtitleDelayMs + delta)
+                                    }
+                            ) {
+                                Text(
+                                    text = label,
+                                    style = ApturaTypography.labelSmall.copy(
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontFeatureSettings = "tnum"
+                                    ),
+                                    color = ApturaColors.TextHighEmphasis,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(vertical = 8.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Tap-to-Sync Interactive Calibration Card
+        var speechTimestamp by remember { mutableStateOf<Long?>(null) }
+        var subtitleTimestamp by remember { mutableStateOf<Long?>(null) }
+
+        Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = ApturaColors.SurfaceElevated3,
+            border = BorderStroke(1.dp, ApturaColors.BorderSubtle),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "TAP-TO-SYNC CALIBRATOR",
+                        style = ApturaTypography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
+                        color = ApturaColors.AccentPrimary
+                    )
+                    if (speechTimestamp != null || subtitleTimestamp != null) {
+                        Text(
+                            text = "Reset",
+                            style = ApturaTypography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                            color = ApturaColors.AccentPrimary,
+                            modifier = Modifier.clickable {
+                                speechTimestamp = null
+                                subtitleTimestamp = null
+                            }
+                        )
+                    }
+                }
+
+                Text(
+                    text = "Listen & Watch: Tap [1. Actor Spoke] when dialogue starts, then tap [2. Sub Appeared] when text flashes.",
+                    style = ApturaTypography.bodyMedium,
+                    color = ApturaColors.TextMediumEmphasis
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            val now = System.currentTimeMillis()
+                            val sub = subtitleTimestamp
+                            if (sub != null) {
+                                val delta = now - sub
+                                onSubtitleDelayChanged(subtitleDelayMs + delta)
+                                speechTimestamp = null
+                                subtitleTimestamp = null
+                            } else {
+                                speechTimestamp = now
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (speechTimestamp != null) ApturaColors.AccentPrimary else ApturaColors.SurfaceElevated1,
+                            contentColor = if (speechTimestamp != null) Color.Black else ApturaColors.TextHighEmphasis
+                        ),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = if (speechTimestamp != null) "✓ Voice Marked" else "1. Actor Spoke",
+                            style = ApturaTypography.labelSmall.copy(fontWeight = FontWeight.SemiBold)
+                        )
+                    }
+
+                    Button(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            val now = System.currentTimeMillis()
+                            val voice = speechTimestamp
+                            if (voice != null) {
+                                val delta = voice - now
+                                onSubtitleDelayChanged(subtitleDelayMs + delta)
+                                speechTimestamp = null
+                                subtitleTimestamp = null
+                            } else {
+                                subtitleTimestamp = now
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (subtitleTimestamp != null) ApturaColors.AccentPrimary else ApturaColors.SurfaceElevated1,
+                            contentColor = if (subtitleTimestamp != null) Color.Black else ApturaColors.TextHighEmphasis
+                        ),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = if (subtitleTimestamp != null) "✓ Sub Marked" else "2. Sub Appeared",
+                            style = ApturaTypography.labelSmall.copy(fontWeight = FontWeight.SemiBold)
+                        )
                     }
                 }
             }

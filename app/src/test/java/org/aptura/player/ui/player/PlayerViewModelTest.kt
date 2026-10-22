@@ -174,6 +174,11 @@ class PlayerViewModelTest {
             lastExternalSubtitleLabel = label
         }
 
+        var lastExternalSubtitles: List<org.aptura.player.domain.model.DomainExternalSubtitle>? = null
+        override suspend fun addExternalSubtitles(subtitles: List<org.aptura.player.domain.model.DomainExternalSubtitle>) {
+            lastExternalSubtitles = subtitles
+        }
+
         override suspend fun removeExternalSubtitles() {
             hasRemovedExternalSubtitles = true
             lastExternalSubtitleUri = null
@@ -950,6 +955,35 @@ class PlayerViewModelTest {
 
         viewModel.setSubtitleBackgroundEnabled(true)
         assertTrue(viewModel.uiState.value.subtitleBackgroundEnabled)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun addExternalSubtitles_batchesProperly() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        val sidecars = listOf(
+            org.aptura.player.domain.model.DomainExternalSubtitle(
+                uri = "content://media/1",
+                label = "English (movie.en.srt)",
+                language = "en",
+                isDefault = true
+            ),
+            org.aptura.player.domain.model.DomainExternalSubtitle(
+                uri = "content://media/2",
+                label = "Spanish (movie.es.srt)",
+                language = "es"
+            )
+        )
+        viewModel.addExternalSubtitles(sidecars)
+        runCurrent()
+
+        assertEquals(2, controller.lastExternalSubtitles?.size)
+        assertEquals("content://media/1", controller.lastExternalSubtitles?.first()?.uri)
+        assertEquals("English (movie.en.srt)", controller.lastExternalSubtitles?.first()?.label)
 
         viewModel.clearForTesting()
     }

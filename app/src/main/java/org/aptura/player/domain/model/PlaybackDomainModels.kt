@@ -68,6 +68,14 @@ data class DomainTrackInfo(
     val isExternal: Boolean = false
 )
 
+data class DomainExternalSubtitle(
+    val uri: String,
+    val mimeType: String = "application/x-subrip",
+    val label: String,
+    val language: String? = null,
+    val isDefault: Boolean = false
+)
+
 data class DomainTrackSelection(
     val availableAudioTracks: List<DomainTrackInfo> = emptyList(),
     val availableSubtitleTracks: List<DomainTrackInfo> = emptyList(),

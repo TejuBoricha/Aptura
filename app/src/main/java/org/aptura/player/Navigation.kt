@@ -84,7 +84,7 @@ fun MainNavigation(
         }
     }
     val playerViewModel: PlayerViewModel = viewModel {
-        PlayerViewModel(playbackController, mediaRepository, audioEnhancementController)
+        PlayerViewModel(playbackController, mediaRepository, audioEnhancementController, settingsRepository)
     }
 
     val hasStorageAccess = remember { PermissionHelper.hasStoragePermission(context) }
@@ -409,13 +409,16 @@ fun MainNavigation(
                             videoDisplayName = playerViewModel.uiState.value.videoTitle
                         )
                         if (sidecars.isNotEmpty()) {
-                            sidecars.forEach { sidecar ->
-                                playerViewModel.addExternalSubtitle(
+                            val domainSidecars = sidecars.map { sidecar ->
+                                org.aptura.player.domain.model.DomainExternalSubtitle(
                                     uri = sidecar.uri.toString(),
                                     mimeType = sidecar.mimeType,
-                                    label = "${sidecar.languageLabel} (${sidecar.displayName})"
+                                    label = "${sidecar.languageLabel} (${sidecar.displayName})",
+                                    language = sidecar.languageCode,
+                                    isDefault = sidecar.isDefault
                                 )
                             }
+                            playerViewModel.addExternalSubtitles(domainSidecars)
                             val defaultSidecar = sidecars.firstOrNull { it.isDefault } ?: sidecars.first()
                             playerViewModel.setAutoPairedSubtitleToast("Auto-paired: ${defaultSidecar.languageLabel}")
                         }

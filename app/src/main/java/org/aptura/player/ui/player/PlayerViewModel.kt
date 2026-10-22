@@ -25,6 +25,8 @@ import org.aptura.player.domain.model.EqualizerPreset
 import org.aptura.player.domain.model.PictureAdjustmentState
 import org.aptura.player.core.media.SubtitleQuerySanitizer
 import org.aptura.player.ui.library.MediaFormatters
+import org.aptura.player.data.settings.ApturaSettingsRepository
+import org.aptura.player.domain.model.DomainExternalSubtitle
 import java.io.File
 
 /**
@@ -35,6 +37,7 @@ class PlayerViewModel(
     private val playbackController: PlaybackController,
     private val mediaRepository: MediaRepository,
     private val audioEnhancementController: AudioEnhancementController = AudioEnhancementController(),
+    private val settingsRepository: ApturaSettingsRepository? = null,
     private val dispatcher: CoroutineDispatcher = Dispatchers.Main
 ) : ViewModel() {
 
@@ -46,7 +49,20 @@ class PlayerViewModel(
         playbackController = playbackController,
         mediaRepository = mediaRepository,
         audioEnhancementController = AudioEnhancementController(),
+        settingsRepository = null,
         dispatcher = dispatcher
+    )
+
+    constructor(
+        playbackController: PlaybackController,
+        mediaRepository: MediaRepository,
+        audioEnhancementController: AudioEnhancementController
+    ) : this(
+        playbackController = playbackController,
+        mediaRepository = mediaRepository,
+        audioEnhancementController = audioEnhancementController,
+        settingsRepository = null,
+        dispatcher = Dispatchers.Main
     )
 
     /** Q-02: uncaught coroutine failures become local diagnostics events instead of process crashes. */
@@ -641,6 +657,12 @@ class PlayerViewModel(
         }
     }
 
+    fun addExternalSubtitles(subtitles: List<DomainExternalSubtitle>) {
+        viewModelScope.launch(dispatcher + errorHandler) {
+            playbackController.addExternalSubtitles(subtitles)
+        }
+    }
+
     fun removeExternalSubtitles() {
         viewModelScope.launch(dispatcher + errorHandler) {
             playbackController.removeExternalSubtitles()
@@ -649,14 +671,23 @@ class PlayerViewModel(
 
     fun setSubtitleFontSize(sizeSp: Int) {
         _uiState.update { it.copy(subtitleFontSizeSp = sizeSp) }
+        viewModelScope.launch(dispatcher + errorHandler) {
+            settingsRepository?.updateSubtitleFontSize(sizeSp)
+        }
     }
 
     fun setSubtitleTextColor(colorHex: String) {
         _uiState.update { it.copy(subtitleTextColorHex = colorHex) }
+        viewModelScope.launch(dispatcher + errorHandler) {
+            settingsRepository?.updateSubtitleTextColor(colorHex)
+        }
     }
 
     fun setSubtitleBackgroundEnabled(enabled: Boolean) {
         _uiState.update { it.copy(subtitleBackgroundEnabled = enabled) }
+        viewModelScope.launch(dispatcher + errorHandler) {
+            settingsRepository?.updateSubtitleBackground(enabled)
+        }
     }
 
     fun setCleanSearchQuery(query: String) {

@@ -43,7 +43,8 @@ class Media3PlaybackController(
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
     private val mainDispatcher: CoroutineDispatcher = Dispatchers.Main,
     private val enablePositionTicker: Boolean = true,
-    initialDecoderStrategy: Int = 0
+    initialDecoderStrategy: Int = 0,
+    var apturaTextRenderer: ApturaTextRenderer? = null
 ) : PlaybackController {
 
     var currentDecoderStrategy: Int = initialDecoderStrategy
@@ -240,7 +241,9 @@ class Media3PlaybackController(
     }
 
     private fun playMediaItemInternal(item: DomainMediaItem, startPositionMs: Long = 0L) {
-        externalSubtitleLabel = null
+        externalSubtitleLabels.clear()
+        apturaTextRenderer?.subtitleDelayMs = 0L
+        _trackSelection.value = _trackSelection.value.copy(subtitleDelayMs = 0L)
         hasAttemptedSoftwareFallback = false
         _decoderStrategy.value = currentDecoderStrategy
         _isCompatibilityMode.value = (currentDecoderStrategy == 2)
@@ -409,6 +412,7 @@ class Media3PlaybackController(
     }
 
     override suspend fun setSubtitleDelay(delayMs: Long) {
+        apturaTextRenderer?.subtitleDelayMs = delayMs
         _trackSelection.value = _trackSelection.value.copy(subtitleDelayMs = delayMs)
     }
 
@@ -416,20 +420,41 @@ class Media3PlaybackController(
         _trackSelection.value = _trackSelection.value.copy(audioDelayMs = delayMs)
     }
 
-    private var externalSubtitleLabel: String? = null
+    private val externalSubtitleLabels = mutableSetOf<String>()
 
     override suspend fun addExternalSubtitle(uri: String, mimeType: String, label: String) {
-        externalSubtitleLabel = label
+        addExternalSubtitles(
+            listOf(
+                org.aptura.player.domain.model.DomainExternalSubtitle(
+                    uri = uri,
+                    mimeType = mimeType,
+                    label = label,
+                    isDefault = true
+                )
+            )
+        )
+    }
+
+    override suspend fun addExternalSubtitles(subtitles: List<org.aptura.player.domain.model.DomainExternalSubtitle>) {
+        if (subtitles.isEmpty()) return
         val currentItem = player.currentMediaItem ?: return
-        val subtitleConfig = MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(uri))
-            .setMimeType(mimeType)
-            .setLanguage("und")
-            .setLabel(label)
-            .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
-            .build()
+        val existingConfigs = currentItem.localConfiguration?.subtitleConfigurations ?: emptyList()
+        val newUris = subtitles.map { android.net.Uri.parse(it.uri) }.toSet()
+
+        val retainedConfigs = existingConfigs.filter { it.uri !in newUris }
+
+        val newConfigs = subtitles.map { sub ->
+            externalSubtitleLabels.add(sub.label)
+            MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(sub.uri))
+                .setMimeType(sub.mimeType)
+                .setLanguage(sub.language ?: "und")
+                .setLabel(sub.label)
+                .setSelectionFlags(if (sub.isDefault) C.SELECTION_FLAG_DEFAULT else 0)
+                .build()
+        }
 
         val updatedItem = currentItem.buildUpon()
-            .setSubtitleConfigurations(listOf(subtitleConfig))
+            .setSubtitleConfigurations(retainedConfigs + newConfigs)
             .build()
 
         val currentPosition = player.currentPosition
@@ -442,7 +467,7 @@ class Media3PlaybackController(
     }
 
     override suspend fun removeExternalSubtitles() {
-        externalSubtitleLabel = null
+        externalSubtitleLabels.clear()
         val currentItem = player.currentMediaItem ?: return
         val updatedItem = currentItem.buildUpon()
             .setSubtitleConfigurations(emptyList())
@@ -495,7 +520,7 @@ class Media3PlaybackController(
                         if (isSelected) {
                             selectedSubtitleIndex = index
                         }
-                        val isExternal = (label == externalSubtitleLabel && externalSubtitleLabel != null)
+                        val isExternal = externalSubtitleLabels.contains(label)
                         subtitleTracks.add(
                             DomainTrackInfo(
                                 id = id,
