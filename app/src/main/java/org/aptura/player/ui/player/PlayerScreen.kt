@@ -319,6 +319,12 @@ fun PlayerScreen(
         audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 100
     }
 
+    androidx.compose.runtime.DisposableEffect(player) {
+        onDispose {
+            player?.clearVideoSurface()
+        }
+    }
+
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
@@ -339,7 +345,9 @@ fun PlayerScreen(
                 }
             },
             update = { playerView ->
-                playerView.player = player
+                if (playerView.player != player) {
+                    playerView.player = player
+                }
                 val contentFrame = playerView.findViewById<AspectRatioFrameLayout>(androidx.media3.ui.R.id.exo_content_frame)
                 when (uiState.resizeMode) {
                     AspectRatioMode.FIT -> {
@@ -385,6 +393,9 @@ fun PlayerScreen(
                     setStyle(CaptionStyleCompat(fgColor, bgColor, android.graphics.Color.TRANSPARENT, edgeType, android.graphics.Color.BLACK, null))
                     setBottomPaddingFraction(0.09f)
                 }
+            },
+            onRelease = { playerView ->
+                playerView.player = null
             }
         )
 

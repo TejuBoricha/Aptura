@@ -330,9 +330,7 @@ class PlayerViewModel(
                 )
             }
             playbackController.playQueue(items, clampedIndex)
-            if (restoredDecoder != 0) {
-                playbackController.setDecoderStrategy(restoredDecoder)
-            }
+            playbackController.setDecoderStrategy(restoredDecoder)
             if (restoredSpeed != 1.0f) {
                 playbackController.setPlaybackSpeed(restoredSpeed)
             }

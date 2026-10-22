@@ -32,10 +32,9 @@ class ApturaMediaCodecSelector(
         if (defaultList.isEmpty()) return emptyList()
 
         return when (getStrategy()) {
-            2 -> { // Software preferred
+            2 -> { // Software preferred (strict software decode to prevent hardware crash re-entry)
                 val software = defaultList.filter { it.softwareOnly || !it.hardwareAccelerated }
-                val hardware = defaultList.filter { !it.softwareOnly && it.hardwareAccelerated }
-                if (software.isNotEmpty()) software + hardware else defaultList
+                if (software.isNotEmpty()) software else defaultList
             }
             1 -> { // Hardware preferred
                 val hardware = defaultList.filter { it.hardwareAccelerated && !it.softwareOnly }

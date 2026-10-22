@@ -144,8 +144,23 @@ class Media3PlaybackController(
                 error.errorCode == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
                 error.errorCode == PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES
 
+            // Check if software fallback is viable before attempting:
+            // Device platform must actually have a software decoder available for this mime type.
+            val mimeType = currentVideoFormat?.sampleMimeType
+            val hasSoftwareDecoder = if (!mimeType.isNullOrBlank()) {
+                try {
+                    androidx.media3.exoplayer.mediacodec.MediaCodecSelector.DEFAULT
+                        .getDecoderInfos(mimeType, false, false)
+                        .any { it.softwareOnly || !it.hardwareAccelerated }
+                } catch (_: Throwable) {
+                    true
+                }
+            } else {
+                true
+            }
+
             // FR-PLAY-003: Controlled fallback bounded at most once per failure class
-            if (isDecoderFailure && !hasAttemptedSoftwareFallback && currentDecoderStrategy != 2) {
+            if (isDecoderFailure && !hasAttemptedSoftwareFallback && currentDecoderStrategy != 2 && hasSoftwareDecoder) {
                 hasAttemptedSoftwareFallback = true
                 currentDecoderStrategy = 2
                 _decoderStrategy.value = 2
@@ -176,7 +191,8 @@ class Media3PlaybackController(
             }
 
             // Fallback unavailable or failed: Log EV_011 (play.error) per spec/14 §4
-            val taxonomy = ErrorTaxonomy.mapException(error)
+            val isSoftwareAlreadyAttempted = hasAttemptedSoftwareFallback || currentDecoderStrategy == 2
+            val taxonomy = ErrorTaxonomy.mapException(error, isSoftwareAlreadyAttempted)
             ApturaDiagnostics.logEvent(
                 code = EventCode.EV_011,
                 payload = mapOf(
@@ -192,10 +208,16 @@ class Media3PlaybackController(
                             PlaybackException.ERROR_CODE_AUDIO_TRACK_INIT_FAILED,
                             PlaybackException.ERROR_CODE_AUDIO_TRACK_WRITE_FAILED
                         ) -> "audio"
+                        error.errorCode == PlaybackException.ERROR_CODE_FAILED_RUNTIME_CHECK -> "render"
                         else -> "render"
                     }
                 )
             )
+
+            // If surface or runtime check failed, clear the surface to prevent repeated renderer crash loops
+            if (error.errorCode == PlaybackException.ERROR_CODE_FAILED_RUNTIME_CHECK) {
+                player.clearVideoSurface()
+            }
 
             updatePlaybackState()
             updatePlaybackStats()

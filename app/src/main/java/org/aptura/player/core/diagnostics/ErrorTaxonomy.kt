@@ -23,7 +23,10 @@ data class TaxonomyError(
 
 object ErrorTaxonomy {
 
-    fun mapException(exception: PlaybackException): TaxonomyError {
+    fun mapException(
+        exception: PlaybackException,
+        isSoftwareAlreadyAttempted: Boolean = false
+    ): TaxonomyError {
         val errorCode = exception.errorCode
         val rawMessage = exception.message.orEmpty()
 
@@ -46,31 +49,77 @@ object ErrorTaxonomy {
                     TaxonomyError(
                         code = "UNSUPPORTED_PROFILE",
                         title = "Decoder Profile Incompatible",
-                        whatHappened = "Your device hardware decoder could not process this video stream (10-bit HEVC profile or format exceeds decoder capabilities).",
-                        whatWasTried = "Hardware decode and automated fallback paths were attempted.",
-                        suggestedActions = listOf(
-                            "Try switching to Software Decoder",
-                            "Open video in an external player app",
-                            "Copy diagnostic report"
-                        ),
-                        canSwitchToSoftware = true,
+                        whatHappened = if (isSoftwareAlreadyAttempted) {
+                            "Neither hardware nor platform software decoders on this device can process this video stream (10-bit HEVC profile or format exceeds device capabilities)."
+                        } else {
+                            "Your device hardware decoder could not process this video stream (10-bit HEVC profile or format exceeds decoder capabilities)."
+                        },
+                        whatWasTried = if (isSoftwareAlreadyAttempted) {
+                            "Hardware decode and platform software fallback were both attempted and failed."
+                        } else {
+                            "Hardware decode and automated fallback paths were attempted."
+                        },
+                        suggestedActions = if (isSoftwareAlreadyAttempted) {
+                            listOf(
+                                "Open video in an external player app",
+                                "Copy diagnostic report"
+                            )
+                        } else {
+                            listOf(
+                                "Try switching to Software Decoder",
+                                "Open video in an external player app",
+                                "Copy diagnostic report"
+                            )
+                        },
+                        canSwitchToSoftware = !isSoftwareAlreadyAttempted,
                         isRecoverable = true
                     )
                 } else {
                     TaxonomyError(
                         code = "DECODER_FAILURE",
                         title = "Video Decoder Failed",
-                        whatHappened = "The device video decoder encountered an unrecoverable rendering or composition error.",
-                        whatWasTried = "Platform codec initialization was attempted.",
-                        suggestedActions = listOf(
-                            "Try switching to Software Decoder",
-                            "Open video in an external player app",
-                            "Retry playback"
-                        ),
-                        canSwitchToSoftware = true,
+                        whatHappened = if (isSoftwareAlreadyAttempted) {
+                            "Both hardware and platform software decoders encountered an unrecoverable rendering or composition error on this device."
+                        } else {
+                            "The device video decoder encountered an unrecoverable rendering or composition error."
+                        },
+                        whatWasTried = if (isSoftwareAlreadyAttempted) {
+                            "Platform hardware and software codec initializations were both attempted."
+                        } else {
+                            "Platform codec initialization was attempted."
+                        },
+                        suggestedActions = if (isSoftwareAlreadyAttempted) {
+                            listOf(
+                                "Open video in an external player app",
+                                "Retry playback",
+                                "Copy diagnostic report"
+                            )
+                        } else {
+                            listOf(
+                                "Try switching to Software Decoder",
+                                "Open video in an external player app",
+                                "Retry playback"
+                            )
+                        },
+                        canSwitchToSoftware = !isSoftwareAlreadyAttempted,
                         isRecoverable = errorCode != PlaybackException.ERROR_CODE_DECODER_INIT_FAILED
                     )
                 }
+            }
+
+            errorCode == PlaybackException.ERROR_CODE_FAILED_RUNTIME_CHECK -> {
+                TaxonomyError(
+                    code = "RENDERER_RUNTIME_ERROR",
+                    title = "Display Surface Lost",
+                    whatHappened = "The video rendering surface was detached or reset by the system during playback.",
+                    whatWasTried = "Surface composition was re-evaluated.",
+                    suggestedActions = listOf(
+                        "Resume playback",
+                        "Open video in an external player app"
+                    ),
+                    canSwitchToSoftware = false,
+                    isRecoverable = true
+                )
             }
 
             errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED ||
@@ -154,7 +203,7 @@ object ErrorTaxonomy {
                         "Open video in an external player app",
                         "Copy diagnostic report"
                     ),
-                    canSwitchToSoftware = true,
+                    canSwitchToSoftware = !isSoftwareAlreadyAttempted,
                     isRecoverable = true
                 )
             }

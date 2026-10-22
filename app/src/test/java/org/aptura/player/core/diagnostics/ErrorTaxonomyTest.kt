@@ -82,4 +82,29 @@ class ErrorTaxonomyTest {
         assertEquals("DRM_PROTECTED", taxonomy.code)
         assertFalse(taxonomy.isRecoverable)
     }
+
+    @Test
+    fun mapException_whenSoftwareAlreadyAttempted_disablesSwitchToSoftware() {
+        val rawMessage = "MediaCodecVideoRenderer error, format=Format(video/hevc, Main10)"
+        val exception = PlaybackException(rawMessage, null, PlaybackException.ERROR_CODE_DECODING_FAILED)
+        val taxonomy = ErrorTaxonomy.mapException(exception, isSoftwareAlreadyAttempted = true)
+
+        assertEquals("UNSUPPORTED_PROFILE", taxonomy.code)
+        assertFalse("Must not allow switching to software if already attempted", taxonomy.canSwitchToSoftware)
+        assertFalse("Suggested actions must not suggest software switch", taxonomy.suggestedActions.contains("Try switching to Software Decoder"))
+        assertTrue("Must advise external player", taxonomy.suggestedActions.contains("Open video in an external player app"))
+        assertTrue(taxonomy.whatHappened.contains("Neither hardware nor platform software decoders"))
+    }
+
+    @Test
+    fun mapException_runtimeCheckFailed_mapsToRendererRuntimeError() {
+        val exception = PlaybackException("Surface released", null, PlaybackException.ERROR_CODE_FAILED_RUNTIME_CHECK)
+        val taxonomy = ErrorTaxonomy.mapException(exception)
+
+        assertEquals("RENDERER_RUNTIME_ERROR", taxonomy.code)
+        assertEquals("Display Surface Lost", taxonomy.title)
+        assertFalse(taxonomy.canSwitchToSoftware)
+        assertTrue(taxonomy.isRecoverable)
+        assertTrue(taxonomy.whatHappened.contains("rendering surface was detached"))
+    }
 }
