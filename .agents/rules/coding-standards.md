@@ -33,3 +33,9 @@ description: Coding standards, Kotlin conventions, StateFlow architecture, and t
 - Use Turbine for testing `StateFlow` streams. Always cancel open turbine blocks before test exit.
 - **Mandatory Quality Gate:** Never declare a feature complete or commit code without executing the atomic verification script (`tools/gate.ps1` or `./gradlew testDebugUnitTest lintDebug`).
 
+## 5. Process, Emulator & ADB Stability (Anti-Hang Directives)
+- **Zero Synchronous GUI Spawning:** NEVER launch persistent GUI or daemon processes (`emulator.exe`, `adb logcat`, etc.) inline in PowerShell or with pipeline redirection (`> log.txt 2>&1`). PowerShell waits indefinitely for EOF on standard I/O handles, freezing the agent runner. Always decouple via detached `ProcessStartInfo` or `Start-Process`.
+- **Always Use `tools/emulator.ps1`:** Manage emulator boot, screenshots, status, and shutdown strictly through `tools/emulator.ps1`.
+- **AVD Lock Hygiene:** Always purge stale lock files (`hardware-qemu.ini.lock`, `multiinstance.lock`) from `~/.android/avd/<name>.avd` before boot to prevent unhandled lock prompts.
+- **Fail-Safe ADB Timeouts:** Never call open-ended `adb wait-for-device` without an explicit timeout wrapper. If ADB hangs or port 5037 drops, terminate zombie `adb.exe` processes and restart the ADB server.
+- **No Headless Glitches:** Never pass `-no-window` on Windows hosts. API 34/35 SwiftShader software composition hangs SurfaceFlinger; use standard windowed execution with `-gpu auto`.

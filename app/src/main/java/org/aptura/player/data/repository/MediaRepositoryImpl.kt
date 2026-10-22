@@ -70,6 +70,13 @@ class MediaRepositoryImpl(
         mediaItemDao.deleteByUri(uri)
     }
 
+    override suspend fun renameVideo(uri: String, newName: String): Unit = withContext(ioDispatcher) {
+        val clean = newName.trim()
+        if (clean.isNotBlank()) {
+            mediaItemDao.updateTitleAndDisplayName(uri, clean, clean)
+        }
+    }
+
     override suspend fun getLibraryStatistics(): org.aptura.player.domain.repository.LibraryStatistics = withContext(ioDispatcher) {
         val count = mediaItemDao.getMediaItemCount()
         val duration = mediaItemDao.getTotalDurationMs() ?: 0L

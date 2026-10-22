@@ -16,6 +16,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -49,6 +51,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.statusBars
@@ -92,10 +96,21 @@ import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
+import org.aptura.player.core.diagnostics.ApturaDiagnostics
+import org.aptura.player.core.media.SubtitleFileValidator
+import org.aptura.player.core.media.SubtitleValidationResult
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -108,6 +123,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -195,13 +211,21 @@ fun PlayerScreen(
     onPlayNextImmediately: () -> Unit = {},
     isPipMode: Boolean = false,
     onEnterPip: () -> Unit = {},
-    onExternalSubtitleSelected: (android.net.Uri) -> Unit = {},
+    onExternalSubtitleSelected: (android.net.Uri, String, String) -> Unit = { _, _, _ -> },
+    onRemoveExternalSubtitle: () -> Unit = {},
     onSubtitleFontSizeChanged: (Int) -> Unit = {},
     onSubtitleTextColorChanged: (String) -> Unit = {},
     onSubtitleBackgroundChanged: (Boolean) -> Unit = {},
     onAddBookmark: () -> Unit = {},
     onDeleteBookmark: (Long) -> Unit = {},
     onDecoderStrategyChanged: (Int) -> Unit = {},
+    onDismissCompatibilityNotice: () -> Unit = {},
+    onSearchWebClick: () -> Unit = {},
+    onLaunchWebSearch: (query: String, provider: Int) -> Unit = { _, _ -> },
+    onDismissWebSearchDialog: () -> Unit = {},
+    onAttachRecentSubtitle: (org.aptura.player.data.repository.DetectedSidecarSubtitle) -> Unit = {},
+    onDismissRecentSubtitle: () -> Unit = {},
+    onDismissAutoPairToast: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -216,7 +240,18 @@ fun PlayerScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            onExternalSubtitleSelected(uri)
+            when (val validation = SubtitleFileValidator.validate(context, uri)) {
+                is SubtitleValidationResult.Valid -> {
+                    val targetUri = validation.validatedUri ?: uri
+                    onExternalSubtitleSelected(targetUri, validation.mimeType, validation.displayName)
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    Toast.makeText(context, "Loaded subtitle: ${validation.displayName}", Toast.LENGTH_SHORT).show()
+                }
+                is SubtitleValidationResult.Invalid -> {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    Toast.makeText(context, validation.reason, Toast.LENGTH_LONG).show()
+                }
+            }
         }
     }
 
@@ -283,11 +318,29 @@ fun PlayerScreen(
             },
             update = { playerView ->
                 playerView.player = player
-                playerView.resizeMode = when (uiState.resizeMode) {
-                    AspectRatioMode.FIT, AspectRatioMode.FIXED_16_9, AspectRatioMode.FIXED_4_3 ->
-                        AspectRatioFrameLayout.RESIZE_MODE_FIT
-                    AspectRatioMode.FILL -> AspectRatioFrameLayout.RESIZE_MODE_FILL
-                    AspectRatioMode.ZOOM -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                val contentFrame = playerView.findViewById<AspectRatioFrameLayout>(androidx.media3.ui.R.id.exo_content_frame)
+                when (uiState.resizeMode) {
+                    AspectRatioMode.FIT -> {
+                        playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        val videoSize = player?.videoSize
+                        if (videoSize != null && videoSize.width > 0 && videoSize.height > 0) {
+                            contentFrame?.setAspectRatio(videoSize.width.toFloat() / videoSize.height.toFloat())
+                        }
+                    }
+                    AspectRatioMode.FIXED_16_9 -> {
+                        playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        contentFrame?.setAspectRatio(16f / 9f)
+                    }
+                    AspectRatioMode.FIXED_4_3 -> {
+                        playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        contentFrame?.setAspectRatio(4f / 3f)
+                    }
+                    AspectRatioMode.FILL -> {
+                        playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+                    }
+                    AspectRatioMode.ZOOM -> {
+                        playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                    }
                 }
 
                 val fgColor = try {
@@ -329,10 +382,12 @@ fun PlayerScreen(
         Row(modifier = Modifier.fillMaxSize()) {
             // Left half
             var leftDragAccumulator by remember { mutableFloatStateOf(0f) }
+            var leftBoxHeightPx by remember { mutableFloatStateOf(1000f) }
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
+                    .onSizeChanged { leftBoxHeightPx = it.height.toFloat().coerceAtLeast(200f) }
                     .pointerInput(uiState.isLocked, uiState.isPlaying) {
                         detectTapGestures(
                             onTap = { onControlsVisibilityToggle() },
@@ -375,8 +430,8 @@ fun PlayerScreen(
                                         val currentBrightness = window.attributes.screenBrightness.let {
                                             if (it < 0f) 0.5f else it
                                         }
-                                        val newBrightness = (currentBrightness + (leftDragAccumulator / 2000f))
-                                            .coerceIn(0.01f, 1.0f)
+                                        val delta = -dragAmount / leftBoxHeightPx
+                                        val newBrightness = (currentBrightness + delta).coerceIn(0.01f, 1.0f)
                                         val lp = window.attributes
                                         lp.screenBrightness = newBrightness
                                         window.attributes = lp
@@ -390,10 +445,12 @@ fun PlayerScreen(
 
             // Right half
             var rightDragAccumulator by remember { mutableFloatStateOf(0f) }
+            var rightBoxHeightPx by remember { mutableFloatStateOf(1000f) }
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
+                    .onSizeChanged { rightBoxHeightPx = it.height.toFloat().coerceAtLeast(200f) }
                     .pointerInput(uiState.isLocked, uiState.isPlaying) {
                         detectTapGestures(
                             onTap = { onControlsVisibilityToggle() },
@@ -432,9 +489,14 @@ fun PlayerScreen(
                                     rightDragAccumulator -= dragAmount
                                     if (audioManager != null && maxVolume > 0) {
                                         val currentVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
-                                        val step = if (rightDragAccumulator > 30f) 1 else if (rightDragAccumulator < -30f) -1 else 0
-                                        if (step != 0) {
-                                            val newVol = (currentVol + step).coerceIn(0, maxVolume)
+                                        val stepThreshold = (rightBoxHeightPx / maxVolume.toFloat()).coerceIn(20f, 60f)
+                                        if (rightDragAccumulator > stepThreshold) {
+                                            val newVol = (currentVol + 1).coerceIn(0, maxVolume)
+                                            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
+                                            rightDragAccumulator = 0f
+                                            onVolumePercentChanged((newVol * 100 / maxVolume))
+                                        } else if (rightDragAccumulator < -stepThreshold) {
+                                            val newVol = (currentVol - 1).coerceIn(0, maxVolume)
                                             audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
                                             rightDragAccumulator = 0f
                                             onVolumePercentChanged((newVol * 100 / maxVolume))
@@ -482,33 +544,105 @@ fun PlayerScreen(
             }
         }
 
-        // Momentary Orientation Feedback Toast
+        // Momentary Orientation Feedback Toast (SCR-010e) - TopCenter chip avoids central transport control collisions
         AnimatedVisibility(
             visible = orientationToastMessage != null && !isPipMode,
-            enter = fadeIn() + scaleIn(),
-            exit = fadeOut() + scaleOut(),
-            modifier = Modifier.align(Alignment.Center)
+            enter = fadeIn() + slideInVertically { -it / 2 },
+            exit = fadeOut() + slideOutVertically { -it / 2 },
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .padding(
+                    top = when {
+                        uiState.isCompatibilityMode && uiState.compatibilityNotice != null -> 116.dp
+                        uiState.isControlsVisible -> 68.dp
+                        else -> 24.dp
+                    }
+                )
         ) {
             Surface(
-                color = ApturaColors.SurfaceElevated2.copy(alpha = 0.9f),
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.padding(16.dp)
+                color = ApturaColors.SurfaceElevated2.copy(alpha = 0.95f),
+                shape = RoundedCornerShape(20.dp),
+                border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3),
+                shadowElevation = 6.dp
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Filled.ScreenRotation,
                         contentDescription = null,
-                        tint = ApturaColors.AccentPrimary
+                        tint = ApturaColors.AccentPrimary,
+                        modifier = Modifier.size(18.dp)
                     )
                     Text(
                         text = orientationToastMessage.orEmpty(),
-                        style = ApturaTypography.titleMedium,
+                        style = ApturaTypography.labelLarge,
                         color = ApturaColors.TextHighEmphasis
                     )
+                }
+            }
+        }
+
+        // Auto-Paired Subtitle Feedback Toast
+        LaunchedEffect(uiState.autoPairedSubtitleToast) {
+            if (uiState.autoPairedSubtitleToast != null) {
+                kotlinx.coroutines.delay(4000L)
+                onDismissAutoPairToast()
+            }
+        }
+
+        AnimatedVisibility(
+            visible = uiState.autoPairedSubtitleToast != null && !isPipMode,
+            enter = fadeIn() + slideInVertically { -it / 2 },
+            exit = fadeOut() + slideOutVertically { -it / 2 },
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .padding(
+                    top = when {
+                        uiState.isCompatibilityMode && uiState.compatibilityNotice != null -> 160.dp
+                        orientationToastMessage != null -> 116.dp
+                        uiState.isControlsVisible -> 68.dp
+                        else -> 24.dp
+                    }
+                )
+        ) {
+            Surface(
+                color = ApturaColors.SurfaceElevated2.copy(alpha = 0.95f),
+                shape = RoundedCornerShape(20.dp),
+                border = BorderStroke(1.dp, ApturaColors.AccentPrimary.copy(alpha = 0.5f)),
+                shadowElevation = 6.dp
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Subtitles,
+                        contentDescription = null,
+                        tint = ApturaColors.AccentPrimary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = uiState.autoPairedSubtitleToast.orEmpty(),
+                        style = ApturaTypography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                        color = ApturaColors.TextHighEmphasis
+                    )
+                    IconButton(
+                        onClick = onDismissAutoPairToast,
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Dismiss auto-pair notification",
+                            tint = ApturaColors.TextLowEmphasis,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
             }
         }
@@ -636,7 +770,9 @@ fun PlayerScreen(
                 shape = RoundedCornerShape(24.dp),
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .padding(24.dp)
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(16.dp)
+                    .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
                     .clickable { onLockToggle() }
             ) {
                 Row(
@@ -711,22 +847,29 @@ fun PlayerScreen(
                         Spacer(modifier = Modifier.width(8.dp))
 
                         // Orientation toggle button (SCR-010e)
+                        val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+                        val isExpandedWindow = configuration.screenWidthDp >= 600
+
                         IconButton(
                             onClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                currentOrientationMode = (currentOrientationMode + 1) % 3
-                                when (currentOrientationMode) {
-                                    1 -> {
-                                        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-                                        orientationToastMessage = "Landscape Locked"
-                                    }
-                                    2 -> {
-                                        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-                                        orientationToastMessage = "Portrait Locked"
-                                    }
-                                    else -> {
-                                        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-                                        orientationToastMessage = "Auto-Rotate"
+                                if (isExpandedWindow) {
+                                    orientationToastMessage = "Orientation managed by system on large screens"
+                                } else {
+                                    currentOrientationMode = (currentOrientationMode + 1) % 3
+                                    when (currentOrientationMode) {
+                                        1 -> {
+                                            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                                            orientationToastMessage = "Landscape Locked"
+                                        }
+                                        2 -> {
+                                            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                                            orientationToastMessage = "Portrait Locked"
+                                        }
+                                        else -> {
+                                            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                                            orientationToastMessage = "Auto-Rotate"
+                                        }
                                     }
                                 }
                                 coroutineScope.launch {
@@ -739,7 +882,7 @@ fun PlayerScreen(
                             Icon(
                                 imageVector = Icons.Filled.ScreenRotation,
                                 contentDescription = "Screen Orientation",
-                                tint = if (currentOrientationMode != 0) ApturaColors.AccentPrimary else ApturaColors.TextMediumEmphasis
+                                tint = if (currentOrientationMode != 0 && !isExpandedWindow) ApturaColors.AccentPrimary else ApturaColors.TextMediumEmphasis
                             )
                         }
 
@@ -761,11 +904,12 @@ fun PlayerScreen(
                             color = ApturaColors.SurfaceScrim.copy(alpha = 0.65f),
                             border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3.copy(alpha = 0.6f)),
                             modifier = Modifier
+                                .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
                                 .clickable { onResizeModeToggle() }
                                 .padding(horizontal = 4.dp)
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
@@ -773,7 +917,7 @@ fun PlayerScreen(
                                     imageVector = Icons.Filled.AspectRatio,
                                     contentDescription = "Aspect Ratio",
                                     tint = ApturaColors.AccentPrimary,
-                                    modifier = Modifier.size(14.dp)
+                                    modifier = Modifier.size(16.dp)
                                 )
                                 Text(
                                     text = uiState.resizeMode.label,
@@ -789,11 +933,12 @@ fun PlayerScreen(
                             color = ApturaColors.SurfaceScrim.copy(alpha = 0.65f),
                             border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3.copy(alpha = 0.6f)),
                             modifier = Modifier
+                                .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
                                 .clickable { onSpeedSheetVisible(true) }
                                 .padding(horizontal = 4.dp)
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
@@ -801,7 +946,7 @@ fun PlayerScreen(
                                     imageVector = Icons.Filled.Speed,
                                     contentDescription = "Speed",
                                     tint = ApturaColors.TextMediumEmphasis,
-                                    modifier = Modifier.size(14.dp)
+                                    modifier = Modifier.size(16.dp)
                                 )
                                 Text(
                                     text = "${uiState.playbackSpeed}x",
@@ -935,6 +1080,8 @@ fun PlayerScreen(
                                 style = ApturaTypography.labelSmall.copy(
                                     fontFeatureSettings = "tnum"
                                 ),
+                                maxLines = 1,
+                                softWrap = false,
                                 color = ApturaColors.TextHighEmphasis
                             )
 
@@ -942,8 +1089,8 @@ fun PlayerScreen(
 
                             // Custom Pixel-Perfect Video Scrubber (Concentric cy = size.height / 2f)
                             var scrubberWidthPx by remember { mutableFloatStateOf(0f) }
-                            val trackHeight = 4.dp
-                            val thumbRadius = if (uiState.isScrubbing) 8.dp else 6.dp
+                            val trackHeight = 6.dp
+                            val thumbRadius = if (uiState.isScrubbing) 12.dp else 10.dp
 
                             Box(
                                 modifier = Modifier
@@ -1071,6 +1218,8 @@ fun PlayerScreen(
                                 style = ApturaTypography.labelSmall.copy(
                                     fontFeatureSettings = "tnum"
                                 ),
+                                maxLines = 1,
+                                softWrap = false,
                                 color = ApturaColors.TextMediumEmphasis
                             )
                         }
@@ -1157,58 +1306,242 @@ fun PlayerScreen(
             }
         }
 
+        // Compatibility Mode Notice Chip (SCR-010h)
+        if (uiState.isCompatibilityMode && uiState.compatibilityNotice != null && !isPipMode) {
+            Surface(
+                color = ApturaColors.SurfaceElevated1.copy(alpha = 0.94f),
+                shape = RoundedCornerShape(20.dp),
+                border = BorderStroke(1.dp, ApturaColors.AccentPrimary.copy(alpha = 0.4f)),
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .padding(top = 64.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Tune,
+                        contentDescription = null,
+                        tint = ApturaColors.AccentPrimary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = uiState.compatibilityNotice.orEmpty(),
+                        style = ApturaTypography.labelSmall,
+                        color = ApturaColors.TextHighEmphasis
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    IconButton(
+                        onClick = onDismissCompatibilityNotice,
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = "Dismiss",
+                            tint = ApturaColors.TextLowEmphasis,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
+        }
+
         // 6. Playback Error State Banner (SCR-010x)
         if (uiState.errorMessage != null) {
             Surface(
                 color = ApturaColors.SurfaceElevated2,
-                shape = RoundedCornerShape(16.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, ApturaColors.StatusError),
+                shape = RoundedCornerShape(20.dp),
+                border = BorderStroke(1.dp, ApturaColors.StatusError.copy(alpha = 0.8f)),
                 modifier = Modifier
                     .align(Alignment.Center)
+                    .widthIn(max = 420.dp)
                     .padding(24.dp)
             ) {
                 Column(
-                    modifier = Modifier.padding(24.dp),
+                    modifier = Modifier.padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .background(ApturaColors.StatusError.copy(alpha = 0.12f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Warning,
+                            contentDescription = null,
+                            tint = ApturaColors.StatusError,
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
                     Text(
                         text = "Playback Error",
                         style = ApturaTypography.titleMedium,
-                        color = ApturaColors.StatusError
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = uiState.errorMessage.orEmpty(),
-                        style = ApturaTypography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
                         color = ApturaColors.TextHighEmphasis
                     )
-                    uiState.errorCode?.let { code ->
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Code: $code",
-                            style = ApturaTypography.labelSmall,
-                            color = ApturaColors.TextLowEmphasis
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        OutlinedButton(
-                            onClick = onBackClick,
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = ApturaColors.TextHighEmphasis
-                            )
+                    uiState.errorTaxonomyCode?.let { code ->
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Surface(
+                            color = ApturaColors.SurfaceElevated1,
+                            shape = RoundedCornerShape(6.dp),
+                            border = BorderStroke(1.dp, ApturaColors.StatusWarning.copy(alpha = 0.4f)),
+                            modifier = Modifier.padding(bottom = 2.dp)
                         ) {
-                            Text("Go Back")
+                            Text(
+                                text = code,
+                                style = ApturaTypography.labelSmall.copy(
+                                    fontFeatureSettings = "tnum",
+                                    fontWeight = FontWeight.SemiBold
+                                ),
+                                color = ApturaColors.StatusWarning,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
                         }
-                        if (uiState.isRecoverableError) {
+                    }
+                    val isSoftwareAlreadyAttempted = uiState.isCompatibilityMode || uiState.decoderStrategy == 2
+                    val failureExplanation = if (isSoftwareAlreadyAttempted && uiState.errorTaxonomyCode == "UNSUPPORTED_PROFILE") {
+                        "Neither hardware nor platform software decoders could play this 10-bit video format on this device. Open with an external player."
+                    } else {
+                        uiState.errorMessage.orEmpty()
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = failureExplanation,
+                        style = ApturaTypography.bodyMedium,
+                        color = ApturaColors.TextMediumEmphasis,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        if (uiState.canSwitchToSoftware && !isSoftwareAlreadyAttempted) {
                             Button(
-                                onClick = onRetryPlayback,
+                                onClick = {
+                                    onDecoderStrategyChanged(2)
+                                    onRetryPlayback()
+                                },
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = ApturaColors.AccentPrimary,
                                     contentColor = ApturaColors.TextOnAccent
-                                )
+                                ),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("Retry")
+                                Icon(Icons.Filled.Tune, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Switch to Software Decoder", fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+
+                        if (isSoftwareAlreadyAttempted && uiState.videoUri.isNotBlank()) {
+                            Button(
+                                onClick = {
+                                    try {
+                                        val intent = Intent(Intent.ACTION_VIEW).apply {
+                                            setDataAndType(Uri.parse(uiState.videoUri), "video/*")
+                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        }
+                                        context.startActivity(Intent.createChooser(intent, "Open Video With"))
+                                    } catch (_: Throwable) {
+                                        Toast.makeText(context, "No external video player found", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = ApturaColors.AccentPrimary,
+                                    contentColor = ApturaColors.TextOnAccent
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Open in External Player", fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+
+                        if (uiState.isRecoverableError) {
+                            OutlinedButton(
+                                onClick = onRetryPlayback,
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = ApturaColors.TextHighEmphasis
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Filled.Replay, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Retry", fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+
+                        if (!isSoftwareAlreadyAttempted && uiState.videoUri.isNotBlank()) {
+                            OutlinedButton(
+                                onClick = {
+                                    try {
+                                        val intent = Intent(Intent.ACTION_VIEW).apply {
+                                            setDataAndType(Uri.parse(uiState.videoUri), "video/*")
+                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        }
+                                        context.startActivity(Intent.createChooser(intent, "Open Video With"))
+                                    } catch (_: Throwable) {
+                                        Toast.makeText(context, "No external video player found", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = ApturaColors.TextHighEmphasis
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Open in External Player")
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    val diagText = ApturaDiagnostics.generateDiagnosticMarkdown(
+                                        context = context,
+                                        settingsSnapshot = mapOf(
+                                            "decoderStrategy" to uiState.decoderStrategy.toString(),
+                                            "isCompatibilityMode" to uiState.isCompatibilityMode.toString(),
+                                            "errorCode" to (uiState.errorCode ?: "none"),
+                                            "videoUri" to uiState.videoUri.take(12)
+                                        )
+                                    )
+                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                    val clip = android.content.ClipData.newPlainText("Aptura Diagnostics", diagText)
+                                    clipboard?.setPrimaryClip(clip)
+                                    Toast.makeText(context, "Diagnostics copied to clipboard", Toast.LENGTH_SHORT).show()
+                                },
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = ApturaColors.TextMediumEmphasis
+                                ),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Filled.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Diagnostics", style = ApturaTypography.labelMedium)
+                            }
+
+                            OutlinedButton(
+                                onClick = onBackClick,
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = ApturaColors.TextMediumEmphasis
+                                ),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Go Back", style = ApturaTypography.labelMedium)
                             }
                         }
                     }
@@ -1658,342 +1991,41 @@ fun PlayerScreen(
 
         // 9. Subtitle Track & Sync Sheet (SCR-010c)
         if (uiState.isSubtitleSheetVisible) {
-            ModalBottomSheet(
+            SubtitleSheet(
+                uiState = uiState,
                 onDismissRequest = { onSubtitleSheetVisible(false) },
-                sheetState = rememberModalBottomSheetState(),
-                containerColor = ApturaColors.SurfaceElevated2
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
-                        .padding(bottom = 36.dp)
-                        .padding(horizontal = 24.dp)
-                ) {
-                    Text(
-                        text = "Subtitles & Synchronization",
-                        style = ApturaTypography.titleMedium,
-                        color = ApturaColors.TextHighEmphasis,
-                        modifier = Modifier.padding(vertical = 12.dp)
+                onSubtitleTrackSelected = onSubtitleTrackSelected,
+                onSubtitleDelayChanged = onSubtitleDelayChanged,
+                onImportSubtitleClick = {
+                    subtitlePickerLauncher.launch(
+                        arrayOf(
+                            "application/x-subrip",
+                            "text/vtt",
+                            "text/x-ssa",
+                            "text/plain",
+                            "application/zip"
+                        )
                     )
-
-                    // SECTION 1: SUBTITLE TRACKS
-                    Text(
-                        text = "SUBTITLE TRACKS",
-                        style = ApturaTypography.labelSmall,
-                        color = ApturaColors.AccentPrimary,
-                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
-                    )
-
-                    // Off Option
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSubtitleTrackSelected(null) }
-                            .padding(vertical = 12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Off",
-                            style = ApturaTypography.bodyMedium,
-                            color = if (uiState.selectedSubtitleTrackIndex == null)
-                                ApturaColors.AccentPrimary
-                            else
-                                ApturaColors.TextHighEmphasis
-                        )
-                        if (uiState.selectedSubtitleTrackIndex == null) {
-                            Icon(
-                                imageVector = Icons.Filled.Check,
-                                contentDescription = "Selected",
-                                tint = ApturaColors.AccentPrimary
-                            )
-                        }
-                    }
-
-                    // Available Tracks
-                    uiState.subtitleTracks.forEach { track ->
-                        val isSelected = uiState.selectedSubtitleTrackIndex == track.index
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onSubtitleTrackSelected(track.index) }
-                                .padding(vertical = 12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = track.label,
-                                style = ApturaTypography.bodyMedium,
-                                color = if (isSelected) ApturaColors.AccentPrimary else ApturaColors.TextHighEmphasis
-                            )
-                            if (isSelected) {
-                                Icon(
-                                    imageVector = Icons.Filled.Check,
-                                    contentDescription = "Selected",
-                                    tint = ApturaColors.AccentPrimary
-                                )
-                            }
-                        }
-                    }
-
-                    // Load External Subtitle (SAF)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                subtitlePickerLauncher.launch(
-                                    arrayOf(
-                                        "text/*",
-                                        "application/x-subrip",
-                                        "text/vtt",
-                                        "text/plain",
-                                        "*/*"
-                                    )
-                                )
-                            }
-                            .padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.FolderOpen,
-                            contentDescription = "Load External Subtitle",
-                            tint = ApturaColors.AccentPrimary
-                        )
-                        Column {
-                            Text(
-                                text = "Load External Subtitle…",
-                                style = ApturaTypography.bodyMedium,
-                                color = ApturaColors.AccentPrimary
-                            )
-                            Text(
-                                text = "Select external .srt, .vtt, or .ass file",
-                                style = ApturaTypography.labelSmall,
-                                color = ApturaColors.TextLowEmphasis
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    // SECTION 2: SUBTITLE DELAY (SYNC)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "SUBTITLE DELAY (SYNC)",
-                            style = ApturaTypography.labelSmall,
-                            color = ApturaColors.AccentPrimary
-                        )
-                        if (uiState.subtitleDelayMs != 0L) {
-                            Text(
-                                text = "Reset (0ms)",
-                                style = ApturaTypography.labelSmall,
-                                color = ApturaColors.AccentPrimary,
-                                modifier = Modifier
-                                    .clickable { onSubtitleDelayChanged(0L) }
-                                    .padding(start = 8.dp)
-                            )
-                        }
-                    }
-
-                    // Tactile Stepper Row
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = ApturaColors.SurfaceElevated3,
-                            border = BorderStroke(1.dp, ApturaColors.BorderSubtle),
-                            modifier = Modifier.clickable {
-                                onSubtitleDelayChanged(uiState.subtitleDelayMs - uiState.delayStepMs)
-                            }
-                        ) {
-                            Text(
-                                text = "-${uiState.delayStepMs}ms",
-                                style = ApturaTypography.labelSmall,
-                                color = ApturaColors.TextHighEmphasis,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
-                            )
-                        }
-
-                        Text(
-                            text = "${if (uiState.subtitleDelayMs > 0) "+" else ""}${uiState.subtitleDelayMs} ms",
-                            style = ApturaTypography.titleMedium.copy(fontFeatureSettings = "tnum"),
-                            color = if (uiState.subtitleDelayMs != 0L) ApturaColors.AccentPrimary else ApturaColors.TextHighEmphasis
-                        )
-
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = ApturaColors.SurfaceElevated3,
-                            border = BorderStroke(1.dp, ApturaColors.BorderSubtle),
-                            modifier = Modifier.clickable {
-                                onSubtitleDelayChanged(uiState.subtitleDelayMs + uiState.delayStepMs)
-                            }
-                        ) {
-                            Text(
-                                text = "+${uiState.delayStepMs}ms",
-                                style = ApturaTypography.labelSmall,
-                                color = ApturaColors.TextHighEmphasis,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
-                            )
-                        }
-                    }
-
-                    // Step Size Selector
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Step Size",
-                            style = ApturaTypography.labelSmall,
-                            color = ApturaColors.TextMediumEmphasis
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            listOf(10L, 50L, 100L, 250L).forEach { step ->
-                                val selected = uiState.delayStepMs == step
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = if (selected) ApturaColors.AccentPrimary else ApturaColors.SurfaceElevated3,
-                                    border = if (selected) null else BorderStroke(1.dp, ApturaColors.BorderSubtle),
-                                    modifier = Modifier.clickable { onDelayStepChanged(step) }
-                                ) {
-                                    Text(
-                                        text = "${step}ms",
-                                        style = ApturaTypography.labelSmall,
-                                        color = if (selected) ApturaColors.SurfacePureBlack else ApturaColors.TextHighEmphasis,
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    // SECTION 3: SUBTITLE APPEARANCE & TYPOGRAPHY
-                    Text(
-                        text = "SUBTITLE APPEARANCE",
-                        style = ApturaTypography.labelSmall,
-                        color = ApturaColors.AccentPrimary,
-                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
-                    )
-
-                    // Font Size Options
-                    Text(
-                        text = "Text Size",
-                        style = ApturaTypography.labelSmall,
-                        color = ApturaColors.TextMediumEmphasis,
-                        modifier = Modifier.padding(top = 6.dp, bottom = 6.dp)
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        listOf(14, 18, 22, 26).forEach { size ->
-                            val selected = uiState.subtitleFontSizeSp == size
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (selected) ApturaColors.AccentPrimary else ApturaColors.SurfaceElevated3,
-                                border = if (selected) null else BorderStroke(1.dp, ApturaColors.BorderSubtle),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable { onSubtitleFontSizeChanged(size) }
-                            ) {
-                                Text(
-                                    text = "${size}sp",
-                                    style = ApturaTypography.labelSmall,
-                                    color = if (selected) ApturaColors.SurfacePureBlack else ApturaColors.TextHighEmphasis,
-                                    textAlign = TextAlign.Center,
-                                    modifier = Modifier.padding(vertical = 8.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    // Text Color Options
-                    Text(
-                        text = "Color",
-                        style = ApturaTypography.labelSmall,
-                        color = ApturaColors.TextMediumEmphasis,
-                        modifier = Modifier.padding(top = 12.dp, bottom = 6.dp)
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        val colorChoices = listOf(
-                            "White" to "#FFFFFF",
-                            "Yellow" to "#FFEB3B",
-                            "Cyan" to "#00E5FF",
-                            "Green" to "#00E676"
-                        )
-                        colorChoices.forEach { (label, hex) ->
-                            val selected = uiState.subtitleTextColorHex.equals(hex, ignoreCase = true)
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (selected) ApturaColors.AccentPrimary else ApturaColors.SurfaceElevated3,
-                                border = if (selected) null else BorderStroke(1.dp, ApturaColors.BorderSubtle),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable { onSubtitleTextColorChanged(hex) }
-                            ) {
-                                Text(
-                                    text = label,
-                                    style = ApturaTypography.labelSmall,
-                                    color = if (selected) ApturaColors.SurfacePureBlack else ApturaColors.TextHighEmphasis,
-                                    textAlign = TextAlign.Center,
-                                    modifier = Modifier.padding(vertical = 8.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    // Background Box vs Outline
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                text = "Background Box",
-                                style = ApturaTypography.bodyMedium,
-                                color = ApturaColors.TextHighEmphasis
-                            )
-                            Text(
-                                text = if (uiState.subtitleBackgroundEnabled) "Semi-transparent black box" else "Contrasting outline shadow",
-                                style = ApturaTypography.labelSmall,
-                                color = ApturaColors.TextLowEmphasis
-                            )
-                        }
-                        androidx.compose.material3.Switch(
-                            checked = uiState.subtitleBackgroundEnabled,
-                            onCheckedChange = { onSubtitleBackgroundChanged(it) },
-                            colors = androidx.compose.material3.SwitchDefaults.colors(
-                                checkedThumbColor = ApturaColors.SurfacePureBlack,
-                                checkedTrackColor = ApturaColors.AccentPrimary,
-                                uncheckedThumbColor = ApturaColors.TextLowEmphasis,
-                                uncheckedTrackColor = ApturaColors.SurfaceElevated3
-                            )
-                        )
-                    }
-                }
-            }
+                },
+                onRemoveExternalSubtitle = onRemoveExternalSubtitle,
+                onSubtitleFontSizeChanged = onSubtitleFontSizeChanged,
+                onSubtitleTextColorChanged = onSubtitleTextColorChanged,
+                onSubtitleBackgroundChanged = onSubtitleBackgroundChanged,
+                onSearchWebClick = onSearchWebClick,
+                onAttachRecentSubtitle = onAttachRecentSubtitle,
+                onDismissRecentSubtitle = onDismissRecentSubtitle
+            )
         }
+
+        // 9b. Subtitle Web Search Assistant Dialog
+        if (uiState.isWebSearchDialogVisible) {
+            WebSearchDialog(
+                initialQuery = uiState.cleanSearchQuery.ifBlank { uiState.videoTitle },
+                onDismissRequest = onDismissWebSearchDialog,
+                onLaunchSearch = onLaunchWebSearch
+            )
+        }
+
 
         // 10. Playback & Display Settings Sheet (SCR-010e)
         if (uiState.isAdvancedSheetVisible) {
@@ -2008,7 +2040,8 @@ fun PlayerScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .verticalScroll(rememberScrollState())
-                        .padding(bottom = 36.dp)
+                        .windowInsetsPadding(WindowInsets.navigationBars)
+                        .padding(bottom = 24.dp)
                         .padding(horizontal = 24.dp)
                 ) {
                     Text(
@@ -2086,33 +2119,63 @@ fun PlayerScreen(
                     if (selectedTab == 0) {
                         // TAB 0: PLAYBACK TOOLS
 
-                        // 1. Playback Speed Selector
+                        // 1. Playback Speed Selector (2 balanced rows, zero truncation)
                         Text(
                             text = "PLAYBACK SPEED",
                             style = ApturaTypography.labelSmall,
                             color = ApturaColors.AccentPrimary,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f).forEach { speed ->
-                                val isSelected = uiState.playbackSpeed == speed
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = if (isSelected) ApturaColors.AccentPrimary else ApturaColors.SurfaceElevated3,
-                                    border = if (isSelected) null else BorderStroke(1.dp, ApturaColors.BorderSubtle),
-                                    modifier = Modifier.clickable { onSpeedSelected(speed) }
-                                ) {
-                                    Text(
-                                        text = if (speed == 1.0f) "1.0x (Normal)" else "${speed}x",
-                                        style = ApturaTypography.labelSmall,
-                                        color = if (isSelected) ApturaColors.SurfacePureBlack else ApturaColors.TextHighEmphasis,
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                                    )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                listOf(0.5f, 0.75f, 1.0f).forEach { speed ->
+                                    val isSelected = uiState.playbackSpeed == speed
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (isSelected) ApturaColors.AccentPrimary else ApturaColors.SurfaceElevated3,
+                                        border = if (isSelected) null else BorderStroke(1.dp, ApturaColors.BorderSubtle),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clickable { onSpeedSelected(speed) }
+                                    ) {
+                                        Text(
+                                            text = if (speed == 1.0f) "1.0x (Normal)" else "${speed}x",
+                                            style = ApturaTypography.labelSmall,
+                                            color = if (isSelected) ApturaColors.SurfacePureBlack else ApturaColors.TextHighEmphasis,
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.padding(vertical = 10.dp)
+                                        )
+                                    }
+                                }
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                listOf(1.25f, 1.5f, 2.0f).forEach { speed ->
+                                    val isSelected = uiState.playbackSpeed == speed
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (isSelected) ApturaColors.AccentPrimary else ApturaColors.SurfaceElevated3,
+                                        border = if (isSelected) null else BorderStroke(1.dp, ApturaColors.BorderSubtle),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clickable { onSpeedSelected(speed) }
+                                    ) {
+                                        Text(
+                                            text = "${speed}x",
+                                            style = ApturaTypography.labelSmall,
+                                            color = if (isSelected) ApturaColors.SurfacePureBlack else ApturaColors.TextHighEmphasis,
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.padding(vertical = 10.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -2156,6 +2219,23 @@ fun PlayerScreen(
                                 .padding(top = 8.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
+                            val isOff = uiState.sleepTimerRemainingMs == null
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isOff) ApturaColors.AccentPrimary else ApturaColors.SurfaceElevated3,
+                                border = if (isOff) null else BorderStroke(1.dp, ApturaColors.BorderSubtle),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { onCancelSleepTimer() }
+                            ) {
+                                Text(
+                                    text = "Off",
+                                    style = ApturaTypography.labelSmall,
+                                    color = if (isOff) ApturaColors.SurfacePureBlack else ApturaColors.TextHighEmphasis,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(vertical = 10.dp)
+                                )
+                            }
                             listOf(15, 30, 45, 60).forEach { minutes ->
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
@@ -2246,42 +2326,52 @@ fun PlayerScreen(
 
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        // 4. Frame-by-Frame Stepper
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                        // 4. Frame-by-Frame Stepper (Unwrapped buttons with full tactile width)
+                        Column(modifier = Modifier.fillMaxWidth()) {
                             Text(
                                 text = "FRAME-BY-FRAME STEPPER (~42ms)",
                                 style = ApturaTypography.labelSmall,
-                                color = ApturaColors.AccentPrimary
+                                color = ApturaColors.AccentPrimary,
+                                modifier = Modifier.padding(bottom = 8.dp)
                             )
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
                                     color = ApturaColors.SurfaceElevated3,
                                     border = BorderStroke(1.dp, ApturaColors.BorderSubtle),
-                                    modifier = Modifier.clickable { onStepFrame(false) }
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { onStepFrame(false) }
                                 ) {
                                     Text(
                                         text = "◀ -1 Frame",
                                         style = ApturaTypography.labelSmall,
                                         color = ApturaColors.TextHighEmphasis,
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                        textAlign = TextAlign.Center,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        modifier = Modifier.padding(vertical = 10.dp)
                                     )
                                 }
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
                                     color = ApturaColors.SurfaceElevated3,
                                     border = BorderStroke(1.dp, ApturaColors.BorderSubtle),
-                                    modifier = Modifier.clickable { onStepFrame(true) }
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { onStepFrame(true) }
                                 ) {
                                     Text(
                                         text = "+1 Frame ▶",
                                         style = ApturaTypography.labelSmall,
                                         color = ApturaColors.TextHighEmphasis,
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                        textAlign = TextAlign.Center,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        modifier = Modifier.padding(vertical = 10.dp)
                                     )
                                 }
                             }
@@ -2718,8 +2808,9 @@ private fun UpNextCountdownOverlay(
             Spacer(modifier = Modifier.height(20.dp))
 
             // Countdown circular ring
+            val fontScale = androidx.compose.ui.platform.LocalConfiguration.current.fontScale
             Box(
-                modifier = Modifier.size(72.dp),
+                modifier = Modifier.size(if (fontScale >= 1.3f) 88.dp else 72.dp),
                 contentAlignment = Alignment.Center
             ) {
                 CircularProgressIndicator(

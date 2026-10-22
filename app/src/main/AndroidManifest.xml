@@ -13,6 +13,19 @@
     <!-- Invariant: ZERO android.permission.INTERNET (DEC-012) -->
     <!-- Invariant: NEVER MANAGE_EXTERNAL_STORAGE (DEC-011) -->
 
+    <!-- Package Visibility for External Player Handoff and Browser Subtitle Search (API 30+) -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="video/*" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
+
     <application
         android:name=".ApturaApplication"
         android:allowBackup="false"
@@ -26,6 +39,8 @@
             android:name=".MainActivity"
             android:exported="true"
             android:supportsPictureInPicture="true"
+            android:resizeableActivity="true"
+            android:windowLayoutInDisplayCutoutMode="shortEdges"
             android:windowSoftInputMode="adjustResize"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout">
             <intent-filter>

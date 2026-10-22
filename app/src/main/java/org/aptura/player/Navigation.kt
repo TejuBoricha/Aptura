@@ -181,7 +181,9 @@ fun MainNavigation(
                     onRequestPermission = {
                         permissionLauncher.launch(PermissionHelper.getRequiredPermissions())
                     },
-                    onRemoveVideo = libraryViewModel::removeVideoFromLibrary
+                    onRemoveVideo = libraryViewModel::removeVideoFromLibrary,
+                    onResetProgress = libraryViewModel::resetVideoProgress,
+                    onRenameVideo = libraryViewModel::renameVideo
                 )
             }
 
@@ -245,14 +247,60 @@ fun MainNavigation(
                     playerViewModel.setSubtitleFontSize(settings.subtitleFontSizeSp)
                     playerViewModel.setSubtitleTextColor(settings.subtitleTextColorHex)
                     playerViewModel.setSubtitleBackgroundEnabled(settings.subtitleBackgroundEnabled)
+
+                    // Auto-discover and pair sidecar subtitles (.srt, .vtt, etc. in video directory or /subs/)
+                    try {
+                        val videoUri = android.net.Uri.parse(playerKey.videoUri)
+                        val sidecars = org.aptura.player.data.repository.SidecarSubtitleDetector.detectSidecars(
+                            context = context,
+                            videoUri = videoUri,
+                            videoDisplayName = playerViewModel.uiState.value.videoTitle
+                        )
+                        if (sidecars.isNotEmpty()) {
+                            sidecars.forEach { sidecar ->
+                                playerViewModel.addExternalSubtitle(
+                                    uri = sidecar.uri.toString(),
+                                    mimeType = sidecar.mimeType,
+                                    label = "${sidecar.languageLabel} (${sidecar.displayName})"
+                                )
+                            }
+                            val defaultSidecar = sidecars.firstOrNull { it.isDefault } ?: sidecars.first()
+                            playerViewModel.setAutoPairedSubtitleToast("Auto-paired: ${defaultSidecar.languageLabel}")
+                        }
+                    } catch (_: Throwable) {}
                 }
+
                 val uiState by playerViewModel.uiState.collectAsStateWithLifecycle()
+
+                // Check for recently downloaded subtitles when returning to the app from external search
+                val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+                androidx.compose.runtime.DisposableEffect(lifecycleOwner, uiState.cleanSearchQuery) {
+                    val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                        if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME && uiState.cleanSearchQuery.isNotBlank()) {
+                            try {
+                                val recent = org.aptura.player.data.repository.SidecarSubtitleDetector.findRecentDownloads(
+                                    context = context,
+                                    searchQuery = uiState.cleanSearchQuery
+                                )
+                                if (recent.isNotEmpty()) {
+                                    playerViewModel.setRecentDownloadedSubtitle(recent.first())
+                                }
+                            } catch (_: Throwable) {}
+                        }
+                    }
+                    lifecycleOwner.lifecycle.addObserver(observer)
+                    onDispose {
+                        lifecycleOwner.lifecycle.removeObserver(observer)
+                    }
+                }
+
                 PlayerScreen(
                     uiState = uiState,
                     player = playbackController.player,
                     isPipMode = isPipMode,
                     onEnterPip = onEnterPip,
                     onBackClick = {
+                        playerViewModel.onPlayerDismissed()
                         backStack.removeLastOrNull()
                     },
                     onPlayPauseClick = playerViewModel::togglePlayPause,
@@ -298,9 +346,10 @@ fun MainNavigation(
                     onStepFrame = playerViewModel::stepFrame,
                     onCancelAutoAdvance = playerViewModel::cancelAutoAdvance,
                     onPlayNextImmediately = playerViewModel::playNextImmediately,
-                    onExternalSubtitleSelected = { uri ->
-                        playerViewModel.addExternalSubtitle(uri.toString())
+                    onExternalSubtitleSelected = { uri, mimeType, label ->
+                        playerViewModel.addExternalSubtitle(uri.toString(), mimeType, label)
                     },
+                    onRemoveExternalSubtitle = playerViewModel::removeExternalSubtitles,
                     onSubtitleFontSizeChanged = { sizeSp ->
                         playerViewModel.setSubtitleFontSize(sizeSp)
                         coroutineScope.launch { settingsRepository.updateSubtitleFontSize(sizeSp) }
@@ -318,7 +367,36 @@ fun MainNavigation(
                     onDecoderStrategyChanged = { strategy ->
                         playerViewModel.setDecoderStrategy(strategy)
                         coroutineScope.launch { settingsRepository.updateDefaultDecoderStrategy(strategy) }
-                    }
+                    },
+                    onDismissCompatibilityNotice = playerViewModel::dismissCompatibilityNotice,
+                    onSearchWebClick = { playerViewModel.showWebSearchDialog(true) },
+                    onDismissWebSearchDialog = { playerViewModel.showWebSearchDialog(false) },
+                    onLaunchWebSearch = { query, provider ->
+                        playerViewModel.checkpointPlayback()
+                        playerViewModel.showWebSearchDialog(false)
+                        val targetUrl = when (provider) {
+                            0 -> org.aptura.player.core.media.SubtitleQuerySanitizer.buildSubdlUrl(query)
+                            1 -> org.aptura.player.core.media.SubtitleQuerySanitizer.buildOpenSubtitlesUrl(query)
+                            else -> org.aptura.player.core.media.SubtitleQuerySanitizer.buildGoogleSearchUrl(query)
+                        }
+                        try {
+                            val browserIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(targetUrl)).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            context.startActivity(browserIntent)
+                        } catch (_: Throwable) {
+                            android.widget.Toast.makeText(context, "No web browser found to open link", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    onAttachRecentSubtitle = { sidecar ->
+                        playerViewModel.addExternalSubtitle(sidecar.uri.toString(), sidecar.mimeType, sidecar.displayName)
+                        playerViewModel.setRecentDownloadedSubtitle(null)
+                        android.widget.Toast.makeText(context, "Attached: ${sidecar.displayName}", android.widget.Toast.LENGTH_SHORT).show()
+                    },
+                    onDismissRecentSubtitle = {
+                        playerViewModel.setRecentDownloadedSubtitle(null)
+                    },
+                    onDismissAutoPairToast = playerViewModel::dismissAutoPairToast
                 )
             }
         }

@@ -17,6 +17,10 @@ interface PlaybackController {
     val playbackQueue: StateFlow<DomainPlaybackQueue>
     val trackSelection: StateFlow<DomainTrackSelection>
 
+    val isCompatibilityMode: StateFlow<Boolean> get() = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val compatibilityNotice: StateFlow<String?> get() = kotlinx.coroutines.flow.MutableStateFlow(null)
+    val decoderStrategy: StateFlow<Int> get() = kotlinx.coroutines.flow.MutableStateFlow(0)
+
     suspend fun playMediaItem(item: DomainMediaItem)
     suspend fun playQueue(items: List<DomainMediaItem>, startIndex: Int = 0)
     suspend fun play()
@@ -31,5 +35,8 @@ interface PlaybackController {
     suspend fun setSubtitleDelay(delayMs: Long)
     suspend fun setAudioDelay(delayMs: Long)
     suspend fun addExternalSubtitle(uri: String, mimeType: String = "application/x-subrip", label: String = "External Subtitle")
+    suspend fun removeExternalSubtitles() {}
+    suspend fun setDecoderStrategy(strategy: Int) {}
+    suspend fun retryPlayback() {}
     suspend fun release()
 }

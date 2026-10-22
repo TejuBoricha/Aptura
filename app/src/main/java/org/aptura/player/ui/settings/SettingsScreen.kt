@@ -9,12 +9,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -127,78 +130,87 @@ fun SettingsScreen(
             )
         }
     ) { innerPadding ->
-        LazyColumn(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+                .padding(innerPadding),
+            contentAlignment = Alignment.TopCenter
         ) {
-            // Section 1: Playback Preferences
-            item {
-                SettingsSectionHeader("Playback Preferences")
-            }
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .widthIn(max = 600.dp)
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                // Section 1: Playback Preferences
+                item {
+                    SettingsSectionHeader("Playback Preferences")
+                }
 
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = ApturaColors.SurfaceElevated1)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        // Default Speed
-                        Text(
-                            text = "Default Playback Speed",
-                            style = ApturaTypography.titleMedium,
-                            color = ApturaColors.TextHighEmphasis
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f).forEach { speed ->
-                                FilterChip(
-                                    selected = settings.defaultPlaybackSpeed == speed,
-                                    onClick = { onUpdateSpeed(speed) },
-                                    label = { Text("${speed}x", style = ApturaTypography.labelSmall) },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = ApturaColors.AccentPrimary,
-                                        selectedLabelColor = ApturaColors.SurfacePureBlack,
-                                        containerColor = ApturaColors.SurfaceElevated2,
-                                        labelColor = ApturaColors.TextHighEmphasis
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = ApturaColors.SurfaceElevated1)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            // Default Speed
+                            Text(
+                                text = "Default Playback Speed",
+                                style = ApturaTypography.titleMedium,
+                                color = ApturaColors.TextHighEmphasis
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f).forEach { speed ->
+                                    FilterChip(
+                                        selected = settings.defaultPlaybackSpeed == speed,
+                                        onClick = { onUpdateSpeed(speed) },
+                                        label = { Text("${speed}x", style = ApturaTypography.labelSmall) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = ApturaColors.AccentPrimary,
+                                            selectedLabelColor = ApturaColors.SurfacePureBlack,
+                                            containerColor = ApturaColors.SurfaceElevated2,
+                                            labelColor = ApturaColors.TextHighEmphasis
+                                        )
                                     )
-                                )
+                                }
                             }
-                        }
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(16.dp))
 
-                        // Double-tap Seek Delta
-                        Text(
-                            text = "Double-Tap Seek Step",
-                            style = ApturaTypography.titleMedium,
-                            color = ApturaColors.TextHighEmphasis
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            listOf(5, 10, 15, 30).forEach { seconds ->
-                                FilterChip(
-                                    selected = settings.seekDeltaSeconds == seconds,
-                                    onClick = { onUpdateSeekDelta(seconds) },
-                                    label = { Text("${seconds}s", style = ApturaTypography.labelSmall) },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = ApturaColors.AccentPrimary,
-                                        selectedLabelColor = ApturaColors.SurfacePureBlack,
-                                        containerColor = ApturaColors.SurfaceElevated2,
-                                        labelColor = ApturaColors.TextHighEmphasis
+                            // Double-tap Seek Delta
+                            Text(
+                                text = "Double-Tap Seek Step",
+                                style = ApturaTypography.titleMedium,
+                                color = ApturaColors.TextHighEmphasis
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                listOf(5, 10, 15, 30).forEach { seconds ->
+                                    FilterChip(
+                                        selected = settings.seekDeltaSeconds == seconds,
+                                        onClick = { onUpdateSeekDelta(seconds) },
+                                        label = { Text("${seconds}s", style = ApturaTypography.labelSmall) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = ApturaColors.AccentPrimary,
+                                            selectedLabelColor = ApturaColors.SurfacePureBlack,
+                                            containerColor = ApturaColors.SurfaceElevated2,
+                                            labelColor = ApturaColors.TextHighEmphasis
+                                        )
                                     )
-                                )
+                                }
                             }
-                        }
 
                         Spacer(modifier = Modifier.height(16.dp))
 
@@ -278,9 +290,10 @@ fun SettingsScreen(
                             color = ApturaColors.TextMediumEmphasis,
                             modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
                         )
-                        Row(
+                        FlowRow(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             listOf(
                                 0 to "Auto",
@@ -316,9 +329,10 @@ fun SettingsScreen(
                     colors = CardDefaults.cardColors(containerColor = ApturaColors.SurfaceElevated1)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
+                        FlowRow(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             StorageStatPill("Videos", "${libraryStats.totalVideos}")
                             StorageStatPill("Total Time", MediaFormatters.formatDuration(libraryStats.totalDurationMs))
@@ -558,6 +572,7 @@ fun SettingsScreen(
                 }
             }
         }
+    }
     }
 }
 

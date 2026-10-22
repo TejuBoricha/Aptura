@@ -53,6 +53,7 @@ data class DomainMediaItem(
     val audioTrackCount: Int = 0,
     val subtitleTrackCount: Int = 0,
     val dateAddedSec: Long = 0,
+    val dateModifiedSec: Long = 0,
     val folderPath: String = "",
     val playbackPositionMs: Long = 0L,
     val isCompleted: Boolean = false
@@ -63,7 +64,8 @@ data class DomainTrackInfo(
     val index: Int,
     val label: String,
     val language: String? = null,
-    val isSelected: Boolean = false
+    val isSelected: Boolean = false,
+    val isExternal: Boolean = false
 )
 
 data class DomainTrackSelection(

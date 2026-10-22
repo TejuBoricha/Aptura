@@ -43,6 +43,9 @@ interface MediaItemDao {
     @Query("UPDATE media_items SET playbackPositionMs = :positionMs, isCompleted = :isCompleted, lastPlayedTimestamp = :timestamp WHERE uri = :uri")
     suspend fun updatePlaybackPosition(uri: String, positionMs: Long, isCompleted: Boolean, timestamp: Long)
 
+    @Query("UPDATE media_items SET title = :newTitle, displayName = :newDisplayName WHERE uri = :uri")
+    suspend fun updateTitleAndDisplayName(uri: String, newTitle: String, newDisplayName: String)
+
     @Query("SELECT * FROM media_items")
     suspend fun getAllVideosRaw(): List<MediaItemEntity>
 

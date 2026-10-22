@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -35,7 +37,16 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sort
+import android.app.Activity
 import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import org.aptura.player.core.media.ApturaMediaFileManager
 import androidx.compose.material.icons.filled.FolderOff
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
@@ -99,6 +110,8 @@ fun MediaLibraryScreen(
     onOpenFilePicker: () -> Unit = {},
     onRequestPermission: () -> Unit = {},
     onRemoveVideo: (String) -> Unit = {},
+    onResetProgress: (String) -> Unit = {},
+    onRenameVideo: (String, String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -146,6 +159,8 @@ fun MediaLibraryScreen(
                         onOpenFilePicker = onOpenFilePicker,
                         onRequestPermission = onRequestPermission,
                         onRemoveVideo = onRemoveVideo,
+                        onResetProgress = onResetProgress,
+                        onRenameVideo = onRenameVideo,
                         bottomPadding = innerPadding.calculateBottomPadding()
                     )
                 }
@@ -166,6 +181,8 @@ private fun MediaLibraryContentView(
     onOpenFilePicker: () -> Unit,
     onRequestPermission: () -> Unit,
     onRemoveVideo: (String) -> Unit,
+    onResetProgress: (String) -> Unit,
+    onRenameVideo: (String, String) -> Unit = { _, _ -> },
     bottomPadding: androidx.compose.ui.unit.Dp,
     modifier: Modifier = Modifier
 ) {
@@ -173,7 +190,38 @@ private fun MediaLibraryContentView(
     val focusManager = LocalFocusManager.current
     var sortMenuExpanded by remember { mutableStateOf(false) }
     var selectedDetailItem by remember { mutableStateOf<DomainMediaItem?>(null) }
-    var itemToRemove by remember { mutableStateOf<DomainMediaItem?>(null) }
+    var itemToRename by remember { mutableStateOf<DomainMediaItem?>(null) }
+    var itemPendingRenameUri by remember { mutableStateOf<String?>(null) }
+    var itemPendingRenameNewName by remember { mutableStateOf<String?>(null) }
+    var itemToHide by remember { mutableStateOf<DomainMediaItem?>(null) }
+    var itemToDelete by remember { mutableStateOf<DomainMediaItem?>(null) }
+    var itemPendingSystemDeleteUri by remember { mutableStateOf<String?>(null) }
+
+    val deleteLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            itemPendingSystemDeleteUri?.let { uri ->
+                onRemoveVideo(uri)
+                itemPendingSystemDeleteUri = null
+            }
+        }
+    }
+
+    val renameLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            itemPendingRenameUri?.let { uri ->
+                itemPendingRenameNewName?.let { newName ->
+                    onRenameVideo(uri, newName)
+                    Toast.makeText(context, "Renamed to \"$newName\"", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+        itemPendingRenameUri = null
+        itemPendingRenameNewName = null
+    }
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val isWideScreen = maxWidth >= 600.dp
@@ -260,6 +308,8 @@ private fun MediaLibraryContentView(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .wrapContentWidth(Alignment.CenterHorizontally)
+                        .widthIn(max = 680.dp)
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -396,6 +446,8 @@ private fun MediaLibraryContentView(
             LazyRow(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .wrapContentWidth(Alignment.CenterHorizontally)
+                    .widthIn(max = 680.dp)
                     .padding(vertical = 4.dp),
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -476,6 +528,8 @@ private fun MediaLibraryContentView(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .wrapContentWidth(Alignment.CenterHorizontally)
+                    .widthIn(max = 680.dp)
                     .padding(horizontal = 16.dp, vertical = 6.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = ApturaColors.SurfaceElevated2)
@@ -520,7 +574,7 @@ private fun MediaLibraryContentView(
         val allRawVideos = remember(state.videos) { state.videos.map { it.rawItem } }
 
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = if (isWideScreen) 200.dp else 160.dp),
+            columns = GridCells.Adaptive(minSize = if (isWideScreen) 200.dp else 140.dp),
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(
                 start = 16.dp,
@@ -553,29 +607,115 @@ private fun MediaLibraryContentView(
                     selectedDetailItem = null
                     onVideoClick(item, allRawVideos)
                 },
+                onPlayAudioOnlyClick = {
+                    selectedDetailItem = null
+                    onVideoClick(item, allRawVideos)
+                },
+                onOpenWithClick = {
+                    val viewIntent = Intent(Intent.ACTION_VIEW).apply {
+                        setDataAndType(Uri.parse(item.uri), item.mimeType ?: "video/*")
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    try {
+                        context.startActivity(Intent.createChooser(viewIntent, "Open Video With..."))
+                    } catch (e: Exception) {
+                        // ignore if no handler
+                    }
+                },
                 onShareClick = {
                     val shareIntent = Intent(Intent.ACTION_SEND).apply {
                         type = item.mimeType ?: "video/*"
-                        putExtra(Intent.EXTRA_STREAM, android.net.Uri.parse(item.uri))
+                        putExtra(Intent.EXTRA_STREAM, Uri.parse(item.uri))
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     }
                     context.startActivity(Intent.createChooser(shareIntent, "Share Video"))
                 },
-                onRemoveClick = {
-                    itemToRemove = item
+                onResetProgressClick = {
+                    onResetProgress(item.uri)
+                    selectedDetailItem = item.copy(playbackPositionMs = 0L, isCompleted = false)
+                },
+                onRenameClick = {
+                    itemToRename = item
+                    selectedDetailItem = null
+                },
+                onHideClick = {
+                    itemToHide = item
+                    selectedDetailItem = null
+                },
+                onDeleteClick = {
+                    itemToDelete = item
                     selectedDetailItem = null
                 }
             )
         }
 
-        // Destructive Remove Confirmation (SCR-018)
-        itemToRemove?.let { item ->
-            RemoveFromLibraryDialog(
+        // Rename Video Dialog (FR-LIB-013)
+        itemToRename?.let { item ->
+            RenameVideoDialog(
+                itemTitle = item.title,
+                onConfirm = { newName ->
+                    val uri = Uri.parse(item.uri)
+                    val hasExt = item.title.contains('.')
+                    val ext = if (hasExt) item.title.substringAfterLast('.') else ""
+                    val fullName = if (ext.isNotBlank() && !newName.endsWith(".$ext", ignoreCase = true)) {
+                        "$newName.$ext"
+                    } else newName
+
+                    ApturaMediaFileManager.renameMediaFile(
+                        context = context,
+                        uri = uri,
+                        newNameWithExt = fullName,
+                        onNeedsWritePermission = { intentSender ->
+                            itemPendingRenameUri = item.uri
+                            itemPendingRenameNewName = newName
+                            renameLauncher.launch(IntentSenderRequest.Builder(intentSender).build())
+                        }
+                    )
+                    onRenameVideo(item.uri, newName)
+                    Toast.makeText(context, "Renamed to \"$newName\"", Toast.LENGTH_SHORT).show()
+                    itemToRename = null
+                },
+                onDismiss = { itemToRename = null }
+            )
+        }
+
+        // Real Storage Deletion Confirmation
+        itemToDelete?.let { item ->
+            DeleteFromDeviceDialog(
+                itemTitle = item.title,
+                onConfirm = {
+                    val uri = Uri.parse(item.uri)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        try {
+                            val pi = MediaStore.createDeleteRequest(context.contentResolver, listOf(uri))
+                            itemPendingSystemDeleteUri = item.uri
+                            deleteLauncher.launch(IntentSenderRequest.Builder(pi.intentSender).build())
+                        } catch (e: Exception) {
+                            onRemoveVideo(item.uri)
+                        }
+                    } else {
+                        try {
+                            context.contentResolver.delete(uri, null, null)
+                            onRemoveVideo(item.uri)
+                        } catch (e: Exception) {
+                            onRemoveVideo(item.uri)
+                        }
+                    }
+                    itemToDelete = null
+                },
+                onDismiss = { itemToDelete = null }
+            )
+        }
+
+        // Hide from Library Dialog
+        itemToHide?.let { item ->
+            HideFromLibraryDialog(
                 itemTitle = item.title,
                 onConfirm = {
                     onRemoveVideo(item.uri)
-                    itemToRemove = null
+                    itemToHide = null
                 },
-                onDismiss = { itemToRemove = null }
+                onDismiss = { itemToHide = null }
             )
         }
             }
@@ -673,13 +813,13 @@ fun VideoGridCard(
                     if (onMoreClick != null) {
                         IconButton(
                             onClick = onMoreClick,
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(40.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.MoreVert,
                                 contentDescription = "More actions",
                                 tint = ApturaColors.TextMediumEmphasis,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(22.dp)
                             )
                         }
                     }

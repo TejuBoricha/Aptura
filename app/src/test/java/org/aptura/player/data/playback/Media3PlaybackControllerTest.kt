@@ -312,7 +312,7 @@ class Media3PlaybackControllerTest {
             val errorState = awaitItem()
             assertTrue("Expected DomainPlaybackState.Error", errorState is DomainPlaybackState.Error)
             val domainError = errorState as DomainPlaybackState.Error
-            assertEquals("ERROR_CODE_DECODER_INIT_FAILED", domainError.errorCode)
+            assertEquals("DECODER_FAILURE", domainError.errorCode)
             assertFalse("Init failure should not be recoverable", domainError.isRecoverable)
 
             // Media3 fires STATE_IDLE following an error; verify it does NOT clobber the error state

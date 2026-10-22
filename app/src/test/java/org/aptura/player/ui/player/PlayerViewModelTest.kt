@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.aptura.player.domain.model.Bookmark
@@ -25,6 +26,9 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 /**
  * Unit test suite for PlayerViewModel.
@@ -32,6 +36,8 @@ import org.junit.Test
  * scrub timeline precision, aspect ratio cycling, speed ladders, and progress restoration.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class PlayerViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
@@ -152,11 +158,35 @@ class PlayerViewModelTest {
         var lastExternalSubtitleUri: String? = null
         var lastExternalSubtitleMimeType: String? = null
         var lastExternalSubtitleLabel: String? = null
+        var lastDecoderStrategy: Int? = null
+
+        val _isCompatibilityMode = MutableStateFlow(false)
+        override val isCompatibilityMode: StateFlow<Boolean> = _isCompatibilityMode.asStateFlow()
+
+        val _compatibilityNotice = MutableStateFlow<String?>(null)
+        override val compatibilityNotice: StateFlow<String?> = _compatibilityNotice.asStateFlow()
+
+        var hasRemovedExternalSubtitles = false
 
         override suspend fun addExternalSubtitle(uri: String, mimeType: String, label: String) {
             lastExternalSubtitleUri = uri
             lastExternalSubtitleMimeType = mimeType
             lastExternalSubtitleLabel = label
+        }
+
+        override suspend fun removeExternalSubtitles() {
+            hasRemovedExternalSubtitles = true
+            lastExternalSubtitleUri = null
+            lastExternalSubtitleMimeType = null
+            lastExternalSubtitleLabel = null
+        }
+
+        val _decoderStrategy = MutableStateFlow(0)
+        override val decoderStrategy: StateFlow<Int> = _decoderStrategy.asStateFlow()
+
+        override suspend fun setDecoderStrategy(strategy: Int) {
+            lastDecoderStrategy = strategy
+            _decoderStrategy.value = strategy
         }
 
         override suspend fun release() {}
@@ -179,6 +209,10 @@ class PlayerViewModelTest {
 
         override suspend fun removeVideoFromLibrary(uri: String) {
             items.remove(uri)
+        }
+
+        override suspend fun renameVideo(uri: String, newName: String) {
+            items[uri]?.let { items[uri] = it.copy(title = newName) }
         }
 
         val bookmarksState = MutableStateFlow<List<Bookmark>>(emptyList())
@@ -888,6 +922,21 @@ class PlayerViewModelTest {
     }
 
     @Test
+    fun removeExternalSubtitles_delegatesToController() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        viewModel.removeExternalSubtitles()
+        runCurrent()
+
+        assertTrue(controller.hasRemovedExternalSubtitles)
+        assertNull(controller.lastExternalSubtitleUri)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
     fun subtitleAppearance_updatesUiStateProperly() = runTest(testDispatcher) {
         val controller = FakePlaybackController()
         val repository = FakeMediaRepository()
@@ -944,11 +993,131 @@ class PlayerViewModelTest {
         assertEquals(0, viewModel.uiState.value.decoderStrategy)
 
         viewModel.setDecoderStrategy(1)
+        advanceUntilIdle()
         assertEquals(1, viewModel.uiState.value.decoderStrategy)
+        assertEquals(1, controller.lastDecoderStrategy)
 
         viewModel.setDecoderStrategy(2)
+        advanceUntilIdle()
         assertEquals(2, viewModel.uiState.value.decoderStrategy)
+        assertEquals(2, controller.lastDecoderStrategy)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun errorState_enablesSoftwareFallbackAffordance() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        controller._playbackState.value = DomainPlaybackState.Error(
+            errorCode = "UNSUPPORTED_PROFILE",
+            message = "Decoder Profile Incompatible: 10-bit HEVC profile",
+            isRecoverable = true
+        )
+        advanceUntilIdle()
+
+        assertEquals("UNSUPPORTED_PROFILE", viewModel.uiState.value.errorCode)
+        assertEquals("UNSUPPORTED_PROFILE", viewModel.uiState.value.errorTaxonomyCode)
+        assertTrue(viewModel.uiState.value.canSwitchToSoftware)
+        assertTrue(viewModel.uiState.value.isRecoverableError)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun compatibilityMode_updatesFromController() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        controller._isCompatibilityMode.value = true
+        controller._compatibilityNotice.value = "Playing in compatibility mode (Software Decoder)"
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isCompatibilityMode)
+        assertEquals("Playing in compatibility mode (Software Decoder)", viewModel.uiState.value.compatibilityNotice)
+
+        viewModel.dismissCompatibilityNotice()
+        assertEquals(null, viewModel.uiState.value.compatibilityNotice)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun subtitleWebSearch_queryAndDialogState_updatedCorrectly() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        assertFalse(viewModel.uiState.value.isWebSearchDialogVisible)
+        viewModel.showWebSearchDialog(true)
+        assertTrue(viewModel.uiState.value.isWebSearchDialogVisible)
+
+        viewModel.setCleanSearchQuery("Oppenheimer 2023")
+        assertEquals("Oppenheimer 2023", viewModel.uiState.value.cleanSearchQuery)
+
+        viewModel.showWebSearchDialog(false)
+        assertFalse(viewModel.uiState.value.isWebSearchDialogVisible)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun autoPairedSubtitleToast_andRecentDownload_updatedAndDismissed() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        assertNull(viewModel.uiState.value.autoPairedSubtitleToast)
+        viewModel.setAutoPairedSubtitleToast("Auto-paired: English")
+        assertEquals("Auto-paired: English", viewModel.uiState.value.autoPairedSubtitleToast)
+
+        viewModel.dismissAutoPairToast()
+        assertNull(viewModel.uiState.value.autoPairedSubtitleToast)
+
+        val sidecar = org.aptura.player.data.repository.DetectedSidecarSubtitle(
+            uri = android.net.Uri.parse("content://subtitles/1"),
+            displayName = "movie.srt",
+            mimeType = "application/x-subrip",
+            languageCode = "en",
+            languageLabel = "English",
+            isDefault = true
+        )
+        viewModel.setRecentDownloadedSubtitle(sidecar)
+        assertEquals(sidecar, viewModel.uiState.value.recentDownloadedSubtitle)
+
+        viewModel.setRecentDownloadedSubtitle(null)
+        assertNull(viewModel.uiState.value.recentDownloadedSubtitle)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun checkpointPlayback_pausesAndPersistsPosition() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        repository.items[sampleVideo.uri] = sampleVideo
+        viewModel.loadAndPlay(sampleVideo.uri)
+        runCurrent()
+
+        controller._playbackState.value = DomainPlaybackState.Ready(
+            positionMs = 1420500L,
+            durationMs = sampleVideo.durationMs,
+            isPlaying = true
+        )
+        runCurrent()
+
+        viewModel.checkpointPlayback()
+        runCurrent()
+
+        assertFalse(controller.isPlaying)
+        assertEquals(1420500L, repository.savedPositions[sampleVideo.uri]?.first)
 
         viewModel.clearForTesting()
     }
 }
+

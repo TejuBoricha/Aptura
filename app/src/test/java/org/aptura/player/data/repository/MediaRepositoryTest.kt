@@ -89,6 +89,14 @@ class MediaRepositoryTest {
             }
         }
 
+        override suspend fun updateTitleAndDisplayName(uri: String, newTitle: String, newDisplayName: String) {
+            items.value = items.value.map {
+                if (it.uri == uri) {
+                    it.copy(title = newTitle, displayName = newDisplayName)
+                } else it
+            }
+        }
+
         override suspend fun getAllVideosRaw(): List<MediaItemEntity> = items.value
 
         override suspend fun deleteByIds(ids: List<Long>) {
@@ -333,5 +341,31 @@ class MediaRepositoryTest {
 
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun renameVideo_updatesTitleAndDisplayName_inRepository() = runTest(testDispatcher) {
+        val fakeMediaDao = FakeMediaItemDao()
+        val repo = MediaRepositoryImpl(fakeMediaDao, testDispatcher)
+
+        val item = MediaItemEntity(
+            id = 1L,
+            mediaStoreId = 100L,
+            uri = "content://media/1",
+            title = "Original Title",
+            displayName = "Original Title.mp4",
+            durationMs = 60000L,
+            sizeBytes = 1024L,
+            mimeType = "video/mp4",
+            dateAddedSec = 1000L,
+            folderPath = "Movies"
+        )
+        fakeMediaDao.insertOrUpdate(item)
+
+        repo.renameVideo("content://media/1", "New Cinematic Title")
+
+        val updated = repo.getVideoByUri("content://media/1")
+        assertNotNull(updated)
+        assertEquals("New Cinematic Title", updated?.title)
     }
 }

@@ -25,7 +25,14 @@ object PlayerManager {
         }
 
         val appContext = context.applicationContext
-        val player = ExoPlayer.Builder(appContext)
+        val codecSelector = ApturaMediaCodecSelector {
+            controllerInstance?.currentDecoderStrategy ?: 0
+        }
+        val renderersFactory = androidx.media3.exoplayer.DefaultRenderersFactory(appContext)
+            .setEnableDecoderFallback(true)
+            .setMediaCodecSelector(codecSelector)
+
+        val player = ExoPlayer.Builder(appContext, renderersFactory)
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)

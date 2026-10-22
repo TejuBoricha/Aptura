@@ -154,6 +154,18 @@ class MediaLibraryViewModel(
         }
     }
 
+    fun renameVideo(uri: String, newName: String) {
+        viewModelScope.launch(dispatcher + errorHandler) {
+            mediaRepository.renameVideo(uri, newName)
+        }
+    }
+
+    fun resetVideoProgress(uri: String) {
+        viewModelScope.launch(dispatcher + errorHandler) {
+            mediaRepository.savePlaybackPosition(uri, 0L, isCompleted = false)
+        }
+    }
+
     fun onSearchQueryChanged(newQuery: String) {
         _searchQuery.value = newQuery
     }

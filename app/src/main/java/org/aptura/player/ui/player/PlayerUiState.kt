@@ -31,7 +31,8 @@ data class TrackInfo(
     val index: Int,
     val label: String,
     val language: String? = null,
-    val isSelected: Boolean = false
+    val isSelected: Boolean = false,
+    val isExternal: Boolean = false
 )
 
 /**
@@ -77,6 +78,10 @@ data class PlayerUiState(
     val seekDeltaSeconds: Int? = null,
     val errorMessage: String? = null,
     val errorCode: String? = null,
+    val errorTaxonomyCode: String? = null,
+    val canSwitchToSoftware: Boolean = false,
+    val isCompatibilityMode: Boolean = false,
+    val compatibilityNotice: String? = null,
     val isRecoverableError: Boolean = true,
     val isScrubbing: Boolean = false,
     val scrubPositionMs: Long = 0L,
@@ -86,7 +91,12 @@ data class PlayerUiState(
     val subtitleTextColorHex: String = "#FFFFFF",
     val subtitleBackgroundEnabled: Boolean = false,
     val bookmarks: List<org.aptura.player.domain.model.Bookmark> = emptyList(),
-    val decoderStrategy: Int = 0
+    val decoderStrategy: Int = 0,
+    val cleanSearchQuery: String = "",
+    val sanitizedTitle: String = "",
+    val recentDownloadedSubtitle: org.aptura.player.data.repository.DetectedSidecarSubtitle? = null,
+    val autoPairedSubtitleToast: String? = null,
+    val isWebSearchDialogVisible: Boolean = false
 ) {
     val effectivePositionMs: Long
         get() = if (isScrubbing) scrubPositionMs else currentPositionMs

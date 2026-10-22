@@ -15,6 +15,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -105,9 +108,9 @@ fun OnboardingScreen(
                 )
                 2 -> OnboardingPageContent(
                     icon = Icons.Default.FolderShared,
-                    badgeText = "SCOPED STORAGE · READ ONLY",
+                    badgeText = "ON-DEVICE STORAGE · PRIVACY FIRST",
                     title = "Access Your Library",
-                    description = "To scan and organize your video collection, Aptura requests standard media read access. We never alter, mutate, or delete your files."
+                    description = "To scan and organize your video collection, Aptura requests standard media read access. We never alter, rename, or delete your files without your explicit confirmation."
                 )
             }
         }
@@ -214,66 +217,73 @@ private fun OnboardingPageContent(
     description: String,
     modifier: Modifier = Modifier
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+    val scrollState = rememberScrollState()
+    Box(
+        modifier = modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
     ) {
-        // Icon circular badge
-        Box(
+        Column(
             modifier = Modifier
-                .size(100.dp)
-                .clip(CircleShape)
-                .background(ApturaColors.SurfaceElevated1),
-            contentAlignment = Alignment.Center
+                .widthIn(max = 560.dp)
+                .fillMaxWidth()
+                .padding(horizontal = 32.dp)
+                .verticalScroll(scrollState)
+                .padding(top = 32.dp, bottom = 140.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = ApturaColors.AccentPrimary,
-                modifier = Modifier.size(48.dp)
-            )
-        }
+            // Icon circular badge
+            Box(
+                modifier = Modifier
+                    .size(96.dp)
+                    .clip(CircleShape)
+                    .background(ApturaColors.SurfaceElevated1),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = ApturaColors.AccentPrimary,
+                    modifier = Modifier.size(48.dp)
+                )
+            }
 
-        Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-        // Badge pill
-        Box(
-            modifier = Modifier
-                .background(ApturaColors.SurfaceElevated2, RoundedCornerShape(12.dp))
-                .padding(horizontal = 12.dp, vertical = 6.dp)
-        ) {
+            // Badge pill
+            Box(
+                modifier = Modifier
+                    .background(ApturaColors.SurfaceElevated2, RoundedCornerShape(12.dp))
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    text = badgeText,
+                    style = ApturaTypography.labelSmall,
+                    color = ApturaColors.AccentPrimary,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Title
             Text(
-                text = badgeText,
-                style = ApturaTypography.labelSmall,
-                color = ApturaColors.AccentPrimary,
-                fontWeight = FontWeight.Bold
+                text = title,
+                style = ApturaTypography.headlineLarge,
+                color = ApturaColors.TextHighEmphasis,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Description
+            Text(
+                text = description,
+                style = ApturaTypography.bodyMedium,
+                color = ApturaColors.TextMediumEmphasis,
+                textAlign = TextAlign.Center,
+                lineHeight = androidx.compose.ui.unit.TextUnit(22f, androidx.compose.ui.unit.TextUnitType.Sp)
             )
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Title
-        Text(
-            text = title,
-            style = ApturaTypography.headlineLarge,
-            color = ApturaColors.TextHighEmphasis,
-            textAlign = TextAlign.Center
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Description
-        Text(
-            text = description,
-            style = ApturaTypography.bodyMedium,
-            color = ApturaColors.TextMediumEmphasis,
-            textAlign = TextAlign.Center,
-            lineHeight = androidx.compose.ui.unit.TextUnit(22f, androidx.compose.ui.unit.TextUnitType.Sp)
-        )
-
-        Spacer(modifier = Modifier.height(60.dp))
     }
 }

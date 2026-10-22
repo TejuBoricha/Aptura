@@ -20,6 +20,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import org.aptura.player.core.diagnostics.ApturaDiagnostics
+import org.aptura.player.core.diagnostics.ErrorTaxonomy
+import org.aptura.player.core.diagnostics.EventCode
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.domain.model.DomainPlaybackQueue
 import org.aptura.player.domain.model.DomainPlaybackState
@@ -39,8 +42,25 @@ class Media3PlaybackController(
     val player: Player,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
     private val mainDispatcher: CoroutineDispatcher = Dispatchers.Main,
-    private val enablePositionTicker: Boolean = true
+    private val enablePositionTicker: Boolean = true,
+    initialDecoderStrategy: Int = 0
 ) : PlaybackController {
+
+    var currentDecoderStrategy: Int = initialDecoderStrategy
+        private set
+
+    private var hasAttemptedSoftwareFallback = false
+
+    private val _isCompatibilityMode = MutableStateFlow(initialDecoderStrategy == 2)
+    override val isCompatibilityMode: StateFlow<Boolean> = _isCompatibilityMode.asStateFlow()
+
+    private val _compatibilityNotice = MutableStateFlow<String?>(
+        if (initialDecoderStrategy == 2) "Playing in compatibility mode (Software Decoder)" else null
+    )
+    override val compatibilityNotice: StateFlow<String?> = _compatibilityNotice.asStateFlow()
+
+    private val _decoderStrategy = MutableStateFlow(initialDecoderStrategy)
+    override val decoderStrategy: StateFlow<Int> = _decoderStrategy.asStateFlow()
 
     val audioSessionId: Int
         get() = (player as? androidx.media3.exoplayer.ExoPlayer)?.audioSessionId ?: 0
@@ -91,6 +111,61 @@ class Media3PlaybackController(
 
         override fun onPlayerError(error: PlaybackException) {
             checkPositionTicker(false)
+
+            val isDecoderFailure = error.errorCode == PlaybackException.ERROR_CODE_DECODING_FAILED ||
+                error.errorCode == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
+                error.errorCode == PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES
+
+            // FR-PLAY-003: Controlled fallback bounded at most once per failure class
+            if (isDecoderFailure && !hasAttemptedSoftwareFallback && currentDecoderStrategy != 2) {
+                hasAttemptedSoftwareFallback = true
+                currentDecoderStrategy = 2
+                _decoderStrategy.value = 2
+                _isCompatibilityMode.value = true
+                _compatibilityNotice.value = "Playing in compatibility mode (Software Decoder)"
+
+                ApturaDiagnostics.logEvent(
+                    code = EventCode.EV_010,
+                    payload = mapOf(
+                        "strategy" to "software_fallback",
+                        "reason" to error.errorCodeName
+                    )
+                )
+
+                val currentItem = player.currentMediaItem
+                val resumePos = player.currentPosition.coerceAtLeast(0L)
+                if (currentItem != null) {
+                    player.stop()
+                    player.clearMediaItems()
+                    player.setMediaItem(currentItem, resumePos)
+                    player.prepare()
+                    player.play()
+                    return
+                }
+            }
+
+            // Fallback unavailable or failed: Log EV_011 (play.error) per spec/14 §4
+            val taxonomy = ErrorTaxonomy.mapException(error)
+            ApturaDiagnostics.logEvent(
+                code = EventCode.EV_011,
+                payload = mapOf(
+                    "errorCode" to taxonomy.code,
+                    "reason" to error.errorCodeName,
+                    "stage" to when {
+                        isDecoderFailure -> "decode"
+                        error.errorCode in listOf(
+                            PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED,
+                            PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED
+                        ) -> "prepare"
+                        error.errorCode in listOf(
+                            PlaybackException.ERROR_CODE_AUDIO_TRACK_INIT_FAILED,
+                            PlaybackException.ERROR_CODE_AUDIO_TRACK_WRITE_FAILED
+                        ) -> "audio"
+                        else -> "render"
+                    }
+                )
+            )
+
             updatePlaybackState()
         }
 
@@ -116,10 +191,12 @@ class Media3PlaybackController(
     private fun updatePlaybackState() {
         val error = player.playerError
         if (error != null) {
+            val taxonomyError = ErrorTaxonomy.mapException(error)
             _playbackState.value = DomainPlaybackState.Error(
-                errorCode = error.errorCodeName,
-                message = error.message ?: "Unknown playback error occurred",
-                isRecoverable = error.errorCode != PlaybackException.ERROR_CODE_DECODER_INIT_FAILED
+                errorCode = taxonomyError.code,
+                message = "${taxonomyError.title}: ${taxonomyError.whatHappened}",
+                isRecoverable = taxonomyError.isRecoverable,
+                suggestedAction = taxonomyError.suggestedActions.firstOrNull()
             )
             return
         }
@@ -162,13 +239,19 @@ class Media3PlaybackController(
         )
     }
 
-    private fun playMediaItemInternal(item: DomainMediaItem) {
+    private fun playMediaItemInternal(item: DomainMediaItem, startPositionMs: Long = 0L) {
+        externalSubtitleLabel = null
+        hasAttemptedSoftwareFallback = false
+        _decoderStrategy.value = currentDecoderStrategy
+        _isCompatibilityMode.value = (currentDecoderStrategy == 2)
+        _compatibilityNotice.value = if (currentDecoderStrategy == 2) "Playing in compatibility mode (Software Decoder)" else null
+
         val mediaItem = try {
             MediaItem.fromUri(item.uri)
         } catch (_: Throwable) {
             MediaItem.Builder().setMediaId(item.uri).build()
         }
-        player.setMediaItem(mediaItem)
+        player.setMediaItem(mediaItem, startPositionMs)
         player.prepare()
         player.play()
     }
@@ -333,17 +416,36 @@ class Media3PlaybackController(
         _trackSelection.value = _trackSelection.value.copy(audioDelayMs = delayMs)
     }
 
+    private var externalSubtitleLabel: String? = null
+
     override suspend fun addExternalSubtitle(uri: String, mimeType: String, label: String) {
+        externalSubtitleLabel = label
         val currentItem = player.currentMediaItem ?: return
         val subtitleConfig = MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(uri))
             .setMimeType(mimeType)
-            .setLanguage("en")
+            .setLanguage("und")
             .setLabel(label)
             .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
             .build()
 
         val updatedItem = currentItem.buildUpon()
             .setSubtitleConfigurations(listOf(subtitleConfig))
+            .build()
+
+        val currentPosition = player.currentPosition
+        val wasPlaying = player.isPlaying
+        (player as? androidx.media3.exoplayer.ExoPlayer)?.setSeekParameters(androidx.media3.exoplayer.SeekParameters.EXACT)
+        player.setMediaItem(updatedItem, currentPosition)
+        if (wasPlaying) {
+            player.play()
+        }
+    }
+
+    override suspend fun removeExternalSubtitles() {
+        externalSubtitleLabel = null
+        val currentItem = player.currentMediaItem ?: return
+        val updatedItem = currentItem.buildUpon()
+            .setSubtitleConfigurations(emptyList())
             .build()
 
         val currentPosition = player.currentPosition
@@ -393,13 +495,15 @@ class Media3PlaybackController(
                         if (isSelected) {
                             selectedSubtitleIndex = index
                         }
+                        val isExternal = (label == externalSubtitleLabel && externalSubtitleLabel != null)
                         subtitleTracks.add(
                             DomainTrackInfo(
                                 id = id,
                                 index = index,
                                 label = label,
                                 language = language,
-                                isSelected = isSelected
+                                isSelected = isSelected,
+                                isExternal = isExternal
                             )
                         )
                     }
@@ -429,6 +533,38 @@ class Media3PlaybackController(
                 }
             }
         }
+    }
+
+    override suspend fun setDecoderStrategy(strategy: Int) {
+        if (currentDecoderStrategy == strategy) return
+        currentDecoderStrategy = strategy
+        _decoderStrategy.value = strategy
+        hasAttemptedSoftwareFallback = (strategy == 2)
+        _isCompatibilityMode.value = (strategy == 2)
+        _compatibilityNotice.value = if (strategy == 2) "Playing in compatibility mode (Software Decoder)" else null
+
+        val currentItem = player.currentMediaItem
+        if (currentItem != null && player.playbackState != Player.STATE_IDLE) {
+            val currentPos = player.currentPosition.coerceAtLeast(0L)
+            val wasPlaying = player.isPlaying
+            player.stop()
+            player.clearMediaItems()
+            player.setMediaItem(currentItem, currentPos)
+            player.prepare()
+            if (wasPlaying) {
+                player.play()
+            }
+        }
+    }
+
+    override suspend fun retryPlayback() {
+        val currentItem = player.currentMediaItem ?: return
+        val currentPos = player.currentPosition.coerceAtLeast(0L)
+        player.stop()
+        player.clearMediaItems()
+        player.setMediaItem(currentItem, currentPos)
+        player.prepare()
+        player.play()
     }
 
     override suspend fun release() {

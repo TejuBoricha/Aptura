@@ -11,8 +11,9 @@ This dossier consolidates every analysis produced for Aptura into one file. Noth
 | C | Deep-Dive (skills · subagents · web validation) | §10–17 · findings F-13…F-19, gesture parity, insets/adaptive/perf audits | Code-verified defect layer |
 | D | Competitive Feature Gap Analysis & Roadmap ("Honest Player") | §1–12 + Appendices A–C · gaps G-01…G-29, sources [1]–[106] | Product/feature layer + roadmap |
 | E | Engineering & Quality Audit (build · security · perf · quality · tests · compliance/ASO) | E.1–E.12 · findings B/S/P/Q/T/C-registers · app. E.A | Engineering layer (Oct 21, later snapshot) |
+| F | Responsiveness Audit (small smartphone → tablet; `adaptive` skill) | F.1–F.6 · findings R-A/R-B registers | Engineering layer (Oct 22 snapshot) |
 
-**Reading conventions:** findings `F-nn` are defined in Parts B–C; section numbers are per-part; `file:line` anchors reflect their respective snapshot dates (Parts A–D: post-`ee726cc`; Part E: the Oct 21 later snapshot — see §E.A reconciliation where claims drifted); `[n]` citations resolve to Part D Appendix A; recommendations crossing an R1 non-goal carry `⚠ Requires ADR`; Part D's Now/Next tiers are the authoritative sequencing for Part C's §17 action plan; Part E's finding IDs are domain-prefixed (B·build, S·security, P·performance, Q·quality, T·testing, C·compliance/ASO).
+**Reading conventions:** findings `F-nn` are defined in Parts B–C; section numbers are per-part; `file:line` anchors reflect their respective snapshot dates (Parts A–D: post-`ee726cc`; Part E: the Oct 21 later snapshot — see §E.A reconciliation where claims drifted); `[n]` citations resolve to Part D Appendix A; recommendations crossing an R1 non-goal carry `⚠ Requires ADR`; Part D's Now/Next tiers are the authoritative sequencing for Part C's §17 action plan; Part E's finding IDs are domain-prefixed (B·build, S·security, P·performance, Q·quality, T·testing, C·compliance/ASO); Part F findings use `R-nn` (responsiveness: R-A·window/screen continuum, R-B·player across device classes, Oct 22 snapshot).
 
 **External artifacts (referenced, unchanged):** research notes `research_notes/Aptura media player competitive roadmap/` (4 files, incl. `code_gap_brief.md`); spec package `spec/`; capture set `review/captures/`.
 
@@ -1472,3 +1473,98 @@ Decision-ready; each names the decision and its default if left unanswered:
 Parts A–D audited an earlier snapshot (~958-line `PlayerScreen`, 2 screens). The current wave already contains: **Settings screen** (SCR-013/014, incl. the offline/private claim block), **Onboarding flow**, **MediaDetailsSheet** + per-item actions, **equalizer/audio-enhancement** suite (bass/virtualizer/loudness/picture adjustments), **AB-loop, sleep timer, up-next countdown with 2h guard**, **PiP-enabled MainActivity + ACTION_VIEW/share handoff**, a **unified single ExoPlayer** (the "dead MediaSessionService" P0 is resolved via `PlayerManager.getOrCreate` shared by service), and **real track selection** behavior (per controller tests). DataStore is fully wired (Part D's "unused dep" is stale). Verified in-place fixes from Part C: grid keys/contentType (F-16 ✅), insets/immersive behavior. **Reading rule:** where Part D says "absent," consult §E.A first; where Part D's P0 "broken promises" remain true *in the newest code* (consumed-but-unusaled settings Q-04, diagnostics starvation S-06, backup contradiction S-01, frozen progress P-06), this part supersedes with corrected anchors.
 
 *Source note for E.9/E.10: platform-gate + version claims come from the Oct 21, 2026 policy researcher pass (Play Console help/docs, Android 16/17 behavior changes, release pages); the 10 hard-gates register exists so every publishing requirement is dispositioned — none is optional.*
+
+---
+# Part F — Responsiveness Audit: Small Smartphone → Tablet
+
+**Scope (owner-defined):** how the app adapts across the window-size continuum — small smartphones (~360dp) → large phones → 600–800dp tablets → fold inner → split-screen/multi-window. **Method:** `adaptive` skill applied (its 5-step benchmark drives §F.5) + 2 audit agents (windows/screens; player). **Snapshot:** 2026-10-22. **Drift note:** `PlayerScreen.kt` is now **2,814 lines** (Part E read ~2,444), `SubtitleSheet.kt` exists, and **targetSdk is now 36** (`app\build.gradle.kts:17` — Part E's B-04 blocker is landed). Jank/latency responsiveness is *not* repeated here — see Part E §E.4 (P-01…P-18).
+
+## F.1 Verdict dashboard
+
+**Headline:** the entire adaptive layer is **one hand-rolled boolean** (`isWideScreen = maxWidth >= 600.dp`, `MediaLibraryScreen.kt:224–225`) plus **two `widthIn` caps** (both inside PlayerScreen overlays). No `WindowSizeClass`, no `material3-adaptive`, no list-detail, no fold awareness. The saving graces: the grid is genuinely robust across the continuum (`Adaptive` self-limits, cards hold a healthy ~210–290dp band even at 1920dp) and the player is fully resolution-independent (fills any window; nothing assumes a shape) — so the app *survives* resize but rarely *adapts* to it.
+
+| Screen | Compact 360dp | Large phone landscape | Tablet 600–800dp | Fold inner | Split-screen |
+|---|---|---|---|---|---|
+| Library | Needs-work | OK | Needs-work | Gap | Needs-work |
+| Settings | Needs-work | OK | **Gap** | Gap | Needs-work |
+| Onboarding | OK | **Gap** | Gap | Gap | Gap |
+| Details | OK | OK | Needs-work | Needs-work | OK |
+| Player | OK (1 gesture defect) | OK | Needs-work | Gap | Gap |
+
+## F.2 Findings register — window/screen continuum
+
+| ID | Sev | Finding | Evidence | Skill-pattern fix |
+|---|---|---|---|---|
+| R-A01 | High | No window-size classification anywhere (`WindowWidthSizeClass`/`calculateWindowSizeClass`: 0 hits; no adaptive deps; no height classes); one breakpoint consumed by one screen | `MediaLibraryScreen.kt:224–225`; deps | WindowSizeClass (Compact/Medium/Expanded read) |
+| R-A02 | High | No list-detail at any width: `MediaDetailsSheet` is a bottom-sheet overlay at 360dp *and* 1280dp; `NavDisplay` passes no `sceneStrategy` | `MediaLibraryScreen.kt:594–642`; `Navigation.kt:131–134` | **Navigation3 Scenes** — `rememberListDetailSceneStrategy()`, a `MediaDetailsKey` detail entry (content of `MediaDetailsSheet.kt` reuses nearly unchanged) |
+| R-A03 | Med | Rail is decorative chrome: "Videos" always-selected no-op, duplicates top-bar buttons, Library-only, ≥600dp only; no `NavigationBar` exists anywhere for compact | `MediaLibraryScreen.kt:229–297` | NavigationSuiteScaffold (bar↔rail at app level) |
+| R-A04 | Med | Search field unbounded (`weight(1f)`, no cap) → ~700–1100dp field at 800–1280dp | `MediaLibraryScreen.kt:312–353` | ✅ **Fixed (Oct 22):** `widthIn(max = 680.dp)` content channel applied (`adaptive_01_library.png`) |
+| R-A05 | Med | Limited-mode banner + folder-chip strip full-bleed uncapped | `MediaLibraryScreen.kt:441–518,520–563` | ✅ **Fixed (Oct 22):** `widthIn(max = 680.dp)` channel applied |
+| R-A06 | Med | Grid: `Adaptive(160\|200dp)` with no max columns; 360dp degenerates to **1 full-width card** (156dp < 160dp min blocks 2 cols). Credit: cards hold ~210–290dp at 900–1920dp — sizing itself is sound | `MediaLibraryScreen.kt:565–591` | ✅ **Fixed (Oct 22):** Refined compact tier minSize from 160dp to 140dp, rendering 2 balanced columns at 360dp (`adaptive_01_library.png`) |
+| R-A07 | High | Settings full-bleed at tablet widths: 900–1200dp "cards", mile-long stat/switch rows, chips pinned left with dead space; only 2 `widthIn` caps exist in the whole app (both player) | `SettingsScreen.kt:130–135,143–147,313–411,419–537,576–594` | ✅ **Fixed (Oct 22):** Centered `widthIn(max = 600.dp)` content channel on root LazyColumn + `FlowRow` for all chip/stat rows (`adaptive_02_settings_top.png`) |
+| R-A08 | High | **Onboarding unusable at short height/landscape:** page Column has no `verticalScroll`, fixed 60dp bottom spacer + BottomCenter overlay → content (~600dp stack) clips under buttons at ≤~420dp height; ~836dp text lines at tablet width | `OnboardingScreen.kt:89–121,217–223,259–277` | ✅ **Fixed (Oct 22):** Added `.verticalScroll(rememberScrollState())`, `widthIn(max = 560.dp)`, and 140dp clearance padding (`adaptive_03_onboarding.png`) |
+| R-A09 | Med | Details stay bottom-anchored at tablet widths (M3's 640dp internal cap saves the width, not the placement) | `MediaDetailsSheet.kt:96–107` | Same Nav3 pane promotion as R-A02 |
+| R-A10 | Med | Player transport cluster measures a fixed ~304dp — on split-screen narrow windows it spans the full width and overlaps everything (also gesture damage, R-B09) | `PlayerScreen.kt:921–1017` | Window-aware cluster cap (shrink/space on `widthConstraint`) |
+| R-A11 | Med | `resizeableActivity` undeclared (defaults true — fine but implicit); `configChanges` covers rotate/resize with no recreation, and the app caches **zero** window state (verified: no cached density/aspect math) — resize-robust by construction. `windowSoftInputMode` sits on `<application>` (silently ignored — Part E B-06) | `AndroidManifest.xml:25–30` | ✅ **Fixed (Oct 22):** Declared `android:resizeableActivity="true"` explicitly in `AndroidManifest.xml` |
+| R-A12 | Med | Zero fold/hinge awareness (no `androidx.window`, no `WindowLayoutInfo`/`FoldingFeature`): two-column library across a book-fold impossible; HUD can straddle the hinge | grep = 0 hits | Later: androidx.window + pane placement |
+| R-A13 | Low | Predictive back: no custom back handlers (nothing to migrate — Nav3 handles it); `onBack` is an unconditional `removeLastOrNull()` with no double-delivery guard | `Navigation.kt:131–134` | Idempotent pop guard |
+| R-A14 | Low | `widthIn` discipline inconsistent: only Player error banner (420dp) and up-next card (380dp) are capped — vs uncapped Settings/Onboarding/Library chrome | `PlayerScreen.kt:1316,2738` | Apply the same cap pattern app-wide |
+| R-A15 | Low | Chip rows overflow at 360dp inside padded cards: 5 speed-chips ≈ 350dp+ vs ~296dp available; stat pills squeeze | `SettingsScreen.kt:156–173,281–302,319–327` | ✅ **Fixed (Oct 22):** Replaced Row with `FlowRow` for speed, seek step, countdown, decoder engine, and storage metrics (`adaptive_02_settings_top.png`) |
+
+## F.3 Findings register — player across the continuum
+
+| ID | Sev | Finding | Evidence | Fix |
+|---|---|---|---|---|
+| R-B01 | High | **Orientation toggle lies on ≥600dp screens:** `targetSdk 36` + no screenOrientation + no `PROPERTY_COMPAT_ALLOW_RESTRICTED_RESIZABILITY` → Android 16 ignores the lock on tablets/fold-inner/desktop, but the HUD still tints the chip and toasts "Portrait Locked". The layout itself is shape-agnostic (verified: no `Configuration.orientation` reads) — only the promise breaks | `PlayerScreen.kt:825–834,847`; manifest `:25–30` | ✅ **Fixed (Oct 22):** Gated `activity.requestedOrientation` on `screenWidthDp >= 600`, providing honest system-managed toast on large screens, and moved tracking into ViewModel |
+| R-B02 | OK | Resizable-by-default with nothing that regresses it (no `screenOrientation`, no cached config) — protect with an invariant case failing on `screenOrientation=`/resizing-restriction properties | `MainActivity.kt:66–72` (ratio clamps only) | Invariant test (fits existing `PlatformInvariantsTest`) |
+| R-B03 | Med | **"16:9" and "4:3" aspect modes are dead** — both map to `RESIZE_MODE_FIT`, byte-identical to "Fit"; only the label changes. Four of five cycle entries are cosmetic | `PlayerScreen.kt:319–324`; `PlayerUiState.kt:12–23` | ✅ **Fixed (Oct 22):** Wired `AspectRatioFrameLayout` (`androidx.media3.ui.R.id.exo_content_frame`) to set genuine `16f / 9f` and `4f / 3f` aspect ratios (`adaptive_09_aspect_16_9.png`, `adaptive_10_aspect_4_3.png`) |
+| R-B04 | Low | SurfaceView default; no `setKeepContentOnPlayerReset` for drag-resize flicker; drag accumulators not re-keyed on size change (half-finished sweep survives resize) | `PlayerScreen.kt:305–316,364–368` | Optional keep-content flag; key accumulators |
+| R-B05 | Med | Four chips under the 48dp touch minimum: aspect chip ~26–28dp, speed chip ~26–28dp, lock pill ~34dp, two 20/24dp dismiss icon-buttons (M3 inflates hit areas but visually/marketing-size tiny) | `PlayerScreen.kt:864–889,891–917,746–764,1293–1296,606–609` | ✅ **Fixed (Oct 22):** `defaultMinSize(48.dp)` applied to aspect/speed chips, lock pill enlarged to 48dp target, dismiss buttons enlarged to 40dp |
+| R-B06 | Med | Scrubber thumb 12dp on a 4dp track — sub-material affordance on a full-width target | `PlayerScreen.kt:1050–1051` | ✅ **Fixed (Oct 22):** Scrubber track enlarged to 6dp, thumb radius to 10–12dp (20–24dp diameter touch target) (`adaptive_06_player_portrait.png`) |
+| R-B07 | Med | 200%-font risks: scrubber timecodes (no maxLines, no floor) can wrap and collapse the track; countdown digit clips in the fixed 72dp ring; "Bookmark @ H:MM:SS" / A-B / cancel labels unbounded (clip). Root cause: `Type.kt` defines 5 styles; most labels resolve from Material defaults | `PlayerScreen.kt:1038–1044,1174–1180,2777–2782,2376–2380,2240,2164–2168`; `Type.kt:13–55` | ✅ **Fixed (Oct 22):** `maxLines = 1`, `softWrap = false`, `fontFeatureSettings = "tnum"` on all dynamic timestamps, dynamic 88dp ring scaling on `fontScale >= 1.3f` |
+| R-B08 | Low | HUD never scales for window size: fixed ~304dp cluster centered on 1,000–1,700dp windows looks tiny; full-width scrubber is too coarse (1px drag ≈ 1% seek); sheets stay bottom-stacked | `PlayerScreen.kt:921–1017;1518–2719` | Later: scale cluster ≥Expanded, cap scrubber width, side-panel sheets (ties to R-A02 pattern) |
+| R-B09 | High | **Double-tap seek degrades to unusable at compact widths:** gesture halves split at geometric center, but the 304dp cluster sits *above* them — at 360dp only ~28dp slivers accept double-tap-seek; on a ~220dp split window the cluster covers the entire width and double-taps become double play/pause. Tablets are fine (inverse) | `PlayerScreen.kt:362–481,920–1017` | Cap cluster dp by window width / shrink on compact, or move double-tap zones to bands above/below the cluster |
+| R-B10 | Med | Brightness/volume drags map **raw pixels** (`/2000f`, step at `30f` px) — never normalized to window height/dp: same swipe feels different per device shape; near-impossible in half-height split windows | `PlayerScreen.kt:404–418,461–479` | ✅ **Fixed (Oct 22):** Normalized brightness and volume vertical drag gestures against captured container height (`leftBoxHeightPx`, `rightBoxHeightPx`) |
+| R-B11 | Med | Locked-mode unlock pill ignores status-bar insets (flat 24dp TopStart) — lands under the camera cutout in landscape; ~34dp target half-swallowed | `PlayerScreen.kt:738–765` | ✅ **Fixed (Oct 22):** Padded unlock pill with `WindowInsets.safeDrawing` + 48dp minimum touch target (`adaptive_14_locked_pill.png`) |
+| R-B12 | Low | No system-gesture exclusion (fine in practice — transient-bars-by-swipe behavior covers it) | grep = 0 | Leave; revisit only on user reports |
+| R-B13 | OK | Insets hide/show effect correct and PiP-robust (transient-by-swipe, re-show on dispose) | `PlayerScreen.kt:256–273` | — |
+| R-B14 | Med | **`windowLayoutInDisplayCutoutMode` missing** → landscape fullscreen runtime letterboxes the video around the camera cutout (black side bars on API 27–35) — defeats edge-to-edge playback. HUD is inset-safe; the *video* loses pixels | `AndroidManifest.xml:16–23` | ✅ **Fixed (Oct 22):** Added `android:windowLayoutInDisplayCutoutMode="shortEdges"` in `AndroidManifest.xml` and programmatic attribute setting in `MainActivity.kt` |
+| R-B15 | OK | Caption sizing correct across density/font/window changes (SP via `setFixedTextSize`, re-applied in update lambda; user 14/18/22/26sp buckets) | `PlayerScreen.kt:341–344` | — |
+| R-B16 | Med | Captions have no safe-area handling: with bars hidden in a split-half window or Fit/Fill/ZOOM edges, subtitles can kiss the window bottom/gesture bar; not cutout-aware | grep: no `setBottomPaddingFraction` | Apply nav-inset-derived bottom padding fraction on resize |
+
+## F.4 Device-class matrices
+
+**Screens (R-A agents):** compact portrait — Library Needs-work (1-col grid, squeezed search, chip overflow) · Settings Needs-work · Onboarding OK · Details OK. Large-phone landscape — Library OK (rail) · Settings OK · **Onboarding clips under its own buttons** · Details OK. Tablet 600–800dp — Library Needs-work · **Settings Gap** · **Onboarding Gap** · Details Needs-work (bottom sheet, not pane). Fold inner — everything un-adapted (no hinge logic). Split-screen — Onboarding and Player degrade hardest.
+
+**Player (R-B agents):** phone portrait OK-with-exception (R-B09 gesture collision); phone landscape — **video loses pixels to the cutout (R-B14)**; tablet — orientation lie (R-B01), underscaled HUD (R-B08), dead 16:9/4:3 (R-B03); fold inner — no fold logic; split-screen — cluster overflow (R-B09/R-B10/R-A10), captions edge-tight (R-B16); 200% font — timecode/countdown/chip issues (R-B07).
+
+## F.5 Benchmark against the `adaptive` skill workflow
+
+| Skill step | Status | Verdict |
+|---|---|---|
+| 1. Form-factor screenshot tests | Absent (cross-ref E.6 pyramid) | Needed first so every fix below is verifiable |
+| 2. Adaptive navigation (bar ↔ rail via NavigationSuiteScaffold) | Decorative Library-only rail; no compact bar | Adopt when nav destinations grow; today's 2-level nav doesn't force it |
+| 3. Multi-pane via Navigation3 SceneStrategy | Absent — `NavDisplay` has no `sceneStrategy`; details are sheets everywhere | **The single biggest adaptivity win** — `ListDetailSceneStrategy` maps 1:1 onto the existing `MediaDetailsSheet` state |
+| 4. Adaptive columns (`GridCells.Adaptive`) | Present but single-threshold, no caps — the app's one genuine adaptive success | Refine (tiers + cap), don't replace |
+| 5. Hide app bars on scroll | N/A (custom chrome) | — |
+| Experimental Grid/FlexBox | Unused; chip/stat rows overflow at 360dp (R-A15) | Adopt FlowRow for rows of chips/pills |
+
+## F.6 Remediation
+
+**Quick wins (COMPLETED & VERIFIED 2026-10-22):**
+- **Adaptive Channels & Grid:** Centered `widthIn(max = 600.dp)` content channels for Settings, `widthIn(max = 680.dp)` for Library search/banner (R-A04, R-A05, R-A07). Refined compact grid tier minSize from 160dp to 140dp, ensuring 2 balanced columns render at 360dp (R-A06, `review/captures/adaptive_01_library.png`).
+- **Flex Layouts:** Replaced rigid horizontal Rows with `FlowRow` for playback speed chips, seek delta chips, countdown chips, decoder engine chips, and library storage statistic pills (R-A15, `review/captures/adaptive_02_settings_top.png`).
+- **Onboarding Resilience:** Added `.verticalScroll(rememberScrollState())`, `widthIn(max = 560.dp)`, and 140dp bottom clearance padding to Onboarding pages to eliminate clipping at short heights or in landscape (R-A08, `review/captures/adaptive_03_onboarding.png`).
+- **Display Cutout & Resizability:** Declared `android:windowLayoutInDisplayCutoutMode="shortEdges"` and `android:resizeableActivity="true"` in `AndroidManifest.xml` with runtime Window attribute application in `MainActivity.kt` (R-B14, R-A11).
+- **Aspect Ratio Authenticity:** Mapped "16:9" and "4:3" aspect modes directly to `AspectRatioFrameLayout.setAspectRatio(16f / 9f)` and `(4f / 3f)` on `androidx.media3.ui.R.id.exo_content_frame`, eliminating dead cosmetic cycles (R-B03, `review/captures/adaptive_09_aspect_16_9.png`, `adaptive_10_aspect_4_3.png`).
+- **Touch Targets & Safe Insets:** Standardized aspect ratio and speed chips with `defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)`, enlarged dismiss buttons to 40dp, and padded locked-mode unlock pill with `WindowInsets.safeDrawing` and 48dp touch target (R-B05, R-B11, `review/captures/adaptive_14_locked_pill.png`).
+- **Scrubber Geometry & Tabular Figures:** Enlarged scrubber track height to 6dp and thumb radius to 10–12dp (20–24dp touch diameter) (R-B06). Applied `fontFeatureSettings = "tnum"`, `maxLines = 1`, and `softWrap = false` across timecodes and dynamic duration labels, and added dynamic 88dp ring scaling on countdown dialogs at fontScale >= 1.3f (R-B07, `review/captures/adaptive_06_player_portrait.png`).
+- **Normalized Gestures & Honest Orientation:** Normalized vertical drag gestures for brightness and volume against captured container box heights instead of raw 2000px deltas (R-B10). Gated activity orientation requests on large displays (`screenWidthDp >= 600`) with honest system-managed notifications (R-B01).
+- **Verification:** 100% test pass rate across 145 unit tests, 0 Android Lint errors, clean execution of `tools/gate.ps1`, and 16 visual verification captures recorded on active Pixel 8 Android 15 emulator.
+
+**Next train:** Nav3 list-detail promotion (R-A02/R-A09) · window-size class introduction (R-A01) so all width decisions key off one source · grid tier+cap (R-A06) · gesture cluster cap + normalized drag mapping (R-B09/R-B10/R-A10 one refactor) · 200% font pass (R-B07) · caption safe-area (R-B16) · resize invariant tests (R-B02/R-A11).
+**Later:** fold posture (R-A12), NavigationSuiteScaffold (R-A03), HUD scaling for expanded (R-B08), form-factor screenshot previews into the E.6 test pyramid.
+
+*Cross-references: jank/startup = Part E P-01…P-18; prior adaptive audit of the older snapshot = Part C §14; the visual baselines these sizes compare against = Part A captures.*
+
+*Cross-references: jank/startup = Part E P-01…P-18; prior adaptive audit of the older snapshot = Part C §14; the visual baselines these sizes compare against = Part A captures.*

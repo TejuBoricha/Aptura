@@ -18,14 +18,29 @@ Write-Host "==================================================" -ForegroundColor
 Write-Host "   Aptura Native E2E Test Suite (UI Automator)    " -ForegroundColor Cyan
 Write-Host "==================================================" -ForegroundColor Cyan
 
-# Find adb and emulator
-$adb = (Get-Command adb -ErrorAction SilentlyContinue).Source
-if (-not $adb) {
-    $adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
+# Find adb and emulator using local.properties or fallback
+$rootDir = Split-Path -Parent $PSScriptRoot
+$localProp = Join-Path $rootDir "local.properties"
+$sdkPath = $null
+
+if (Test-Path $localProp) {
+    $line = Get-Content $localProp | Where-Object { $_ -match "^sdk\.dir\s*=" } | Select-Object -First 1
+    if ($line) {
+        $rawPath = ($line -replace "^sdk\.dir\s*=\s*", "").Trim()
+        $sdkPath = $rawPath.Replace("\:", ":").Replace("\\", "\")
+    }
 }
-$emulator = (Get-Command emulator -ErrorAction SilentlyContinue).Source
-if (-not $emulator) {
-    $emulator = "$env:LOCALAPPDATA\Android\Sdk\emulator\emulator.exe"
+if (-not $sdkPath -or -not (Test-Path $sdkPath)) {
+    $sdkPath = "C:\Users\tejas\AndroidDev\sdk"
+}
+
+$adb = Join-Path $sdkPath "platform-tools\adb.exe"
+$emulator = Join-Path $sdkPath "emulator\emulator.exe"
+
+# Clear any stale lock files before checking
+$avdDir = Join-Path "$env:USERPROFILE\.android\avd" "Pixel_8_API_35.avd"
+if (Test-Path $avdDir) {
+    Get-ChildItem -Path $avdDir -Filter "*.lock" -Recurse -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 Write-Host "[1/4] Checking connected devices..." -ForegroundColor Yellow
@@ -34,34 +49,38 @@ $startedEmulator = $false
 
 if (-not $devices) {
     Write-Host "[*] No active emulator detected. Booting Pixel_8_API_35..." -ForegroundColor Yellow
-    $emuArgs = @("-avd", "Pixel_8_API_35", "-no-audio", "-no-boot-anim", "-no-snapshot-load")
-    $emuProcess = Start-Process -FilePath $emulator -ArgumentList $emuArgs -PassThru
+    $emuArgs = @("-avd", "Pixel_8_API_35", "-no-audio", "-no-boot-anim", "-no-snapshot-load", "-gpu", "auto")
+    
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = $emulator
+    $psi.Arguments = ($emuArgs -join " ")
+    $psi.WorkingDirectory = (Split-Path -Parent $emulator)
+    $psi.UseShellExecute = $true
+    $psi.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Minimized
+    [System.Diagnostics.Process]::Start($psi) | Out-Null
     $startedEmulator = $true
 
-    Write-Host "[*] Waiting for device connection via adb..." -ForegroundColor Yellow
-    & $adb wait-for-device
-
-    Write-Host "[*] Waiting for Android OS boot completion (sys.boot_completed=1)..." -ForegroundColor Yellow
+    Write-Host "[*] Polling for device boot completion (max 90s)..." -ForegroundColor Yellow
     $booted = $false
-    $timeoutSeconds = 120
+    $timeoutSeconds = 90
     $startTime = [System.DateTime]::UtcNow
 
     while (-not $booted) {
-        $bootProp = (& $adb shell getprop sys.boot_completed).Trim()
-        if ($bootProp -eq "1") {
-            $booted = $true
-            break
-        }
         $elapsed = ([System.DateTime]::UtcNow - $startTime).TotalSeconds
         if ($elapsed -gt $timeoutSeconds) {
             Write-Host "[!] Timed out waiting for emulator boot." -ForegroundColor Red
-            if ($startedEmulator) { & $adb emu kill }
+            if ($startedEmulator) { & $adb emu kill 2>$null }
             exit 1
         }
-        Start-Sleep -Seconds 2
+        Start-Sleep -Seconds 3
+        $bootProp = (& $adb shell getprop sys.boot_completed 2>$null)
+        if ($bootProp -and $bootProp.Trim() -eq "1") {
+            $booted = $true
+            break
+        }
     }
-    Write-Host "[*] Emulator booted successfully. Stabilizing launcher (5s)..." -ForegroundColor Green
-    Start-Sleep -Seconds 5
+    Write-Host "[*] Emulator booted successfully. Stabilizing launcher (3s)..." -ForegroundColor Green
+    Start-Sleep -Seconds 3
 } else {
     Write-Host "[*] Using already connected device/emulator: $devices" -ForegroundColor Green
 }

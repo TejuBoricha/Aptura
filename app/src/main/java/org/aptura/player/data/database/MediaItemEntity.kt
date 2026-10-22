@@ -51,6 +51,7 @@ fun MediaItemEntity.toDomainMediaItem(): DomainMediaItem {
         height = height,
         frameRate = frameRate,
         dateAddedSec = dateAddedSec,
+        dateModifiedSec = dateModifiedSec,
         folderPath = folderPath,
         playbackPositionMs = playbackPositionMs,
         isCompleted = isCompleted

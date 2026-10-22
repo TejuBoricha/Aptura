@@ -25,6 +25,11 @@ class MainActivity : ComponentActivity() {
 
         val launchUri = intent?.data?.toString()
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes.layoutInDisplayCutoutMode =
+                android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+
         enableEdgeToEdge()
         setContent {
             ApturaTheme {

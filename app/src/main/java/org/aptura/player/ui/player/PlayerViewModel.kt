@@ -23,6 +23,7 @@ import org.aptura.player.domain.model.AbRepeatState
 import org.aptura.player.domain.model.AudioEnhancementState
 import org.aptura.player.domain.model.EqualizerPreset
 import org.aptura.player.domain.model.PictureAdjustmentState
+import org.aptura.player.core.media.SubtitleQuerySanitizer
 import org.aptura.player.ui.library.MediaFormatters
 import java.io.File
 
@@ -78,6 +79,25 @@ class PlayerViewModel(
         observePlaybackQueue()
         observeTrackSelection()
         observeAudioEnhancements()
+        observeCompatibilityMode()
+    }
+
+    private fun observeCompatibilityMode() {
+        viewModelScope.launch(dispatcher + errorHandler) {
+            playbackController.isCompatibilityMode.collect { isCompat ->
+                _uiState.update { it.copy(isCompatibilityMode = isCompat) }
+            }
+        }
+        viewModelScope.launch(dispatcher + errorHandler) {
+            playbackController.compatibilityNotice.collect { notice ->
+                _uiState.update { it.copy(compatibilityNotice = notice) }
+            }
+        }
+        viewModelScope.launch(dispatcher + errorHandler) {
+            playbackController.decoderStrategy.collect { strategy ->
+                _uiState.update { it.copy(decoderStrategy = strategy) }
+            }
+        }
     }
 
     private fun observeAudioEnhancements() {
@@ -167,6 +187,8 @@ class PlayerViewModel(
                                 isBuffering = false,
                                 errorMessage = state.message,
                                 errorCode = state.errorCode,
+                                errorTaxonomyCode = state.errorCode,
+                                canSwitchToSoftware = state.errorCode in listOf("DECODER_FAILURE", "UNSUPPORTED_PROFILE", "UNKNOWN"),
                                 isRecoverableError = state.isRecoverable,
                                 isControlsVisible = true // Lock controls open during error
                             )
@@ -181,6 +203,7 @@ class PlayerViewModel(
         viewModelScope.launch(dispatcher + errorHandler) {
             playbackController.playbackQueue.collect { queue ->
                 val currentItem = queue.currentItem
+                val sanitized = currentItem?.let { SubtitleQuerySanitizer.sanitize(it.title) }
                 _uiState.update {
                     it.copy(
                         playMode = queue.playMode,
@@ -188,7 +211,9 @@ class PlayerViewModel(
                         hasPrevious = queue.hasPrevious,
                         videoUri = currentItem?.uri ?: it.videoUri,
                         videoTitle = currentItem?.let { item -> MediaFormatters.cleanTitle(item.title) } ?: it.videoTitle,
-                        durationMs = if (currentItem != null && currentItem.durationMs > 0) currentItem.durationMs else it.durationMs
+                        durationMs = if (currentItem != null && currentItem.durationMs > 0) currentItem.durationMs else it.durationMs,
+                        cleanSearchQuery = sanitized?.searchQuery ?: it.cleanSearchQuery,
+                        sanitizedTitle = sanitized?.displayTitle ?: it.sanitizedTitle
                     )
                 }
                 if (currentItem != null && currentItem.uri.isNotBlank()) {
@@ -219,7 +244,8 @@ class PlayerViewModel(
                                 index = track.index,
                                 label = track.label,
                                 language = track.language,
-                                isSelected = track.isSelected
+                                isSelected = track.isSelected,
+                                isExternal = track.isExternal
                             )
                         },
                         selectedAudioTrackIndex = selection.selectedAudioTrackIndex,
@@ -241,11 +267,14 @@ class PlayerViewModel(
             val clampedIndex = startIndex.coerceIn(0, items.size - 1)
             val currentItem = items[clampedIndex]
 
+            val sanitized = SubtitleQuerySanitizer.sanitize(currentItem.title)
             _uiState.update {
                 it.copy(
                     videoUri = currentItem.uri,
                     videoTitle = MediaFormatters.cleanTitle(currentItem.title),
                     durationMs = currentItem.durationMs,
+                    cleanSearchQuery = sanitized.searchQuery,
+                    sanitizedTitle = sanitized.displayTitle,
                     isControlsVisible = true
                 )
             }
@@ -326,13 +355,17 @@ class PlayerViewModel(
     fun loadAndPlay(videoUri: String) {
         viewModelScope.launch(dispatcher + errorHandler) {
             val item = mediaRepository.getVideoByUri(videoUri)
-            val title = MediaFormatters.cleanTitle(item?.title ?: extractTitleFromUri(videoUri))
+            val rawTitle = item?.title ?: extractTitleFromUri(videoUri)
+            val title = MediaFormatters.cleanTitle(rawTitle)
+            val cleanQuery = org.aptura.player.core.media.SubtitleQuerySanitizer.sanitizeToSearchQuery(rawTitle)
             val initialDuration = item?.durationMs ?: 0L
 
             _uiState.update {
                 it.copy(
                     videoUri = videoUri,
                     videoTitle = title,
+                    cleanSearchQuery = cleanQuery,
+                    sanitizedTitle = cleanQuery,
                     durationMs = initialDuration,
                     isControlsVisible = true
                 )
@@ -557,9 +590,21 @@ class PlayerViewModel(
     }
 
     fun retryPlayback() {
+        _uiState.update {
+            it.copy(
+                errorMessage = null,
+                errorCode = null,
+                errorTaxonomyCode = null,
+                canSwitchToSoftware = false
+            )
+        }
         val currentUri = _uiState.value.videoUri
         if (currentUri.isNotBlank()) {
             loadAndPlay(currentUri)
+        } else {
+            viewModelScope.launch(dispatcher + errorHandler) {
+                playbackController.retryPlayback()
+            }
         }
     }
 
@@ -596,6 +641,12 @@ class PlayerViewModel(
         }
     }
 
+    fun removeExternalSubtitles() {
+        viewModelScope.launch(dispatcher + errorHandler) {
+            playbackController.removeExternalSubtitles()
+        }
+    }
+
     fun setSubtitleFontSize(sizeSp: Int) {
         _uiState.update { it.copy(subtitleFontSizeSp = sizeSp) }
     }
@@ -606,6 +657,26 @@ class PlayerViewModel(
 
     fun setSubtitleBackgroundEnabled(enabled: Boolean) {
         _uiState.update { it.copy(subtitleBackgroundEnabled = enabled) }
+    }
+
+    fun setCleanSearchQuery(query: String) {
+        _uiState.update { it.copy(cleanSearchQuery = query) }
+    }
+
+    fun setRecentDownloadedSubtitle(subtitle: org.aptura.player.data.repository.DetectedSidecarSubtitle?) {
+        _uiState.update { it.copy(recentDownloadedSubtitle = subtitle) }
+    }
+
+    fun showWebSearchDialog(visible: Boolean) {
+        _uiState.update { it.copy(isWebSearchDialogVisible = visible) }
+    }
+
+    fun setAutoPairedSubtitleToast(message: String?) {
+        _uiState.update { it.copy(autoPairedSubtitleToast = message) }
+    }
+
+    fun dismissAutoPairToast() {
+        _uiState.update { it.copy(autoPairedSubtitleToast = null) }
     }
 
     private fun observeBookmarks(uri: String) {
@@ -635,6 +706,15 @@ class PlayerViewModel(
 
     fun setDecoderStrategy(strategy: Int) {
         _uiState.update { it.copy(decoderStrategy = strategy) }
+        viewModelScope.launch(dispatcher + errorHandler) {
+            playbackController.setDecoderStrategy(strategy)
+        }
+    }
+
+
+
+    fun dismissCompatibilityNotice() {
+        _uiState.update { it.copy(compatibilityNotice = null) }
     }
 
     fun startSleepTimer(minutes: Int) {
@@ -810,6 +890,22 @@ class PlayerViewModel(
             if (path.isNotBlank()) path else uri
         } catch (_: Throwable) {
             uri
+        }
+    }
+
+    fun checkpointPlayback() {
+        viewModelScope.launch(dispatcher + errorHandler) {
+            playbackController.pause()
+            persistCurrentPosition()
+        }
+    }
+
+    fun onPlayerDismissed() {
+        autoAdvanceJob?.cancel()
+        _uiState.update { it.copy(autoAdvanceCountdownSeconds = null, nextItemTitle = null) }
+        viewModelScope.launch(dispatcher + errorHandler) {
+            playbackController.pause()
+            persistCurrentPosition()
         }
     }
 

@@ -45,6 +45,12 @@ class MediaLibraryViewModelTest {
             videosFlow.value = videosFlow.value.filter { it.uri != uri }
         }
 
+        override suspend fun renameVideo(uri: String, newName: String) {
+            videosFlow.value = videosFlow.value.map {
+                if (it.uri == uri) it.copy(title = newName) else it
+            }
+        }
+
         override fun getBookmarks(mediaUri: String): Flow<List<org.aptura.player.domain.model.Bookmark>> =
             MutableStateFlow(emptyList())
 
@@ -317,11 +323,14 @@ class MediaLibraryViewModelTest {
 
             // Two rapid keystrokes: text field must echo at once, heavy filter pass must wait.
             viewModel.onSearchQueryChanged("Av")
-            viewModel.onSearchQueryChanged("Avatar")
+            val echo1 = awaitItem() as MediaLibraryUiState.Success
+            assertEquals("Av", echo1.searchQuery)
+            assertEquals("Results must not be recomputed before the debounce window", 3, echo1.videos.size)
 
-            val echo = awaitItem() as MediaLibraryUiState.Success
-            assertEquals("Avatar", echo.searchQuery)
-            assertEquals("Results must not be recomputed before the debounce window", 3, echo.videos.size)
+            viewModel.onSearchQueryChanged("Avatar")
+            val echo2 = awaitItem() as MediaLibraryUiState.Success
+            assertEquals("Avatar", echo2.searchQuery)
+            assertEquals("Results must not be recomputed before the debounce window", 3, echo2.videos.size)
 
             val filtered = awaitItem() as MediaLibraryUiState.Success
             assertEquals("Avatar", filtered.searchQuery)
@@ -348,5 +357,17 @@ class MediaLibraryViewModelTest {
         assertEquals("100 KB", MediaFormatters.formatFileSize(102400L))
         assertEquals("10 MB", MediaFormatters.formatFileSize(10485760L))
         assertEquals("2 GB", MediaFormatters.formatFileSize(2147483648L))
+    }
+
+    @Test
+    fun renameVideo_delegatesToRepository() = runTest(testDispatcher) {
+        val repo = FakeMediaRepository()
+        repo.videosFlow.value = listOf(item1)
+        val viewModel = MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 0L)
+
+        viewModel.renameVideo(item1.uri, "Inception Remastered")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("Inception Remastered", repo.videosFlow.value.first().title)
     }
 }

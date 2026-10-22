@@ -46,6 +46,11 @@ interface MediaRepository {
     suspend fun removeVideoFromLibrary(uri: String)
 
     /**
+     * Renames a video in the media library index and local database (FR-LIB-013).
+     */
+    suspend fun renameVideo(uri: String, newName: String)
+
+    /**
      * Computes high-level library statistics for SCR-014 (total videos, duration, and disk footprint).
      */
     suspend fun getLibraryStatistics(): LibraryStatistics
