@@ -58,7 +58,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.BorderStroke
@@ -67,6 +71,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import android.content.pm.ActivityInfo
 import android.util.TypedValue
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.media3.ui.CaptionStyleCompat
@@ -132,6 +137,8 @@ import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.semantics.stateDescription
@@ -211,7 +218,10 @@ fun PlayerScreen(
     onControlsVisibilityToggle: () -> Unit,
     onLockToggle: () -> Unit,
     onSpeedSelected: (Float) -> Unit,
+    onStartHoldSpeed: () -> Unit = { onSpeedSelected(2.0f) },
+    onEndHoldSpeed: () -> Unit = {},
     onResizeModeToggle: () -> Unit,
+    onResizeModeSelected: (AspectRatioMode) -> Unit = { onResizeModeToggle() },
     onSpeedSheetVisible: (Boolean) -> Unit,
     onAudioSheetVisible: (Boolean) -> Unit,
     onSubtitleSheetVisible: (Boolean) -> Unit,
@@ -285,6 +295,12 @@ fun PlayerScreen(
     var lastLongPressReleaseUptimeMs by remember { mutableLongStateOf(0L) }
     var currentOrientationMode by remember { mutableIntStateOf(0) } // 0: Auto, 1: Landscape, 2: Portrait
     var orientationToastMessage by remember { mutableStateOf<String?>(null) }
+
+    // Block system Back gesture/button while Lock Mode is active (F-15, FR-CTRL-006)
+    BackHandler(enabled = uiState.isLocked) {
+        onTriggerLockHint()
+        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+    }
 
     val subtitlePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -488,15 +504,18 @@ fun PlayerScreen(
                                             longPressActive = true
                                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                             is2xSpeedActive = true
-                                            onSpeedSelected(2.0f)
+                                            onStartHoldSpeed()
                                         }
                                     }
-                                    tryAwaitRelease()
-                                    job.cancel()
-                                    if (longPressActive) {
-                                        lastLongPressReleaseUptimeMs = android.os.SystemClock.uptimeMillis()
-                                        is2xSpeedActive = false
-                                        onSpeedSelected(uiState.playbackSpeed)
+                                    try {
+                                        tryAwaitRelease()
+                                    } finally {
+                                        job.cancel()
+                                        if (longPressActive) {
+                                            lastLongPressReleaseUptimeMs = android.os.SystemClock.uptimeMillis()
+                                            is2xSpeedActive = false
+                                            onEndHoldSpeed()
+                                        }
                                     }
                                 }
                             )
@@ -564,15 +583,18 @@ fun PlayerScreen(
                                             longPressActive = true
                                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                             is2xSpeedActive = true
-                                            onSpeedSelected(2.0f)
+                                            onStartHoldSpeed()
                                         }
                                     }
-                                    tryAwaitRelease()
-                                    job.cancel()
-                                    if (longPressActive) {
-                                        lastLongPressReleaseUptimeMs = android.os.SystemClock.uptimeMillis()
-                                        is2xSpeedActive = false
-                                        onSpeedSelected(uiState.playbackSpeed)
+                                    try {
+                                        tryAwaitRelease()
+                                    } finally {
+                                        job.cancel()
+                                        if (longPressActive) {
+                                            lastLongPressReleaseUptimeMs = android.os.SystemClock.uptimeMillis()
+                                            is2xSpeedActive = false
+                                            onEndHoldSpeed()
+                                        }
                                     }
                                 }
                             )
@@ -670,7 +692,7 @@ fun PlayerScreen(
                             Spacer(modifier = Modifier.width(4.dp))
                             IconButton(
                                 onClick = onDismissCompatibilityNotice,
-                                modifier = Modifier.size(36.dp)
+                                modifier = Modifier.size(48.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.Close,
@@ -777,7 +799,7 @@ fun PlayerScreen(
                             )
                             IconButton(
                                 onClick = onDismissAutoPairToast,
-                                modifier = Modifier.size(40.dp)
+                                modifier = Modifier.size(48.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Close,
@@ -933,7 +955,7 @@ fun PlayerScreen(
 
         // 5. Main Controls Overlay (Top Bar, Transport, Bottom Bar)
         AnimatedVisibility(
-            visible = uiState.isControlsVisible && !uiState.isLocked && !isPipMode,
+            visible = uiState.isControlsVisible && !uiState.isLocked && !isPipMode && !uiState.isAnySheetVisible,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.fillMaxSize()
@@ -952,6 +974,7 @@ fun PlayerScreen(
                             )
                         )
                         .windowInsetsPadding(WindowInsets.statusBars)
+                        .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
                         .padding(horizontal = 16.dp, vertical = 12.dp)
                 ) {
                     Column {
@@ -1061,7 +1084,7 @@ fun PlayerScreen(
                                     )
                                     Text(
                                         text = "${uiState.queueItems.size}",
-                                        style = ApturaTypography.labelSmall,
+                                        style = ApturaTypography.labelSmall.copy(fontFeatureSettings = "tnum"),
                                         color = ApturaColors.AccentPrimary
                                     )
                                 }
@@ -1219,6 +1242,7 @@ fun PlayerScreen(
                             )
                         )
                         .windowInsetsPadding(WindowInsets.navigationBars)
+                        .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
                     Column(modifier = Modifier.fillMaxWidth()) {
@@ -1386,6 +1410,42 @@ fun PlayerScreen(
                                                 topLeft = Offset(pipX - pipW / 2f, cy - pipH / 2f),
                                                 size = Size(pipW, pipH),
                                                 cornerRadius = CornerRadius(pipW / 2f, pipW / 2f)
+                                            )
+                                        }
+                                    }
+
+                                    // 3c. A-B Repeat Loop Markers & Span (F-19, FR-CTRL-010)
+                                    if (uiState.durationMs > 0) {
+                                        val ptA = uiState.abRepeat.pointA
+                                        val ptB = uiState.abRepeat.pointB
+                                        val markerW = 3.dp.toPx()
+                                        val markerH = (trackH * 2.4f).coerceAtLeast(12.dp.toPx())
+                                        if (ptA != null && ptB != null && ptB > ptA) {
+                                            val xA = totalW * (ptA.toFloat() / uiState.durationMs.toFloat()).coerceIn(0f, 1f)
+                                            val xB = totalW * (ptB.toFloat() / uiState.durationMs.toFloat()).coerceIn(0f, 1f)
+                                            drawRoundRect(
+                                                color = ApturaColors.AccentPrimary.copy(alpha = 0.32f),
+                                                topLeft = Offset(xA, cy - trackH),
+                                                size = Size((xB - xA).coerceAtLeast(0f), trackH * 2f),
+                                                cornerRadius = CornerRadius(trackH, trackH)
+                                            )
+                                        }
+                                        if (ptA != null) {
+                                            val xA = totalW * (ptA.toFloat() / uiState.durationMs.toFloat()).coerceIn(0f, 1f)
+                                            drawRoundRect(
+                                                color = ApturaColors.AccentPrimary,
+                                                topLeft = Offset(xA - markerW / 2f, cy - markerH / 2f),
+                                                size = Size(markerW, markerH),
+                                                cornerRadius = CornerRadius(markerW / 2f, markerW / 2f)
+                                            )
+                                        }
+                                        if (ptB != null) {
+                                            val xB = totalW * (ptB.toFloat() / uiState.durationMs.toFloat()).coerceIn(0f, 1f)
+                                            drawRoundRect(
+                                                color = ApturaColors.AccentPrimary,
+                                                topLeft = Offset(xB - markerW / 2f, cy - markerH / 2f),
+                                                size = Size(markerW, markerH),
+                                                cornerRadius = CornerRadius(markerW / 2f, markerW / 2f)
                                             )
                                         }
                                     }
@@ -1757,7 +1817,8 @@ fun PlayerScreen(
                 nextDurationMs = uiState.nextItemDurationMs,
                 onPlayNow = onPlayNextImmediately,
                 onReplay = onReplayCurrentItem,
-                onCancel = onCancelAutoAdvance
+                onCancel = onCancelAutoAdvance,
+                totalSeconds = uiState.autoAdvanceTotalSeconds
             )
         }
 
@@ -1809,7 +1870,7 @@ fun PlayerScreen(
                             ) {
                                 Text(
                                     text = if (speed == 1.0f) "Normal (1.0x)" else "${speed}x",
-                                    style = ApturaTypography.bodyMedium,
+                                    style = ApturaTypography.bodyMedium.copy(fontFeatureSettings = "tnum"),
                                     color = if (isSelected) ApturaColors.AccentPrimary else ApturaColors.TextHighEmphasis
                                 )
                                 if (isSelected) {
@@ -1901,6 +1962,7 @@ fun PlayerScreen(
                         .fillMaxWidth()
                         .verticalScroll(rememberScrollState())
                         .windowInsetsPadding(WindowInsets.navigationBars)
+                        .imePadding()
                         .padding(bottom = 24.dp)
                         .padding(horizontal = 24.dp)
                 ) {
@@ -1924,7 +1986,11 @@ fun PlayerScreen(
                             color = if (selectedTab == 0) ApturaColors.AccentPrimary else Color.Transparent,
                             modifier = Modifier
                                 .weight(1f)
-                                .clickable { selectedTab = 0 }
+                                .semantics {
+                                    role = Role.Tab
+                                    selected = (selectedTab == 0)
+                                }
+                                .clickable(role = Role.Tab) { selectedTab = 0 }
                         ) {
                             Row(
                                 modifier = Modifier.padding(vertical = 8.dp),
@@ -1951,7 +2017,11 @@ fun PlayerScreen(
                             color = if (selectedTab == 1) ApturaColors.AccentPrimary else Color.Transparent,
                             modifier = Modifier
                                 .weight(1f)
-                                .clickable { selectedTab = 1 }
+                                .semantics {
+                                    role = Role.Tab
+                                    selected = (selectedTab == 1)
+                                }
+                                .clickable(role = Role.Tab) { selectedTab = 1 }
                         ) {
                             Row(
                                 modifier = Modifier.padding(vertical = 8.dp),
@@ -2036,7 +2106,7 @@ fun PlayerScreen(
                                     ) {
                                         Text(
                                             text = if (speed == 1.0f) "1.0x" else "${speed}x",
-                                            style = ApturaTypography.labelSmall,
+                                            style = ApturaTypography.labelSmall.copy(fontFeatureSettings = "tnum"),
                                             color = if (isSelected) ApturaColors.SurfacePureBlack else ApturaColors.TextHighEmphasis,
                                             textAlign = TextAlign.Center,
                                             modifier = Modifier.padding(vertical = 10.dp)
@@ -2060,7 +2130,7 @@ fun PlayerScreen(
                                     ) {
                                         Text(
                                             text = "${speed}x",
-                                            style = ApturaTypography.labelSmall,
+                                            style = ApturaTypography.labelSmall.copy(fontFeatureSettings = "tnum"),
                                             color = if (isSelected) ApturaColors.SurfacePureBlack else ApturaColors.TextHighEmphasis,
                                             textAlign = TextAlign.Center,
                                             modifier = Modifier.padding(vertical = 10.dp)
@@ -2097,7 +2167,7 @@ fun PlayerScreen(
                             if (uiState.sleepTimerRemainingMs != null) {
                                 Text(
                                     text = "Cancel (${MediaFormatters.formatDuration(uiState.sleepTimerRemainingMs)} left)",
-                                    style = ApturaTypography.labelSmall,
+                                    style = ApturaTypography.labelSmall.copy(fontFeatureSettings = "tnum"),
                                     color = ApturaColors.StatusError,
                                     modifier = Modifier.clickable { onCancelSleepTimer() }
                                 )
@@ -2137,7 +2207,7 @@ fun PlayerScreen(
                                 ) {
                                     Text(
                                         text = "${minutes}m",
-                                        style = ApturaTypography.labelSmall,
+                                        style = ApturaTypography.labelSmall.copy(fontFeatureSettings = "tnum"),
                                         color = ApturaColors.TextHighEmphasis,
                                         textAlign = TextAlign.Center,
                                         modifier = Modifier.padding(vertical = 10.dp)
@@ -2173,7 +2243,7 @@ fun PlayerScreen(
                             ) {
                                 Text(
                                     text = if (ptA != null) "Point A: ${MediaFormatters.formatDuration(ptA)}" else "Set Point A",
-                                    style = ApturaTypography.labelSmall,
+                                    style = ApturaTypography.labelSmall.copy(fontFeatureSettings = "tnum"),
                                     color = if (ptA != null) ApturaColors.AccentPrimary else ApturaColors.TextHighEmphasis,
                                     textAlign = TextAlign.Center,
                                     modifier = Modifier.padding(vertical = 10.dp)
@@ -2190,7 +2260,7 @@ fun PlayerScreen(
                             ) {
                                 Text(
                                     text = if (ptB != null) "Point B: ${MediaFormatters.formatDuration(ptB)}" else "Set Point B",
-                                    style = ApturaTypography.labelSmall,
+                                    style = ApturaTypography.labelSmall.copy(fontFeatureSettings = "tnum"),
                                     color = if (ptB != null) ApturaColors.AccentPrimary else ApturaColors.TextHighEmphasis,
                                     textAlign = TextAlign.Center,
                                     modifier = Modifier.padding(vertical = 10.dp)
@@ -2386,7 +2456,7 @@ fun PlayerScreen(
                                                             editingNoteText = bookmark.note
                                                         }
                                                     },
-                                                    modifier = Modifier.size(32.dp)
+                                                    modifier = Modifier.size(48.dp)
                                                 ) {
                                                     Icon(
                                                         imageVector = Icons.Filled.Edit,
@@ -2397,7 +2467,7 @@ fun PlayerScreen(
                                                 }
                                                 IconButton(
                                                     onClick = { onDeleteBookmark(bookmark.id) },
-                                                    modifier = Modifier.size(32.dp)
+                                                    modifier = Modifier.size(48.dp)
                                                 ) {
                                                     Icon(
                                                         imageVector = Icons.Filled.Delete,
@@ -2561,7 +2631,7 @@ fun PlayerScreen(
                                         .weight(1f)
                                         .clickable {
                                             if (!isSelected) {
-                                                onResizeModeToggle()
+                                                onResizeModeSelected(mode)
                                             }
                                         }
                                 ) {
@@ -2878,7 +2948,7 @@ private fun TitleSpeedSuffix(speed: Float, onClick: () -> Unit) {
     ) {
         Text(
             text = "${speed}x",
-            style = ApturaTypography.titleMedium,
+            style = ApturaTypography.titleMedium.copy(fontFeatureSettings = "tnum"),
             color = ApturaColors.AccentPrimary,
             fontWeight = FontWeight.Bold
         )
@@ -2909,7 +2979,7 @@ private fun TopBarSpeedChip(speed: Float, onClick: () -> Unit) {
             )
             Text(
                 text = "${speed}x",
-                style = ApturaTypography.labelSmall,
+                style = ApturaTypography.labelSmall.copy(fontFeatureSettings = "tnum"),
                 color = ApturaColors.TextHighEmphasis
             )
         }

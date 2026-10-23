@@ -630,7 +630,13 @@ class Media3PlaybackController(
     private fun resetPerItemState() {
         externalSubtitleLabels.clear()
         apturaTextRenderer?.subtitleDelayMs = 0L
-        _trackSelection.value = _trackSelection.value.copy(subtitleDelayMs = 0L)
+        audioDelayProcessor?.delayMs = 0L
+        try { player.setPlaybackSpeed(1.0f) } catch (_: Throwable) {}
+        _trackSelection.value = _trackSelection.value.copy(
+            subtitleDelayMs = 0L,
+            audioDelayMs = 0L,
+            playbackSpeed = 1.0f
+        )
         hasAttemptedSoftwareFallback = false
         hasAttemptedAudioTrackFallback = false
         totalDroppedFrames = 0

@@ -110,6 +110,7 @@ data class PlayerUiState(
     val isScrubbing: Boolean = false,
     val scrubPositionMs: Long = 0L,
     val autoAdvanceCountdownSeconds: Int? = null,
+    val autoAdvanceTotalSeconds: Int = 10,
     val nextItemTitle: String? = null,
     val subtitleFontSizeSp: Int = 18,
     val subtitleTextColorHex: String = "#FFFFFF",

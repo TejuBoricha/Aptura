@@ -61,6 +61,15 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.setProgress
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -182,7 +191,12 @@ fun AudioEnhancementSheet(
                         shape = RoundedCornerShape(9.dp),
                         color = animBg,
                         border = if (isSelected) BorderStroke(1.dp, ApturaColors.BorderSubtle) else null,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1f)
+                            .semantics {
+                                role = Role.Tab
+                                selected = isSelected
+                            }
                     ) {
                         Row(
                             modifier = Modifier.padding(vertical = 10.dp),
@@ -734,7 +748,22 @@ private fun VerticalMixerFader(
         Box(
             modifier = Modifier
                 .weight(1f)
-                .width(44.dp)
+                .width(48.dp)
+                .semantics {
+                    contentDescription = "$freqLabel Hz equalizer band"
+                    stateDescription = "${dBText} dB"
+                    progressBarRangeInfo = ProgressBarRangeInfo(
+                        current = band.levelMilliBels.toFloat(),
+                        range = minLevel..maxLevel
+                    )
+                    if (enabled) {
+                        setProgress { targetValue ->
+                            val clamped = targetValue.toInt().coerceIn(band.minMilliBels, band.maxMilliBels)
+                            onLevelChanged(clamped)
+                            true
+                        }
+                    }
+                }
                 .pointerInput(enabled, minLevel, maxLevel) {
                     if (!enabled) return@pointerInput
                     detectVerticalDragGestures { change, dragAmount ->

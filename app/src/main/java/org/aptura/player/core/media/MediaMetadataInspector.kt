@@ -1,3 +1,5 @@
+@file:androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+
 package org.aptura.player.core.media
 
 import android.content.Context
@@ -6,7 +8,11 @@ import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
+import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.exoplayer.MetadataRetriever
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 /**
  * Granular media metadata inspection using Android framework MediaExtractor and MediaMetadataRetriever.
@@ -161,6 +167,84 @@ object MediaMetadataInspector {
             try { extractor.release() } catch (_: Throwable) {}
         }
 
+        // 3. Media3 MetadataRetriever pass when Android MediaExtractor misses MKV/TS tracks (e.g., AC-3, E-AC-3, DTS, embedded SRT/ASS/PGS)
+        if (videoCodec == null || audioTracks.isEmpty() || subtitleTracks.isEmpty()) {
+            val needAudio = audioTracks.isEmpty()
+            val needSubtitles = subtitleTracks.isEmpty()
+            try {
+                val trackGroups = MetadataRetriever.retrieveMetadata(context, MediaItem.fromUri(uri))
+                    .get(2, TimeUnit.SECONDS)
+                inspected = true
+                for (i in 0 until trackGroups.length) {
+                    val group = trackGroups.get(i)
+                    if (group.length <= 0) continue
+                    val format = group.getFormat(0)
+                    val mime = format.sampleMimeType.orEmpty()
+                    val codeMime = format.codecs?.takeIf { it.isNotBlank() }
+
+                    if (mime.startsWith("video/") && videoCodec == null) {
+                        videoCodec = formatMimeToCodecName(mime)
+                        if (format.bitrate > 0) {
+                            videoBitrate = format.bitrate.toLong()
+                        }
+                        format.colorInfo?.let { color ->
+                            isHdr = color.colorTransfer == C.COLOR_TRANSFER_ST2084 ||
+                                color.colorTransfer == C.COLOR_TRANSFER_HLG
+                            colorTransferStr = when (color.colorTransfer) {
+                                C.COLOR_TRANSFER_ST2084 -> "HDR10 / PQ (ST 2084)"
+                                C.COLOR_TRANSFER_HLG -> "HLG (ARIB STD-B67)"
+                                C.COLOR_TRANSFER_SDR -> "SDR (BT.709)"
+                                else -> colorTransferStr
+                            }
+                            colorStandardStr = when (color.colorSpace) {
+                                C.COLOR_SPACE_BT2020 -> "BT.2020 (Wide Gamut)"
+                                C.COLOR_SPACE_BT709 -> "BT.709 (HD/sRGB)"
+                                C.COLOR_SPACE_BT601 -> "BT.601"
+                                else -> colorStandardStr
+                            }
+                        }
+                    } else if (mime.startsWith("audio/") && needAudio) {
+                        audioTracks.add(
+                            AudioTrackMetadata(
+                                index = i,
+                                codec = formatMimeToAudioCodecName(mime),
+                                channelCount = format.channelCount.takeIf { it > 0 } ?: 2,
+                                sampleRate = format.sampleRate.takeIf { it > 0 } ?: 0,
+                                bitrate = format.bitrate.takeIf { it > 0 }?.toLong(),
+                                language = format.language,
+                                name = format.label?.takeIf { it.isNotBlank() } ?: "Audio Track ${audioTracks.size + 1}"
+                            )
+                        )
+                    } else if (
+                        (mime.startsWith("text/") || mime.startsWith("application/") || mime.startsWith("image/")) &&
+                        needSubtitles &&
+                        !mime.equals("application/x-media3-cues", ignoreCase = true)
+                    ) {
+                        val effectiveSubMime = if (mime == "application/x-media3-cues" && codeMime != null) codeMime else mime
+                        subtitleTracks.add(
+                            SubtitleTrackMetadata(
+                                index = i,
+                                format = formatMimeToSubtitleName(effectiveSubMime),
+                                language = format.language,
+                                name = format.label?.takeIf { it.isNotBlank() } ?: "Subtitle ${subtitleTracks.size + 1}"
+                            )
+                        )
+                    } else if (mime.equals("application/x-media3-cues", ignoreCase = true) && needSubtitles) {
+                        subtitleTracks.add(
+                            SubtitleTrackMetadata(
+                                index = i,
+                                format = formatMimeToSubtitleName(codeMime ?: "SubRip (SRT)"),
+                                language = format.language,
+                                name = format.label?.takeIf { it.isNotBlank() } ?: "Subtitle ${subtitleTracks.size + 1}"
+                            )
+                        )
+                    }
+                }
+            } catch (_: Throwable) {
+                // best-effort fallback
+            }
+        }
+
         return MediaExtendedMetadata(
             videoCodec = videoCodec,
             videoProfile = videoProfile,
@@ -179,9 +263,12 @@ object MediaMetadataInspector {
     fun formatMimeToCodecName(mime: String): String = when (mime.lowercase(Locale.US)) {
         "video/avc", "video/mp4v-es" -> "H.264 / AVC"
         "video/hevc" -> "H.265 / HEVC"
+        "video/dolby-vision" -> "Dolby Vision"
         "video/x-vnd.on2.vp9" -> "Google VP9"
         "video/x-vnd.on2.vp8" -> "Google VP8"
         "video/av01" -> "AOMedia AV1"
+        "video/mpeg2", "video/mpeg" -> "MPEG-2"
+        "video/wvc1", "video/vc1" -> "VC-1 / WMV"
         "video/3gpp" -> "H.263"
         "video/mp4" -> "MPEG-4 Part 2"
         else -> mime.removePrefix("video/").uppercase(Locale.US)
@@ -191,9 +278,14 @@ object MediaMetadataInspector {
         "audio/mp4a-latm", "audio/aac" -> "AAC"
         "audio/ac3" -> "Dolby Digital (AC-3)"
         "audio/eac3", "audio/eac3-joc" -> "Dolby Digital Plus (E-AC-3)"
+        "audio/vnd.dts", "audio/dts" -> "DTS"
+        "audio/vnd.dts.hd" -> "DTS-HD"
+        "audio/true-hd" -> "Dolby TrueHD"
         "audio/opus" -> "Opus"
         "audio/flac" -> "FLAC (Lossless)"
+        "audio/alac" -> "Apple Lossless (ALAC)"
         "audio/mpeg", "audio/mp3" -> "MP3"
+        "audio/mpeg-l2" -> "MP2"
         "audio/vorbis" -> "Vorbis"
         "audio/raw" -> "PCM"
         else -> mime.removePrefix("audio/").uppercase(Locale.US)
@@ -203,6 +295,10 @@ object MediaMetadataInspector {
         "application/x-subrip", "text/x-subrip" -> "SubRip (SRT)"
         "text/vtt" -> "WebVTT"
         "application/x-matroska", "text/x-ssa", "text/x-ass" -> "SubStation Alpha (ASS)"
+        "application/ttml+xml" -> "Timed Text (TTML)"
+        "application/pgs" -> "Blu-ray PGS"
+        "application/vobsub" -> "DVD VobSub"
+        "application/dvbsubs" -> "DVB Subtitles"
         else -> mime.substringAfterLast('/').uppercase(Locale.US)
     }
 

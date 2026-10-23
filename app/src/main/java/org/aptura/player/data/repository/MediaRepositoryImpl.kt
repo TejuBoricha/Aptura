@@ -129,6 +129,12 @@ class MediaRepositoryImpl(
         mediaItemDao.clearMissingVideos()
     }
 
+    override suspend fun removeVideosByUriPrefix(uriPrefix: String): Unit = withContext(ioDispatcher) {
+        if (uriPrefix.isNotBlank()) {
+            mediaItemDao.deleteByUriPrefix(uriPrefix)
+        }
+    }
+
     override suspend fun deleteBookmark(id: Long) {
         withContext(ioDispatcher) {
             bookmarkDao?.deleteBookmarkById(id)

@@ -102,6 +102,17 @@ import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
 
 /**
+ * Algebraic sum type representing the single active modal/dialog on the Media Library screen.
+ * Enforces mutual exclusion per Aptura Coding Standards §6 (at most one active modal at a time).
+ */
+internal sealed interface LibraryActiveModal {
+    data class Details(val item: DomainMediaItem) : LibraryActiveModal
+    data class Rename(val item: DomainMediaItem) : LibraryActiveModal
+    data class Hide(val item: DomainMediaItem) : LibraryActiveModal
+    data class Delete(val item: DomainMediaItem) : LibraryActiveModal
+}
+
+/**
  * Media Library Grid Screen (SCR-001, FR-LIB-001..015).
  * Built with Jetpack Compose following anti-slop taste guidelines and adaptive breakpoints.
  */
@@ -123,6 +134,7 @@ fun MediaLibraryScreen(
     onAddFolderClick: () -> Unit = {},
     onPlayNext: (DomainMediaItem) -> Unit = {},
     onAddToQueue: (DomainMediaItem) -> Unit = {},
+    onPlayAudioOnly: (DomainMediaItem, List<DomainMediaItem>) -> Unit = onVideoClick,
     onVideoDeleted: (String) -> Unit = onRemoveVideo,
     showCrashNotice: Boolean = false,
     onShareCrashDetails: () -> Unit = {},
@@ -133,17 +145,16 @@ fun MediaLibraryScreen(
         modifier = modifier.fillMaxSize(),
         containerColor = ApturaColors.SurfaceBase
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(top = innerPadding.calculateTopPadding())
-        ) {
+        Box(modifier = Modifier.fillMaxSize()) {
             when (uiState) {
                 is MediaLibraryUiState.Loading -> {
                     MediaLibraryLoadingView(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(bottom = innerPadding.calculateBottomPadding())
+                            .padding(
+                                top = innerPadding.calculateTopPadding(),
+                                bottom = innerPadding.calculateBottomPadding()
+                            )
                     )
                 }
 
@@ -159,7 +170,10 @@ fun MediaLibraryScreen(
                         onAddFolderClick = onAddFolderClick,
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(bottom = innerPadding.calculateBottomPadding())
+                            .padding(
+                                top = innerPadding.calculateTopPadding(),
+                                bottom = innerPadding.calculateBottomPadding()
+                            )
                     )
                 }
 
@@ -181,10 +195,12 @@ fun MediaLibraryScreen(
                         onAddFolderClick = onAddFolderClick,
                         onPlayNext = onPlayNext,
                         onAddToQueue = onAddToQueue,
+                        onPlayAudioOnly = onPlayAudioOnly,
                         onVideoDeleted = onVideoDeleted,
                         showCrashNotice = showCrashNotice,
                         onShareCrashDetails = onShareCrashDetails,
                         onDismissCrashNotice = onDismissCrashNotice,
+                        topPadding = innerPadding.calculateTopPadding(),
                         bottomPadding = innerPadding.calculateBottomPadding()
                     )
                 }
@@ -211,24 +227,23 @@ private fun MediaLibraryContentView(
     onAddFolderClick: () -> Unit = {},
     onPlayNext: (DomainMediaItem) -> Unit = {},
     onAddToQueue: (DomainMediaItem) -> Unit = {},
+    onPlayAudioOnly: (DomainMediaItem, List<DomainMediaItem>) -> Unit = onVideoClick,
     onVideoDeleted: (String) -> Unit = onRemoveVideo,
     showCrashNotice: Boolean = false,
     onShareCrashDetails: () -> Unit = {},
     onDismissCrashNotice: () -> Unit = {},
+    topPadding: androidx.compose.ui.unit.Dp = 0.dp,
     bottomPadding: androidx.compose.ui.unit.Dp,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     var sortMenuExpanded by remember { mutableStateOf(false) }
-    var selectedDetailItem by remember { mutableStateOf<DomainMediaItem?>(null) }
-    var itemToRename by remember { mutableStateOf<DomainMediaItem?>(null) }
+    var activeModal by remember { mutableStateOf<LibraryActiveModal?>(null) }
     var itemPendingRenameUri by remember { mutableStateOf<String?>(null) }
     var itemPendingRenameNewName by remember { mutableStateOf<String?>(null) }
-    var itemToHide by remember { mutableStateOf<DomainMediaItem?>(null) }
-    var itemToDelete by remember { mutableStateOf<DomainMediaItem?>(null) }
     val deleteFlow = rememberMediaDeleteFlow(onDeleted = { uri ->
-        selectedDetailItem = null
+        activeModal = null
         ThumbnailRepository.deleteThumbnail(context, uri)
         onVideoDeleted(uri)
     })
@@ -256,12 +271,13 @@ private fun MediaLibraryContentView(
         Row(modifier = Modifier.fillMaxSize()) {
             if (isWideScreen) {
                 NavigationRail(
+                    modifier = Modifier.fillMaxHeight(),
                     containerColor = ApturaColors.SurfaceElevated1,
                     contentColor = ApturaColors.TextHighEmphasis,
                     header = {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.padding(top = 14.dp, bottom = 8.dp)
+                            modifier = Modifier.padding(top = topPadding + 10.dp, bottom = 8.dp)
                         ) {
                             Text(
                                 text = "APTURA",
@@ -334,6 +350,7 @@ private fun MediaLibraryContentView(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
+                    .padding(top = topPadding)
             ) {
                 // Search & Sort Bar
                 Row(
@@ -485,7 +502,7 @@ private fun MediaLibraryContentView(
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                item {
+                item(key = "all_videos", contentType = "all_videos_chip") {
                     FilterChip(
                         selected = state.selectedFolder == null,
                         onClick = { onFolderSelected(null) },
@@ -516,7 +533,7 @@ private fun MediaLibraryContentView(
                     )
                 }
 
-                items(state.folders, key = { it }) { folder ->
+                items(state.folders, key = { it }, contentType = { "folder_chip" }) { folder ->
                     val friendlyName = remember(folder) {
                         if (folder.contains('/')) {
                             folder.trimEnd('/').substringAfterLast('/').ifBlank { "Internal Storage" }
@@ -554,7 +571,7 @@ private fun MediaLibraryContentView(
                     )
                 }
 
-                item {
+                item(key = "add_folder", contentType = "add_folder_chip") {
                     FilterChip(
                         selected = false,
                         onClick = onAddFolderClick,
@@ -683,127 +700,133 @@ private fun MediaLibraryContentView(
                         if (onShowDetails != null) {
                             onShowDetails(card.rawItem)
                         } else {
-                            selectedDetailItem = card.rawItem
+                            activeModal = LibraryActiveModal.Details(card.rawItem)
                         }
                     },
                     onPlayNextClick = { onPlayNext(card.rawItem) },
                     onAddToQueueClick = { onAddToQueue(card.rawItem) },
-                    onHideClick = { itemToHide = card.rawItem }
+                    onHideClick = { activeModal = LibraryActiveModal.Hide(card.rawItem) }
                 )
             }
         }
 
-        // Media Details Bottom Sheet (SCR-009)
-        selectedDetailItem?.let { item ->
-            MediaDetailsSheet(
-                item = item,
-                onDismiss = { selectedDetailItem = null },
-                onPlayClick = {
-                    selectedDetailItem = null
-                    onVideoClick(item, allRawVideos)
-                },
-                onPlayAudioOnlyClick = {
-                    selectedDetailItem = null
-                    onVideoClick(item, allRawVideos)
-                },
-                onPlayNextClick = {
-                    selectedDetailItem = null
-                    onPlayNext(item)
-                },
-                onAddToQueueClick = {
-                    selectedDetailItem = null
-                    onAddToQueue(item)
-                },
-                onOpenWithClick = {
-                    val viewIntent = Intent(Intent.ACTION_VIEW).apply {
-                        setDataAndType(Uri.parse(item.uri), item.mimeType ?: "video/*")
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    }
-                    try {
-                        context.startActivity(Intent.createChooser(viewIntent, "Open Video With..."))
-                    } catch (e: Exception) {
-                        // ignore if no handler
-                    }
-                },
-                onShareClick = {
-                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                        type = item.mimeType ?: "video/*"
-                        putExtra(Intent.EXTRA_STREAM, Uri.parse(item.uri))
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    }
-                    context.startActivity(Intent.createChooser(shareIntent, "Share Video"))
-                },
-                onResetProgressClick = {
-                    onResetProgress(item.uri)
-                    selectedDetailItem = item.copy(playbackPositionMs = 0L, isCompleted = false)
-                },
-                onRenameClick = {
-                    itemToRename = item
-                    selectedDetailItem = null
-                },
-                onHideClick = {
-                    itemToHide = item
-                    selectedDetailItem = null
-                },
-                onDeleteClick = {
-                    itemToDelete = item
-                    selectedDetailItem = null
-                }
-            )
-        }
-
-        // Rename Video Dialog (FR-LIB-013)
-        itemToRename?.let { item ->
-            RenameVideoDialog(
-                itemTitle = item.title,
-                onConfirm = { newName ->
-                    val uri = Uri.parse(item.uri)
-                    val hasExt = item.title.contains('.')
-                    val ext = if (hasExt) item.title.substringAfterLast('.') else ""
-                    val fullName = if (ext.isNotBlank() && !newName.endsWith(".$ext", ignoreCase = true)) {
-                        "$newName.$ext"
-                    } else newName
-
-                    ApturaMediaFileManager.renameMediaFile(
-                        context = context,
-                        uri = uri,
-                        newNameWithExt = fullName,
-                        onNeedsWritePermission = { intentSender ->
-                            itemPendingRenameUri = item.uri
-                            itemPendingRenameNewName = newName
-                            renameLauncher.launch(IntentSenderRequest.Builder(intentSender).build())
+        // Single mutually-exclusive modal surface (Coding Standards §6, F-21)
+        when (val modal = activeModal) {
+            is LibraryActiveModal.Details -> {
+                val item = modal.item
+                MediaDetailsSheet(
+                    item = item,
+                    onDismiss = { activeModal = null },
+                    onPlayClick = {
+                        activeModal = null
+                        onVideoClick(item, allRawVideos)
+                    },
+                    onPlayAudioOnlyClick = {
+                        activeModal = null
+                        onPlayAudioOnly(item, allRawVideos)
+                    },
+                    onPlayNextClick = {
+                        activeModal = null
+                        onPlayNext(item)
+                    },
+                    onAddToQueueClick = {
+                        activeModal = null
+                        onAddToQueue(item)
+                    },
+                    onOpenWithClick = {
+                        val viewIntent = Intent(Intent.ACTION_VIEW).apply {
+                            setDataAndType(Uri.parse(item.uri), item.mimeType ?: "video/*")
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         }
-                    )
-                    onRenameVideo(item.uri, newName)
-                    Toast.makeText(context, "Renamed to \"$newName\"", Toast.LENGTH_SHORT).show()
-                    itemToRename = null
-                },
-                onDismiss = { itemToRename = null }
-            )
-        }
+                        try {
+                            context.startActivity(Intent.createChooser(viewIntent, "Open Video With..."))
+                        } catch (_: Exception) {
+                            // ignore if no handler
+                        }
+                    },
+                    onShareClick = {
+                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = item.mimeType ?: "video/*"
+                            putExtra(Intent.EXTRA_STREAM, Uri.parse(item.uri))
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        context.startActivity(Intent.createChooser(shareIntent, "Share Video"))
+                    },
+                    onResetProgressClick = {
+                        onResetProgress(item.uri)
+                        activeModal = LibraryActiveModal.Details(item.copy(playbackPositionMs = 0L, isCompleted = false))
+                    },
+                    onRenameClick = {
+                        activeModal = LibraryActiveModal.Rename(item)
+                    },
+                    onHideClick = {
+                        activeModal = LibraryActiveModal.Hide(item)
+                    },
+                    onDeleteClick = {
+                        activeModal = LibraryActiveModal.Delete(item)
+                    }
+                )
+            }
 
-        // Real Storage Deletion Confirmation
-        itemToDelete?.let { item ->
-            DeleteFromDeviceDialog(
-                itemTitle = item.title,
-                onConfirm = {
-                    deleteFlow.delete(item.uri)
-                    itemToDelete = null
-                },
-                onDismiss = { itemToDelete = null }
-            )
-        }
+            is LibraryActiveModal.Rename -> {
+                val item = modal.item
+                RenameVideoDialog(
+                    itemTitle = MediaFormatters.cleanTitle(item.title),
+                    onConfirm = { newName ->
+                        val uri = Uri.parse(item.uri)
+                        val hasExt = item.title.contains('.')
+                        val ext = if (hasExt) item.title.substringAfterLast('.') else ""
+                        val fullName = if (ext.isNotBlank() && !newName.endsWith(".$ext", ignoreCase = true)) {
+                            "$newName.$ext"
+                        } else newName
 
-        // Hide from Library Dialog
-        itemToHide?.let { item ->
-            HideFromLibraryDialog(
-                itemTitle = item.title,
-                onConfirm = {
-                    onRemoveVideo(item.uri)
-                    itemToHide = null
-                },
-                onDismiss = { itemToHide = null }
-            )
+                        var waitingForConsent = false
+                        ApturaMediaFileManager.renameMediaFile(
+                            context = context,
+                            uri = uri,
+                            newNameWithExt = fullName,
+                            onNeedsWritePermission = { intentSender ->
+                                waitingForConsent = true
+                                itemPendingRenameUri = item.uri
+                                itemPendingRenameNewName = newName
+                                renameLauncher.launch(IntentSenderRequest.Builder(intentSender).build())
+                            }
+                        )
+                        if (!waitingForConsent) {
+                            onRenameVideo(item.uri, newName)
+                            Toast.makeText(context, "Renamed to \"$newName\"", Toast.LENGTH_SHORT).show()
+                        }
+                        activeModal = null
+                    },
+                    onDismiss = { activeModal = null }
+                )
+            }
+
+            is LibraryActiveModal.Delete -> {
+                val item = modal.item
+                DeleteFromDeviceDialog(
+                    itemTitle = MediaFormatters.cleanTitle(item.title),
+                    onConfirm = {
+                        deleteFlow.delete(item.uri)
+                        activeModal = null
+                    },
+                    onDismiss = { activeModal = null }
+                )
+            }
+
+            is LibraryActiveModal.Hide -> {
+                val item = modal.item
+                HideFromLibraryDialog(
+                    itemTitle = MediaFormatters.cleanTitle(item.title),
+                    onConfirm = {
+                        onRemoveVideo(item.uri)
+                        activeModal = null
+                    },
+                    onDismiss = { activeModal = null }
+                )
+            }
+
+            null -> Unit
         }
             }
         }
@@ -867,18 +890,20 @@ fun VideoGridCard(
                 )
 
                 // Duration Badge (Bottom-Right with tabular numerals)
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(6.dp)
-                        .background(ApturaColors.SurfaceScrim, RoundedCornerShape(4.dp))
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                ) {
-                    Text(
-                        text = card.durationFormatted,
-                        style = ApturaTypography.labelSmall,
-                        color = ApturaColors.TextHighEmphasis
-                    )
+                if (card.rawItem.durationMs > 0L) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(6.dp)
+                            .background(ApturaColors.SurfaceScrim, RoundedCornerShape(4.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = card.durationFormatted,
+                            style = ApturaTypography.labelSmall,
+                            color = ApturaColors.TextHighEmphasis
+                        )
+                    }
                 }
 
                 // Missing / Unmounted Badge (FR-LIB-018, FR-LIB-021)
@@ -1025,7 +1050,7 @@ fun VideoGridCard(
                 ) {
                     Text(
                         text = "${card.fileSizeFormatted} • ${card.folderName}",
-                        style = ApturaTypography.bodyMedium,
+                        style = ApturaTypography.bodyMedium.copy(fontFeatureSettings = "tnum"),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         color = ApturaColors.TextMediumEmphasis

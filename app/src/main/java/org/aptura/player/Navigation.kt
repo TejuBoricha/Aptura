@@ -113,7 +113,8 @@ fun MainNavigation(
     initialLaunchUri: String? = null,
     onLaunchUriConsumed: () -> Unit = {},
     isPipMode: Boolean = false,
-    onEnterPip: () -> Unit = {}
+    onEnterPip: () -> Unit = {},
+    onPlayerRouteActiveChanged: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
     val settingsRepository = remember { ApturaSettingsRepository(context) }
@@ -126,7 +127,8 @@ fun MainNavigation(
             initialLaunchUri = initialLaunchUri,
             onLaunchUriConsumed = onLaunchUriConsumed,
             isPipMode = isPipMode,
-            onEnterPip = onEnterPip
+            onEnterPip = onEnterPip,
+            onPlayerRouteActiveChanged = onPlayerRouteActiveChanged
         )
     }
 }
@@ -139,7 +141,8 @@ private fun AppNavHost(
     initialLaunchUri: String?,
     onLaunchUriConsumed: () -> Unit,
     isPipMode: Boolean,
-    onEnterPip: () -> Unit
+    onEnterPip: () -> Unit,
+    onPlayerRouteActiveChanged: (Boolean) -> Unit
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -220,18 +223,22 @@ private fun AppNavHost(
         libraryViewModel.setPermissionDenied(!PermissionHelper.hasStoragePermission(context))
     }
 
-    // Handle initial ACTION_VIEW launch intent
+    // Synchronize active route with MainActivity so PiP only triggers while Player is active (F-04)
+    val isPlayerRouteActive = backStack.lastOrNull() is PlayerKey
+    LaunchedEffect(isPlayerRouteActive) {
+        onPlayerRouteActiveChanged(isPlayerRouteActive)
+    }
+
+    // Handle initial ACTION_VIEW launch intent (F-17: replace existing PlayerKey if already on player route)
     LaunchedEffect(initialLaunchUri) {
         if (initialLaunchUri != null) {
             playerViewModel.loadAndPlay(initialLaunchUri)
+            if (backStack.lastOrNull() is PlayerKey) {
+                backStack.removeLastOrNull()
+            }
             backStack.add(PlayerKey(initialLaunchUri))
             onLaunchUriConsumed()
         }
-    }
-
-    // Apply persisted default playback speed and decoder strategy
-    LaunchedEffect(settings.defaultPlaybackSpeed) {
-        playerViewModel.setPlaybackSpeed(settings.defaultPlaybackSpeed)
     }
 
     val activity = context as? Activity
@@ -296,6 +303,11 @@ private fun AppNavHost(
                     onVideoClick = { item, items ->
                         val request = buildPlayQueueRequest(item, items)
                         playerViewModel.playQueue(request.items, request.startIndex)
+                        backStack.add(PlayerKey(item.uri))
+                    },
+                    onPlayAudioOnly = { item, items ->
+                        val request = buildPlayQueueRequest(item, items)
+                        playerViewModel.playQueue(request.items, request.startIndex, audioOnly = true)
                         backStack.add(PlayerKey(item.uri))
                     },
                     onShowDetails = { item ->
@@ -461,11 +473,14 @@ private fun AppNavHost(
                 }
 
                 val hiddenVideoCount by libraryViewModel.hiddenVideoCount.collectAsStateWithLifecycle()
+                val missingVideoCount by libraryViewModel.missingVideoCount.collectAsStateWithLifecycle()
                 SettingsScreen(
                     settings = settings,
                     libraryStats = libraryStats,
                     hiddenVideoCount = hiddenVideoCount,
                     onRestoreHiddenVideos = libraryViewModel::restoreHiddenVideos,
+                    missingVideoCount = missingVideoCount,
+                    onClearMissingVideos = libraryViewModel::clearMissingVideos,
                     onBackClick = { backStack.removeLastOrNull() },
                     onUpdateSpeed = { speed ->
                         coroutineScope.launch { settingsRepository.updateDefaultPlaybackSpeed(speed) }
@@ -509,6 +524,7 @@ private fun AppNavHost(
                         } catch (_: Throwable) {}
                         coroutineScope.launch {
                             settingsRepository.removeSafFolder(folderUriStr)
+                            mediaRepository.removeVideosByUriPrefix(folderUriStr)
                             MediaScanScheduler.scheduleImmediateScan(context)
                         }
                     }
@@ -536,15 +552,19 @@ private fun AppNavHost(
                             playerViewModel.persistProgress()
                         }
                         if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME && uiState.cleanSearchQuery.isNotBlank()) {
-                            try {
-                                val recent = org.aptura.player.data.repository.SidecarSubtitleDetector.findRecentDownloads(
-                                    context = context,
-                                    searchQuery = uiState.cleanSearchQuery
-                                )
-                                if (recent.isNotEmpty()) {
-                                    playerViewModel.setRecentDownloadedSubtitle(recent.first())
-                                }
-                            } catch (_: Throwable) {}
+                            coroutineScope.launch(Dispatchers.IO) {
+                                try {
+                                    val recent = org.aptura.player.data.repository.SidecarSubtitleDetector.findRecentDownloads(
+                                        context = context,
+                                        searchQuery = uiState.cleanSearchQuery
+                                    )
+                                    if (recent.isNotEmpty()) {
+                                        withContext(Dispatchers.Main) {
+                                            playerViewModel.setRecentDownloadedSubtitle(recent.first())
+                                        }
+                                    }
+                                } catch (_: Throwable) {}
+                            }
                         }
                     }
                     lifecycleOwner.lifecycle.addObserver(observer)
@@ -574,7 +594,10 @@ private fun AppNavHost(
                     onControlsVisibilityToggle = playerViewModel::toggleControlsVisibility,
                     onLockToggle = playerViewModel::toggleLock,
                     onSpeedSelected = playerViewModel::setPlaybackSpeed,
+                    onStartHoldSpeed = playerViewModel::startHoldSpeedBoost,
+                    onEndHoldSpeed = playerViewModel::endHoldSpeedBoost,
                     onResizeModeToggle = playerViewModel::toggleResizeMode,
+                    onResizeModeSelected = playerViewModel::setResizeMode,
                     onSpeedSheetVisible = playerViewModel::setSpeedSheetVisible,
                     onAudioSheetVisible = playerViewModel::setAudioSheetVisible,
                     onSubtitleSheetVisible = playerViewModel::setSubtitleSheetVisible,

@@ -88,6 +88,11 @@ interface MediaRepository {
     suspend fun clearMissingVideos()
 
     /**
+     * Purges all indexed videos whose URI begins with [uriPrefix] (e.g. when a custom SAF folder is removed).
+     */
+    suspend fun removeVideosByUriPrefix(uriPrefix: String) {}
+
+    /**
      * Deletes a bookmark by its ID (FR-CTRL-011).
      */
     suspend fun deleteBookmark(id: Long)

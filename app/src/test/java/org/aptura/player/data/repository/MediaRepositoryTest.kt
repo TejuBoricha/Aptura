@@ -114,6 +114,10 @@ class MediaRepositoryTest {
             items.value = items.value.filter { it.uri != uri }
         }
 
+        override suspend fun deleteByUriPrefix(uriPrefix: String) {
+            items.value = items.value.filter { !it.uri.startsWith(uriPrefix) }
+        }
+
         override suspend fun updateMissingStatusByIds(ids: List<Long>, isMissing: Boolean) {
             items.value = items.value.map {
                 if (it.id in ids) it.copy(isMissing = isMissing) else it

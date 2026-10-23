@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.aptura.player.core.diagnostics.ApturaErrorHandler
@@ -195,6 +196,16 @@ class MediaLibraryViewModel(
 
     val hiddenVideoCount: StateFlow<Int> = mediaRepository.getHiddenVideoCount()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val missingVideoCount: StateFlow<Int> = mediaRepository.getMissingVideos()
+        .map { it.size }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    fun clearMissingVideos() {
+        viewModelScope.launch(dispatcher + errorHandler) {
+            mediaRepository.clearMissingVideos()
+        }
+    }
 
     fun renameVideo(uri: String, newName: String) {
         viewModelScope.launch(dispatcher + errorHandler) {

@@ -304,6 +304,11 @@ class PlayerViewModelTest {
             items.remove(uri)
         }
 
+        override suspend fun removeVideosByUriPrefix(uriPrefix: String) {
+            val keys = items.keys.filter { it.startsWith(uriPrefix) }
+            keys.forEach { items.remove(it) }
+        }
+
         override suspend fun renameVideo(uri: String, newName: String) {
             items[uri]?.let { items[uri] = it.copy(title = newName) }
         }
@@ -2428,6 +2433,127 @@ class PlayerViewModelTest {
         assertEquals(1, controller.lastDecoderStrategy)
         assertEquals(1, viewModel.uiState.value.decoderStrategy)
         assertFalse(viewModel.uiState.value.decoderOverridden)
+        viewModel.clearForTesting()
+    }
+
+    // ---- Audit Regression Tests (F-01, F-02, F-03, F-13, F-14, F-17, F-18, F-19) -----------------------------------
+
+    @Test
+    fun perItemPreferences_resetSpeedAndAudioDelay_whenAdvancingToUnconfiguredItem() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val video1 = sampleVideo.copy(
+            uri = "content://media/1",
+            playbackSpeed = 1.5f,
+            audioDelayMs = 250L,
+            subtitleDelayMs = -100L,
+            resizeMode = "ZOOM"
+        )
+        val video2 = sampleVideo.copy(
+            uri = "content://media/2",
+            title = "Tenet",
+            playbackSpeed = 1.0f,
+            audioDelayMs = 0L,
+            subtitleDelayMs = 0L,
+            resizeMode = "FIT"
+        )
+        repository.items[video1.uri] = video1
+        repository.items[video2.uri] = video2
+
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+        viewModel.playQueue(listOf(video1, video2), 0)
+        runCurrent()
+
+        assertEquals(1.5f, controller.lastSpeed ?: 0f, 0.01f)
+        assertEquals(250L, controller.lastAudioDelay)
+        assertEquals(-100L, controller.lastSubtitleDelay)
+        assertEquals(AspectRatioMode.ZOOM, viewModel.uiState.value.resizeMode)
+
+        // Advance to video2 which has default 1.0x speed and 0ms delays
+        viewModel.skipToNext()
+        runCurrent()
+
+        assertEquals("Speed must reset to 1.0x for video2", 1.0f, controller.lastSpeed ?: 0f, 0.01f)
+        assertEquals("Audio delay must reset to 0ms for video2", 0L, controller.lastAudioDelay)
+        assertEquals("Subtitle delay must reset to 0ms for video2", 0L, controller.lastSubtitleDelay)
+        assertEquals("Resize mode must reset to FIT for video2", AspectRatioMode.FIT, viewModel.uiState.value.resizeMode)
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun holdSpeedBoost_isTransient_andDoesNotPersist2xToRepository() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val video = sampleVideo.copy(playbackSpeed = 1.25f)
+        repository.items[video.uri] = video
+
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+        viewModel.loadAndPlay(video.uri)
+        runCurrent()
+
+        assertEquals(1.25f, controller.lastSpeed ?: 0f, 0.01f)
+        repository.lastSavedSpeed = null
+
+        viewModel.startHoldSpeedBoost()
+        runCurrent()
+        assertEquals(2.0f, controller.lastSpeed ?: 0f, 0.01f)
+        assertNull("Hold-for-2x must never persist 2.0x to repository", repository.lastSavedSpeed)
+
+        viewModel.endHoldSpeedBoost()
+        runCurrent()
+        assertEquals(1.25f, controller.lastSpeed ?: 0f, 0.01f)
+        assertNull("Releasing hold-for-2x must not write to repository", repository.lastSavedSpeed)
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun setResizeMode_selectsTargetAspectRatioDirectly_andPersists() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        repository.items[sampleVideo.uri] = sampleVideo
+
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+        viewModel.loadAndPlay(sampleVideo.uri)
+        runCurrent()
+
+        viewModel.setResizeMode(AspectRatioMode.FIXED_16_9)
+        runCurrent()
+
+        assertEquals(AspectRatioMode.FIXED_16_9, viewModel.uiState.value.resizeMode)
+        assertEquals("FIXED_16_9", repository.lastSavedResizeMode)
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun playQueue_synchronouslyUpdatesVideoUriAndAudioOnly_preventingNavigationRace() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val video2 = sampleVideo.copy(uri = "content://media/99", title = "Dunkirk")
+        repository.items[video2.uri] = video2
+
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+        // Call playQueue WITHOUT advancing dispatcher yet
+        viewModel.playQueue(listOf(video2), 0, audioOnly = true)
+
+        // Immediately after playQueue returns, uiState.value.videoUri & isAudioOnly must already be updated
+        assertEquals("content://media/99", viewModel.uiState.value.videoUri)
+        assertTrue(viewModel.uiState.value.isAudioOnly)
+        runCurrent()
+        assertTrue(viewModel.uiState.value.isAudioOnly)
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun extractTitleFromUri_decodesUrlEncodedSafDocumentIds() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val safUri = "content://com.android.externalstorage.documents/document/primary%3AMovies%2FMy%20Vacation%20Clip.mkv"
+
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+        viewModel.loadAndPlay(safUri)
+        runCurrent()
+
+        assertEquals("My Vacation Clip", viewModel.uiState.value.videoTitle)
         viewModel.clearForTesting()
     }
 }

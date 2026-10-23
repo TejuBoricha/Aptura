@@ -103,8 +103,13 @@ class PlayerViewModel(
     private var lastAppliedPreferencesUri: String? = null
     private var autoAdvanceCountdownSeconds: Int = 10
 
-    /** The decoder from Settings: what every video without its own choice uses. */
+    /** Global defaults from Settings: used when a video has not overridden its own speed, aspect ratio, or decoder. */
     private var defaultDecoderStrategy: Int = 0
+    private var defaultPlaybackSpeed: Float = 1.0f
+    private var defaultResizeMode: AspectRatioMode = AspectRatioMode.FIT
+
+    /** Saved playback speed prior to a transient hold-for-2x gesture; null when not holding. */
+    private var preHoldPlaybackSpeed: Float? = null
 
     private var lastSeekTimestampMs: Long = 0L
     private var accumulatedSeekDeltaMs: Long = 0L
@@ -188,15 +193,28 @@ class PlayerViewModel(
         }
     }
 
-    /** Playback-affecting settings: double-tap seek step and the Up Next countdown (0 = advance immediately). */
+    /** Playback-affecting settings: double-tap seek step, default speed/aspect ratio, and the Up Next countdown (0 = advance immediately). */
     private fun observePlaybackSettings() {
         val repository = settingsRepository ?: return
         viewModelScope.launch(dispatcher + errorHandler) {
             repository.settingsFlow.collect { settings ->
+                val prevDefaultSpeed = defaultPlaybackSpeed
+                val prevDefaultResize = defaultResizeMode
+                defaultPlaybackSpeed = settings.defaultPlaybackSpeed
+                defaultResizeMode = AspectRatioMode.entries.getOrElse(settings.defaultResizeMode) { AspectRatioMode.FIT }
                 autoAdvanceCountdownSeconds = settings.autoAdvanceCountdownSeconds
-                _uiState.update { it.copy(seekStepMs = settings.seekDeltaSeconds * 1000L) }
+                _uiState.update {
+                    it.copy(
+                        seekStepMs = settings.seekDeltaSeconds * 1000L,
+                        autoAdvanceTotalSeconds = settings.autoAdvanceCountdownSeconds.coerceAtLeast(1),
+                        resizeMode = if (it.resizeMode == prevDefaultResize) defaultResizeMode else it.resizeMode,
+                        playbackSpeed = if (it.playbackSpeed == prevDefaultSpeed) defaultPlaybackSpeed else it.playbackSpeed
+                    )
+                }
+                if (_uiState.value.playbackSpeed == defaultPlaybackSpeed && prevDefaultSpeed != defaultPlaybackSpeed) {
+                    playbackController.setPlaybackSpeed(defaultPlaybackSpeed)
+                }
                 playbackController.setPauseAtEndOfItems(settings.autoAdvanceCountdownSeconds > 0)
-
             }
         }
     }
@@ -287,7 +305,9 @@ class PlayerViewModel(
                             persistCurrentPosition()
                         }
                         val ab = _uiState.value.abRepeat
-                        if (ab.isLooping && ab.pointA != null && ab.pointB != null && state.positionMs >= ab.pointB) {
+                        if (ab.isLooping && ab.pointA != null && ab.pointB != null &&
+                            (state.positionMs >= ab.pointB || state.positionMs < ab.pointA)
+                        ) {
                             playbackController.seekTo(ab.pointA)
                         }
                         if (state.isPlaying) {
@@ -385,12 +405,21 @@ class PlayerViewModel(
      * its saved position with a 2 s pre-roll. Also clears state that must not leak between videos (A-B loop).
      */
     private suspend fun applyItemPreferences(item: DomainMediaItem, resume: Boolean) {
-        val restoredResizeMode = try {
-            AspectRatioMode.valueOf(item.resizeMode)
-        } catch (_: Throwable) {
-            AspectRatioMode.FIT
+        preHoldPlaybackSpeed = null
+        val restoredResizeMode = if (item.resizeMode == "FIT") {
+            defaultResizeMode
+        } else {
+            try {
+                AspectRatioMode.valueOf(item.resizeMode)
+            } catch (_: Throwable) {
+                defaultResizeMode
+            }
         }
-        val restoredSpeed = if (item.playbackSpeed > 0f) item.playbackSpeed else 1.0f
+        val restoredSpeed = when {
+            item.playbackSpeed <= 0f -> defaultPlaybackSpeed
+            item.playbackSpeed == 1.0f -> defaultPlaybackSpeed
+            else -> item.playbackSpeed
+        }
         val ownDecoder = item.decoderStrategy
         val effectiveDecoder = ownDecoder ?: defaultDecoderStrategy
         _uiState.update {
@@ -406,15 +435,9 @@ class PlayerViewModel(
             )
         }
         playbackController.setDecoderStrategy(effectiveDecoder)
-        if (restoredSpeed != 1.0f) {
-            playbackController.setPlaybackSpeed(restoredSpeed)
-        }
-        if (item.audioDelayMs != 0L) {
-            playbackController.setAudioDelay(item.audioDelayMs)
-        }
-        if (item.subtitleDelayMs != 0L) {
-            playbackController.setSubtitleDelay(item.subtitleDelayMs)
-        }
+        playbackController.setPlaybackSpeed(restoredSpeed)
+        playbackController.setAudioDelay(item.audioDelayMs)
+        playbackController.setSubtitleDelay(item.subtitleDelayMs)
         if (resume && item.playbackPositionMs > 3000L && !item.isCompleted) {
             playbackController.seekTo((item.playbackPositionMs - 2000L).coerceAtLeast(0L))
         }
@@ -457,7 +480,19 @@ class PlayerViewModel(
 
     fun playQueue(items: List<DomainMediaItem>, startIndex: Int = 0, audioOnly: Boolean = false) {
         autoAdvanceJob?.cancel()
-        _uiState.update { it.copy(autoAdvanceCountdownSeconds = null, nextItemTitle = null) }
+        val targetItem = if (items.isNotEmpty()) items[startIndex.coerceIn(0, items.size - 1)] else null
+        if (targetItem != null && _uiState.value.videoUri != targetItem.uri) {
+            persistCurrentPosition()
+            lastPersistedPositionMs = 0L
+        }
+        _uiState.update {
+            it.copy(
+                videoUri = targetItem?.uri ?: it.videoUri,
+                isAudioOnly = audioOnly,
+                autoAdvanceCountdownSeconds = null,
+                nextItemTitle = null
+            )
+        }
         viewModelScope.launch(dispatcher + errorHandler) {
             startQueue(items, startIndex, audioOnly)
         }
@@ -534,10 +569,12 @@ class PlayerViewModel(
             val nextUri = nextItem?.uri
 
             autoAdvanceJob = viewModelScope.launch(dispatcher + errorHandler) {
-                for (s in autoAdvanceCountdownSeconds.coerceAtLeast(1) downTo 1) {
+                val totalSeconds = autoAdvanceCountdownSeconds.coerceAtLeast(1)
+                for (s in totalSeconds downTo 1) {
                     _uiState.update {
                         it.copy(
                             autoAdvanceCountdownSeconds = s,
+                            autoAdvanceTotalSeconds = totalSeconds,
                             nextItemTitle = nextTitle,
                             nextItemDurationMs = nextDuration,
                             nextItemUri = nextUri
@@ -871,6 +908,7 @@ class PlayerViewModel(
     }
 
     fun setPlaybackSpeed(speed: Float) {
+        preHoldPlaybackSpeed = null
         viewModelScope.launch(dispatcher + errorHandler) {
             playbackController.setPlaybackSpeed(speed)
             _uiState.update {
@@ -880,6 +918,28 @@ class PlayerViewModel(
                 )
             }
             persistPlaybackPreferences()
+            scheduleAutoHide()
+        }
+    }
+
+    /** Transiently boosts speed while the user holds the screen (FR-CTRL-004); never writes to Room DB. */
+    fun startHoldSpeedBoost(boostSpeed: Float = 2.0f) {
+        if (preHoldPlaybackSpeed == null) {
+            preHoldPlaybackSpeed = _uiState.value.playbackSpeed
+        }
+        _uiState.update { it.copy(playbackSpeed = boostSpeed) }
+        viewModelScope.launch(dispatcher + errorHandler) {
+            playbackController.setPlaybackSpeed(boostSpeed)
+        }
+    }
+
+    /** Restores the exact pre-hold playback speed when the user releases or cancels a hold-for-2x gesture. */
+    fun endHoldSpeedBoost() {
+        val restoreSpeed = preHoldPlaybackSpeed ?: return
+        preHoldPlaybackSpeed = null
+        _uiState.update { it.copy(playbackSpeed = restoreSpeed) }
+        viewModelScope.launch(dispatcher + errorHandler) {
+            playbackController.setPlaybackSpeed(restoreSpeed)
             scheduleAutoHide()
         }
     }
@@ -1126,16 +1186,17 @@ class PlayerViewModel(
     fun resetVideoPreferences() {
         val uri = _uiState.value.videoUri
         if (uri.isNotBlank()) {
+            preHoldPlaybackSpeed = null
             viewModelScope.launch(dispatcher + errorHandler) {
                 mediaRepository.resetPlaybackPreferences(uri)
-                playbackController.setPlaybackSpeed(1.0f)
+                playbackController.setPlaybackSpeed(defaultPlaybackSpeed)
                 playbackController.setDecoderStrategy(defaultDecoderStrategy)
                 playbackController.setAudioDelay(0L)
                 playbackController.setSubtitleDelay(0L)
                 _uiState.update {
                     it.copy(
-                        resizeMode = AspectRatioMode.FIT,
-                        playbackSpeed = 1.0f,
+                        resizeMode = defaultResizeMode,
+                        playbackSpeed = defaultPlaybackSpeed,
                         decoderStrategy = defaultDecoderStrategy,
                         decoderOverridden = false,
                         audioDelayMs = 0L,
@@ -1337,12 +1398,22 @@ class PlayerViewModel(
         persistCurrentPosition()
     }
 
-    private fun extractTitleFromUri(uri: String): String {
+    internal fun extractTitleFromUri(uri: String): String {
         return try {
-            val path = File(uri).name
-            if (path.isNotBlank()) path else uri
+            val decoded = java.net.URLDecoder.decode(uri, "UTF-8")
+            val segment = decoded
+                .substringBefore('?')
+                .substringBefore('#')
+                .trimEnd('/')
+                .substringAfterLast('/')
+                .substringAfterLast(':')
+            if (segment.isNotBlank()) segment else File(uri).name.ifBlank { uri }
         } catch (_: Throwable) {
-            uri
+            try {
+                File(uri).name.ifBlank { uri }
+            } catch (_: Throwable) {
+                uri
+            }
         }
     }
 

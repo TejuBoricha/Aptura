@@ -65,7 +65,7 @@ import org.aptura.player.theme.ApturaTypography
  * green only for the offline guarantee. Nothing here is decoration; the one piece of craft is the selector switch.
  */
 
-private val Hairline = Color.White.copy(alpha = 0.10f)
+private val Hairline = ApturaColors.BorderSubtle
 
 // ---- structure --------------------------------------------------------------------------------------------------
 
@@ -311,7 +311,7 @@ internal fun SegmentedPicker(
             ) {
                 Text(
                     text = text,
-                    style = ApturaTypography.titleMedium.copy(fontSize = 14.sp),
+                    style = ApturaTypography.titleMedium.copy(fontSize = 14.sp, fontFeatureSettings = "tnum"),
                     color = textColor,
                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                     maxLines = 1,

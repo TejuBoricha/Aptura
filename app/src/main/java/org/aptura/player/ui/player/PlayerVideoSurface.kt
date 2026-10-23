@@ -111,7 +111,9 @@ fun PlayerVideoSurface(
                     }
                 }
 
-                PictureFilter.apply(playerView.videoSurfaceView as? TextureView, pictureAdjustment)
+                if (useColorFilterSurface) {
+                    PictureFilter.apply(playerView.videoSurfaceView as? TextureView, pictureAdjustment)
+                }
             },
             onRelease = { playerView ->
                 playerView.player = null

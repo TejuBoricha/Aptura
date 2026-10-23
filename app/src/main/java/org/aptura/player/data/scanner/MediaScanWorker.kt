@@ -2,6 +2,7 @@ package org.aptura.player.data.scanner
 
 import android.content.Context
 import android.net.Uri
+import androidx.room.withTransaction
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import kotlinx.coroutines.Dispatchers
@@ -67,7 +68,17 @@ class MediaScanWorker(
                     try {
                         val treeUri = Uri.parse(folderUriStr)
                         val safItems = safScanner.scanTree(treeUri, existingByUri)
-                        allScanned.addAll(safItems)
+                        // Deduplicate SAF items against already-scanned MediaStore items so overlapping folders do not create duplicate cards
+                        val deduplicatedSaf = safItems.filterNot { saf ->
+                            allScanned.any { existing ->
+                                existing.uri == saf.uri || (
+                                    existing.sizeBytes > 0L &&
+                                        existing.sizeBytes == saf.sizeBytes &&
+                                        existing.displayName.equals(saf.displayName, ignoreCase = true)
+                                    )
+                            }
+                        }
+                        allScanned.addAll(deduplicatedSaf)
                     } catch (_: Throwable) {
                         // Skip unreadable or revoked SAF tree without failing overall scan
                     }
@@ -80,21 +91,51 @@ class MediaScanWorker(
                 existingItems = existingVideos
             )
 
-            // 4. Batch upsert reconciled items into SQLite database
-            if (reconciliation.itemsToUpsert.isNotEmpty()) {
-                reconciliation.itemsToUpsert.chunked(BATCH_SIZE).forEach { batch ->
-                    dao.insertOrUpdateAll(batch)
+            // Separate genuinely missing external/progress-bearing items from deleted internal MediaStore files with zero user state
+            val (staleInternalToDelete, itemsToUpsert) = reconciliation.itemsToUpsert.partition { item ->
+                item.isMissing &&
+                    hasStorage &&
+                    item.uri.startsWith("content://media/") &&
+                    item.playbackPositionMs == 0L &&
+                    !item.isCompleted &&
+                    item.customTitle.isNullOrBlank()
+            }
+            val allIdsToDelete = reconciliation.idsToDelete +
+                staleInternalToDelete.mapNotNull { it.id.takeIf { id -> id > 0L } } +
+                existingVideos.filter { item ->
+                    item.isMissing &&
+                        hasStorage &&
+                        item.uri.startsWith("content://media/") &&
+                        item.playbackPositionMs == 0L &&
+                        !item.isCompleted &&
+                        item.customTitle.isNullOrBlank() &&
+                        allScanned.none { scanned -> scanned.uri == item.uri || scanned.mediaStoreId == item.mediaStoreId }
+                }.mapNotNull { it.id.takeIf { id -> id > 0L } }
+
+            // 4. Atomic transaction for database upsert, bookmark remapping, and obsolete deletion
+            database.withTransaction {
+                if (itemsToUpsert.isNotEmpty()) {
+                    itemsToUpsert.chunked(BATCH_SIZE).forEach { batch ->
+                        dao.insertOrUpdateAll(batch)
+                    }
+                }
+
+                // 4b. Keep bookmarks attached to files whose URI changed (moved/renamed SAF documents)
+                val bookmarkDao = database.bookmarkDao()
+                reconciliation.uriRemaps.forEach { (oldUri, newUri) ->
+                    bookmarkDao.remapMediaUri(oldUri, newUri)
+                }
+
+                // 5. Delete obsolete IDs if any were explicitly flagged
+                if (allIdsToDelete.isNotEmpty()) {
+                    allIdsToDelete.distinct().chunked(500).forEach { batch ->
+                        dao.deleteByIds(batch)
+                    }
                 }
             }
 
-            // 4b. Keep bookmarks attached to files whose URI changed (moved/renamed SAF documents)
-            val bookmarkDao = database.bookmarkDao()
-            reconciliation.uriRemaps.forEach { (oldUri, newUri) ->
-                bookmarkDao.remapMediaUri(oldUri, newUri)
-            }
-
             // 4c. Pre-warm persistent thumbnail disk cache for first batch of scanned items
-            val preheatItems = reconciliation.itemsToUpsert.take(24)
+            val preheatItems = itemsToUpsert.take(24)
             for (item in preheatItems) {
                 try {
                     ThumbnailRepository.getOrCreateThumbnail(
@@ -103,13 +144,6 @@ class MediaScanWorker(
                         dateModifiedSec = item.dateModifiedSec
                     )
                 } catch (_: Throwable) {}
-            }
-
-            // 5. Delete obsolete IDs if any were explicitly flagged
-            if (reconciliation.idsToDelete.isNotEmpty()) {
-                reconciliation.idsToDelete.chunked(500).forEach { batch ->
-                    dao.deleteByIds(batch)
-                }
             }
 
             Result.success()

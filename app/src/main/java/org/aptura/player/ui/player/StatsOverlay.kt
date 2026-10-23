@@ -103,7 +103,7 @@ fun StatsOverlay(
                             val bundle = buildDiagnosticsString(stats)
                             clipboardManager.setText(AnnotatedString(bundle))
                         },
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Filled.ContentCopy,
@@ -116,7 +116,7 @@ fun StatsOverlay(
                     // Close Button
                     IconButton(
                         onClick = onCloseClick,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Close,

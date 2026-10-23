@@ -84,6 +84,7 @@ import org.aptura.player.theme.ApturaTypography
 import org.aptura.player.ui.library.MediaFormatters
 
 private val PlaybackSpeeds = listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
+private val ResizeModeChoices = listOf("Fit", "Fill", "Zoom", "16:9", "4:3")
 private val SeekSteps = listOf(5, 10, 15, 30)
 private val CountdownChoices = listOf(5, 10, 15, 0) // seconds; 0 plays the next video straight away
 private val DecoderChoices = listOf("Auto", "Hardware", "Software")
@@ -116,6 +117,8 @@ fun SettingsScreen(
     onRemoveSafFolder: (String) -> Unit = {},
     hiddenVideoCount: Int = 0,
     onRestoreHiddenVideos: () -> Unit = {},
+    missingVideoCount: Int = 0,
+    onClearMissingVideos: () -> Unit = {},
     onDeleteDiagnosticData: () -> Unit = { ApturaDiagnostics.clearAll() },
     modifier: Modifier = Modifier
 ) {
@@ -234,6 +237,14 @@ fun SettingsScreen(
                         )
                         PanelDivider()
                         PickerRow(
+                            title = "Default Aspect Ratio",
+                            subtitle = null,
+                            options = ResizeModeChoices,
+                            selectedIndex = settings.defaultResizeMode.takeIf { it in ResizeModeChoices.indices } ?: 0,
+                            onSelect = onUpdateResizeMode
+                        )
+                        PanelDivider()
+                        PickerRow(
                             title = "Double-Tap Seek Step",
                             subtitle = "How far each double-tap on the video jumps",
                             options = SeekSteps.map { "${it}s" },
@@ -332,6 +343,15 @@ fun SettingsScreen(
                                 title = "Hidden Videos",
                                 subtitle = "$hiddenVideoCount hidden from your library",
                                 trailing = { PillButton("Restore all", onRestoreHiddenVideos) }
+                            )
+                        }
+                        if (missingVideoCount > 0) {
+                            PanelDivider()
+                            ActionRow(
+                                icon = Icons.Default.DeleteOutline,
+                                title = "Missing Videos",
+                                subtitle = "$missingVideoCount unavailable or deleted files",
+                                trailing = { PillButton("Remove all", onClearMissingVideos, tint = ApturaColors.StatusError) }
                             )
                         }
                         PanelDivider()

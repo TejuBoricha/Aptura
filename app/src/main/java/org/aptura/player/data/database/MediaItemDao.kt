@@ -28,7 +28,7 @@ interface MediaItemDao {
     @Query("SELECT * FROM media_items WHERE isHidden = 0 AND folderPath = :folderPath ORDER BY title ASC")
     fun getVideosByFolder(folderPath: String): Flow<List<MediaItemEntity>>
 
-    @Query("SELECT DISTINCT folderPath FROM media_items WHERE isHidden = 0 AND folderPath != '' ORDER BY folderPath ASC")
+    @Query("SELECT DISTINCT folderPath FROM media_items WHERE isHidden = 0 AND isMissing = 0 AND folderPath != '' ORDER BY folderPath ASC")
     fun getAllFolders(): Flow<List<String>>
 
     @Query("SELECT * FROM media_items WHERE uri = :uri LIMIT 1")
@@ -77,6 +77,9 @@ interface MediaItemDao {
 
     @Query("DELETE FROM media_items WHERE uri = :uri")
     suspend fun deleteByUri(uri: String)
+
+    @Query("DELETE FROM media_items WHERE uri LIKE :uriPrefix || '%'")
+    suspend fun deleteByUriPrefix(uriPrefix: String)
 
     @Query("UPDATE media_items SET isMissing = :isMissing WHERE id IN (:ids)")
     suspend fun updateMissingStatusByIds(ids: List<Long>, isMissing: Boolean)

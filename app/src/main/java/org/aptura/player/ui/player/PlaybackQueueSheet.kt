@@ -68,6 +68,7 @@ import androidx.compose.ui.unit.sp
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.domain.model.PlayMode
 import org.aptura.player.theme.ApturaColors
+import org.aptura.player.theme.ApturaTypography
 import org.aptura.player.ui.library.MediaFormatters
 
 /**
@@ -164,9 +165,11 @@ fun PlaybackQueueContent(
                         Text(
                             text = "${queueItems.size}",
                             color = ApturaColors.AccentPrimary,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            fontFamily = FontFamily.Monospace,
+                            style = ApturaTypography.labelSmall.copy(
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                fontFeatureSettings = "tnum"
+                            ),
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                         )
                     }
@@ -232,7 +235,7 @@ fun PlaybackQueueContent(
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 onClearQueue()
                             },
-                            modifier = Modifier.size(36.dp)
+                            modifier = Modifier.size(48.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.DeleteSweep,
@@ -275,7 +278,8 @@ fun PlaybackQueueContent(
                 ) {
                     itemsIndexed(
                         items = queueItems,
-                        key = { index, item -> "${item.uri}_$index" }
+                        key = { index, item -> "${item.uri}_$index" },
+                        contentType = { _, _ -> "queue_item" }
                     ) { index, item ->
                         val isPlaying = (index == currentIndex)
                         QueueItemRow(
@@ -363,9 +367,11 @@ private fun QueueItemRow(
                 Text(
                     text = "${index + 1}",
                     color = ApturaColors.TextLowEmphasis,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    fontFamily = FontFamily.Monospace,
+                    style = ApturaTypography.bodySmall.copy(
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        fontFeatureSettings = "tnum"
+                    ),
                     modifier = Modifier.width(28.dp)
                 )
             }
@@ -424,8 +430,10 @@ private fun QueueItemRow(
                     Text(
                         text = MediaFormatters.formatDuration(item.durationMs),
                         color = ApturaColors.TextMediumEmphasis,
-                        fontSize = 12.sp,
-                        fontFamily = FontFamily.Monospace
+                        style = ApturaTypography.bodySmall.copy(
+                            fontSize = 12.sp,
+                            fontFeatureSettings = "tnum"
+                        )
                     )
                 }
             }
@@ -438,7 +446,7 @@ private fun QueueItemRow(
                 if (canMoveUp) {
                     IconButton(
                         onClick = onMoveUp,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.KeyboardArrowUp,
@@ -451,7 +459,7 @@ private fun QueueItemRow(
                 if (canMoveDown) {
                     IconButton(
                         onClick = onMoveDown,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.KeyboardArrowDown,
@@ -464,7 +472,7 @@ private fun QueueItemRow(
                 if (canRemove) {
                     IconButton(
                         onClick = onRemove,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,

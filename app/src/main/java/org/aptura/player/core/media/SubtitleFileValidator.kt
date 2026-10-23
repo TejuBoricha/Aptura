@@ -25,6 +25,8 @@ sealed class SubtitleValidationResult {
  */
 object SubtitleFileValidator {
 
+    private const val MAX_SUBTITLE_BYTES = 20 * 1024 * 1024 // 20 MB ceiling prevents OOM on mislabeled huge files
+
     private val REJECTED_EXTENSIONS = mapOf(
         "png" to "Image file",
         "jpg" to "Image file",
@@ -106,7 +108,19 @@ object SubtitleFileValidator {
             val stream = context.contentResolver.openInputStream(uri)
                 ?: return SubtitleValidationResult.Invalid("Cannot open file stream for $resolvedName.")
             stream.use { s ->
-                val bytes = s.readBytes()
+                val out = java.io.ByteArrayOutputStream()
+                val buf = ByteArray(8192)
+                var totalRead = 0
+                while (true) {
+                    val read = s.read(buf)
+                    if (read == -1) break
+                    totalRead += read
+                    if (totalRead > MAX_SUBTITLE_BYTES) {
+                        return SubtitleValidationResult.Invalid("Selected file ($resolvedName) exceeds the 20 MB maximum subtitle size.")
+                    }
+                    out.write(buf, 0, read)
+                }
+                val bytes = out.toByteArray()
                 if (bytes.isEmpty()) {
                     return SubtitleValidationResult.Invalid("Selected subtitle file ($resolvedName) is empty.")
                 }

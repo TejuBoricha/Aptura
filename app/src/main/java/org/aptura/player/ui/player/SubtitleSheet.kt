@@ -61,6 +61,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -164,7 +168,7 @@ fun SubtitleSheet(
 
                 IconButton(
                     onClick = onDismissRequest,
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier.size(48.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
@@ -203,7 +207,11 @@ fun SubtitleSheet(
                             border = if (isSelected) BorderStroke(1.dp, ApturaColors.AccentPrimary.copy(alpha = 0.5f)) else null,
                             modifier = Modifier
                                 .weight(1f)
-                                .clickable {
+                                .semantics {
+                                    role = Role.Tab
+                                    selected = isSelected
+                                }
+                                .clickable(role = Role.Tab) {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     selectedTab = index
                                 }
@@ -376,7 +384,7 @@ private fun SubtitleTracksTab(
 
                         IconButton(
                             onClick = onDismissRecentSubtitle,
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(48.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Close,
@@ -547,7 +555,7 @@ private fun SubtitleTracksTab(
                             if (track.isExternal) {
                                 IconButton(
                                     onClick = { onRemoveExternalSubtitle(track.label) },
-                                    modifier = Modifier.size(32.dp)
+                                    modifier = Modifier.size(48.dp)
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Close,
@@ -605,7 +613,7 @@ private fun SubtitleTracksTab(
                         color = ApturaColors.TextHighEmphasis
                     )
                     Text(
-                        text = "Supports .srt, .vtt, .ass, .ssa, .sub, .zip",
+                        text = "Supports .srt, .vtt, .ass, .ssa, .ttml, .sub, .zip",
                         style = ApturaTypography.labelSmall,
                         color = ApturaColors.TextMediumEmphasis
                     )
@@ -1176,7 +1184,10 @@ private fun SubtitleStyleTab(
                                 )
                                 Text(
                                     text = "${sp}sp",
-                                    style = ApturaTypography.labelSmall.copy(fontSize = 10.sp),
+                                    style = ApturaTypography.labelSmall.copy(
+                                        fontSize = 10.sp,
+                                        fontFeatureSettings = "tnum"
+                                    ),
                                     color = if (isSelected) ApturaColors.SurfacePureBlack.copy(alpha = 0.8f) else ApturaColors.TextLowEmphasis
                                 )
                             }

@@ -214,22 +214,34 @@ object ThumbnailRepository {
     }
 
     /**
-     * Returns total disk space used by cached thumbnails in bytes.
+     * Returns total disk space used by cached thumbnails and normalized/extracted subtitle cache in bytes.
      */
     fun getCacheSizeBytes(context: Context): Long {
-        val dir = File(context.cacheDir, THUMBNAIL_DIR_NAME)
-        if (!dir.exists()) return 0L
-        return dir.listFiles()?.sumOf { if (it.isFile) it.length() else 0L } ?: 0L
+        val dirs = listOf(
+            File(context.cacheDir, THUMBNAIL_DIR_NAME),
+            File(context.cacheDir, "subtitles_extracted"),
+            File(context.cacheDir, "subtitles_normalized")
+        )
+        return dirs.sumOf { dir ->
+            if (!dir.exists()) 0L
+            else dir.listFiles()?.sumOf { if (it.isFile) it.length() else 0L } ?: 0L
+        }
     }
 
     /**
-     * Clears all cached thumbnails from disk and purges memory/disk caches from Coil.
+     * Clears all cached thumbnails and temporary subtitle files from disk and purges memory/disk caches from Coil.
      */
     fun clearCache(context: Context) {
         failedExtractionKeys.clear()
-        val dir = File(context.cacheDir, THUMBNAIL_DIR_NAME)
-        if (dir.exists()) {
-            dir.listFiles()?.forEach { it.delete() }
+        val dirs = listOf(
+            File(context.cacheDir, THUMBNAIL_DIR_NAME),
+            File(context.cacheDir, "subtitles_extracted"),
+            File(context.cacheDir, "subtitles_normalized")
+        )
+        dirs.forEach { dir ->
+            if (dir.exists()) {
+                dir.listFiles()?.forEach { it.delete() }
+            }
         }
         try {
             val imageLoader = coil3.SingletonImageLoader.get(context)

@@ -44,12 +44,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.aptura.player.theme.ApturaColors
+import org.aptura.player.theme.ApturaTypography
 import org.aptura.player.ui.library.MediaFormatters
 
 /**
  * Studio Up-Next Countdown Overlay (SCR-010g, FR-CTRL-017, FR-LIB-015).
  * Displayed when an item in a playback queue reaches ENDED state.
- * Presents a 10s cancellable countdown ring, upcoming media preview card,
+ * Presents a cancellable countdown ring, upcoming media preview card,
  * Play Now, Replay current, and Cancel Auto-Advance actions.
  */
 @Composable
@@ -60,11 +61,13 @@ fun UpNextOverlay(
     onPlayNow: () -> Unit,
     onReplay: () -> Unit,
     onCancel: () -> Unit,
+    totalSeconds: Int = 10,
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
+    val safeTotal = totalSeconds.coerceAtLeast(1).toFloat()
     val progress by animateFloatAsState(
-        targetValue = (countdownSeconds / 10f).coerceIn(0f, 1f),
+        targetValue = (countdownSeconds / safeTotal).coerceIn(0f, 1f),
         label = "up_next_countdown_progress"
     )
 
@@ -113,9 +116,11 @@ fun UpNextOverlay(
                         Text(
                             text = "$countdownSeconds",
                             color = ApturaColors.TextHighEmphasis,
-                            fontSize = 26.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace
+                            style = ApturaTypography.headlineMedium.copy(
+                                fontSize = 26.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFeatureSettings = "tnum"
+                            )
                         )
                         Text(
                             text = "SEC",
@@ -189,8 +194,10 @@ fun UpNextOverlay(
                                 Text(
                                     text = MediaFormatters.formatDuration(nextDurationMs),
                                     color = ApturaColors.TextMediumEmphasis,
-                                    fontSize = 12.sp,
-                                    fontFamily = FontFamily.Monospace
+                                    style = ApturaTypography.bodySmall.copy(
+                                        fontSize = 12.sp,
+                                        fontFeatureSettings = "tnum"
+                                    )
                                 )
                             }
                         }

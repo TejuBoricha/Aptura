@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Rational
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,11 +19,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.launch
-import org.aptura.player.data.settings.ApturaSettingsRepository
+import androidx.media3.common.C
 import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.VideoSize
+import kotlinx.coroutines.launch
 import org.aptura.player.data.playback.PlayerManager
+import org.aptura.player.data.settings.ApturaSettingsRepository
 import org.aptura.player.theme.ApturaTheme
 import org.aptura.player.ui.player.PipSupport
 
@@ -36,10 +39,15 @@ class MainActivity : ComponentActivity() {
     /** Mirrors the "Background Audio Playback" setting so [onStop] can honour it synchronously. */
     private var backgroundAudioEnabled = true
 
+    /** True only while the active navigation destination is [PlayerKey]. */
+    private var isPlayerRouteActive = false
+
     private var observedPlayer: Player? = null
     private val pipStateListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) = updatePictureInPictureParams()
         override fun onVideoSizeChanged(videoSize: VideoSize) = updatePictureInPictureParams()
+        override fun onTrackSelectionParametersChanged(parameters: TrackSelectionParameters) =
+            updatePictureInPictureParams()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -57,7 +65,11 @@ class MainActivity : ComponentActivity() {
                 android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
         }
 
-        enableEdgeToEdge()
+        // Force dark system bar style so status/navigation bar icons stay light across all rotations (F-26).
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+        )
         setContent {
             ApturaTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -65,7 +77,11 @@ class MainActivity : ComponentActivity() {
                         initialLaunchUri = pendingLaunchUri,
                         onLaunchUriConsumed = { pendingLaunchUri = null },
                         isPipMode = isPipMode.value,
-                        onEnterPip = ::enterPictureInPicture
+                        onEnterPip = ::enterPictureInPicture,
+                        onPlayerRouteActiveChanged = { active ->
+                            isPlayerRouteActive = active
+                            updatePictureInPictureParams()
+                        }
                     )
                 }
             }
@@ -132,7 +148,18 @@ class MainActivity : ComponentActivity() {
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
             packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
 
-    private fun isPlayingVideo(): Boolean = PlayerManager.activeController?.player?.isPlaying == true
+    /** True only when the user is on the Player screen and actively playing video (not in Audio-Only mode). */
+    private fun isPlayingVideo(): Boolean {
+        if (!isPlayerRouteActive) return false
+        val player = PlayerManager.activeController?.player ?: return false
+        if (!player.isPlaying) return false
+        val isVideoDisabled = try {
+            player.trackSelectionParameters.disabledTrackTypes.contains(C.TRACK_TYPE_VIDEO)
+        } catch (_: Throwable) {
+            false
+        }
+        return !isVideoDisabled
+    }
 
     private fun observePlayerForPictureInPicture() {
         if (!supportsPictureInPicture()) return
@@ -165,7 +192,7 @@ class MainActivity : ComponentActivity() {
     fun enterPictureInPicture() {
         if (!supportsPictureInPicture()) return
         try {
-            enterPictureInPictureMode(buildPictureInPictureParams(autoEnter = true))
+            enterPictureInPictureMode(buildPictureInPictureParams(autoEnter = isPlayingVideo()))
         } catch (_: IllegalStateException) {
             // PiP disabled by the user/device policy.
         }

@@ -45,6 +45,10 @@ class MediaLibraryViewModelTest {
             videosFlow.value = videosFlow.value.filter { it.uri != uri }
         }
 
+        override suspend fun removeVideosByUriPrefix(uriPrefix: String) {
+            videosFlow.value = videosFlow.value.filter { !it.uri.startsWith(uriPrefix) }
+        }
+
         override suspend fun renameVideo(uri: String, newName: String) {
             videosFlow.value = videosFlow.value.map {
                 if (it.uri == uri) it.copy(title = newName) else it

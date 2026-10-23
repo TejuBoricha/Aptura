@@ -138,7 +138,7 @@ fun MediaDetailsContent(
                 if (showCloseButton) {
                     IconButton(
                         onClick = onClose,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
@@ -191,13 +191,13 @@ fun MediaDetailsContent(
                     )
                     IconButton(
                         onClick = onRenameClick,
-                        modifier = Modifier.size(28.dp)
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Edit,
                             contentDescription = "Rename Video",
                             tint = ApturaColors.AccentPrimary,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }
@@ -239,7 +239,7 @@ fun MediaDetailsContent(
                             clipboard.setPrimaryClip(clip)
                             Toast.makeText(context, "Storage path copied to clipboard", Toast.LENGTH_SHORT).show()
                         },
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.ContentCopy,
@@ -336,7 +336,7 @@ fun MediaDetailsContent(
         }
 
         // Interactive Watch Status Row
-        val hasProgress = item.playbackPositionMs > 0L || item.isCompleted
+        val hasProgress = item.playbackPositionMs >= 1000L || item.isCompleted
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -356,12 +356,12 @@ fun MediaDetailsContent(
             ) {
                 val statusText = when {
                     item.isCompleted -> "Watched (Completed)"
-                    item.playbackPositionMs > 0 -> "In progress (${MediaFormatters.formatDuration(item.playbackPositionMs)})"
+                    item.playbackPositionMs >= 1000L -> "In progress (${MediaFormatters.formatDuration(item.playbackPositionMs)})"
                     else -> "Unwatched"
                 }
                 Text(
                     text = statusText,
-                    style = ApturaTypography.titleSmall,
+                    style = ApturaTypography.titleSmall.copy(fontFeatureSettings = "tnum"),
                     color = if (item.isCompleted) ApturaColors.StatusSuccess else ApturaColors.TextHighEmphasis,
                     fontWeight = FontWeight.Medium
                 )
@@ -374,7 +374,7 @@ fun MediaDetailsContent(
                         onClick = onResetProgressClick
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
@@ -653,7 +653,7 @@ private fun MetadataRow(label: String, value: String) {
         )
         Text(
             text = value,
-            style = ApturaTypography.titleSmall,
+            style = ApturaTypography.titleSmall.copy(fontFeatureSettings = "tnum"),
             color = ApturaColors.TextHighEmphasis,
             fontWeight = FontWeight.Medium
         )
