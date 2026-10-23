@@ -209,4 +209,22 @@ object ErrorTaxonomy {
             }
         }
     }
+
+    /**
+     * Formats internal taxonomy codes into clean, human-readable user labels (P2-12).
+     */
+    fun formatTaxonomyLabel(code: String): String = when (code) {
+        "UNSUPPORTED_PROFILE" -> "Unsupported Codec Profile"
+        "DECODER_FAILURE" -> "Video Decoder Failure"
+        "RENDERER_RUNTIME_ERROR" -> "Display Surface Error"
+        "UNSUPPORTED_CONTAINER" -> "Unsupported Container"
+        "CORRUPT_MEDIA" -> "Corrupted Media File"
+        "PERMISSION_LOST" -> "Storage Permission Missing"
+        "IO_STORAGE_UNAVAILABLE" -> "Storage Inaccessible"
+        "DRM_PROTECTED" -> "DRM Protected Content"
+        "AUDIO_INIT_FAILED" -> "Audio Track Incompatible"
+        else -> code.replace('_', ' ').lowercase().split(' ').joinToString(" ") { word ->
+            word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+        }
+    }
 }

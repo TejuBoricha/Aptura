@@ -107,4 +107,18 @@ class ErrorTaxonomyTest {
         assertTrue(taxonomy.isRecoverable)
         assertTrue(taxonomy.whatHappened.contains("rendering surface was detached"))
     }
+
+    @Test
+    fun formatTaxonomyLabel_convertsKnownCodesToHumanReadableLabels() {
+        assertEquals("Unsupported Codec Profile", ErrorTaxonomy.formatTaxonomyLabel("UNSUPPORTED_PROFILE"))
+        assertEquals("Video Decoder Failure", ErrorTaxonomy.formatTaxonomyLabel("DECODER_FAILURE"))
+        assertEquals("Display Surface Error", ErrorTaxonomy.formatTaxonomyLabel("RENDERER_RUNTIME_ERROR"))
+        assertEquals("Unsupported Container", ErrorTaxonomy.formatTaxonomyLabel("UNSUPPORTED_CONTAINER"))
+        assertEquals("Corrupted Media File", ErrorTaxonomy.formatTaxonomyLabel("CORRUPT_MEDIA"))
+        assertEquals("Storage Permission Missing", ErrorTaxonomy.formatTaxonomyLabel("PERMISSION_LOST"))
+        assertEquals("Storage Inaccessible", ErrorTaxonomy.formatTaxonomyLabel("IO_STORAGE_UNAVAILABLE"))
+        assertEquals("DRM Protected Content", ErrorTaxonomy.formatTaxonomyLabel("DRM_PROTECTED"))
+        assertEquals("Audio Track Incompatible", ErrorTaxonomy.formatTaxonomyLabel("AUDIO_INIT_FAILED"))
+        assertEquals("Custom Codec Error", ErrorTaxonomy.formatTaxonomyLabel("CUSTOM_CODEC_ERROR"))
+    }
 }

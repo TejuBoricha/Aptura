@@ -108,6 +108,7 @@ import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
 import org.aptura.player.core.diagnostics.ApturaDiagnostics
+import org.aptura.player.core.diagnostics.ErrorTaxonomy
 import org.aptura.player.core.media.SubtitleFileValidator
 import org.aptura.player.core.media.SubtitleValidationResult
 import androidx.compose.material3.Button
@@ -600,84 +601,7 @@ fun PlayerScreen(
             }
         }
 
-        // Floating 2.0x Fast-Forward Indicator (SCR-010f)
-        AnimatedVisibility(
-            visible = is2xSpeedActive && !isPipMode,
-            enter = fadeIn() + scaleIn(),
-            exit = fadeOut() + scaleOut(),
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 80.dp)
-        ) {
-            Surface(
-                color = ApturaColors.SurfaceElevated2.copy(alpha = 0.92f),
-                shape = RoundedCornerShape(20.dp),
-                border = BorderStroke(1.dp, ApturaColors.AccentPrimary)
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.FastForward,
-                        contentDescription = null,
-                        tint = ApturaColors.AccentPrimary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Text(
-                        text = "2.0x Fast-Forward",
-                        style = ApturaTypography.labelMedium,
-                        color = ApturaColors.AccentPrimary,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-        }
-
-        // Momentary Orientation Feedback Toast (SCR-010e) - TopCenter chip avoids central transport control collisions
-        AnimatedVisibility(
-            visible = orientationToastMessage != null && !isPipMode,
-            enter = fadeIn() + slideInVertically { -it / 2 },
-            exit = fadeOut() + slideOutVertically { -it / 2 },
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .windowInsetsPadding(WindowInsets.statusBars)
-                .padding(
-                    top = when {
-                        uiState.isCompatibilityMode && uiState.compatibilityNotice != null -> 116.dp
-                        uiState.isControlsVisible -> 68.dp
-                        else -> 24.dp
-                    }
-                )
-        ) {
-            Surface(
-                color = ApturaColors.SurfaceElevated2.copy(alpha = 0.95f),
-                shape = RoundedCornerShape(20.dp),
-                border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3),
-                shadowElevation = 6.dp
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.ScreenRotation,
-                        contentDescription = null,
-                        tint = ApturaColors.AccentPrimary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Text(
-                        text = orientationToastMessage.orEmpty(),
-                        style = ApturaTypography.labelLarge,
-                        color = ApturaColors.TextHighEmphasis
-                    )
-                }
-            }
-        }
-
-        // Auto-Paired Subtitle Feedback Toast
+        // Auto-Paired Subtitle Feedback Toast Auto-Dismiss Timer
         LaunchedEffect(uiState.autoPairedSubtitleToast) {
             if (uiState.autoPairedSubtitleToast != null) {
                 kotlinx.coroutines.delay(4000L)
@@ -685,54 +609,176 @@ fun PlayerScreen(
             }
         }
 
-        AnimatedVisibility(
-            visible = uiState.autoPairedSubtitleToast != null && !isPipMode,
-            enter = fadeIn() + slideInVertically { -it / 2 },
-            exit = fadeOut() + slideOutVertically { -it / 2 },
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .windowInsetsPadding(WindowInsets.statusBars)
-                .padding(
-                    top = when {
-                        uiState.isCompatibilityMode && uiState.compatibilityNotice != null -> 160.dp
-                        orientationToastMessage != null -> 116.dp
-                        uiState.isControlsVisible -> 68.dp
-                        else -> 24.dp
-                    }
-                )
-        ) {
-            Surface(
-                color = ApturaColors.SurfaceElevated2.copy(alpha = 0.95f),
-                shape = RoundedCornerShape(20.dp),
-                border = BorderStroke(1.dp, ApturaColors.AccentPrimary.copy(alpha = 0.5f)),
-                shadowElevation = 6.dp
+        // Consolidated Top-Center HUD Notification & Overlay Stack (SCR-010e, SCR-010f, SCR-010h, P2-11)
+        // Automatically stacks active toasts vertically with 8.dp spacing, eliminating collisions and magic offsets.
+        if (!isPipMode) {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .padding(top = if (uiState.isControlsVisible) 68.dp else 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Subtitles,
-                        contentDescription = null,
-                        tint = ApturaColors.AccentPrimary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Text(
-                        text = uiState.autoPairedSubtitleToast.orEmpty(),
-                        style = ApturaTypography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                        color = ApturaColors.TextHighEmphasis
-                    )
-                    IconButton(
-                        onClick = onDismissAutoPairToast,
-                        modifier = Modifier.size(40.dp)
+                // Compatibility Mode Notice Chip (SCR-010h)
+                if (uiState.isCompatibilityMode && uiState.compatibilityNotice != null) {
+                    Surface(
+                        color = ApturaColors.SurfaceElevated1.copy(alpha = 0.94f),
+                        shape = RoundedCornerShape(20.dp),
+                        border = BorderStroke(1.dp, ApturaColors.AccentPrimary.copy(alpha = 0.4f)),
+                        shadowElevation = 6.dp
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Dismiss auto-pair notification",
-                            tint = ApturaColors.TextLowEmphasis,
-                            modifier = Modifier.size(16.dp)
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Tune,
+                                contentDescription = null,
+                                tint = ApturaColors.AccentPrimary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = uiState.compatibilityNotice.orEmpty(),
+                                style = ApturaTypography.labelSmall,
+                                color = ApturaColors.TextHighEmphasis
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            // "Why?" Explainer button per SCR-010h and FR-PLAY-003
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = ApturaColors.AccentPrimary.copy(alpha = 0.2f),
+                                modifier = Modifier.clickable { onWhyCompatibilityClick() }
+                            ) {
+                                Text(
+                                    text = "Why?",
+                                    style = ApturaTypography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = ApturaColors.AccentPrimary,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(4.dp))
+                            IconButton(
+                                onClick = onDismissCompatibilityNotice,
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Close,
+                                    contentDescription = "Dismiss",
+                                    tint = ApturaColors.TextLowEmphasis,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Floating 2.0x Fast-Forward Indicator (SCR-010f)
+                AnimatedVisibility(
+                    visible = is2xSpeedActive,
+                    enter = fadeIn() + scaleIn(),
+                    exit = fadeOut() + scaleOut()
+                ) {
+                    Surface(
+                        color = ApturaColors.SurfaceElevated2.copy(alpha = 0.92f),
+                        shape = RoundedCornerShape(20.dp),
+                        border = BorderStroke(1.dp, ApturaColors.AccentPrimary)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.FastForward,
+                                contentDescription = null,
+                                tint = ApturaColors.AccentPrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "2.0x Fast-Forward",
+                                style = ApturaTypography.labelMedium,
+                                color = ApturaColors.AccentPrimary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                // Momentary Orientation Feedback Toast (SCR-010e)
+                AnimatedVisibility(
+                    visible = orientationToastMessage != null,
+                    enter = fadeIn() + slideInVertically { -it / 2 },
+                    exit = fadeOut() + slideOutVertically { -it / 2 }
+                ) {
+                    Surface(
+                        color = ApturaColors.SurfaceElevated2.copy(alpha = 0.95f),
+                        shape = RoundedCornerShape(20.dp),
+                        border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3),
+                        shadowElevation = 6.dp
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.ScreenRotation,
+                                contentDescription = null,
+                                tint = ApturaColors.AccentPrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = orientationToastMessage.orEmpty(),
+                                style = ApturaTypography.labelLarge,
+                                color = ApturaColors.TextHighEmphasis
+                            )
+                        }
+                    }
+                }
+
+                // Auto-Paired Subtitle Feedback Toast
+                AnimatedVisibility(
+                    visible = uiState.autoPairedSubtitleToast != null,
+                    enter = fadeIn() + slideInVertically { -it / 2 },
+                    exit = fadeOut() + slideOutVertically { -it / 2 }
+                ) {
+                    Surface(
+                        color = ApturaColors.SurfaceElevated2.copy(alpha = 0.95f),
+                        shape = RoundedCornerShape(20.dp),
+                        border = BorderStroke(1.dp, ApturaColors.AccentPrimary.copy(alpha = 0.5f)),
+                        shadowElevation = 6.dp
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Subtitles,
+                                contentDescription = null,
+                                tint = ApturaColors.AccentPrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = uiState.autoPairedSubtitleToast.orEmpty(),
+                                style = ApturaTypography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                                color = ApturaColors.TextHighEmphasis
+                            )
+                            IconButton(
+                                onClick = onDismissAutoPairToast,
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Dismiss auto-pair notification",
+                                    tint = ApturaColors.TextLowEmphasis,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -1447,63 +1493,6 @@ fun PlayerScreen(
             }
         }
 
-        // Compatibility Mode Notice Chip (SCR-010h)
-        if (uiState.isCompatibilityMode && uiState.compatibilityNotice != null && !isPipMode) {
-            Surface(
-                color = ApturaColors.SurfaceElevated1.copy(alpha = 0.94f),
-                shape = RoundedCornerShape(20.dp),
-                border = BorderStroke(1.dp, ApturaColors.AccentPrimary.copy(alpha = 0.4f)),
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .windowInsetsPadding(WindowInsets.statusBars)
-                    .padding(top = 64.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Tune,
-                        contentDescription = null,
-                        tint = ApturaColors.AccentPrimary,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = uiState.compatibilityNotice.orEmpty(),
-                        style = ApturaTypography.labelSmall,
-                        color = ApturaColors.TextHighEmphasis
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    // "Why?" Explainer button per SCR-010h and FR-PLAY-003
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = ApturaColors.AccentPrimary.copy(alpha = 0.2f),
-                        modifier = Modifier.clickable { onWhyCompatibilityClick() }
-                    ) {
-                        Text(
-                            text = "Why?",
-                            style = ApturaTypography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = ApturaColors.AccentPrimary,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(4.dp))
-                    IconButton(
-                        onClick = onDismissCompatibilityNotice,
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Close,
-                            contentDescription = "Dismiss",
-                            tint = ApturaColors.TextLowEmphasis,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
-            }
-        }
 
         // 5b. Playback Stats Studio HUD Overlay (SCR-010e, FR-DIAG-001)
         if (uiState.isStatsOverlayVisible && !isPipMode) {
@@ -1561,9 +1550,8 @@ fun PlayerScreen(
                             modifier = Modifier.padding(bottom = 2.dp)
                         ) {
                             Text(
-                                text = code,
+                                text = ErrorTaxonomy.formatTaxonomyLabel(code),
                                 style = ApturaTypography.labelSmall.copy(
-                                    fontFeatureSettings = "tnum",
                                     fontWeight = FontWeight.SemiBold
                                 ),
                                 color = ApturaColors.StatusWarning,
@@ -1573,7 +1561,7 @@ fun PlayerScreen(
                     }
                     val isSoftwareAlreadyAttempted = uiState.isCompatibilityMode || uiState.decoderStrategy == 2
                     val failureExplanation = if (isSoftwareAlreadyAttempted && uiState.errorTaxonomyCode == "UNSUPPORTED_PROFILE") {
-                        "Neither hardware nor platform software decoders could play this 10-bit video format on this device. Open with an external player."
+                        "Neither hardware nor platform software decoders could play this video profile on this device. Open with an external player."
                     } else {
                         uiState.errorMessage.orEmpty()
                     }
@@ -1690,6 +1678,7 @@ fun PlayerScreen(
                                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
                                     val clip = android.content.ClipData.newPlainText("Aptura Diagnostics", diagText)
                                     clipboard?.setPrimaryClip(clip)
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     Toast.makeText(context, "Diagnostics copied to clipboard", Toast.LENGTH_SHORT).show()
                                 },
                                 colors = ButtonDefaults.outlinedButtonColors(
