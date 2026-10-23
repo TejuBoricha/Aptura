@@ -66,6 +66,11 @@ class ColdStartScanTest {
 
     private val context: Context = ApplicationProvider.getApplicationContext()
 
+    @org.junit.After
+    fun tearDown() {
+        WorkManagerTestInitHelper.closeWorkDatabase()
+    }
+
     @Test
     fun processStart_enqueuesAStartupScan() {
         val infos = WorkManager.getInstance(context)

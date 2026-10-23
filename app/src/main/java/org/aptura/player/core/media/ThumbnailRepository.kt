@@ -31,6 +31,10 @@ object ThumbnailRepository {
     private const val THUMB_HEIGHT = 270
     private const val JPEG_QUALITY = 85
     private const val FRAME_OFFSET_US = 2_000_000L // 2.0s offset avoids initial black title cards
+    private const val MAX_FAILED_KEYS = 512
+
+    /** Session-scoped negative cache so un-decodable files do not re-trigger MediaMetadataRetriever on every scroll. */
+    private val failedExtractionKeys = java.util.Collections.synchronizedSet( LinkedHashSet<String>() )
 
     fun getThumbnailDir(context: Context): File {
         val dir = File(context.cacheDir, THUMBNAIL_DIR_NAME)
@@ -76,12 +80,25 @@ object ThumbnailRepository {
         dateModifiedSec: Long,
         dispatcher: CoroutineDispatcher = Dispatchers.IO
     ): File? = withContext(dispatcher) {
-        val targetFile = getThumbnailFile(context, uri, dateModifiedSec)
+        val fileName = getThumbnailFileName(uri, dateModifiedSec)
+        val targetFile = File(getThumbnailDir(context), fileName)
         if (targetFile.exists() && targetFile.length() > 0L) {
             return@withContext targetFile
         }
+        if (failedExtractionKeys.contains(fileName)) {
+            return@withContext null
+        }
 
-        val bitmap = extractThumbnailBitmap(context, uri) ?: return@withContext null
+        val bitmap = extractThumbnailBitmap(context, uri)
+        if (bitmap == null) {
+            synchronized(failedExtractionKeys) {
+                if (failedExtractionKeys.size >= MAX_FAILED_KEYS) {
+                    failedExtractionKeys.iterator().let { if (it.hasNext()) { it.next(); it.remove() } }
+                }
+                failedExtractionKeys.add(fileName)
+            }
+            return@withContext null
+        }
 
         saveBitmapToCache(context, targetFile, bitmap, uri, dateModifiedSec)
     }
@@ -209,6 +226,7 @@ object ThumbnailRepository {
      * Clears all cached thumbnails from disk and purges memory/disk caches from Coil.
      */
     fun clearCache(context: Context) {
+        failedExtractionKeys.clear()
         val dir = File(context.cacheDir, THUMBNAIL_DIR_NAME)
         if (dir.exists()) {
             dir.listFiles()?.forEach { it.delete() }

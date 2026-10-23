@@ -108,14 +108,9 @@ private fun ContinueWatchingCard(card: VideoCardUiModel, onClick: () -> Unit) {
                     }
                 }
 
-                val request = remember(thumbnailFile, card.uri) {
+                val request = remember(thumbnailFile) {
                     ImageRequest.Builder(context)
-                        .data(thumbnailFile ?: card.uri)
-                        .apply {
-                            if (thumbnailFile == null) {
-                                videoFrameMillis(2000L)
-                            }
-                        }
+                        .data(thumbnailFile)
                         .crossfade(true)
                         .build()
                 }

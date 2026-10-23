@@ -21,6 +21,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -988,27 +989,21 @@ fun PlayerScreen(
                         Spacer(modifier = Modifier.width(8.dp))
 
                         // Orientation toggle (SCR-010e)
-                        val configuration = androidx.compose.ui.platform.LocalConfiguration.current
-                        val isExpandedWindow = configuration.screenWidthDp >= 600
                         val onOrientationClick: () -> Unit = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            if (isExpandedWindow) {
-                                orientationToastMessage = "Orientation managed by system on large screens"
-                            } else {
-                                currentOrientationMode = (currentOrientationMode + 1) % 3
-                                when (currentOrientationMode) {
-                                    1 -> {
-                                        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-                                        orientationToastMessage = "Landscape Locked"
-                                    }
-                                    2 -> {
-                                        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-                                        orientationToastMessage = "Portrait Locked"
-                                    }
-                                    else -> {
-                                        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-                                        orientationToastMessage = "Auto-Rotate"
-                                    }
+                            currentOrientationMode = (currentOrientationMode + 1) % 3
+                            when (currentOrientationMode) {
+                                1 -> {
+                                    activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                                    orientationToastMessage = "Landscape Locked"
+                                }
+                                2 -> {
+                                    activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                                    orientationToastMessage = "Portrait Locked"
+                                }
+                                else -> {
+                                    activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                                    orientationToastMessage = "Auto-Rotate"
                                 }
                             }
                             coroutineScope.launch {
@@ -1016,7 +1011,7 @@ fun PlayerScreen(
                                 orientationToastMessage = null
                             }
                         }
-                        val orientationTint = if (currentOrientationMode != 0 && !isExpandedWindow) ApturaColors.AccentPrimary else ApturaColors.TextMediumEmphasis
+                        val orientationTint = if (currentOrientationMode != 0) ApturaColors.AccentPrimary else ApturaColors.TextMediumEmphasis
                         val aspectTint = if (uiState.resizeMode != AspectRatioMode.FIT) ApturaColors.AccentPrimary else ApturaColors.TextMediumEmphasis
 
                         // On a phone the title is the primary orientation cue, so the secondary actions move into an
@@ -1239,14 +1234,23 @@ fun PlayerScreen(
 
                             // Custom Pixel-Perfect Video Scrubber (Concentric cy = size.height / 2f)
                             var scrubberWidthPx by remember { mutableFloatStateOf(0f) }
-                            val trackHeight = 6.dp
-                            val thumbRadius = if (uiState.isScrubbing) 12.dp else 10.dp
+                            val trackHeight by androidx.compose.animation.core.animateDpAsState(
+                                targetValue = if (uiState.isScrubbing) 8.dp else 4.dp,
+                                animationSpec = androidx.compose.animation.core.spring(),
+                                label = "scrubberTrackHeight"
+                            )
+                            val thumbRadius by androidx.compose.animation.core.animateDpAsState(
+                                targetValue = if (uiState.isScrubbing) 10.dp else 8.dp,
+                                animationSpec = androidx.compose.animation.core.spring(),
+                                label = "scrubberThumbRadius"
+                            )
 
                             val scrubberStepMs = uiState.seekStepMs
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(48.dp)
+                                    .systemGestureExclusion()
                                     .onSizeChanged { scrubberWidthPx = it.width.toFloat() }
                                     // TalkBack: an adjustable seek bar (it used to be an unlabelled drawing).
                                     .semantics {

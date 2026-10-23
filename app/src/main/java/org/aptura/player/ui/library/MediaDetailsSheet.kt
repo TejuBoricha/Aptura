@@ -76,71 +76,8 @@ import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
 
 /**
- * Media Details Placeholder (R-A02, R-A09).
- * Displayed in the secondary detail pane on wide/tablet screens when no video is selected.
- */
-@Composable
-fun MediaDetailsPlaceholder(
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(ApturaColors.SurfaceBase)
-            .padding(32.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = ApturaColors.SurfaceElevated1,
-            border = BorderStroke(1.dp, ApturaColors.BorderSubtle),
-            modifier = Modifier.widthIn(max = 420.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Surface(
-                    shape = CircleShape,
-                    color = ApturaColors.SurfaceElevated2,
-                    border = BorderStroke(1.dp, ApturaColors.AccentPrimary.copy(alpha = 0.3f)),
-                    modifier = Modifier.size(64.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.PlayCircleOutline,
-                            contentDescription = null,
-                            tint = ApturaColors.AccentPrimary,
-                            modifier = Modifier.size(32.dp)
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(20.dp))
-                Text(
-                    text = "No Video Selected",
-                    style = ApturaTypography.headlineSmall,
-                    color = ApturaColors.TextHighEmphasis,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Select a video from your library to inspect codec specifications, audio streams, embedded subtitle tracks, and storage properties.",
-                    style = ApturaTypography.bodyMedium,
-                    color = ApturaColors.TextMediumEmphasis,
-                    textAlign = TextAlign.Center
-                )
-            }
-        }
-    }
-}
-
-/**
  * Media Details Content (FR-LIB-013, R-A02, R-A09).
  * Renders rich media details, codec specs, track summaries, and storage actions.
- * Can be presented as a dedicated adaptive pane in Navigation3 ListDetailSceneStrategy
- * or inside a bottom sheet modal.
  */
 @Composable
 fun MediaDetailsContent(

@@ -5,8 +5,15 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
+import androidx.work.Configuration
+import androidx.work.ListenableWorker
+import androidx.work.Worker
+import androidx.work.WorkerFactory
+import androidx.work.WorkerParameters
+import androidx.work.testing.SynchronousExecutor
 import androidx.work.testing.WorkManagerTestInitHelper
 import org.aptura.player.core.diagnostics.ApturaDiagnostics
+import org.junit.After
 import org.junit.Assert.assertFalse
 import org.junit.Before
 import org.junit.Test
@@ -26,9 +33,24 @@ class StorageVolumeReceiverTest {
 
     @Before
     fun setUp() {
-        try {
-            WorkManagerTestInitHelper.initializeTestWorkManager(context)
-        } catch (_: Throwable) {}
+        val config = Configuration.Builder()
+            .setExecutor(SynchronousExecutor())
+            .setWorkerFactory(object : WorkerFactory() {
+                override fun createWorker(
+                    appContext: Context,
+                    workerClassName: String,
+                    workerParameters: WorkerParameters
+                ): ListenableWorker = object : Worker(appContext, workerParameters) {
+                    override fun doWork(): Result = Result.success()
+                }
+            })
+            .build()
+        WorkManagerTestInitHelper.initializeTestWorkManager(context, config)
+    }
+
+    @After
+    fun tearDown() {
+        WorkManagerTestInitHelper.closeWorkDatabase()
     }
 
     @Test

@@ -47,6 +47,11 @@ class MediaScanWorker(
         }
 
         try {
+            val database = ApturaDatabase.getInstance(applicationContext)
+            val dao = database.mediaItemDao()
+            val existingVideos = dao.getAllVideosRaw()
+            val existingByUri = existingVideos.associateBy { it.uri }
+
             val allScanned = mutableListOf<MediaItemEntity>()
 
             // 1. Scan Android MediaStore if platform permission is granted
@@ -55,23 +60,19 @@ class MediaScanWorker(
                 allScanned.addAll(mediaStoreScanner.scanAllVideos())
             }
 
-            // 2. Scan each persisted SAF folder tree
+            // 2. Scan each persisted SAF folder tree (differential metadata skip for unchanged files)
             if (persistedFolders.isNotEmpty()) {
                 val safScanner = SafTreeScanner(applicationContext)
                 for (folderUriStr in persistedFolders) {
                     try {
                         val treeUri = Uri.parse(folderUriStr)
-                        val safItems = safScanner.scanTree(treeUri)
+                        val safItems = safScanner.scanTree(treeUri, existingByUri)
                         allScanned.addAll(safItems)
                     } catch (_: Throwable) {
                         // Skip unreadable or revoked SAF tree without failing overall scan
                     }
                 }
             }
-
-            val database = ApturaDatabase.getInstance(applicationContext)
-            val dao = database.mediaItemDao()
-            val existingVideos = dao.getAllVideosRaw()
 
             // 3. Reconcile scanned items against existing database items
             val reconciliation = FileReconciliationEngine.reconcile(

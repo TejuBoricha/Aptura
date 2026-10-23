@@ -840,14 +840,9 @@ fun VideoGridCard(
                     }
                 }
 
-                val imageRequest = remember(thumbnailFile, card.uri) {
+                val imageRequest = remember(thumbnailFile) {
                     ImageRequest.Builder(context)
-                        .data(thumbnailFile ?: card.uri)
-                        .apply {
-                            if (thumbnailFile == null) {
-                                videoFrameMillis(2000L) // 2-second offset avoids initial black title cards
-                            }
-                        }
+                        .data(thumbnailFile)
                         .crossfade(true)
                         .build()
                 }

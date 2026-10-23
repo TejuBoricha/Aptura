@@ -240,7 +240,7 @@ class Media3PlaybackController(
             }
 
             // FR-PLAY-003: Controlled fallback bounded at most once per failure class
-            if (isDecoderFailure && !hasAttemptedSoftwareFallback && currentDecoderStrategy != 2 && hasSoftwareDecoder) {
+            if (isDecoderFailure && !hasAttemptedSoftwareFallback && currentDecoderStrategy != 2 && hasSoftwareDecoder && player.currentMediaItem != null) {
                 hasAttemptedSoftwareFallback = true
                 currentDecoderStrategy = 2
                 _decoderStrategy.value = 2
@@ -258,16 +258,17 @@ class Media3PlaybackController(
                     )
                 )
 
-                if (player.currentMediaItem != null) {
-                    // Keeps the playlist and the position; prepare() clears the error and re-selects decoders.
-                    player.stop()
-                    player.prepare()
-                    player.play()
-                    return
-                }
+                // Keeps the playlist and the position; prepare() clears the error and re-selects decoders.
+                player.stop()
+                player.prepare()
+                player.play()
+                return
             }
 
-            // Fallback unavailable or failed: Log EV_011 (play.error) per spec/14 §4
+            // Fallback unavailable or failed: clear any active compatibility notice so the HUD never claims
+            // "Playing in compatibility mode" on top of a terminal Playback Error modal, and log EV_011 (spec/14 §4).
+            _isCompatibilityMode.value = false
+            _compatibilityNotice.value = null
             val isSoftwareAlreadyAttempted = hasAttemptedSoftwareFallback || currentDecoderStrategy == 2
             val taxonomy = ErrorTaxonomy.mapException(error, isSoftwareAlreadyAttempted)
             ApturaDiagnostics.logEvent(
@@ -387,7 +388,8 @@ class Media3PlaybackController(
     private fun updatePlaybackState() {
         val error = player.playerError
         if (error != null) {
-            val taxonomyError = ErrorTaxonomy.mapException(error)
+            val isSoftwareAlreadyAttempted = hasAttemptedSoftwareFallback || currentDecoderStrategy == 2
+            val taxonomyError = ErrorTaxonomy.mapException(error, isSoftwareAlreadyAttempted)
             _playbackState.value = DomainPlaybackState.Error(
                 errorCode = taxonomyError.code,
                 message = "${taxonomyError.title}: ${taxonomyError.whatHappened}",

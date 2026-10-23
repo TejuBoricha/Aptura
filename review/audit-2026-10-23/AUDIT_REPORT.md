@@ -549,3 +549,36 @@ The floating "1.5x" pill under the phone title bar (added in Appendix F for P1-1
 
 ### Still open
 Unchanged from Appendix G: P1-12 · P1-13 · P1-14 (remainder) · P1-17 · P1-22 · P1-23, most P2 items, and the unexplained black-picture episode.
+
+---
+
+## Appendix I — Architecture, thumbnail pipeline, UI polish & hygiene round (P1-13, P1-17, P1-23, P2-01..P2-26)
+
+| Finding | Change | Unit | Device |
+|---|---|---|---|
+| **P1-13** Thumbnail pipeline & disk cache | `ThumbnailRepository` generates 480×270 16:9 JPEGs (`contentResolver.loadThumbnail` on API 29+ with `MediaMetadataRetriever` fallback), persists them in `cacheDir/thumbnails/thumb_<sha256>_<modifiedSec>.jpg`, pre-warms in `MediaScanWorker`, cleans up on file deletion, and records session-scoped negative cache keys so un-decodable files do not re-trigger `MediaMetadataRetriever` on scroll | ✔ `ThumbnailRepositoryTest` (6) | ✔ `c_library.png`, Settings footprint & Clear |
+| **P1-17** 4 Hz recomposition of `PlayerView` | Extracted `PlayerVideoSurface` reading only surface/aspect/picture/subtitle-style fields so 250 ms position ticks do not recompose the `AndroidView` or re-create `CaptionStyleCompat` | ✔ | ✔ |
+| **P1-23** Loose boolean modal flags in `PlayerUiState` | Replaced independent sheet/dialog booleans with algebraic `ActivePlayerModal` sum type (`activeModal: ActivePlayerModal?`); opening any sheet atomically replaces the active modal | ✔ `PlayerViewModelModalInvariantTest` | ✔ |
+| **P2-01** Card title baseline alignment | Enforced `minLines = 2` on `VideoGridCard` titles so 1-line and 2-line titles share identical height | ✔ | ✔ `c_library.png` |
+| **P2-03** Flat 9-action Details list | Grouped into semantic tiers (Playback, Queue, File Utilities) with destructive actions (Hide, Delete) quarantined in a separated bottom section | ✔ | – |
+| **P2-04** Inconsistent title cleaning | Unified `TitleCleaner.clean` across library grid, Continue Watching, Details, and player header | ✔ `TitleCleanerTest` | ✔ `c_library.png`, `c_hi10p_play.png` |
+| **P2-05** M3 stop-dot progress bar on thumbnails | Replaced with a flush 3 dp progress track without stop-indicator dots | ✔ | ✔ `c_library.png` |
+| **P2-06** Search placeholder wrapping & folder row | Single-line ellipsized search placeholder; folder filter chips and `+ Folder` remain accessible | ✔ | ✔ `c_library.png` |
+| **P2-08** Long-press 2× release toggles HUD | Tracked `wasLongPressActive` in pointer gesture loop so releasing a 2× hold does not fire a tap | ✔ | ✔ `p_2x_hud.png` |
+| **P2-09** Washed-out transport buttons over bright frames | Backed transport circles with 80 %-opacity `SurfaceScrim` | ✔ | ✔ `p_player.png` |
+| **P2-10** Orientation button trapped in landscape / dead toast | Removed `screenWidthDp >= 600` guard that trapped phones in landscape (`914 dp >= 600`) and showed a no-op toast on wide windows | ✔ `PlayerWideTopBarTest` | ✔ `p_orientation_toast.png` |
+| **P2-11** Magic-offset top HUD overlay collisions | Consolidated compatibility banner, 2× badge, orientation toast, and auto-pair toast into a single stacked top `Column` | ✔ | ✔ `p_orientation_toast.png` |
+| **P2-12** Hard-coded "10-bit" error copy & raw enum chip | Humanized `ErrorTaxonomy` category labels (`Unsupported Codec Profile`, `Decoder Failure`, …) and honest hardware+software failure copy; clipboard feedback toast | ✔ | ✔ `c_hevc_play.png` |
+| **P2-13** Sheets overlapping gesture navigation bar | Added `navigationBarsPadding()` to player bottom sheets | ✔ | – |
+| **P2-14** Inconsistent speed options across sheets | Unified `AdvancedSheet` and `SpeedSheet` on the 8-step ladder (`0.25x`–`2.0x`) | ✔ | – |
+| **P2-15** Subtitle ✕ removed all external subtitles | `removeExternalSubtitle(uri)` removes only the targeted subtitle row | ✔ `PlayerViewModelTest` | – |
+| **P2-17 / P2-19** Scrubber gesture exclusion & spring track | Added `Modifier.systemGestureExclusion()` on the scrubber box and spring-animated track (`4 dp` → `8 dp`) and thumb (`16 dp` → `20 dp` diameter) | ✔ | – |
+| **P2-20** Silent scan worker exceptions | `MediaScanWorker` logs `EV_006` diagnostics on failure | ✔ | – |
+| **P2-21 / P2-22** Hygiene, path redaction, service release | Redacted storage paths in `StorageVolumeReceiver` before ring-buffer insert, released player on `ApturaPlaybackService.onDestroy`, removed unused backup XMLs and `MediaDetailsPlaceholder` | ✔ | – |
+| **P2-23** SAF full re-probe & 31-bit hash IDs | `SafTreeScanner` skips `MediaMetadataRetriever` for unchanged files (`sizeBytes` + `dateModifiedSec` match) and derives 63-bit negative IDs from SHA-256 | ✔ `SafTreeScannerTest` | – |
+| **P2-26** Stale `.agents/MEMORY.md` | Updated `.agents/MEMORY.md` through Part 68 | – | – |
+
+### Found and fixed during the Appendix I device verification pass
+1. **Crash on Back from a landscape-locked player (`EV_018` / `crash-1792754977188.txt`):** Locking the player to landscape on a Pixel 8 widened the window to `914 dp` (`>= 840 dp`, `WIDTH_DP_EXPANDED`). Pressing Back popped `PlayerKey` while still at 914 dp (composing `MediaLibraryScreen` inside `ListDetailSceneStrategy`'s 2-pane scene), and `PlayerScreen.onDispose` then reset `requestedOrientation = UNSPECIFIED`, rotating back to 411 dp portrait. `ListDetailSceneStrategy` reparented `MediaLibraryScreen`'s `OutlinedTextField` (`MagnifierNode`) via `movableContentOf` (`Operation$CopyNodesToNewAnchorLocation.execute`), crashing in `DelegatableNode.requireView()`. **Fix:** Removed `ListDetailSceneStrategy` from `NavDisplay` (`MediaLibraryScreen` already adapts natively with `NavigationRail` + adaptive grid) and reset `requestedOrientation` immediately in `dismissPlayerAndResetOrientation` before popping `PlayerKey`.
+2. **Stale `"Playing in compatibility mode (Software Decoder)"` banner over terminal Playback Error (`c_hevc_play.png`):** When a 10-bit HEVC stream failed hardware decode, `Media3PlaybackController.onPlayerError` engaged software fallback and set `_compatibilityNotice`. When the platform software decoder (`c2.android.hevc.decoder`) *also* failed 200 ms later, `onPlayerError` entered the terminal `Error` state without clearing `_isCompatibilityMode` or `_compatibilityNotice`, leaving the compatibility pill visible above the `"Neither hardware nor platform software decoders could play this video profile"` dialog. **Fix:** Cleared `_isCompatibilityMode = false` and `_compatibilityNotice = null` on terminal error (`Media3PlaybackControllerTest.onPlayerError_whenSoftwareFallbackAlsoFails_clearsCompatibilityNotice`).
+

@@ -1,18 +1,15 @@
 @file:OptIn(
-    coil3.annotation.ExperimentalCoilApi::class,
-    androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi::class
+    coil3.annotation.ExperimentalCoilApi::class
 )
 
 package org.aptura.player
 
+import android.app.Activity
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
-import androidx.compose.material3.adaptive.layout.calculatePaneScaffoldDirective
-import androidx.compose.material3.adaptive.navigation3.ListDetailSceneStrategy
-import androidx.compose.material3.adaptive.navigation3.rememberListDetailSceneStrategy
 import androidx.compose.runtime.Composable
 import org.aptura.player.theme.ApturaColors
 import androidx.compose.foundation.background
@@ -56,7 +53,6 @@ import org.aptura.player.domain.repository.LibraryStatistics
 import org.aptura.player.ui.library.DeleteFromDeviceDialog
 import org.aptura.player.ui.library.HideFromLibraryDialog
 import org.aptura.player.ui.library.MediaDetailsContent
-import org.aptura.player.ui.library.MediaDetailsPlaceholder
 import org.aptura.player.ui.library.MediaLibraryScreen
 import org.aptura.player.ui.library.MediaLibraryUiState
 import org.aptura.player.ui.library.MediaLibraryViewModel
@@ -238,17 +234,15 @@ private fun AppNavHost(
         playerViewModel.setPlaybackSpeed(settings.defaultPlaybackSpeed)
     }
 
-    val windowAdaptiveInfo = currentWindowAdaptiveInfoV2()
-    val directive = remember(windowAdaptiveInfo) {
-        calculatePaneScaffoldDirective(windowAdaptiveInfo)
-            .copy(horizontalPartitionSpacerSize = 0.dp)
+    val activity = context as? Activity
+    val dismissPlayerAndResetOrientation: () -> Unit = {
+        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        playerViewModel.onPlayerDismissed()
     }
-    val listDetailStrategy = rememberListDetailSceneStrategy<NavKey>(directive = directive)
 
     NavDisplay(
         backStack = backStack,
-        onBack = { handleBack(backStack, playerViewModel::onPlayerDismissed) },
-        sceneStrategy = listDetailStrategy,
+        onBack = { handleBack(backStack, dismissPlayerAndResetOrientation) },
         entryProvider = entryProvider {
             entry<Onboarding> {
                 // Leaves the guide: back to Settings when it was replayed from there, otherwise on to the library.
@@ -273,17 +267,7 @@ private fun AppNavHost(
                 )
             }
 
-            entry<MediaLibrary>(
-                metadata = ListDetailSceneStrategy.listPane(
-                    detailPlaceholder = {
-                        MediaDetailsPlaceholder(
-                            modifier = Modifier
-                                .statusBarsPadding()
-                                .padding(top = 8.dp)
-                        )
-                    }
-                )
-            ) {
+            entry<MediaLibrary> {
                 val uiState by libraryViewModel.uiState.collectAsStateWithLifecycle()
                 // Read off the main thread: the crash log is a file.
                 var pendingCrash by remember { mutableStateOf<DiagnosticStore.StoredCrash?>(null) }
@@ -353,9 +337,7 @@ private fun AppNavHost(
                 )
             }
 
-            entry<MediaDetailsKey>(
-                metadata = ListDetailSceneStrategy.detailPane()
-            ) { detailsKey ->
+            entry<MediaDetailsKey> { detailsKey ->
                 val uiState by libraryViewModel.uiState.collectAsStateWithLifecycle()
                 val domainItems = (uiState as? MediaLibraryUiState.Success)?.videos?.map { it.rawItem } ?: emptyList()
                 val item = domainItems.find { it.uri == detailsKey.videoUri }
@@ -576,7 +558,7 @@ private fun AppNavHost(
                     player = playbackController.player,
                     isPipMode = isPipMode,
                     onEnterPip = onEnterPip,
-                    onBackClick = { handleBack(backStack, playerViewModel::onPlayerDismissed) },
+                    onBackClick = { handleBack(backStack, dismissPlayerAndResetOrientation) },
                     onPlayPauseClick = playerViewModel::togglePlayPause,
                     onSeekRelative = { delta -> playerViewModel.seekRelative(delta) },
                     onSeekRelativeWithSide = playerViewModel::seekRelative,

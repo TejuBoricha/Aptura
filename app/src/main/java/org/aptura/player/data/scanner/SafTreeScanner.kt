@@ -42,9 +42,13 @@ class SafTreeScanner(
 
     /**
      * Scans a persisted SAF directory tree recursively using a memory-safe BFS queue.
-     * Skips any folder containing a `.nomedia` sentinel file.
+     * Skips any folder containing a `.nomedia` sentinel file, and skips [MediaMetadataRetriever]
+     * probing for unchanged files already present in [existingByUri] (audit P2-23).
      */
-    suspend fun scanTree(treeUri: Uri): List<MediaItemEntity> = withContext(ioDispatcher) {
+    suspend fun scanTree(
+        treeUri: Uri,
+        existingByUri: Map<String, MediaItemEntity> = emptyMap()
+    ): List<MediaItemEntity> = withContext(ioDispatcher) {
         val discoveredItems = mutableListOf<MediaItemEntity>()
 
         val rootDocId = try {
@@ -111,14 +115,21 @@ class SafTreeScanner(
                     directoryQueue.add(entry.docId to subFolderPath)
                 } else if (isVideoFile(entry.displayName, entry.mimeType)) {
                     val docUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, entry.docId)
-                    val syntheticId = computeSyntheticId(docUri.toString())
+                    val docUriStr = docUri.toString()
+                    val modifiedSec = entry.lastModifiedMs / 1000L
+                    val existing = existingByUri[docUriStr]
+                    val syntheticId = existing?.mediaStoreId ?: computeSyntheticId(docUriStr)
 
-                    var durationMs = 0L
-                    var width = 0
-                    var height = 0
+                    var durationMs = existing?.durationMs ?: 0L
+                    var width = existing?.width ?: 0
+                    var height = existing?.height ?: 0
+                    val isUnchanged = existing != null &&
+                        existing.sizeBytes == entry.sizeBytes &&
+                        existing.dateModifiedSec == modifiedSec &&
+                        existing.durationMs > 0L
 
-                    // Extract duration & dimensions via MediaMetadataRetriever if file size > 1KB
-                    if (entry.sizeBytes > 1024L) {
+                    // Extract duration & dimensions via MediaMetadataRetriever only when new or modified (audit P2-23)
+                    if (!isUnchanged && entry.sizeBytes > 1024L) {
                         try {
                             contentResolver.openFileDescriptor(docUri, "r")?.use { pfd ->
                                 val retriever = MediaMetadataRetriever()
@@ -146,7 +157,7 @@ class SafTreeScanner(
                     discoveredItems.add(
                         MediaItemEntity(
                             mediaStoreId = syntheticId,
-                            uri = docUri.toString(),
+                            uri = docUriStr,
                             title = title.ifBlank { entry.displayName },
                             displayName = entry.displayName,
                             durationMs = durationMs,
@@ -154,9 +165,9 @@ class SafTreeScanner(
                             mimeType = entry.mimeType.ifBlank { "video/*" },
                             width = width,
                             height = height,
-                            frameRate = 0f,
-                            dateAddedSec = entry.lastModifiedMs / 1000L,
-                            dateModifiedSec = entry.lastModifiedMs / 1000L,
+                            frameRate = existing?.frameRate ?: 0f,
+                            dateAddedSec = existing?.dateAddedSec ?: modifiedSec,
+                            dateModifiedSec = modifiedSec,
                             folderPath = currentFolderPath,
                             playbackPositionMs = 0L,
                             isCompleted = false,
@@ -178,12 +189,17 @@ class SafTreeScanner(
     }
 
     /**
-     * Computes a deterministic negative ID for SAF documents so it never collides
-     * with positive MediaStore IDs in SQLite unique indices.
+     * Computes a deterministic 63-bit negative ID from SHA-256 for SAF documents so it never collides
+     * with positive MediaStore IDs or across large SAF libraries (audit P2-23).
      */
-    private fun computeSyntheticId(uriString: String): Long {
-        val hash = uriString.hashCode().toLong() and 0x7FFFFFFFL
-        return -(hash + 1L)
+    internal fun computeSyntheticId(uriString: String): Long {
+        val digest = java.security.MessageDigest.getInstance("SHA-256").digest(uriString.toByteArray(Charsets.UTF_8))
+        var raw = 0L
+        for (i in 0 until 8) {
+            raw = (raw shl 8) or (digest[i].toLong() and 0xFFL)
+        }
+        val positive63 = (raw and 0x7FFFFFFFFFFFFFFFL).coerceAtLeast(1L)
+        return -positive63
     }
 
     private fun resolveTreeDisplayName(treeUri: Uri, rootDocId: String): String {

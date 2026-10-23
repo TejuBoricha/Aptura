@@ -24,6 +24,7 @@ import org.aptura.player.domain.model.PlayMode
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -122,8 +123,14 @@ class Media3PlaybackControllerTest {
                     currentPosition = lastSeekPosition ?: 0L
                     null
                 }
+                "getCurrentMediaItem" -> currentMediaItem
                 "setMediaItem" -> {
                     currentMediaItem = args?.get(0) as MediaItem
+                    null
+                }
+                "setMediaItems" -> {
+                    val list = args?.get(0) as? List<*>
+                    currentMediaItem = list?.firstOrNull() as? MediaItem
                     null
                 }
                 "prepare" -> null
@@ -245,6 +252,8 @@ class Media3PlaybackControllerTest {
         val controller = createController(player)
 
         controller.playMediaItem(sampleItem1)
+        runCurrent()
+        state.currentMediaItem = MediaItem.fromUri(sampleItem1.uri)
         state.currentPosition = 5000L // Past 3000ms threshold
 
         controller.skipToPrevious()
@@ -461,5 +470,34 @@ class Media3PlaybackControllerTest {
         controller.playMediaItem(sampleItem1)
         assertEquals(0L, textRenderer.subtitleDelayMs)
         assertEquals(0L, controller.trackSelection.value.subtitleDelayMs)
+    }
+
+    @Test
+    fun onPlayerError_whenSoftwareFallbackAlsoFails_clearsCompatibilityNotice() = runTest(testDispatcher) {
+        val (player, state) = createMockPlayer()
+        val controller = createController(player)
+
+        controller.playMediaItem(sampleItem1)
+        runCurrent()
+        state.currentMediaItem = MediaItem.fromUri(sampleItem1.uri)
+
+        // First decoding failure triggers automatic software fallback and sets compatibility notice
+        val decodeError = PlaybackException("Hardware decode failed", null, PlaybackException.ERROR_CODE_DECODING_FAILED)
+        state.fireError(decodeError)
+
+        assertTrue(controller.isCompatibilityMode.value)
+        assertEquals("Playing in compatibility mode (Software Decoder)", controller.compatibilityNotice.value)
+
+        // Second decoding failure (software decoder also failed) enters terminal Error state and clears notice
+        val swDecodeError = PlaybackException("Software decode failed (HEVC Main10)", null, PlaybackException.ERROR_CODE_DECODING_FAILED)
+        state.fireError(swDecodeError)
+
+        assertFalse("Compatibility mode flag must be cleared on terminal error", controller.isCompatibilityMode.value)
+        assertNull("Compatibility notice must not remain over terminal error dialog", controller.compatibilityNotice.value)
+        val finalState = controller.playbackState.value
+        assertTrue(finalState is DomainPlaybackState.Error)
+        val errorState = finalState as DomainPlaybackState.Error
+        assertEquals("UNSUPPORTED_PROFILE", errorState.errorCode)
+        assertEquals("Open video in an external player app", errorState.suggestedAction)
     }
 }
