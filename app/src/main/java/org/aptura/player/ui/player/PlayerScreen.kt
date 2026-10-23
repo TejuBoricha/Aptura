@@ -149,6 +149,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -273,6 +274,7 @@ fun PlayerScreen(
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
 
     var is2xSpeedActive by remember { mutableStateOf(false) }
+    var lastLongPressReleaseUptimeMs by remember { mutableLongStateOf(0L) }
     var currentOrientationMode by remember { mutableIntStateOf(0) } // 0: Auto, 1: Landscape, 2: Portrait
     var orientationToastMessage by remember { mutableStateOf<String?>(null) }
 
@@ -447,6 +449,9 @@ fun PlayerScreen(
                         .pointerInput(uiState.isLocked, uiState.isPlaying, uiState.seekDeltaSeconds, uiState.doubleTapSeekSide, uiState.seekStepMs) {
                             detectTapGestures(
                                 onTap = {
+                                    if (android.os.SystemClock.uptimeMillis() - lastLongPressReleaseUptimeMs < 350L) {
+                                        return@detectTapGestures
+                                    }
                                     if (uiState.isLocked) {
                                         onTriggerLockHint()
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -480,6 +485,7 @@ fun PlayerScreen(
                                     tryAwaitRelease()
                                     job.cancel()
                                     if (longPressActive) {
+                                        lastLongPressReleaseUptimeMs = android.os.SystemClock.uptimeMillis()
                                         is2xSpeedActive = false
                                         onSpeedSelected(uiState.playbackSpeed)
                                     }
@@ -519,6 +525,9 @@ fun PlayerScreen(
                         .pointerInput(uiState.isLocked, uiState.isPlaying, uiState.seekDeltaSeconds, uiState.doubleTapSeekSide, uiState.seekStepMs) {
                             detectTapGestures(
                                 onTap = {
+                                    if (android.os.SystemClock.uptimeMillis() - lastLongPressReleaseUptimeMs < 350L) {
+                                        return@detectTapGestures
+                                    }
                                     if (uiState.isLocked) {
                                         onTriggerLockHint()
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -552,6 +561,7 @@ fun PlayerScreen(
                                     tryAwaitRelease()
                                     job.cancel()
                                     if (longPressActive) {
+                                        lastLongPressReleaseUptimeMs = android.os.SystemClock.uptimeMillis()
                                         is2xSpeedActive = false
                                         onSpeedSelected(uiState.playbackSpeed)
                                     }

@@ -7,6 +7,8 @@ import androidx.work.WorkerParameters
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import org.aptura.player.core.diagnostics.ApturaDiagnostics
+import org.aptura.player.core.diagnostics.EventCode
 import org.aptura.player.core.platform.PermissionHelper
 import org.aptura.player.data.database.ApturaDatabase
 import org.aptura.player.data.database.MediaItemEntity
@@ -98,6 +100,13 @@ class MediaScanWorker(
 
             Result.success()
         } catch (e: Exception) {
+            ApturaDiagnostics.logEvent(
+                code = EventCode.EV_006,
+                payload = mapOf(
+                    "stage" to "MediaScanWorker",
+                    "error" to e.javaClass.simpleName
+                )
+            )
             Result.failure()
         }
     }
