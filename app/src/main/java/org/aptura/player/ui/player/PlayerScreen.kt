@@ -376,7 +376,8 @@ fun PlayerScreen(
             isAudioOnly = uiState.isAudioOnly,
             subtitleTextColorHex = uiState.subtitleTextColorHex,
             subtitleBackgroundEnabled = uiState.subtitleBackgroundEnabled,
-            subtitleFontSizeSp = uiState.subtitleFontSizeSp
+            subtitleFontSizeSp = uiState.subtitleFontSizeSp,
+            isControlsVisible = uiState.isControlsVisible && !isPipMode
         )
 
         // 2. Gesture Detector Layer
@@ -1858,6 +1859,9 @@ fun PlayerScreen(
                             "application/x-subrip",
                             "text/vtt",
                             "text/x-ssa",
+                            "application/ttml+xml",
+                            "application/xml",
+                            "text/xml",
                             "text/plain",
                             "application/zip"
                         )

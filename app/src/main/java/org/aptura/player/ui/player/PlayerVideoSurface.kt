@@ -33,6 +33,7 @@ fun PlayerVideoSurface(
     subtitleTextColorHex: String,
     subtitleBackgroundEnabled: Boolean,
     subtitleFontSizeSp: Int,
+    isControlsVisible: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     if (isAudioOnly) return
@@ -85,7 +86,7 @@ fun PlayerVideoSurface(
                     }
                 }
 
-                val styleKey = "$subtitleTextColorHex|$subtitleBackgroundEnabled|$subtitleFontSizeSp"
+                val styleKey = "$subtitleTextColorHex|$subtitleBackgroundEnabled|$subtitleFontSizeSp|$isControlsVisible"
                 if (playerView.tag != styleKey) {
                     playerView.tag = styleKey
                     val fgColor = try {
@@ -106,7 +107,7 @@ fun PlayerVideoSurface(
                     playerView.subtitleView?.apply {
                         setFixedTextSize(TypedValue.COMPLEX_UNIT_SP, subtitleFontSizeSp.toFloat())
                         setStyle(CaptionStyleCompat(fgColor, bgColor, Color.TRANSPARENT, edgeType, Color.BLACK, null))
-                        setBottomPaddingFraction(0.09f)
+                        setBottomPaddingFraction(if (isControlsVisible) 0.16f else 0.09f)
                     }
                 }
 
