@@ -44,6 +44,23 @@ data class TrackInfo(
 )
 
 /**
+ * Algebraic sum type representing the currently active modal sheet or dialog on the player screen.
+ * Conforms to Aptura Coding Standards §6 (eliminating boolean explosion & illegal overlapping states).
+ */
+sealed interface PlayerSheet {
+    data object Audio : PlayerSheet
+    data object Subtitle : PlayerSheet
+    data object Speed : PlayerSheet
+    data object Advanced : PlayerSheet
+    data object Equalizer : PlayerSheet
+    data object Picture : PlayerSheet
+    data object Queue : PlayerSheet
+    data object PlayMode : PlayerSheet
+    data object WhyCompatibility : PlayerSheet
+    data object WebSearch : PlayerSheet
+}
+
+/**
  * Immutable UI state for the video player screen (SCR-010).
  * Backed by Unidirectional Data Flow (UDF) from PlayerViewModel.
  */
@@ -66,10 +83,7 @@ data class PlayerUiState(
     val subtitleTracks: List<TrackInfo> = emptyList(),
     val selectedAudioTrackIndex: Int? = null,
     val selectedSubtitleTrackIndex: Int? = null,
-    val isAudioSheetVisible: Boolean = false,
-    val isSubtitleSheetVisible: Boolean = false,
-    val isSpeedSheetVisible: Boolean = false,
-    val isAdvancedSheetVisible: Boolean = false,
+    val activeSheet: PlayerSheet? = null,
     val hasNext: Boolean = false,
     val hasPrevious: Boolean = false,
     val subtitleDelayMs: Long = 0L,
@@ -78,8 +92,6 @@ data class PlayerUiState(
     val audioEnhancement: AudioEnhancementState = AudioEnhancementState(),
     val pictureAdjustment: PictureAdjustmentState = PictureAdjustmentState(),
     val abRepeat: AbRepeatState = AbRepeatState(),
-    val isEqualizerSheetVisible: Boolean = false,
-    val isPictureSheetVisible: Boolean = false,
     val sleepTimerRemainingMs: Long? = null,
     val volumePercent: Int? = null,
     val brightnessPercent: Int? = null,
@@ -111,16 +123,12 @@ data class PlayerUiState(
     val sanitizedTitle: String = "",
     val recentDownloadedSubtitle: org.aptura.player.data.repository.DetectedSidecarSubtitle? = null,
     val autoPairedSubtitleToast: String? = null,
-    val isWebSearchDialogVisible: Boolean = false,
     val queueItems: List<org.aptura.player.domain.model.DomainMediaItem> = emptyList(),
     val currentQueueIndex: Int = -1,
-    val isQueueSheetVisible: Boolean = false,
-    val isPlayModeSheetVisible: Boolean = false,
     val nextItemDurationMs: Long? = null,
     val nextItemUri: String? = null,
     val isStatsOverlayVisible: Boolean = false,
     val playbackStats: org.aptura.player.domain.model.PlaybackStatsInfo = org.aptura.player.domain.model.PlaybackStatsInfo(),
-    val isWhyCompatibilitySheetVisible: Boolean = false,
     val failedCodecName: String? = null,
     val failureReason: String? = null,
     /** Double-tap / transport seek step from Settings (was hard-coded to 10 s). */
@@ -128,6 +136,22 @@ data class PlayerUiState(
     /** Audio-only mode: video is not decoded or rendered; audio keeps playing. */
     val isAudioOnly: Boolean = false
 ) {
+    // Computed property compatibility bridges for Compose bindings & legacy tests
+    val isAudioSheetVisible: Boolean get() = activeSheet == PlayerSheet.Audio
+    val isSubtitleSheetVisible: Boolean get() = activeSheet == PlayerSheet.Subtitle
+    val isSpeedSheetVisible: Boolean get() = activeSheet == PlayerSheet.Speed
+    val isAdvancedSheetVisible: Boolean get() = activeSheet == PlayerSheet.Advanced
+    val isEqualizerSheetVisible: Boolean get() = activeSheet == PlayerSheet.Equalizer
+    val isPictureSheetVisible: Boolean get() = activeSheet == PlayerSheet.Picture
+    val isQueueSheetVisible: Boolean get() = activeSheet == PlayerSheet.Queue
+    val isPlayModeSheetVisible: Boolean get() = activeSheet == PlayerSheet.PlayMode
+    val isWhyCompatibilitySheetVisible: Boolean get() = activeSheet == PlayerSheet.WhyCompatibility
+    val isWebSearchDialogVisible: Boolean get() = activeSheet == PlayerSheet.WebSearch
+
+    val isAnySheetVisible: Boolean get() = activeSheet != null
+
+    fun countActiveModals(): Int = if (activeSheet != null) 1 else 0
+
     val effectivePositionMs: Long
         get() = if (isScrubbing) scrubPositionMs else currentPositionMs
 
@@ -140,16 +164,4 @@ data class PlayerUiState(
         get() = if (durationMs > 0L) {
             (bufferedPositionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
         } else 0f
-
-    val isAnySheetVisible: Boolean
-        get() = isAudioSheetVisible ||
-                isSubtitleSheetVisible ||
-                isSpeedSheetVisible ||
-                isAdvancedSheetVisible ||
-                isEqualizerSheetVisible ||
-                isPictureSheetVisible ||
-                isQueueSheetVisible ||
-                isPlayModeSheetVisible ||
-                isWhyCompatibilitySheetVisible ||
-                isWebSearchDialogVisible
 }

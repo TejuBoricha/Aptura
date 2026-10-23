@@ -601,33 +601,21 @@ class PlayerViewModel(
         }
     }
 
-    private fun closeAllSheets(state: PlayerUiState): PlayerUiState = state.copy(
-        isAudioSheetVisible = false,
-        isSubtitleSheetVisible = false,
-        isSpeedSheetVisible = false,
-        isAdvancedSheetVisible = false,
-        isEqualizerSheetVisible = false,
-        isPictureSheetVisible = false,
-        isQueueSheetVisible = false,
-        isPlayModeSheetVisible = false,
-        isWhyCompatibilitySheetVisible = false,
-        isWebSearchDialogVisible = false
-    )
+    fun setSheet(sheet: PlayerSheet?) {
+        _uiState.update { it.copy(activeSheet = sheet) }
+        if (sheet != null) autoHideJob?.cancel() else scheduleAutoHide()
+    }
+
+    fun closeAllSheets() {
+        setSheet(null)
+    }
 
     fun showQueueSheet(visible: Boolean) {
-        _uiState.update { current ->
-            val base = if (visible) closeAllSheets(current) else current
-            base.copy(isQueueSheetVisible = visible)
-        }
-        if (visible) autoHideJob?.cancel() else scheduleAutoHide()
+        setSheet(if (visible) PlayerSheet.Queue else null)
     }
 
     fun showPlayModeSheet(visible: Boolean) {
-        _uiState.update { current ->
-            val base = if (visible) closeAllSheets(current) else current
-            base.copy(isPlayModeSheetVisible = visible)
-        }
-        if (visible) autoHideJob?.cancel() else scheduleAutoHide()
+        setSheet(if (visible) PlayerSheet.PlayMode else null)
     }
 
     fun setPlayMode(mode: PlayMode) {
@@ -646,7 +634,7 @@ class PlayerViewModel(
                 nextItemTitle = null,
                 nextItemDurationMs = null,
                 nextItemUri = null,
-                isQueueSheetVisible = false
+                activeSheet = if (it.activeSheet == PlayerSheet.Queue) null else it.activeSheet
             )
         }
         viewModelScope.launch(dispatcher + errorHandler) {
@@ -888,7 +876,7 @@ class PlayerViewModel(
             _uiState.update {
                 it.copy(
                     playbackSpeed = speed,
-                    isSpeedSheetVisible = false
+                    activeSheet = if (it.activeSheet == PlayerSheet.Speed) null else it.activeSheet
                 )
             }
             persistPlaybackPreferences()
@@ -947,27 +935,15 @@ class PlayerViewModel(
     }
 
     fun setAudioSheetVisible(visible: Boolean) {
-        _uiState.update { current ->
-            val base = if (visible) closeAllSheets(current) else current
-            base.copy(isAudioSheetVisible = visible)
-        }
-        if (visible) autoHideJob?.cancel() else scheduleAutoHide()
+        setSheet(if (visible) PlayerSheet.Audio else null)
     }
 
     fun setSubtitleSheetVisible(visible: Boolean) {
-        _uiState.update { current ->
-            val base = if (visible) closeAllSheets(current) else current
-            base.copy(isSubtitleSheetVisible = visible)
-        }
-        if (visible) autoHideJob?.cancel() else scheduleAutoHide()
+        setSheet(if (visible) PlayerSheet.Subtitle else null)
     }
 
     fun setSpeedSheetVisible(visible: Boolean) {
-        _uiState.update { current ->
-            val base = if (visible) closeAllSheets(current) else current
-            base.copy(isSpeedSheetVisible = visible)
-        }
-        if (visible) autoHideJob?.cancel() else scheduleAutoHide()
+        setSheet(if (visible) PlayerSheet.Speed else null)
     }
 
     fun selectAudioTrack(index: Int?) {
@@ -1080,11 +1056,7 @@ class PlayerViewModel(
     }
 
     fun showWebSearchDialog(visible: Boolean) {
-        _uiState.update { current ->
-            val base = if (visible) closeAllSheets(current) else current
-            base.copy(isWebSearchDialogVisible = visible)
-        }
-        if (visible) autoHideJob?.cancel() else scheduleAutoHide()
+        setSheet(if (visible) PlayerSheet.WebSearch else null)
     }
 
     fun setAutoPairedSubtitleToast(message: String?) {
@@ -1136,11 +1108,7 @@ class PlayerViewModel(
     }
 
     fun setWhyCompatibilitySheetVisible(visible: Boolean) {
-        _uiState.update { current ->
-            val base = if (visible) closeAllSheets(current) else current
-            base.copy(isWhyCompatibilitySheetVisible = visible)
-        }
-        if (visible) autoHideJob?.cancel() else scheduleAutoHide()
+        setSheet(if (visible) PlayerSheet.WhyCompatibility else null)
     }
 
     fun resetVideoPreferences() {
@@ -1215,11 +1183,7 @@ class PlayerViewModel(
     }
 
     fun setAdvancedSheetVisible(visible: Boolean) {
-        _uiState.update { current ->
-            val base = if (visible) closeAllSheets(current) else current
-            base.copy(isAdvancedSheetVisible = visible)
-        }
-        if (visible) autoHideJob?.cancel() else scheduleAutoHide()
+        setSheet(if (visible) PlayerSheet.Advanced else null)
     }
 
     fun setDelayStep(stepMs: Long) {
@@ -1321,19 +1285,11 @@ class PlayerViewModel(
     }
 
     fun setEqualizerSheetVisible(visible: Boolean) {
-        _uiState.update { current ->
-            val base = if (visible) closeAllSheets(current) else current
-            base.copy(isEqualizerSheetVisible = visible)
-        }
-        if (visible) autoHideJob?.cancel() else scheduleAutoHide()
+        setSheet(if (visible) PlayerSheet.Equalizer else null)
     }
 
     fun setPictureSheetVisible(visible: Boolean) {
-        _uiState.update { current ->
-            val base = if (visible) closeAllSheets(current) else current
-            base.copy(isPictureSheetVisible = visible)
-        }
-        if (visible) autoHideJob?.cancel() else scheduleAutoHide()
+        setSheet(if (visible) PlayerSheet.Picture else null)
     }
 
     private fun scheduleAutoHide() {

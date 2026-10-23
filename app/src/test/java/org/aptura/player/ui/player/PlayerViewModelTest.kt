@@ -1949,6 +1949,37 @@ class PlayerViewModelTest {
     }
 
     @Test
+    fun testModalAlgebraicState_singleSourceOfTruth() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        assertEquals(null, viewModel.uiState.value.activeSheet)
+        assertEquals(0, viewModel.uiState.value.countActiveModals())
+
+        viewModel.setSheet(PlayerSheet.Audio)
+        assertEquals(PlayerSheet.Audio, viewModel.uiState.value.activeSheet)
+        assertTrue(viewModel.uiState.value.isAudioSheetVisible)
+        assertFalse(viewModel.uiState.value.isSubtitleSheetVisible)
+        assertEquals(1, viewModel.uiState.value.countActiveModals())
+
+        // Atomically switch to Subtitle
+        viewModel.setSheet(PlayerSheet.Subtitle)
+        assertEquals(PlayerSheet.Subtitle, viewModel.uiState.value.activeSheet)
+        assertFalse(viewModel.uiState.value.isAudioSheetVisible)
+        assertTrue(viewModel.uiState.value.isSubtitleSheetVisible)
+        assertEquals(1, viewModel.uiState.value.countActiveModals())
+
+        // Close all sheets
+        viewModel.closeAllSheets()
+        assertEquals(null, viewModel.uiState.value.activeSheet)
+        assertFalse(viewModel.uiState.value.isAnySheetVisible)
+        assertEquals(0, viewModel.uiState.value.countActiveModals())
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
     fun testSeekRelative_rapidAccumulation_preservesTargetPositionAndSide() = runTest(testDispatcher) {
         val controller = FakePlaybackController()
         val repository = FakeMediaRepository()

@@ -358,92 +358,16 @@ fun PlayerScreen(
             .background(ApturaColors.SurfacePureBlack)
     ) {
         val screenWidth = maxWidth
-        // 1. Video Surface (Media3 PlayerView).
-        // SurfaceView by default (HDR-capable, lowest power). While picture adjustments are active the view is swapped
-        // for a TextureView, the only surface that can be colour-filtered per frame (audit P0-08).
-        // Audio-only mode removes the video view entirely: no surface, no rendering.
-        val useColorFilterSurface = uiState.pictureAdjustment.isModified
-        if (!uiState.isAudioOnly) key(useColorFilterSurface) {
-            AndroidView(
-                modifier = Modifier.fillMaxSize(),
-                factory = { ctx ->
-                    val layout = if (useColorFilterSurface) {
-                        R.layout.aptura_player_view_texture
-                    } else {
-                        R.layout.aptura_player_view_surface
-                    }
-                    (LayoutInflater.from(ctx).inflate(layout, null, false) as PlayerView).apply {
-                        useController = false
-                        layoutParams = ViewGroup.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.MATCH_PARENT
-                        )
-                        this.player = player
-                    }
-                },
-                update = { playerView ->
-                    if (playerView.player != player) {
-                        playerView.player = player
-                    }
-                    val contentFrame = playerView.findViewById<AspectRatioFrameLayout>(androidx.media3.ui.R.id.exo_content_frame)
-                    when (uiState.resizeMode) {
-                        AspectRatioMode.FIT -> {
-                            playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                            val videoSize = player?.videoSize
-                            if (videoSize != null && videoSize.width > 0 && videoSize.height > 0) {
-                                contentFrame?.setAspectRatio(videoSize.width.toFloat() / videoSize.height.toFloat())
-                            }
-                        }
-                        AspectRatioMode.FIXED_16_9 -> {
-                            playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                            contentFrame?.setAspectRatio(16f / 9f)
-                        }
-                        AspectRatioMode.FIXED_4_3 -> {
-                            playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                            contentFrame?.setAspectRatio(4f / 3f)
-                        }
-                        AspectRatioMode.FILL -> {
-                            playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
-                        }
-                        AspectRatioMode.ZOOM -> {
-                            playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                        }
-                    }
-
-                    // Subtitle style: only touch the SubtitleView when something actually changed (this block runs on
-                    // every position tick; re-creating the style 4x/s was pure waste).
-                    val styleKey = "${uiState.subtitleTextColorHex}|${uiState.subtitleBackgroundEnabled}|${uiState.subtitleFontSizeSp}"
-                    if (playerView.tag != styleKey) {
-                        playerView.tag = styleKey
-                        val fgColor = try {
-                            android.graphics.Color.parseColor(uiState.subtitleTextColorHex)
-                        } catch (_: Throwable) {
-                            android.graphics.Color.WHITE
-                        }
-                        val bgColor = if (uiState.subtitleBackgroundEnabled) {
-                            android.graphics.Color.argb(160, 0, 0, 0)
-                        } else {
-                            android.graphics.Color.TRANSPARENT
-                        }
-                        val edgeType = if (uiState.subtitleBackgroundEnabled) {
-                            CaptionStyleCompat.EDGE_TYPE_NONE
-                        } else {
-                            CaptionStyleCompat.EDGE_TYPE_OUTLINE
-                        }
-                        playerView.subtitleView?.apply {
-                            setFixedTextSize(TypedValue.COMPLEX_UNIT_SP, uiState.subtitleFontSizeSp.toFloat())
-                            setStyle(CaptionStyleCompat(fgColor, bgColor, android.graphics.Color.TRANSPARENT, edgeType, android.graphics.Color.BLACK, null))
-                            setBottomPaddingFraction(0.09f)
-                        }
-                    }
-
-                    PictureFilter.apply(playerView.videoSurfaceView as? TextureView, uiState.pictureAdjustment)
-                },
-                onRelease = { playerView ->
-                    playerView.player = null
-                }
-            )
-        }
+        // 1. Video Surface (Media3 PlayerView isolated from position ticks)
+        PlayerVideoSurface(
+            player = player,
+            resizeMode = uiState.resizeMode,
+            pictureAdjustment = uiState.pictureAdjustment,
+            isAudioOnly = uiState.isAudioOnly,
+            subtitleTextColorHex = uiState.subtitleTextColorHex,
+            subtitleBackgroundEnabled = uiState.subtitleBackgroundEnabled,
+            subtitleFontSizeSp = uiState.subtitleFontSizeSp
+        )
 
         // 2. Gesture Detector Layer
         var swipeDragAccumulator by remember { mutableFloatStateOf(0f) }
@@ -1820,7 +1744,8 @@ fun PlayerScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 32.dp)
+                        .windowInsetsPadding(WindowInsets.navigationBars)
+                        .padding(bottom = 24.dp)
                 ) {
                     Text(
                         text = "Playback Speed",
