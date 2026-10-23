@@ -266,7 +266,7 @@ fun MediaDetailsContent(
                 }
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = item.title,
+                    text = MediaFormatters.cleanTitle(item.title),
                     style = ApturaTypography.titleSmall,
                     color = ApturaColors.TextHighEmphasis,
                     fontWeight = FontWeight.SemiBold
