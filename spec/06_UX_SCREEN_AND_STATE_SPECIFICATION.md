@@ -22,7 +22,7 @@
 ## 2. Information architecture
 
 ```
-Onboarding (first run only)
+Onboarding / Welcome Guide (first launch, then Settings replay)
 Library
 ├── Home (Continue watching • Recently added • All videos shortcut)
 ├── Videos (browse all; sort/filter)
@@ -57,7 +57,7 @@ Navigation model: single-activity; destinations **Library / Folders / Playlists 
 
 | ID | Screen | Purpose | Entry points | Key elements | FR anchors |
 |---|---|---|---|---|---|
-| SCR-001 | Onboarding & permissions | Value intro, privacy statement, file-access setup | First run; Settings replay | 3 concise pages max; permission rationale inline; "Continue without access" path | FR-LIB-001/002 |
+| SCR-001 | Welcome Guide & permissions | Privacy facts, how the library works, the player's touch controls, the tools, file-access setup | First launch ALWAYS (even if storage access is already granted); Settings → Welcome Guide replay | 5 pages (privacy, library, player gestures, tools, access), each skippable and scannable; the last page adapts: without access it asks (permission rationale inline, "Continue without access" path), with access it says "Start watching"; counts as seen once the last page is shown; replay returns to Settings; tool and gesture lists must match what the app really has | FR-LIB-001/002 |
 | SCR-002 | Library home | Resume-fast surface | App open (default tab) | Continue-watching shelf, recently added, all-videos entry | FR-LIB-010/014 |
 | SCR-003 | Videos browser | Full library | Nav tab; empty-state CTA | Grid/list toggle, sort/filter sheet, item tiles | FR-LIB-010/011/012 |
 | SCR-004 | Folders browser | Orientation by folder | Nav tab | Folder rows with counts, exclusions affordance | FR-LIB-005 |
@@ -178,7 +178,7 @@ Cross-cutting variants every screen must handle: RTL mirroring; 200% font scale;
 
 ## 9. Key flows (text wireflows)
 
-1. **First run (JRN-01):** SCR-001 (3 pages) → permission rationale → OS dialog → [granted] SCR-011 scan starts → SCR-002 with streaming results; [denied] SCR-012 limited mode + picker/open-with paths.
+1. **First run (JRN-01):** SCR-001 (5 pages; shown even when access is already granted) → permission rationale → OS dialog → [granted] SCR-011 scan starts → SCR-002 with streaming results; [denied] SCR-012 limited mode + picker/open-with paths.
 2. **Play from library (JRN-02):** SCR-002 → tap tile → SCR-010 PREPARING → PLAYING (overlay auto-hides) → pause → resume banner on return via SCR-002 shelf.
 3. **Subtitle rescue (JRN-03):** SCR-010c → wrong-charset? encoding override → live fix; offset stepper; style tweak with preview; per-video memory saved.
 4. **Big library (JRN-04):** SCR-011 progress; user browses/plays during scan; "N new" chip on completion → filtered view.

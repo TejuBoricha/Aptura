@@ -79,9 +79,13 @@ internal fun handleBack(backStack: MutableList<NavKey>, onPlayerDismissed: () ->
     backStack.removeLastOrNull()
 }
 
-/** Where the app starts: onboarding only for users who neither granted access nor finished onboarding. */
-internal fun startDestinationFor(hasStorageAccess: Boolean, onboardingCompleted: Boolean): NavKey =
-    if (!hasStorageAccess && !onboardingCompleted) Onboarding else MediaLibrary
+/**
+ * Where the app starts: the welcome guide on the first launch, the library afterwards. Storage access does not matter
+ * here: the guide used to be skipped whenever access was already granted (a reinstall, a device that pre-grants), and
+ * since "seen" was only recorded inside the permission flow, those users never saw it at all.
+ */
+internal fun startDestinationFor(onboardingCompleted: Boolean): NavKey =
+    if (onboardingCompleted) MediaLibrary else Onboarding
 
 /**
  * Decides the start destination only AFTER the persisted settings have loaded. It used to be computed from the
@@ -91,7 +95,6 @@ internal fun startDestinationFor(hasStorageAccess: Boolean, onboardingCompleted:
 @Composable
 internal fun StartDestinationGate(
     settingsFlow: Flow<ApturaSettings>,
-    hasStorageAccess: Boolean,
     content: @Composable (initialSettings: ApturaSettings, startKey: NavKey) -> Unit
 ) {
     val loaded by produceState<ApturaSettings?>(initialValue = null, settingsFlow) {
@@ -102,8 +105,8 @@ internal fun StartDestinationGate(
         Box(modifier = Modifier.fillMaxSize().background(ApturaColors.SurfaceBase))
         return
     }
-    val startKey = remember(initialSettings.onboardingCompleted, hasStorageAccess) {
-        startDestinationFor(hasStorageAccess, initialSettings.onboardingCompleted)
+    val startKey = remember(initialSettings.onboardingCompleted) {
+        startDestinationFor(initialSettings.onboardingCompleted)
     }
     content(initialSettings, startKey)
 }
@@ -117,9 +120,8 @@ fun MainNavigation(
 ) {
     val context = LocalContext.current
     val settingsRepository = remember { ApturaSettingsRepository(context) }
-    val hasStorageAccess = remember { PermissionHelper.hasStoragePermission(context) }
 
-    StartDestinationGate(settingsRepository.settingsFlow, hasStorageAccess) { initialSettings, startKey ->
+    StartDestinationGate(settingsRepository.settingsFlow) { initialSettings, startKey ->
         AppNavHost(
             settingsRepository = settingsRepository,
             initialSettings = initialSettings,
@@ -176,7 +178,7 @@ private fun AppNavHost(
             MediaScanScheduler.scheduleImmediateScan(context)
             if (backStack.lastOrNull() == Onboarding) {
                 backStack.removeLastOrNull()
-                backStack.add(MediaLibrary)
+                if (backStack.isEmpty()) backStack.add(MediaLibrary)
             }
         }
     }
@@ -248,15 +250,24 @@ private fun AppNavHost(
         sceneStrategy = listDetailStrategy,
         entryProvider = entryProvider {
             entry<Onboarding> {
+                // Leaves the guide: back to Settings when it was replayed from there, otherwise on to the library.
+                val finishGuide: () -> Unit = {
+                    backStack.removeLastOrNull()
+                    if (backStack.isEmpty()) backStack.add(MediaLibrary)
+                }
                 OnboardingScreen(
+                    hasStorageAccess = PermissionHelper.hasStoragePermission(context),
                     onRequestPermissionClick = {
                         permissionLauncher.launch(PermissionHelper.getRequiredPermissions())
                     },
                     onContinueWithoutPermissionClick = {
-                        coroutineScope.launch { settingsRepository.setOnboardingCompleted(true) }
                         libraryViewModel.setPermissionDenied(true)
-                        backStack.removeLastOrNull()
-                        backStack.add(MediaLibrary)
+                        finishGuide()
+                    },
+                    onFinishClick = finishGuide,
+                    // Reaching the last page counts as having seen the guide, even if the app is closed right there.
+                    onReachedLastPage = {
+                        coroutineScope.launch { settingsRepository.setOnboardingCompleted(true) }
                     }
                 )
             }

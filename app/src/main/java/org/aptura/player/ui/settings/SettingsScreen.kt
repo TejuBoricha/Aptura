@@ -413,8 +413,8 @@ fun SettingsScreen(
                         PanelDivider()
                         ActionRow(
                             icon = Icons.Default.Info,
-                            title = "Replay Welcome Guide",
-                            subtitle = "Review Aptura features and privacy architecture",
+                            title = "Welcome Guide",
+                            subtitle = "Gestures, tools and what stays private, in a few pages",
                             onClick = onReplayOnboardingClick,
                             trailing = { NavigationChevron() }
                         )
