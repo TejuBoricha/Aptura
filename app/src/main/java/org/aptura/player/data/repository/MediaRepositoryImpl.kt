@@ -135,6 +135,12 @@ class MediaRepositoryImpl(
         }
     }
 
+    override suspend fun updateBookmarkNote(id: Long, note: String) {
+        withContext(ioDispatcher) {
+            bookmarkDao?.updateBookmarkNote(id, note.trim())
+        }
+    }
+
     override suspend fun savePlaybackPreferences(
         uri: String,
         resizeMode: String,

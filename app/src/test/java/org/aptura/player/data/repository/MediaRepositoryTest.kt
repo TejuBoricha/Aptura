@@ -212,6 +212,10 @@ class MediaRepositoryTest {
             bookmarks.value = bookmarks.value.filter { it.id != id }
         }
 
+        override suspend fun updateBookmarkNote(id: Long, note: String) {
+            bookmarks.value = bookmarks.value.map { if (it.id == id) it.copy(note = note) else it }
+        }
+
         override suspend fun deleteBookmarksForMedia(mediaUri: String) {
             bookmarks.value = bookmarks.value.filter { it.mediaUri != mediaUri }
         }

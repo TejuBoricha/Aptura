@@ -169,4 +169,44 @@ class MediaLibraryScreenUiTest {
         // Verify sort button is displayed with correct content description
         composeTestRule.onNodeWithContentDescription("Sort library").assertIsDisplayed()
     }
+
+    @Test
+    fun videoGridCard_moreActionsClick_opensOverflowMenuWithQuickActions() {
+        var playNextItem: DomainMediaItem? = null
+        var detailsShownItem: DomainMediaItem? = null
+
+        composeTestRule.setContent {
+            ApturaTheme {
+                MediaLibraryScreen(
+                    uiState = MediaLibraryUiState.Success(
+                        videos = sampleUiVideos.take(1),
+                        folders = emptyList(),
+                        selectedFolder = null,
+                        searchQuery = "",
+                        sortOrder = LibrarySortOrder.DATE_ADDED_DESC
+                    ),
+                    onVideoClick = { _, _ -> },
+                    onSearchQueryChanged = {},
+                    onFolderSelected = {},
+                    onSortOrderChanged = {},
+                    onRefresh = {},
+                    onPlayNext = { playNextItem = it },
+                    onShowDetails = { detailsShownItem = it }
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithContentDescription("More actions").performClick()
+        composeTestRule.onNodeWithText("Play Next").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Add to Queue").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Video Details").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Hide from Library").assertIsDisplayed()
+
+        composeTestRule.onNodeWithText("Play Next").performClick()
+        assertEquals("content://media/1", playNextItem?.uri)
+
+        composeTestRule.onNodeWithContentDescription("More actions").performClick()
+        composeTestRule.onNodeWithText("Video Details").performClick()
+        assertEquals("content://media/1", detailsShownItem?.uri)
+    }
 }

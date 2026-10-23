@@ -23,12 +23,47 @@ val ApturaTypography = Typography(
         fontWeight = FontWeight.Bold,
         letterSpacing = (-0.5).sp
     ),
+    displayMedium = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontSize = 28.sp,
+        lineHeight = 36.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = (-0.4).sp
+    ),
+    displaySmall = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontSize = 24.sp,
+        lineHeight = 32.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = (-0.3).sp
+    ),
+    headlineLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontSize = 22.sp,
+        lineHeight = 28.sp,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = (-0.25).sp
+    ),
     headlineMedium = TextStyle(
         fontFamily = FontFamily.Default,
         fontSize = 20.sp,
         lineHeight = 26.sp,
         fontWeight = FontWeight.SemiBold,
         letterSpacing = (-0.2).sp
+    ),
+    headlineSmall = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontSize = 18.sp,
+        lineHeight = 24.sp,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = (-0.15).sp
+    ),
+    titleLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontSize = 17.sp,
+        lineHeight = 22.sp,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = 0.sp
     ),
     titleMedium = TextStyle(
         fontFamily = FontFamily.Default,
@@ -37,12 +72,49 @@ val ApturaTypography = Typography(
         fontWeight = FontWeight.Medium,
         letterSpacing = 0.sp
     ),
+    titleSmall = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontSize = 13.sp,
+        lineHeight = 18.sp,
+        fontWeight = FontWeight.Medium,
+        letterSpacing = 0.1.sp
+    ),
+    bodyLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontSize = 15.sp,
+        lineHeight = 22.sp,
+        fontWeight = FontWeight.Normal,
+        letterSpacing = 0.15.sp
+    ),
     bodyMedium = TextStyle(
         fontFamily = FontFamily.Default,
         fontSize = 13.sp,
         lineHeight = 18.sp,
         fontWeight = FontWeight.Normal,
         letterSpacing = 0.2.sp
+    ),
+    bodySmall = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        fontWeight = FontWeight.Normal,
+        letterSpacing = 0.25.sp
+    ),
+    labelLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontSize = 13.sp,
+        lineHeight = 18.sp,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = 0.2.sp,
+        fontFeatureSettings = "tnum"
+    ),
+    labelMedium = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = 0.4.sp,
+        fontFeatureSettings = "tnum"
     ),
     labelSmall = TextStyle(
         fontFamily = FontFamily.Default,

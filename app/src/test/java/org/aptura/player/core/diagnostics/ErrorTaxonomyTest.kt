@@ -121,4 +121,25 @@ class ErrorTaxonomyTest {
         assertEquals("Audio Track Incompatible", ErrorTaxonomy.formatTaxonomyLabel("AUDIO_INIT_FAILED"))
         assertEquals("Custom Codec Error", ErrorTaxonomy.formatTaxonomyLabel("CUSTOM_CODEC_ERROR"))
     }
+
+    @Test
+    fun mapException_audioTrackInitOrDtsDecodeFailed_mapsToAudioInitFailed() {
+        val dtsError = PlaybackException(
+            "MediaCodecAudioRenderer error, format=Format(2, null, null, audio/vnd.dts, null, -1, en)",
+            null,
+            PlaybackException.ERROR_CODE_DECODER_INIT_FAILED
+        )
+        val dtsTaxonomy = ErrorTaxonomy.mapException(dtsError)
+        assertEquals("AUDIO_INIT_FAILED", dtsTaxonomy.code)
+        assertEquals("Audio Track Incompatible", dtsTaxonomy.title)
+        assertFalse("Audio errors should not offer video software decoder switch", dtsTaxonomy.canSwitchToSoftware)
+
+        val audioTrackError = PlaybackException(
+            "AudioTrack init failed",
+            null,
+            PlaybackException.ERROR_CODE_AUDIO_TRACK_INIT_FAILED
+        )
+        val trackTaxonomy = ErrorTaxonomy.mapException(audioTrackError)
+        assertEquals("AUDIO_INIT_FAILED", trackTaxonomy.code)
+    }
 }

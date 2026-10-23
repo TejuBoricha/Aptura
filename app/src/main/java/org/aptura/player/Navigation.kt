@@ -627,6 +627,7 @@ private fun AppNavHost(
                     },
                     onAddBookmark = playerViewModel::addBookmark,
                     onDeleteBookmark = playerViewModel::deleteBookmark,
+                    onUpdateBookmarkNote = playerViewModel::updateBookmarkNote,
                     // In the player the choice belongs to this video only (it used to also overwrite the global default).
                     onDecoderStrategyChanged = playerViewModel::setDecoderStrategy,
                     onDismissCompatibilityNotice = playerViewModel::dismissCompatibilityNotice,

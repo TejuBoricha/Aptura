@@ -93,6 +93,11 @@ interface MediaRepository {
     suspend fun deleteBookmark(id: Long)
 
     /**
+     * Updates the user-editable note for an existing bookmark (P2-16, FR-CTRL-011).
+     */
+    suspend fun updateBookmarkNote(id: Long, note: String) {}
+
+    /**
      * Persists per-video playback preferences (FR-CTRL-012, FR-PLAY-003).
      */
     suspend fun savePlaybackPreferences(

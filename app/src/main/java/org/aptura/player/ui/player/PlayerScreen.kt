@@ -78,6 +78,11 @@ import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.PictureInPictureAlt
@@ -250,6 +255,7 @@ fun PlayerScreen(
     onSubtitleBackgroundChanged: (Boolean) -> Unit = {},
     onAddBookmark: () -> Unit = {},
     onDeleteBookmark: (Long) -> Unit = {},
+    onUpdateBookmarkNote: (Long, String) -> Unit = { _, _ -> },
     onDecoderStrategyChanged: (Int) -> Unit = {},
     onDismissCompatibilityNotice: () -> Unit = {},
     onSearchWebClick: () -> Unit = {},
@@ -1395,6 +1401,38 @@ fun PlayerScreen(
                                         center = Offset(clampedThumbX, cy)
                                     )
                                 }
+
+                                // 5. Floating Timecode Preview Chip while scrubbing (DESIGN.md §5.1, P2-19)
+                                if (uiState.isScrubbing && scrubberWidthPx > 0f) {
+                                    val density = LocalDensity.current
+                                    val chipWidthPx = with(density) { 68.dp.toPx() }
+                                    val rawThumbX = scrubberWidthPx * uiState.progressFraction.coerceIn(0f, 1f)
+                                    val chipOffsetX = (rawThumbX - chipWidthPx / 2f)
+                                        .coerceIn(0f, (scrubberWidthPx - chipWidthPx).coerceAtLeast(0f))
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = ApturaColors.SurfaceElevated2,
+                                        border = BorderStroke(1.dp, ApturaColors.AccentPrimary),
+                                        modifier = Modifier
+                                            .align(Alignment.TopStart)
+                                            .offset {
+                                                IntOffset(
+                                                    x = chipOffsetX.toInt(),
+                                                    y = with(density) { (-22).dp.roundToPx() }
+                                                )
+                                            }
+                                    ) {
+                                        Text(
+                                            text = MediaFormatters.formatDuration(uiState.effectivePositionMs),
+                                            style = ApturaTypography.labelSmall.copy(fontFeatureSettings = "tnum"),
+                                            color = ApturaColors.AccentPrimary,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                        )
+                                    }
+                                }
                             }
 
                             Spacer(modifier = Modifier.width(12.dp))
@@ -2283,6 +2321,8 @@ fun PlayerScreen(
                                 modifier = Modifier.padding(top = 8.dp)
                             )
                         } else {
+                            var editingBookmarkId by remember { mutableStateOf<Long?>(null) }
+                            var editingNoteText by remember { mutableStateOf("") }
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -2290,55 +2330,119 @@ fun PlayerScreen(
                                 verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 uiState.bookmarks.forEach { bookmark ->
-                                    Row(
+                                    Column(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .clip(RoundedCornerShape(8.dp))
                                             .background(ApturaColors.SurfaceElevated3)
-                                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
+                                            .padding(horizontal = 10.dp, vertical = 6.dp)
                                     ) {
                                         Row(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .clickable {
-                                                    onScrubStart(bookmark.timestampMs)
-                                                    onScrubEnd()
-                                                },
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Surface(
-                                                shape = RoundedCornerShape(6.dp),
-                                                color = ApturaColors.SurfaceElevated1
+                                            Row(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .clickable {
+                                                        onScrubStart(bookmark.timestampMs)
+                                                        onScrubEnd()
+                                                    },
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                                             ) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    color = ApturaColors.SurfaceElevated1
+                                                ) {
+                                                    Text(
+                                                        text = MediaFormatters.formatDuration(bookmark.timestampMs),
+                                                        style = ApturaTypography.labelSmall.copy(fontFeatureSettings = "tnum"),
+                                                        color = ApturaColors.AccentPrimary,
+                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
                                                 Text(
-                                                    text = MediaFormatters.formatDuration(bookmark.timestampMs),
-                                                    style = ApturaTypography.labelSmall.copy(fontFeatureSettings = "tnum"),
-                                                    color = ApturaColors.AccentPrimary,
-                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                                    fontWeight = FontWeight.Bold
+                                                    text = bookmark.note.ifBlank { "Bookmark at ${MediaFormatters.formatDuration(bookmark.timestampMs)}" },
+                                                    style = ApturaTypography.labelSmall,
+                                                    color = ApturaColors.TextHighEmphasis,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
                                                 )
                                             }
-                                            Text(
-                                                text = bookmark.note.ifBlank { "Bookmark at ${MediaFormatters.formatDuration(bookmark.timestampMs)}" },
-                                                style = ApturaTypography.labelSmall,
-                                                color = ApturaColors.TextHighEmphasis,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                IconButton(
+                                                    onClick = {
+                                                        if (editingBookmarkId == bookmark.id) {
+                                                            editingBookmarkId = null
+                                                        } else {
+                                                            editingBookmarkId = bookmark.id
+                                                            editingNoteText = bookmark.note
+                                                        }
+                                                    },
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Filled.Edit,
+                                                        contentDescription = "Edit Bookmark Note",
+                                                        tint = ApturaColors.TextMediumEmphasis,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                }
+                                                IconButton(
+                                                    onClick = { onDeleteBookmark(bookmark.id) },
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Filled.Delete,
+                                                        contentDescription = "Delete Bookmark",
+                                                        tint = ApturaColors.StatusError.copy(alpha = 0.8f),
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                }
+                                            }
                                         }
-                                        IconButton(
-                                            onClick = { onDeleteBookmark(bookmark.id) },
-                                            modifier = Modifier.size(28.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Filled.Delete,
-                                                contentDescription = "Delete Bookmark",
-                                                tint = ApturaColors.StatusError.copy(alpha = 0.8f),
-                                                modifier = Modifier.size(16.dp)
-                                            )
+                                        if (editingBookmarkId == bookmark.id) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(top = 6.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                OutlinedTextField(
+                                                    value = editingNoteText,
+                                                    onValueChange = { editingNoteText = it },
+                                                    placeholder = {
+                                                        Text(
+                                                            text = "Add chapter or scene note...",
+                                                            style = ApturaTypography.labelSmall,
+                                                            color = ApturaColors.TextLowEmphasis
+                                                        )
+                                                    },
+                                                    singleLine = true,
+                                                    textStyle = ApturaTypography.labelSmall.copy(color = ApturaColors.TextHighEmphasis),
+                                                    modifier = Modifier.weight(1f)
+                                                )
+                                                Surface(
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    color = ApturaColors.AccentPrimary,
+                                                    modifier = Modifier.clickable {
+                                                        onUpdateBookmarkNote(bookmark.id, editingNoteText)
+                                                        editingBookmarkId = null
+                                                    }
+                                                ) {
+                                                    Text(
+                                                        text = "Save",
+                                                        style = ApturaTypography.labelSmall,
+                                                        color = ApturaColors.SurfacePureBlack,
+                                                        fontWeight = FontWeight.Bold,
+                                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }

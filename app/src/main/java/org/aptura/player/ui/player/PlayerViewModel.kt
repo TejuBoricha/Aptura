@@ -1098,6 +1098,12 @@ class PlayerViewModel(
         }
     }
 
+    fun updateBookmarkNote(id: Long, note: String) {
+        viewModelScope.launch(dispatcher + errorHandler) {
+            mediaRepository.updateBookmarkNote(id, note)
+        }
+    }
+
     /** The user picked a decoder in the player: that is THIS video's choice and never changes the Settings default. */
     fun setDecoderStrategy(strategy: Int) {
         _uiState.update { it.copy(decoderStrategy = strategy, decoderOverridden = true) }

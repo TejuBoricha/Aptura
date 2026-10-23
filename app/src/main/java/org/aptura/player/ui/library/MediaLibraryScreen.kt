@@ -64,6 +64,7 @@ import androidx.window.core.layout.WindowSizeClass
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -260,20 +261,18 @@ private fun MediaLibraryContentView(
                     header = {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.padding(vertical = 12.dp)
+                            modifier = Modifier.padding(top = 14.dp, bottom = 8.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.VideoLibrary,
-                                contentDescription = "Aptura",
-                                tint = ApturaColors.AccentPrimary,
-                                modifier = Modifier.size(28.dp)
-                            )
-                            Spacer(Modifier.height(4.dp))
                             Text(
-                                text = "Aptura",
+                                text = "APTURA",
                                 style = ApturaTypography.labelSmall,
-                                color = ApturaColors.AccentPrimary,
+                                color = ApturaColors.TextHighEmphasis,
                                 fontWeight = FontWeight.Bold
+                            )
+                            Spacer(Modifier.height(10.dp))
+                            HorizontalDivider(
+                                modifier = Modifier.width(36.dp),
+                                color = ApturaColors.BorderSubtle
                             )
                         }
                     }
@@ -290,6 +289,12 @@ private fun MediaLibraryContentView(
                             unselectedIconColor = ApturaColors.TextMediumEmphasis,
                             unselectedTextColor = ApturaColors.TextMediumEmphasis
                         )
+                    )
+                    HorizontalDivider(
+                        modifier = Modifier
+                            .width(36.dp)
+                            .padding(vertical = 6.dp),
+                        color = ApturaColors.BorderSubtle
                     )
                     NavigationRailItem(
                         selected = false,
@@ -680,7 +685,10 @@ private fun MediaLibraryContentView(
                         } else {
                             selectedDetailItem = card.rawItem
                         }
-                    }
+                    },
+                    onPlayNextClick = { onPlayNext(card.rawItem) },
+                    onAddToQueueClick = { onAddToQueue(card.rawItem) },
+                    onHideClick = { itemToHide = card.rawItem }
                 )
             }
         }
@@ -807,8 +815,12 @@ fun VideoGridCard(
     card: VideoCardUiModel,
     onClick: () -> Unit,
     onMoreClick: (() -> Unit)? = null,
+    onPlayNextClick: (() -> Unit)? = null,
+    onAddToQueueClick: (() -> Unit)? = null,
+    onHideClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    var overflowExpanded by remember { mutableStateOf(false) }
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -940,16 +952,67 @@ fun VideoGridCard(
                         modifier = Modifier.weight(1f)
                     )
                     if (onMoreClick != null) {
-                        IconButton(
-                            onClick = onMoreClick,
-                            modifier = Modifier.size(48.dp) // the 48 dp touch-target minimum
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.MoreVert,
-                                contentDescription = "More actions",
-                                tint = ApturaColors.TextMediumEmphasis,
-                                modifier = Modifier.size(22.dp)
-                            )
+                        val hasContextActions = onPlayNextClick != null || onAddToQueueClick != null || onHideClick != null
+                        Box {
+                            IconButton(
+                                onClick = {
+                                    if (hasContextActions) {
+                                        overflowExpanded = true
+                                    } else {
+                                        onMoreClick()
+                                    }
+                                },
+                                modifier = Modifier.size(48.dp) // the 48 dp touch-target minimum
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.MoreVert,
+                                    contentDescription = "More actions",
+                                    tint = ApturaColors.TextMediumEmphasis,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            if (hasContextActions) {
+                                DropdownMenu(
+                                    expanded = overflowExpanded,
+                                    onDismissRequest = { overflowExpanded = false },
+                                    containerColor = ApturaColors.SurfaceElevated2
+                                ) {
+                                    if (onPlayNextClick != null) {
+                                        DropdownMenuItem(
+                                            text = { Text("Play Next", style = ApturaTypography.bodyMedium, color = ApturaColors.TextHighEmphasis) },
+                                            onClick = {
+                                                overflowExpanded = false
+                                                onPlayNextClick()
+                                            }
+                                        )
+                                    }
+                                    if (onAddToQueueClick != null) {
+                                        DropdownMenuItem(
+                                            text = { Text("Add to Queue", style = ApturaTypography.bodyMedium, color = ApturaColors.TextHighEmphasis) },
+                                            onClick = {
+                                                overflowExpanded = false
+                                                onAddToQueueClick()
+                                            }
+                                        )
+                                    }
+                                    DropdownMenuItem(
+                                        text = { Text("Video Details", style = ApturaTypography.bodyMedium, color = ApturaColors.TextHighEmphasis) },
+                                        onClick = {
+                                            overflowExpanded = false
+                                            onMoreClick()
+                                        }
+                                    )
+                                    if (onHideClick != null) {
+                                        DropdownMenuItem(
+                                            text = { Text("Hide from Library", style = ApturaTypography.bodyMedium, color = ApturaColors.StatusError) },
+                                            onClick = {
+                                                overflowExpanded = false
+                                                onHideClick()
+                                            }
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }

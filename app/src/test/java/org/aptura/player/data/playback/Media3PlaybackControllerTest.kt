@@ -500,4 +500,27 @@ class Media3PlaybackControllerTest {
         assertEquals("UNSUPPORTED_PROFILE", errorState.errorCode)
         assertEquals("Open video in an external player app", errorState.suggestedAction)
     }
+
+    @Test
+    fun onPlayerError_whenAudioDecodeFailsWithSingleAudioTrack_mapsToAudioInitFailedWithoutVideoSoftwareFallback() = runTest(testDispatcher) {
+        val (player, state) = createMockPlayer()
+        val controller = createController(player)
+
+        controller.playMediaItem(sampleItem1)
+        runCurrent()
+        state.currentMediaItem = MediaItem.fromUri(sampleItem1.uri)
+
+        val dtsError = PlaybackException(
+            "MediaCodecAudioRenderer error, format=Format(2, null, null, audio/vnd.dts, null, -1, en)",
+            null,
+            PlaybackException.ERROR_CODE_DECODER_INIT_FAILED
+        )
+        state.fireError(dtsError)
+
+        assertFalse("Audio error must not engage video software fallback", controller.isCompatibilityMode.value)
+        assertEquals(0, controller.currentDecoderStrategy)
+        val finalState = controller.playbackState.value
+        assertTrue(finalState is DomainPlaybackState.Error)
+        assertEquals("AUDIO_INIT_FAILED", (finalState as DomainPlaybackState.Error).errorCode)
+    }
 }

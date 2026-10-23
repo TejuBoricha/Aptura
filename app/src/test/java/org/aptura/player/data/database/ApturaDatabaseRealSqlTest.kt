@@ -208,4 +208,21 @@ class ApturaDatabaseRealSqlTest {
             file.delete()
         }
     }
+
+    @Test
+    fun updateBookmarkNote_persistsUpdatedNoteInDatabase() = runBlocking {
+        val bookmarkDao = db.bookmarkDao()
+        val id = bookmarkDao.insertBookmark(
+            BookmarkEntity(
+                mediaUri = "content://media/1",
+                timestampMs = 15_000L,
+                note = "Initial note"
+            )
+        )
+
+        bookmarkDao.updateBookmarkNote(id, "Opening sequence")
+        val bookmarks = bookmarkDao.getBookmarksForMedia("content://media/1").first()
+        assertEquals(1, bookmarks.size)
+        assertEquals("Opening sequence", bookmarks[0].note)
+    }
 }

@@ -23,12 +23,51 @@ data class TaxonomyError(
 
 object ErrorTaxonomy {
 
+    fun isAudioError(exception: PlaybackException): Boolean {
+        val errorCode = exception.errorCode
+        if (
+            errorCode == PlaybackException.ERROR_CODE_AUDIO_TRACK_INIT_FAILED ||
+            errorCode == PlaybackException.ERROR_CODE_AUDIO_TRACK_WRITE_FAILED ||
+            errorCode == PlaybackException.ERROR_CODE_AUDIO_TRACK_OFFLOAD_WRITE_FAILED ||
+            errorCode == PlaybackException.ERROR_CODE_AUDIO_TRACK_OFFLOAD_INIT_FAILED
+        ) {
+            return true
+        }
+        val combinedMessage = "${exception.message.orEmpty()} ${exception.cause?.message.orEmpty()}"
+        val isDecoderErrorCode =
+            errorCode == PlaybackException.ERROR_CODE_DECODING_FAILED ||
+                errorCode == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
+                errorCode == PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES ||
+                errorCode == PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED
+        return isDecoderErrorCode && (
+            combinedMessage.contains("MediaCodecAudioRenderer", ignoreCase = true) ||
+                combinedMessage.contains("AudioTrack", ignoreCase = true) ||
+                combinedMessage.contains("audio/", ignoreCase = true)
+            )
+    }
+
     fun mapException(
         exception: PlaybackException,
         isSoftwareAlreadyAttempted: Boolean = false
     ): TaxonomyError {
         val errorCode = exception.errorCode
         val rawMessage = exception.message.orEmpty()
+
+        if (isAudioError(exception)) {
+            return TaxonomyError(
+                code = "AUDIO_INIT_FAILED",
+                title = "Audio Track Incompatible",
+                whatHappened = "This video's audio stream uses a format or surround codec (such as DTS, AC-3, or TrueHD) not supported by your device's platform audio decoders.",
+                whatWasTried = "Platform MediaCodec audio decoders and audio output paths were evaluated.",
+                suggestedActions = listOf(
+                    "Switch to another audio track if available",
+                    "Open video in an external player app",
+                    "Copy diagnostic report"
+                ),
+                canSwitchToSoftware = false,
+                isRecoverable = true
+            )
+        }
 
         val isUnsupportedProfileOrExceedsCapabilities = errorCode == PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES ||
             rawMessage.contains("hevc", ignoreCase = true) ||

@@ -76,6 +76,7 @@ class Media3PlaybackController(
         private set
 
     private var hasAttemptedSoftwareFallback = false
+    private var hasAttemptedAudioTrackFallback = false
 
     private val _isCompatibilityMode = MutableStateFlow(initialDecoderStrategy == 2)
     override val isCompatibilityMode: StateFlow<Boolean> = _isCompatibilityMode.asStateFlow()
@@ -220,9 +221,29 @@ class Media3PlaybackController(
             // A file that has vanished or cannot be opened must not strand the whole queue on an error screen.
             if (error.errorCode in UNOPENABLE_FILE_ERRORS && skipUnopenableItem()) return
 
-            val isDecoderFailure = error.errorCode == PlaybackException.ERROR_CODE_DECODING_FAILED ||
-                error.errorCode == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
-                error.errorCode == PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES
+            val isAudioFailure = ErrorTaxonomy.isAudioError(error)
+            if (isAudioFailure && !hasAttemptedAudioTrackFallback && player.currentMediaItem != null) {
+                val altTrack = _trackSelection.value.availableAudioTracks.firstOrNull {
+                    !it.isSelected && it.index != _trackSelection.value.selectedAudioTrackIndex
+                }
+                if (altTrack != null) {
+                    hasAttemptedAudioTrackFallback = true
+                    _compatibilityNotice.value = "Switched to alternate audio track (${altTrack.label})"
+                    scope.launch(mainDispatcher) {
+                        selectAudioTrack(altTrack.index)
+                        player.stop()
+                        player.prepare()
+                        player.play()
+                    }
+                    return
+                }
+            }
+
+            val isDecoderFailure = !isAudioFailure && (
+                error.errorCode == PlaybackException.ERROR_CODE_DECODING_FAILED ||
+                    error.errorCode == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
+                    error.errorCode == PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES
+                )
 
             // Check if software fallback is viable before attempting:
             // Device platform must actually have a software decoder available for this mime type.
@@ -608,6 +629,7 @@ class Media3PlaybackController(
         apturaTextRenderer?.subtitleDelayMs = 0L
         _trackSelection.value = _trackSelection.value.copy(subtitleDelayMs = 0L)
         hasAttemptedSoftwareFallback = false
+        hasAttemptedAudioTrackFallback = false
         totalDroppedFrames = 0
         renderedVideoFrames = 0
         _decoderStrategy.value = currentDecoderStrategy
