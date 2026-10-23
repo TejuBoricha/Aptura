@@ -467,9 +467,12 @@ class Media3PlaybackController(
         val audioSampleRateHz = audioFormat?.sampleRate?.takeIf { it > 0 } ?: 0
         val audioBitrateKbps = if (audioFormat != null && audioFormat.bitrate > 0) audioFormat.bitrate / 1000 else 0
 
-        val hdrFormat = when (videoFormat?.colorInfo?.colorTransfer) {
-            C.COLOR_TRANSFER_ST2084 -> "HDR10 (PQ)"
-            C.COLOR_TRANSFER_HLG -> "HDR (HLG)"
+        val isDolbyVision = videoFormat?.sampleMimeType == androidx.media3.common.MimeTypes.VIDEO_DOLBY_VISION ||
+            videoFormat?.codecs?.let { it.startsWith("dvhe") || it.startsWith("dvh1") || it.startsWith("dav1") } == true
+        val hdrFormat = when {
+            isDolbyVision -> "Dolby Vision"
+            videoFormat?.colorInfo?.colorTransfer == C.COLOR_TRANSFER_ST2084 -> "HDR10 (PQ)"
+            videoFormat?.colorInfo?.colorTransfer == C.COLOR_TRANSFER_HLG -> "HDR (HLG)"
             else -> "SDR"
         }
 

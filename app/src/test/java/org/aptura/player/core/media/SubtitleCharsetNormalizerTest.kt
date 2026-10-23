@@ -54,4 +54,20 @@ class SubtitleCharsetNormalizerTest {
         assertTrue(result.exists())
         assertEquals(spanishText, result.readText(StandardCharsets.UTF_8))
     }
+
+    @Test
+    fun normalizeToUtf8_utf16LeWithBom_transcodesToCleanUtf8WithoutLeadingBomChar() {
+        val cacheDir = tempFolder.newFolder("cache")
+        val file = tempFolder.newFile("utf16le.srt")
+        val content = "1\n00:00:01,000 --> 00:00:03,000\nUTF-16 subtitle line"
+        val bomBytes = byteArrayOf(0xFF.toByte(), 0xFE.toByte()) + content.toByteArray(StandardCharsets.UTF_16LE)
+        file.writeBytes(bomBytes)
+
+        val result = SubtitleCharsetNormalizer.normalizeToUtf8(file, cacheDir)
+
+        assertTrue(result.exists())
+        val normalizedText = result.readText(StandardCharsets.UTF_8)
+        assertEquals(content, normalizedText)
+        assertTrue(!normalizedText.startsWith("\uFEFF"))
+    }
 }

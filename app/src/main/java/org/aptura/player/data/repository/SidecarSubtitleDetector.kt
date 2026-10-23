@@ -23,13 +23,13 @@ data class DetectedSidecarSubtitle(
 )
 
 /**
- * Probes the local storage context for sidecar subtitle files (.srt, .vtt, .ass, .ssa, .sub)
+ * Probes the local storage context for sidecar subtitle files (.srt, .vtt, .ass, .ssa, .sub, .ttml, .dfxp)
  * sharing the same base name, language tags, or located in child /subs/ directories.
  * Also scans the Downloads directory for recently downloaded subtitles matching the active title.
  */
 object SidecarSubtitleDetector {
 
-    private val SUPPORTED_EXTENSIONS = setOf("srt", "vtt", "ass", "ssa", "sub")
+    private val SUPPORTED_EXTENSIONS = setOf("srt", "vtt", "ass", "ssa", "sub", "ttml", "dfxp")
 
     private val LANGUAGE_MAP = mapOf(
         "en" to "English", "eng" to "English",
@@ -51,7 +51,8 @@ object SidecarSubtitleDetector {
     )
 
     private val VIDEO_EXTENSIONS = setOf(
-        "mp4", "mkv", "webm", "mov", "avi", "ts", "m4v", "3gp", "flv", "wmv", "ogv", "mpg", "mpeg", "m2ts"
+        "mp4", "mkv", "webm", "mov", "avi", "ts", "m2ts", "mts", "m4v", "3gp", "3g2",
+        "flv", "wmv", "ogv", "mpg", "mpeg", "vob", "divx", "f4v", "asf", "m2v", "mp2v", "mpv", "rmvb"
     )
 
     /** Words that may follow the video name in a subtitle file name without changing which video it belongs to. */

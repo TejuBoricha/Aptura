@@ -30,6 +30,8 @@ class ApturaMediaCodecSelectorTest {
     private val hwHevc = codecInfo("c2.qti.hevc.decoder", MimeTypes.VIDEO_H265, hardwareAccelerated = true)
     private val swHevc = codecInfo("c2.android.hevc.decoder", MimeTypes.VIDEO_H265, hardwareAccelerated = false)
     private val hwDv = codecInfo("c2.qti.dv.decoder", MimeTypes.VIDEO_DOLBY_VISION, hardwareAccelerated = true)
+    private val swMp4v = codecInfo("c2.android.mpeg4.decoder", MimeTypes.VIDEO_MP4V, hardwareAccelerated = false)
+    private val swOpus = codecInfo("c2.android.opus.decoder", MimeTypes.AUDIO_OPUS, hardwareAccelerated = false)
 
     @Test
     fun getDecoderInfos_autoStrategy_ordersHardwareBeforeSoftwareFallback() {
@@ -44,15 +46,24 @@ class ApturaMediaCodecSelectorTest {
     }
 
     @Test
-    fun getDecoderInfos_hardwareStrategy_excludesSoftwareDecoders() {
+    fun getDecoderInfos_hardwareStrategy_excludesSoftwareVideoDecoders_butPreservesPlatformAudioDecoders() {
         val base = MediaCodecSelector { mimeType, _, _ ->
-            if (mimeType == MimeTypes.VIDEO_H265) listOf(hwHevc, swHevc) else emptyList()
+            when (mimeType) {
+                MimeTypes.VIDEO_H265 -> listOf(hwHevc, swHevc)
+                MimeTypes.AUDIO_OPUS -> listOf(swOpus)
+                else -> emptyList()
+            }
         }
         val selector = ApturaMediaCodecSelector(base) { 1 }
 
-        val result = selector.getDecoderInfos(MimeTypes.VIDEO_H265, false, false)
-
-        assertEquals(listOf("c2.qti.hevc.decoder"), result.map { it.name })
+        assertEquals(
+            listOf("c2.qti.hevc.decoder"),
+            selector.getDecoderInfos(MimeTypes.VIDEO_H265, false, false).map { it.name }
+        )
+        assertEquals(
+            listOf("c2.android.opus.decoder"),
+            selector.getDecoderInfos(MimeTypes.AUDIO_OPUS, false, false).map { it.name }
+        )
     }
 
     @Test
@@ -90,6 +101,23 @@ class ApturaMediaCodecSelectorTest {
         assertEquals(
             listOf("c2.android.hevc.decoder"),
             selector.getDecoderInfos(MimeTypes.VIDEO_DOLBY_VISION, false, false).map { it.name }
+        )
+    }
+
+    @Test
+    fun getDecoderInfos_divxAndXvidMimeAliases_fallBackToMpeg4Decoder() {
+        val base = MediaCodecSelector { mimeType, _, _ ->
+            if (mimeType == MimeTypes.VIDEO_MP4V) listOf(swMp4v) else emptyList()
+        }
+        val selector = ApturaMediaCodecSelector(base) { 0 }
+
+        assertEquals(
+            listOf("c2.android.mpeg4.decoder"),
+            selector.getDecoderInfos("video/divx", false, false).map { it.name }
+        )
+        assertEquals(
+            listOf("c2.android.mpeg4.decoder"),
+            selector.getDecoderInfos("video/xvid", false, false).map { it.name }
         )
     }
 }

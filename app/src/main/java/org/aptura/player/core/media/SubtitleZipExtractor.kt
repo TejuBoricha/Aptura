@@ -20,7 +20,7 @@ sealed class ZipExtractionResult {
 
 /**
  * Defensive extractor for subtitle files packaged inside `.zip` archives.
- * Defends against Zip Slip vulnerability and extracts the best candidate (.srt, .vtt, .ass).
+ * Defends against Zip Slip vulnerability and extracts the best candidate (.srt, .vtt, .ass, .ssa, .sub, .ttml, .dfxp).
  */
 object SubtitleZipExtractor {
 
@@ -29,7 +29,9 @@ object SubtitleZipExtractor {
         "vtt" to "text/vtt",
         "ass" to "text/x-ssa",
         "ssa" to "text/x-ssa",
-        "sub" to "text/plain"
+        "sub" to "application/x-subrip",
+        "ttml" to "application/ttml+xml",
+        "dfxp" to "application/ttml+xml"
     )
 
     fun extractSubtitleFromZip(context: Context, zipUri: Uri): ZipExtractionResult {

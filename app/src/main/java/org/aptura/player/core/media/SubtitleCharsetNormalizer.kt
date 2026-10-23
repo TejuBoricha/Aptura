@@ -8,7 +8,8 @@ import java.nio.charset.StandardCharsets
 
 /**
  * Normalizes subtitle files to clean UTF-8 without BOM.
- * Prevents Media3 parser crashes and accented character corruption on Windows-1252/ISO-8859-1 files.
+ * Prevents Media3 parser crashes and accented character corruption on UTF-16, UTF-8-BOM,
+ * and Windows-1252/ISO-8859-1 files.
  */
 object SubtitleCharsetNormalizer {
 
@@ -25,14 +26,10 @@ object SubtitleCharsetNormalizer {
             return sourceFile
         }
 
-        // Transcode to clean UTF-8
-        val text = when {
-            hasUtf8Bom(bytes) -> String(bytes, 3, bytes.size - 3, StandardCharsets.UTF_8)
-            else -> String(bytes, detectedCharset)
-        }
-
+        val text = decodeToCleanText(bytes, detectedCharset)
+        val ext = sourceFile.extension.ifBlank { "srt" }
         val normalizedDir = File(cacheDir, "subtitles_normalized").apply { mkdirs() }
-        val normalizedFile = File(normalizedDir, "norm_${sourceFile.nameWithoutExtension}.srt")
+        val normalizedFile = File(normalizedDir, "norm_${sourceFile.nameWithoutExtension}.$ext")
         FileOutputStream(normalizedFile).use { fos ->
             fos.write(text.toByteArray(StandardCharsets.UTF_8))
         }
@@ -40,11 +37,43 @@ object SubtitleCharsetNormalizer {
         return normalizedFile
     }
 
+    fun normalizeBytesToUtf8File(bytes: ByteArray, displayName: String, cacheDir: File): File? {
+        if (bytes.isEmpty()) return null
+        val detectedCharset = detectCharset(bytes)
+        if (detectedCharset == StandardCharsets.UTF_8 && !hasUtf8Bom(bytes)) {
+            return null // Already clean UTF-8 without BOM; caller can use original URI directly
+        }
+        val text = decodeToCleanText(bytes, detectedCharset)
+        val safeName = displayName.replace(Regex("[^a-zA-Z0-9._-]"), "_").ifBlank { "subtitle.srt" }
+        val normalizedDir = File(cacheDir, "subtitles_normalized").apply { mkdirs() }
+        val normalizedFile = File(normalizedDir, "norm_$safeName")
+        FileOutputStream(normalizedFile).use { fos ->
+            fos.write(text.toByteArray(StandardCharsets.UTF_8))
+        }
+        return normalizedFile
+    }
+
+    private fun decodeToCleanText(bytes: ByteArray, detectedCharset: Charset): String {
+        val raw = when {
+            hasUtf8Bom(bytes) -> String(bytes, 3, bytes.size - 3, StandardCharsets.UTF_8)
+            hasUtf16Bom(bytes) -> String(bytes, 2, bytes.size - 2, detectedCharset)
+            else -> String(bytes, detectedCharset)
+        }
+        return raw.removePrefix("\uFEFF")
+    }
+
     private fun hasUtf8Bom(bytes: ByteArray): Boolean {
         return bytes.size >= 3 &&
             bytes[0] == 0xEF.toByte() &&
             bytes[1] == 0xBB.toByte() &&
             bytes[2] == 0xBF.toByte()
+    }
+
+    internal fun hasUtf16Bom(bytes: ByteArray, length: Int = bytes.size): Boolean {
+        if (length < 2) return false
+        val isLe = bytes[0] == 0xFF.toByte() && bytes[1] == 0xFE.toByte()
+        val isBe = bytes[0] == 0xFE.toByte() && bytes[1] == 0xFF.toByte()
+        return isLe || isBe
     }
 
     private fun detectCharset(bytes: ByteArray): Charset {

@@ -85,4 +85,16 @@ class SubtitleZipExtractorTest {
         assertEquals("movie.en.srt", success.entryName)
         assertEquals("English subtitle", success.extractedFile.readText())
     }
+
+    @Test
+    fun extractSubtitleFromStream_ttmlInZip_extractsWithTtmlMimeType() {
+        val ttmlContent = """<tt xmlns="http://www.w3.org/ns/ttml"><body><div><p begin="00:00:01.000" end="00:00:03.000">Hello TTML</p></div></body></tt>"""
+        val zipStream = createZipStream(mapOf("captions.ttml" to ttmlContent))
+        val result = SubtitleZipExtractor.extractSubtitleFromStream(context, zipStream)
+
+        assertTrue(result is ZipExtractionResult.Success)
+        val success = result as ZipExtractionResult.Success
+        assertEquals("captions.ttml", success.entryName)
+        assertEquals("application/ttml+xml", success.mimeType)
+    }
 }

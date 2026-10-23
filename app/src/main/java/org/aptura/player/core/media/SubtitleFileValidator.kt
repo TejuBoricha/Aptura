@@ -3,7 +3,6 @@ package org.aptura.player.core.media
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
-import java.io.InputStream
 import java.net.URLDecoder
 
 sealed class SubtitleValidationResult {
@@ -21,8 +20,8 @@ sealed class SubtitleValidationResult {
 
 /**
  * Defensive validator for external subtitle file importation.
- * Supports direct subtitle files (.srt, .vtt, .ass, .ssa, .sub) and subtitle-packed .zip archives.
- * Defends against binary injection and normalizes non-standard charsets.
+ * Supports direct subtitle files (.srt, .vtt, .ass, .ssa, .sub, .ttml, .dfxp) and subtitle-packed .zip archives.
+ * Defends against binary injection and normalizes non-standard charsets (UTF-16, UTF-8-BOM, Windows-1252).
  */
 object SubtitleFileValidator {
 
@@ -103,35 +102,44 @@ object SubtitleFileValidator {
         }
 
         // 4. Inspect file header / magic bytes (detect binary files masquerading as text)
-        try {
+        val rawBytes: ByteArray = try {
             val stream = context.contentResolver.openInputStream(uri)
                 ?: return SubtitleValidationResult.Invalid("Cannot open file stream for $resolvedName.")
             stream.use { s ->
-                val buffer = ByteArray(512)
-                val bytesRead = s.read(buffer)
-                if (bytesRead > 0) {
-                    if (isBinaryOrImage(buffer, bytesRead)) {
-                        return SubtitleValidationResult.Invalid("Selected file ($resolvedName) contains binary or image data, not valid subtitle text.")
-                    }
-                } else if (bytesRead == 0) {
+                val bytes = s.readBytes()
+                if (bytes.isEmpty()) {
                     return SubtitleValidationResult.Invalid("Selected subtitle file ($resolvedName) is empty.")
                 }
+                val checkLen = minOf(bytes.size, 512)
+                if (isBinaryOrImage(bytes, checkLen)) {
+                    return SubtitleValidationResult.Invalid("Selected file ($resolvedName) contains binary or image data, not valid subtitle text.")
+                }
+                bytes
             }
         } catch (e: Exception) {
             return SubtitleValidationResult.Invalid("Unable to read file: ${e.message ?: "Access denied"}")
         }
 
-        // 5. Determine Media3 MIME type and format description
+        // 5. Normalize non-UTF-8 / BOM-prefixed subtitle files so Media3 parsers receive clean UTF-8
+        val normalizedFile = try {
+            SubtitleCharsetNormalizer.normalizeBytesToUtf8File(rawBytes, resolvedName, context.cacheDir)
+        } catch (_: Throwable) {
+            null
+        }
+        val effectiveUri = normalizedFile?.let { Uri.fromFile(it) } ?: uri
+
+        // 6. Determine Media3 MIME type and format description
         val (mimeType, formatDesc) = when (extension) {
             "vtt" -> Pair("text/vtt", "WebVTT")
             "ass", "ssa" -> Pair("text/x-ssa", "SubStation Alpha")
             "srt" -> Pair("application/x-subrip", "SubRip (SRT)")
             "sub" -> Pair("application/x-subrip", "MicroDVD")
+            "ttml", "dfxp" -> Pair("application/ttml+xml", "Timed Text Markup Language (TTML)")
             else -> {
-                // If extension is not explicitly one of .srt/.vtt/.ass/.ssa/.sub
+                // If extension is not explicitly one of .srt/.vtt/.ass/.ssa/.sub/.ttml/.dfxp
                 // sniff content to verify if it has valid subtitle cues
-                sniffSubtitleFormat(context, uri) ?: return SubtitleValidationResult.Invalid(
-                    "Unsupported file extension '.$extension'. Supported subtitle formats are .srt, .vtt, .ass, and .ssa."
+                sniffSubtitleFormat(context, effectiveUri) ?: return SubtitleValidationResult.Invalid(
+                    "Unsupported file extension '.$extension'. Supported subtitle formats are .srt, .vtt, .ass, .ssa, and .ttml."
                 )
             }
         }
@@ -139,7 +147,8 @@ object SubtitleFileValidator {
         return SubtitleValidationResult.Valid(
             displayName = resolvedName,
             mimeType = mimeType,
-            formatDescription = formatDesc
+            formatDescription = formatDesc,
+            validatedUri = effectiveUri
         )
     }
 
@@ -188,11 +197,16 @@ object SubtitleFileValidator {
         // ZIP/APK/JAR magic: PK\x03\x04
         if (length >= 4 && buffer[0] == 'P'.code.toByte() && buffer[1] == 'K'.code.toByte() && buffer[2] == 0x03.toByte() && buffer[3] == 0x04.toByte()) return true
 
+        // UTF-16LE (FF FE) and UTF-16BE (FE FF) text files naturally contain 0x00 bytes on every ASCII char.
+        if (SubtitleCharsetNormalizer.hasUtf16Bom(buffer, length)) {
+            return false
+        }
+
         // Check for high concentration of non-printable control characters (excluding whitespace \t, \n, \r)
         var nonPrintableCount = 0
         for (i in 0 until minOf(length, 128)) {
             val b = buffer[i].toInt() and 0xFF
-            if (b == 0) return true // Null byte in text subtitle indicates binary file
+            if (b == 0) return true // Null byte in non-UTF-16 text subtitle indicates binary file
             if (b < 32 && b != 9 && b != 10 && b != 13) {
                 nonPrintableCount++
             }
@@ -208,6 +222,7 @@ object SubtitleFileValidator {
                 when {
                     firstFewLines.contains("WEBVTT", ignoreCase = true) -> Pair("text/vtt", "WebVTT")
                     firstFewLines.contains("[Script Info]", ignoreCase = true) -> Pair("text/x-ssa", "SubStation Alpha")
+                    firstFewLines.contains("<tt", ignoreCase = true) -> Pair("application/ttml+xml", "Timed Text Markup Language (TTML)")
                     firstFewLines.contains("-->") -> Pair("application/x-subrip", "SubRip (SRT)")
                     else -> null
                 }

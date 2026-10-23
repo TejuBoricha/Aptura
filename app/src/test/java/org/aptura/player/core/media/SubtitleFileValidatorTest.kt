@@ -72,4 +72,14 @@ class SubtitleFileValidatorTest {
         """.trimIndent().toByteArray(Charsets.UTF_8)
         assertFalse(SubtitleFileValidator.isBinaryOrImage(assContent, assContent.size))
     }
+
+    @Test
+    fun isBinaryOrImage_allowsUtf16LeAndUtf16BeBomSubtitlesDespiteZeroBytes() {
+        val text = "1\n00:00:01,000 --> 00:00:04,000\nUTF-16 Subtitle"
+        val utf16Le = byteArrayOf(0xFF.toByte(), 0xFE.toByte()) + text.toByteArray(Charsets.UTF_16LE)
+        val utf16Be = byteArrayOf(0xFE.toByte(), 0xFF.toByte()) + text.toByteArray(Charsets.UTF_16BE)
+
+        assertFalse(SubtitleFileValidator.isBinaryOrImage(utf16Le, utf16Le.size))
+        assertFalse(SubtitleFileValidator.isBinaryOrImage(utf16Be, utf16Be.size))
+    }
 }
