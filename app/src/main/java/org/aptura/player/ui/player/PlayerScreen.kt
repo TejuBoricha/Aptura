@@ -2671,7 +2671,7 @@ fun PlayerScreen(
                                 else -> "Auto"
                             }
                             Text(
-                                text = "Current: $currentDecoderLabel",
+                                text = if (uiState.decoderOverridden) "This video: $currentDecoderLabel" else "Default: $currentDecoderLabel",
                                 style = ApturaTypography.labelSmall,
                                 color = ApturaColors.TextMediumEmphasis
                             )

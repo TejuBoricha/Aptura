@@ -60,7 +60,8 @@ data class DomainMediaItem(
     val isMissing: Boolean = false,
     val resizeMode: String = "FIT",
     val playbackSpeed: Float = 1.0f,
-    val decoderStrategy: Int = 0,
+    /** The decoder the user chose for THIS video, or null to follow the default from Settings. */
+    val decoderStrategy: Int? = null,
     val audioDelayMs: Long = 0L,
     val subtitleDelayMs: Long = 0L
 )

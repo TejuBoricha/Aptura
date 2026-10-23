@@ -12,6 +12,7 @@ import org.aptura.player.data.database.MediaItemDao
 import org.aptura.player.data.database.MediaItemEntity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
@@ -150,6 +151,7 @@ class MediaRepositoryTest {
             resizeMode: String,
             playbackSpeed: Float,
             decoderStrategy: Int,
+            decoderOverridden: Boolean,
             audioDelayMs: Long,
             subtitleDelayMs: Long
         ) {
@@ -159,6 +161,7 @@ class MediaRepositoryTest {
                         resizeMode = resizeMode,
                         playbackSpeed = playbackSpeed,
                         decoderStrategy = decoderStrategy,
+                        decoderOverridden = decoderOverridden,
                         audioDelayMs = audioDelayMs,
                         subtitleDelayMs = subtitleDelayMs
                     )
@@ -173,6 +176,7 @@ class MediaRepositoryTest {
                         resizeMode = "FIT",
                         playbackSpeed = 1.0f,
                         decoderStrategy = 0,
+                        decoderOverridden = false,
                         audioDelayMs = 0L,
                         subtitleDelayMs = 0L
                     )
@@ -478,7 +482,7 @@ class MediaRepositoryTest {
         assertNotNull(resetItem)
         assertEquals("FIT", resetItem?.resizeMode)
         assertEquals(1.0f, resetItem?.playbackSpeed)
-        assertEquals(0, resetItem?.decoderStrategy)
+        assertNull("reset must go back to following the default", resetItem?.decoderStrategy)
         assertEquals(0L, resetItem?.audioDelayMs)
         assertEquals(0L, resetItem?.subtitleDelayMs)
     }

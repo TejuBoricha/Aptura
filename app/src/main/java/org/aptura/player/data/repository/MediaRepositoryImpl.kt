@@ -139,7 +139,7 @@ class MediaRepositoryImpl(
         uri: String,
         resizeMode: String,
         playbackSpeed: Float,
-        decoderStrategy: Int,
+        decoderStrategy: Int?,
         audioDelayMs: Long,
         subtitleDelayMs: Long
     ): Unit = withContext(ioDispatcher) {
@@ -147,7 +147,8 @@ class MediaRepositoryImpl(
             uri = uri,
             resizeMode = resizeMode,
             playbackSpeed = playbackSpeed,
-            decoderStrategy = decoderStrategy,
+            decoderStrategy = decoderStrategy ?: 0,
+            decoderOverridden = decoderStrategy != null,
             audioDelayMs = audioDelayMs,
             subtitleDelayMs = subtitleDelayMs
         )

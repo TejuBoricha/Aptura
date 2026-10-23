@@ -112,6 +112,9 @@ class Media3PlaybackController(
     val audioSessionId: Int
         get() = (player as? androidx.media3.exoplayer.ExoPlayer)?.audioSessionId ?: 0
 
+    private val _audioSessionIds = MutableStateFlow(audioSessionId.coerceAtLeast(0))
+    override val audioSessionIds: StateFlow<Int> = _audioSessionIds.asStateFlow()
+
     private val _playbackState = MutableStateFlow<DomainPlaybackState>(DomainPlaybackState.Idle)
     override val playbackState: StateFlow<DomainPlaybackState> = _playbackState.asStateFlow()
 
@@ -308,6 +311,10 @@ class Media3PlaybackController(
         override fun onTracksChanged(tracks: Tracks) {
             updateTracks(tracks)
             updatePlaybackStats()
+        }
+
+        override fun onAudioSessionIdChanged(audioSessionId: Int) {
+            _audioSessionIds.value = audioSessionId.coerceAtLeast(0)
         }
     }
 

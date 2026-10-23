@@ -43,17 +43,18 @@ interface MediaItemDao {
     @Query("UPDATE media_items SET playbackPositionMs = :positionMs, isCompleted = :isCompleted, lastPlayedTimestamp = :timestamp WHERE uri = :uri")
     suspend fun updatePlaybackPosition(uri: String, positionMs: Long, isCompleted: Boolean, timestamp: Long)
 
-    @Query("UPDATE media_items SET resizeMode = :resizeMode, playbackSpeed = :playbackSpeed, decoderStrategy = :decoderStrategy, audioDelayMs = :audioDelayMs, subtitleDelayMs = :subtitleDelayMs WHERE uri = :uri")
+    @Query("UPDATE media_items SET resizeMode = :resizeMode, playbackSpeed = :playbackSpeed, decoderStrategy = :decoderStrategy, decoderOverridden = :decoderOverridden, audioDelayMs = :audioDelayMs, subtitleDelayMs = :subtitleDelayMs WHERE uri = :uri")
     suspend fun updatePlaybackPreferences(
         uri: String,
         resizeMode: String,
         playbackSpeed: Float,
         decoderStrategy: Int,
+        decoderOverridden: Boolean,
         audioDelayMs: Long,
         subtitleDelayMs: Long
     )
 
-    @Query("UPDATE media_items SET resizeMode = 'FIT', playbackSpeed = 1.0, decoderStrategy = 0, audioDelayMs = 0, subtitleDelayMs = 0 WHERE uri = :uri")
+    @Query("UPDATE media_items SET resizeMode = 'FIT', playbackSpeed = 1.0, decoderStrategy = 0, decoderOverridden = 0, audioDelayMs = 0, subtitleDelayMs = 0 WHERE uri = :uri")
     suspend fun resetPlaybackPreferences(uri: String)
 
     @Query("UPDATE media_items SET customTitle = :customTitle WHERE uri = :uri")

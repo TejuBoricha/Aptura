@@ -29,6 +29,9 @@ interface PlaybackController {
     val autoPairedSubtitles: kotlinx.coroutines.flow.SharedFlow<String>
         get() = kotlinx.coroutines.flow.MutableSharedFlow()
 
+    /** The player's current audio session id (0 = none). Sound effects are bound to it and must follow it. */
+    val audioSessionIds: StateFlow<Int> get() = kotlinx.coroutines.flow.MutableStateFlow(0)
+
     /** Emits the title of a queue item that was skipped because its file could not be opened (deleted, unmounted, no access). */
     val skippedItems: kotlinx.coroutines.flow.SharedFlow<String>
         get() = kotlinx.coroutines.flow.MutableSharedFlow()

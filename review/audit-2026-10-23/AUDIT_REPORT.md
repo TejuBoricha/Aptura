@@ -386,3 +386,35 @@ One unexplained episode: right after the emulator was cold-booted, the very firs
 
 ### Still open
 P1-06 decoder precedence · P1-10 top bar on 360 dp · P1-11 scrubber a11y · P1-12 localisation · P1-13 thumbnail cache · P1-14 library model · P1-15 remainder (`onCleared` persistence) · P1-16 audio-effects release/persistence · P1-17 performance · P1-18 diagnostics persistence/crash handler · P1-20 merged-manifest/dependency invariants · P1-22 audio codec coverage · P1-23 architecture · most P2 items · the unexplained black-picture episode above.
+
+---
+
+## Appendix E — Data-safety round (P1-15, P1-16, P1-06)
+
+Evidence key as before. Gate: 321 unit tests, 0 failures, lint 0 errors.
+
+### P1-15 · Position persistence
+| Defect (reproduced by a test that failed first) | Fix | Device |
+|---|---|---|
+| The last save of a session was launched from `onCleared()`, but Android cancels `viewModelScope` *before* it calls `onCleared()` — so the final stretch (up to the checkpoint interval) was dropped. Reproduced with a real `ViewModelStore.clear()`: saved 42 000 ms instead of 44 000 ms | Saves run in a scope that outlives the ViewModel | – |
+| Pausing from anywhere except the app's own buttons (notification, headset, sleep timer) saved nothing: 30 000 saved, 32 500 actual | Any playing → paused transition saves immediately | ✔ media-key pause at 11 599 ms, process killed, **11 599 ms** in the database |
+| Moving to the next video lost the last 3 s of the one being left | The old video's position is saved before the state switches; the checkpoint baseline resets per video | – |
+| Nothing saved on `ON_STOP` | `persistProgress()` on `ON_STOP` | – |
+
+### P1-16 · Audio effects
+- **Leak (the audit's main point):** a new `AudioEnhancementController` was built per Activity recreation and never released. The ViewModel now owns it, binds it to the player's *current* audio session (it follows `onAudioSessionIdChanged` instead of binding once) and releases it when cleared. ✔ device: leaving the app removes the 4 effect instances (`dumpsys media.audio_flinger`).
+- **Persisted:** enabled / preset / per-band levels / bass / virtualizer / loudness are stored in DataStore (debounced; the last tweak is also written on clear) and restored before the first sound. ✔ device: Rock preset survives a process kill and is applied to the new session.
+- **"Flat" over +3 dB bands:** the controller's own state is now authoritative; hardware starting values never override it, and the preset label is derived from the actual levels. ↺
+- **One refused band aborted the rest:** each effect and each band is applied in isolation. ↺
+- **Silent sliders / presets with the master switch off:** touching any control now turns the master on. ✔ device: choosing Rock with the switch off → "DSP Effects Active", bands +4/+2/−1/+2/+4 dB.
+- **Loudness top end** lowered from +12 dB to +6 dB (the platform enhancer applies gain without knowing the content's headroom). Judgement call, not measured.
+- Test seam: the AudioFX classes sit behind a small `AudioEffectsBackend`; controller tests run against a recording stand-in (the audio HAL cannot run in a unit test). The real effects were exercised on the emulator only.
+
+### P1-06 · Decoder precedence
+- **Model:** a video's decoder is now either *its own choice* or *"follow the Settings default"*. Previously both were the same stored `0`, so a library video forced Auto over a global Hardware default. Room schema v6 adds `decoderOverridden`; migration 5→6 keeps any non-zero stored value as a choice and turns every 0 into "follow the default". ✔ **migrated in place on the emulator** (data kept, `user_version` 6); ↺ real-SQL migration test from v4 through all migrations.
+- **Leaks removed:** choosing a decoder in the player no longer overwrites the global default; a Settings change no longer overwrites the current video's saved choice; the automatic software fallback is no longer frozen into the video's saved preferences by the next unrelated change (e.g. aspect ratio).
+- **UI copy:** Settings "Default Decoder" says that videos changed in the player keep their own choice; the player sheet header reads "Default: …" or "This video: …".
+- ✔ device: default Hardware → a video with no choice shows "Default: Hardware"; choosing Software for one video shows "This video: Software" and the Settings default stays Hardware.
+
+### Still open
+P1-10 · P1-11 · P1-12 · P1-13 · P1-14 · P1-17 · P1-18 · P1-20 · P1-22 · P1-23, most P2 items, and the unexplained black-picture episode (Appendix D). Not checked on a device: audible effect of the equalizer (only that the effects exist, are enabled and carry our levels).

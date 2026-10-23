@@ -42,7 +42,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.aptura.player.core.platform.PermissionHelper
 import org.aptura.player.data.database.ApturaDatabase
-import org.aptura.player.data.playback.AudioEnhancementController
 import org.aptura.player.data.playback.PlayerManager
 import org.aptura.player.data.repository.MediaRepositoryImpl
 import org.aptura.player.data.scanner.MediaScanScheduler
@@ -155,16 +154,10 @@ private fun AppNavHost(
     }
 
     val playbackController = remember { PlayerManager.getOrCreate(context) }
-    val audioEnhancementController = remember {
-        AudioEnhancementController().apply {
-            val sessionId = playbackController.audioSessionId
-            if (sessionId > 0) {
-                attachToSession(sessionId)
-            }
-        }
-    }
+    // The ViewModel creates, binds (to the player's audio session) and releases its own effects controller. It used to
+    // be built here with `remember`, so every Activity recreation leaked another set of system audio effects.
     val playerViewModel: PlayerViewModel = viewModel {
-        PlayerViewModel(playbackController, mediaRepository, audioEnhancementController, settingsRepository)
+        PlayerViewModel(playbackController, mediaRepository, settingsRepository = settingsRepository)
     }
 
     val backStack = rememberNavBackStack(startKey)
@@ -237,9 +230,6 @@ private fun AppNavHost(
     // Apply persisted default playback speed and decoder strategy
     LaunchedEffect(settings.defaultPlaybackSpeed) {
         playerViewModel.setPlaybackSpeed(settings.defaultPlaybackSpeed)
-    }
-    LaunchedEffect(settings.defaultDecoderStrategy) {
-        playerViewModel.setDecoderStrategy(settings.defaultDecoderStrategy)
     }
 
     val windowAdaptiveInfo = currentWindowAdaptiveInfoV2()
@@ -479,8 +469,8 @@ private fun AppNavHost(
                         backStack.add(Onboarding)
                     },
                     onUpdateDecoderStrategy = { strategy ->
+                        // The Settings screen edits the DEFAULT; the player picks it up from the settings flow.
                         coroutineScope.launch { settingsRepository.updateDefaultDecoderStrategy(strategy) }
-                        playerViewModel.setDecoderStrategy(strategy)
                     },
                     onClearThumbnailCache = {
                         coroutineScope.launch(Dispatchers.IO) {
@@ -510,10 +500,6 @@ private fun AppNavHost(
 
             entry<PlayerKey> { playerKey ->
                 LaunchedEffect(playerKey.videoUri) {
-                    val sessionId = playbackController.audioSessionId
-                    if (sessionId > 0) {
-                        audioEnhancementController.attachToSession(sessionId)
-                    }
                     if (playerViewModel.uiState.value.videoUri != playerKey.videoUri) {
                         playerViewModel.loadAndPlay(playerKey.videoUri)
                     }
@@ -528,6 +514,10 @@ private fun AppNavHost(
                 val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
                 androidx.compose.runtime.DisposableEffect(lifecycleOwner, uiState.cleanSearchQuery) {
                     val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                        if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
+                            // The process can be killed any time after this; make sure the position is on disk.
+                            playerViewModel.persistProgress()
+                        }
                         if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME && uiState.cleanSearchQuery.isNotBlank()) {
                             try {
                                 val recent = org.aptura.player.data.repository.SidecarSubtitleDetector.findRecentDownloads(
@@ -620,10 +610,8 @@ private fun AppNavHost(
                     },
                     onAddBookmark = playerViewModel::addBookmark,
                     onDeleteBookmark = playerViewModel::deleteBookmark,
-                    onDecoderStrategyChanged = { strategy ->
-                        playerViewModel.setDecoderStrategy(strategy)
-                        coroutineScope.launch { settingsRepository.updateDefaultDecoderStrategy(strategy) }
-                    },
+                    // In the player the choice belongs to this video only (it used to also overwrite the global default).
+                    onDecoderStrategyChanged = playerViewModel::setDecoderStrategy,
                     onDismissCompatibilityNotice = playerViewModel::dismissCompatibilityNotice,
                     onSearchWebClick = { playerViewModel.showWebSearchDialog(true) },
                     onDismissWebSearchDialog = { playerViewModel.showWebSearchDialog(false) },

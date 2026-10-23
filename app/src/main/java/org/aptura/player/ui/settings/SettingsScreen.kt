@@ -287,7 +287,7 @@ fun SettingsScreen(
 
                         // Decoder Engine Strategy (FR-PLAY-003, Q13)
                         Text(
-                            text = "Decoder Engine Strategy",
+                            text = "Default Decoder",
                             style = ApturaTypography.titleMedium,
                             color = ApturaColors.TextHighEmphasis
                         )
@@ -297,7 +297,7 @@ fun SettingsScreen(
                             else -> "Auto · Optimal balance between hardware decoders and compatibility"
                         }
                         Text(
-                            text = decoderExplanation,
+                            text = "$decoderExplanation. A video you changed in the player keeps its own choice.",
                             style = ApturaTypography.bodySmall,
                             color = ApturaColors.TextMediumEmphasis,
                             modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)

@@ -41,7 +41,10 @@ data class MediaItemEntity(
     val isMissing: Boolean = false,
     val resizeMode: String = "FIT",
     val playbackSpeed: Float = 1.0f,
+    /** The decoder the USER picked for this video; only meaningful when [decoderOverridden] is true. */
     val decoderStrategy: Int = 0,
+    /** True once the user chose a decoder for this video. False = follow the default in Settings. */
+    val decoderOverridden: Boolean = false,
     val audioDelayMs: Long = 0L,
     val subtitleDelayMs: Long = 0L,
     /** User-chosen title. Survives rescans (the scanner only owns [title]); null = use the scanned title. */
@@ -61,6 +64,7 @@ data class MediaItemEntity(
         resizeMode = existing.resizeMode,
         playbackSpeed = existing.playbackSpeed,
         decoderStrategy = existing.decoderStrategy,
+        decoderOverridden = existing.decoderOverridden,
         audioDelayMs = existing.audioDelayMs,
         subtitleDelayMs = existing.subtitleDelayMs,
         customTitle = existing.customTitle,
@@ -86,7 +90,7 @@ fun MediaItemEntity.toDomainMediaItem(): DomainMediaItem {
         isMissing = isMissing,
         resizeMode = resizeMode,
         playbackSpeed = playbackSpeed,
-        decoderStrategy = decoderStrategy,
+        decoderStrategy = if (decoderOverridden) decoderStrategy else null,
         audioDelayMs = audioDelayMs,
         subtitleDelayMs = subtitleDelayMs
     )

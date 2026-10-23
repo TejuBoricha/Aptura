@@ -99,7 +99,8 @@ interface MediaRepository {
         uri: String,
         resizeMode: String,
         playbackSpeed: Float,
-        decoderStrategy: Int,
+        /** The user's choice for this video, or null for "use the default from Settings". */
+        decoderStrategy: Int?,
         audioDelayMs: Long,
         subtitleDelayMs: Long
     )

@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
@@ -64,6 +65,9 @@ class PlayerViewModelTest {
 
         val _failureReason = MutableStateFlow<String?>(null)
         override val failureReason: StateFlow<String?> = _failureReason.asStateFlow()
+
+        val _audioSessionIds = MutableStateFlow(0)
+        override val audioSessionIds: StateFlow<Int> = _audioSessionIds.asStateFlow()
 
         /** Mirrors Media3PlaybackController's 250 ms position ticker: a *new* Ready state per tick. */
         fun emitPlayingTick(positionMs: Long) {
@@ -346,7 +350,7 @@ class PlayerViewModelTest {
             uri: String,
             resizeMode: String,
             playbackSpeed: Float,
-            decoderStrategy: Int,
+            decoderStrategy: Int?,
             audioDelayMs: Long,
             subtitleDelayMs: Long
         ) {
@@ -372,7 +376,7 @@ class PlayerViewModelTest {
                 items[uri] = it.copy(
                     resizeMode = "FIT",
                     playbackSpeed = 1.0f,
-                    decoderStrategy = 0,
+                    decoderStrategy = null,
                     audioDelayMs = 0L,
                     subtitleDelayMs = 0L
                 )
@@ -2096,5 +2100,284 @@ class PlayerViewModelTest {
 
         viewModel.clearForTesting()
     }
-}
 
+    // ---- progress persistence (audit P1-15) ---------------------------------------------------------------------
+
+    private fun realViewModel(
+        controller: FakePlaybackController,
+        repository: FakeMediaRepository,
+        store: androidx.lifecycle.ViewModelStore
+    ): PlayerViewModel = androidx.lifecycle.ViewModelProvider(
+        store,
+        object : androidx.lifecycle.ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
+                PlayerViewModel(controller, repository, testDispatcher) as T
+        }
+    )[PlayerViewModel::class.java]
+
+    @Test
+    fun clearingTheViewModel_stillSavesTheFinalPosition() = runTest(testDispatcher) {
+        // A real ViewModelStore.clear() cancels viewModelScope BEFORE onCleared(); the old code launched its last save
+        // inside that cancelled scope, so the final position was silently dropped.
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        repository.items[sampleVideo.uri] = sampleVideo
+        val store = androidx.lifecycle.ViewModelStore()
+        val viewModel = realViewModel(controller, repository, store)
+        viewModel.loadAndPlay(sampleVideo.uri)
+        runCurrent()
+
+        controller.emitPlayingTick(42_000L)
+        runCurrent()
+        controller.emitPlayingTick(44_000L) // 2 s later: below the checkpoint interval, so not saved yet
+        runCurrent()
+        assertEquals(42_000L, repository.savedPositions[sampleVideo.uri]?.first)
+
+        store.clear()
+        runCurrent()
+
+        assertEquals(44_000L, repository.savedPositions[sampleVideo.uri]?.first)
+    }
+
+    @Test
+    fun pausingFromAnywhere_savesThePositionImmediately() = runTest(testDispatcher) {
+        // e.g. the notification's pause button or a headset: nothing in the app UI is involved.
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        repository.items[sampleVideo.uri] = sampleVideo
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+        viewModel.loadAndPlay(sampleVideo.uri)
+        runCurrent()
+        controller.emitPlayingTick(30_000L)
+        runCurrent()
+        controller.emitPlayingTick(32_000L)
+        runCurrent()
+
+        controller._playbackState.value = DomainPlaybackState.Ready(
+            positionMs = 32_500L, durationMs = sampleVideo.durationMs, isPlaying = false
+        )
+        runCurrent()
+
+        assertEquals(32_500L, repository.savedPositions[sampleVideo.uri]?.first)
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun movingToTheNextVideo_savesTheOldOnesPosition_andNeverFilesItUnderTheNewOne() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val next = sampleVideo.copy(uri = "content://media/2", title = "Next Video", playbackPositionMs = 0L)
+        repository.items[sampleVideo.uri] = sampleVideo
+        repository.items[next.uri] = next
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+        viewModel.playQueue(listOf(sampleVideo, next), 0)
+        runCurrent()
+        controller.emitPlayingTick(80_000L)
+        runCurrent()
+        controller.emitPlayingTick(83_000L)
+        runCurrent()
+
+        viewModel.skipToNext()
+        runCurrent()
+
+        assertEquals("the video that was left keeps where it stopped", 83_000L, repository.savedPositions[sampleVideo.uri]?.first)
+        val savedForNext = repository.savedPositions[next.uri]?.first ?: 0L
+        assertTrue("the old video's position was filed under the new video: $savedForNext", savedForNext < 5_000L)
+        viewModel.clearForTesting()
+    }
+
+    // ---- sound effects (audit P1-16) -----------------------------------------------------------------------------
+
+    /** In-memory stand-in for the settings file (the DataStore round trip has its own test). */
+    private class FakeEffectsStore(var stored: org.aptura.player.domain.model.AudioEffectsSettings =
+        org.aptura.player.domain.model.AudioEffectsSettings()) : org.aptura.player.domain.repository.AudioEffectsStore {
+        val saves = mutableListOf<org.aptura.player.domain.model.AudioEffectsSettings>()
+        override suspend fun load() = stored
+        override suspend fun save(settings: org.aptura.player.domain.model.AudioEffectsSettings) {
+            stored = settings
+            saves += settings
+        }
+    }
+
+    private fun effectsViewModel(
+        controller: FakePlaybackController,
+        fx: org.aptura.player.data.playback.AudioEnhancementController,
+        store: FakeEffectsStore,
+        viewModelStore: androidx.lifecycle.ViewModelStore
+    ): PlayerViewModel = androidx.lifecycle.ViewModelProvider(
+        viewModelStore,
+        object : androidx.lifecycle.ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T = PlayerViewModel(
+                controller, FakeMediaRepository(), fx, null, testDispatcher, audioEffectsStore = store
+            ) as T
+        }
+    )[PlayerViewModel::class.java]
+
+    @Test
+    fun soundEffects_areRestoredOnStart_andEveryChangeIsSaved() = runTest(testDispatcher) {
+        val store = FakeEffectsStore(
+            org.aptura.player.domain.model.AudioEffectsSettings(enabled = true, bassBoostPercent = 40)
+        )
+        val backend = org.aptura.player.data.playback.FakeBackend()
+        val fx = org.aptura.player.data.playback.AudioEnhancementController(backend)
+        val controller = FakePlaybackController()
+        val viewModelStore = androidx.lifecycle.ViewModelStore()
+        val viewModel = effectsViewModel(controller, fx, store, viewModelStore)
+        controller._audioSessionIds.value = 7
+        runCurrent()
+
+        assertEquals("saved settings never reached the controller", 40, fx.state.value.bassBoostPercent)
+        assertEquals("and the effect on the player's session got them", 400, backend.bassBoosts.single().permille)
+        assertTrue("restoring must not write the settings back", store.saves.isEmpty())
+
+        viewModel.setBassBoost(70)
+        advanceTimeBy(1_000L)
+        runCurrent()
+
+        assertEquals("the change was not saved", 70, store.stored.bassBoostPercent)
+        viewModelStore.clear()
+    }
+
+    @Test
+    fun soundEffects_followThePlayersAudioSession_andAreReleasedWithTheViewModel() = runTest(testDispatcher) {
+        val backend = org.aptura.player.data.playback.FakeBackend()
+        val fx = org.aptura.player.data.playback.AudioEnhancementController(backend)
+        val controller = FakePlaybackController()
+        val viewModelStore = androidx.lifecycle.ViewModelStore()
+        effectsViewModel(controller, fx, FakeEffectsStore(), viewModelStore)
+
+        controller._audioSessionIds.value = 3
+        runCurrent()
+        assertEquals(1, backend.equalizers.size)
+
+        controller._audioSessionIds.value = 9 // e.g. the audio track was re-created
+        runCurrent()
+        assertEquals(2, backend.equalizers.size)
+        assertTrue("effects of the old session must be released", backend.equalizers[0].released)
+
+        viewModelStore.clear()
+        runCurrent()
+        assertTrue("effects must be released when the player screen is gone", backend.equalizers[1].released)
+        assertTrue(backend.bassBoosts[1].released && backend.virtualizers[1].released && backend.loudnessEffects[1].released)
+    }
+
+    @Test
+    fun aTweakMadeJustBeforeTheViewModelIsCleared_isNotLost() = runTest(testDispatcher) {
+        val store = FakeEffectsStore()
+        val fx = org.aptura.player.data.playback.AudioEnhancementController(org.aptura.player.data.playback.FakeBackend())
+        val controller = FakePlaybackController()
+        val viewModelStore = androidx.lifecycle.ViewModelStore()
+        val viewModel = effectsViewModel(controller, fx, store, viewModelStore)
+        controller._audioSessionIds.value = 3
+        runCurrent()
+
+        viewModel.setVirtualizer(55) // inside the 400 ms debounce window: not saved yet
+        viewModelStore.clear()
+        runCurrent()
+
+        assertEquals("the last change before leaving was dropped", 55, store.stored.virtualizerPercent)
+    }
+
+    // ---- decoder: per-video choice vs the Settings default (audit P1-06) ------------------------------------------
+
+    private fun decoderViewModel(
+        controller: FakePlaybackController,
+        repository: FakeMediaRepository,
+        default: MutableStateFlow<Int>
+    ) = PlayerViewModel(
+        playbackController = controller,
+        mediaRepository = repository,
+        dispatcher = testDispatcher,
+        defaultDecoderFlow = default
+    )
+
+    @Test
+    fun aVideoWithNoChoiceOfItsOwn_usesTheDefault_insteadOfBeingForcedToAuto() = runTest(testDispatcher) {
+        // Settings default = Hardware (1). The library item has never had a decoder chosen (decoderStrategy = null).
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = decoderViewModel(controller, repository, MutableStateFlow(1))
+        runCurrent()
+
+        viewModel.playQueue(listOf(sampleVideo.copy(decoderStrategy = null)), 0)
+        runCurrent()
+
+        assertEquals("the default must apply, not a stored 0", 1, controller.lastDecoderStrategy)
+        assertEquals(1, viewModel.uiState.value.decoderStrategy)
+        assertFalse(viewModel.uiState.value.decoderOverridden)
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun aVideosOwnChoice_beatsTheDefault() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = decoderViewModel(controller, repository, MutableStateFlow(1))
+        runCurrent()
+
+        viewModel.playQueue(listOf(sampleVideo.copy(decoderStrategy = 2)), 0)
+        runCurrent()
+
+        assertEquals(2, controller.lastDecoderStrategy)
+        assertTrue(viewModel.uiState.value.decoderOverridden)
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun choosingADecoderInThePlayer_isSavedForThatVideoOnly_andNeverTouchesTheDefault() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        repository.items[sampleVideo.uri] = sampleVideo.copy(decoderStrategy = null)
+        val defaultFlow = MutableStateFlow(0)
+        val viewModel = decoderViewModel(controller, repository, defaultFlow)
+        runCurrent()
+        viewModel.playQueue(listOf(repository.items.getValue(sampleVideo.uri)), 0)
+        runCurrent()
+
+        viewModel.setDecoderStrategy(2)
+        runCurrent()
+
+        assertEquals("saved as this video's own choice", 2, repository.lastSavedDecoderStrategy)
+        assertEquals("the default is not rewritten by a per-video choice", 0, defaultFlow.value)
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun theAutomaticSoftwareFallback_isNotFrozenIntoTheVideosSavedChoice() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        repository.items[sampleVideo.uri] = sampleVideo.copy(decoderStrategy = null)
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+        viewModel.playQueue(listOf(repository.items.getValue(sampleVideo.uri)), 0)
+        runCurrent()
+
+        controller._decoderStrategy.value = 2 // the player fell back to software by itself
+        runCurrent()
+        viewModel.toggleResizeMode() // any unrelated per-video change persists the video's preferences
+        runCurrent()
+
+        assertEquals("a fallback is not the user's choice", null, repository.lastSavedDecoderStrategy)
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun resettingAVideo_goesBackToTheDefault_notToAuto() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        repository.items[sampleVideo.uri] = sampleVideo.copy(decoderStrategy = 2)
+        val viewModel = decoderViewModel(controller, repository, MutableStateFlow(1))
+        runCurrent()
+        viewModel.playQueue(listOf(repository.items.getValue(sampleVideo.uri)), 0)
+        runCurrent()
+
+        viewModel.resetVideoPreferences()
+        runCurrent()
+
+        assertEquals(1, controller.lastDecoderStrategy)
+        assertEquals(1, viewModel.uiState.value.decoderStrategy)
+        assertFalse(viewModel.uiState.value.decoderOverridden)
+        viewModel.clearForTesting()
+    }
+}

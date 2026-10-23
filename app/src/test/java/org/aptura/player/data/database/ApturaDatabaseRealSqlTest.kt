@@ -67,7 +67,7 @@ class ApturaDatabaseRealSqlTest {
         dao.insertOrUpdate(scanned())
         val uri = "content://media/external/video/media/100"
         dao.updatePlaybackPosition(uri, 41_314L, true, 1234L)
-        dao.updatePlaybackPreferences(uri, "FILL", 1.5f, 2, 150L, -200L)
+        dao.updatePlaybackPreferences(uri, "FILL", 1.5f, 2, true, 150L, -200L)
         dao.updateCustomTitle(uri, "My Renamed Movie")
         dao.hideByUri(uri)
         val before = dao.getVideoByUri(uri)!!
@@ -85,6 +85,7 @@ class ApturaDatabaseRealSqlTest {
         assertEquals("FILL", after.resizeMode)
         assertEquals(1.5f, after.playbackSpeed)
         assertEquals(2, after.decoderStrategy)
+        assertTrue("the user's decoder choice must survive a rescan", after.decoderOverridden)
         assertEquals(150L, after.audioDelayMs)
         assertEquals(-200L, after.subtitleDelayMs)
         assertEquals("My Renamed Movie", after.customTitle)
@@ -134,10 +135,13 @@ class ApturaDatabaseRealSqlTest {
         assertTrue(bookmarks.getBookmarksForMedia(old.uri).first().isEmpty())
     }
 
-    /** v4 -> v5 keeps all existing rows and defaults the new columns (rename = none, hidden = false). */
+    /**
+     * v4 -> latest keeps all existing rows and defaults the new columns (rename = none, hidden = false), and turns the
+     * old "decoderStrategy = 0 means auto/unset" into "follow the default" while keeping a non-zero value as a choice.
+     */
     @Test
-    fun migration_4_to_5_keepsUserDataAndAddsColumns() {
-        val name = "migration-v4-to-v5.db"
+    fun migration_4_to_latest_keepsUserDataAndAddsColumns() {
+        val name = "migration-v4-to-latest.db"
         val file = context.getDatabasePath(name)
         file.parentFile?.mkdirs()
         file.delete()
@@ -173,11 +177,18 @@ class ApturaDatabaseRealSqlTest {
                    VALUES (1, 'content://media/1', 'Old Movie', 'Old Movie.mp4', 90000, 4096, 'video/mp4',
                     1920, 1080, 24.0, 10, 10, 'Movies', 33000, 0, 99, 1.25)"""
             )
+            old.execSQL(
+                """INSERT INTO media_items (mediaStoreId, uri, title, displayName, durationMs, sizeBytes, mimeType,
+                    width, height, frameRate, dateAddedSec, dateModifiedSec, folderPath, playbackPositionMs,
+                    isCompleted, lastPlayedTimestamp, decoderStrategy)
+                   VALUES (2, 'content://media/2', 'Picky Movie', 'Picky Movie.mkv', 90000, 4096, 'video/x-matroska',
+                    1920, 1080, 24.0, 10, 10, 'Movies', 0, 0, 0, 2)"""
+            )
             old.version = 4
         }
 
         val migrated = Room.databaseBuilder(context, ApturaDatabase::class.java, name)
-            .addMigrations(ApturaDatabase.MIGRATION_2_3, ApturaDatabase.MIGRATION_3_4, ApturaDatabase.MIGRATION_4_5)
+            .addMigrations(*ApturaDatabase.ALL_MIGRATIONS)
             .allowMainThreadQueries()
             .build()
         try {
@@ -187,6 +198,11 @@ class ApturaDatabaseRealSqlTest {
             assertEquals(1.25f, item.playbackSpeed)
             assertNull(item.customTitle)
             assertFalse(item.isHidden)
+            assertFalse("a 0 was never a choice: it must follow the Settings default", item.decoderOverridden)
+
+            val picky = runBlocking { migrated.mediaItemDao().getVideoByUri("content://media/2") }!!
+            assertTrue("a non-zero decoder can only have been chosen by the user", picky.decoderOverridden)
+            assertEquals(2, picky.decoderStrategy)
         } finally {
             migrated.close()
             file.delete()

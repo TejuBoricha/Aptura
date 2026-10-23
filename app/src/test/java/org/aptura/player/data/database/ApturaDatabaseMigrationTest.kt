@@ -35,7 +35,7 @@ class ApturaDatabaseMigrationTest {
         assertTrue("schema $APTURA_DB_VERSION was not exported to ${file.path} (build the app and commit it)", file.exists())
         val json = file.readText()
         assertTrue(json.contains("\"version\": $APTURA_DB_VERSION"))
-        // The columns added by the latest migration must be in the exported schema, not just in the migration SQL.
-        assertTrue(json.contains("\"customTitle\"") && json.contains("\"isHidden\""))
+        // The column added by the latest migration must be in the exported schema, not just in the migration SQL.
+        assertTrue(json.contains("\"decoderOverridden\""))
     }
 }

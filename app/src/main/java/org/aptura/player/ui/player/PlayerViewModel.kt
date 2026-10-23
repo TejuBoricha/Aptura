@@ -3,10 +3,17 @@ package org.aptura.player.ui.player
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -16,6 +23,7 @@ import org.aptura.player.core.diagnostics.ApturaErrorHandler
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.domain.model.DomainPlaybackState
 import org.aptura.player.domain.model.PlayMode
+import org.aptura.player.domain.repository.AudioEffectsStore
 import org.aptura.player.domain.repository.MediaRepository
 import org.aptura.player.domain.repository.PlaybackController
 import org.aptura.player.data.playback.AudioEnhancementController
@@ -38,7 +46,10 @@ class PlayerViewModel(
     private val mediaRepository: MediaRepository,
     private val audioEnhancementController: AudioEnhancementController = AudioEnhancementController(),
     private val settingsRepository: ApturaSettingsRepository? = null,
-    private val dispatcher: CoroutineDispatcher = Dispatchers.Main
+    private val dispatcher: CoroutineDispatcher = Dispatchers.Main,
+    private val audioEffectsStore: AudioEffectsStore? = settingsRepository,
+    /** The default decoder from Settings (0 Auto, 1 Hardware, 2 Software). Videos without a choice of their own follow it. */
+    private val defaultDecoderFlow: Flow<Int>? = settingsRepository?.settingsFlow?.map { it.defaultDecoderStrategy }
 ) : ViewModel() {
 
     constructor(
@@ -68,6 +79,13 @@ class PlayerViewModel(
     /** Q-02: uncaught coroutine failures become local diagnostics events instead of process crashes. */
     private val errorHandler = ApturaErrorHandler.create("player_vm")
 
+    /**
+     * Progress saves run here, not in `viewModelScope`: when the ViewModel is cleared Android cancels `viewModelScope`
+     * BEFORE it calls `onCleared()`, so a save launched from there never ran and the last stretch of every session
+     * was lost (audit P1-15). This scope outlives the ViewModel; each save is a single short database write.
+     */
+    private val persistScope = CoroutineScope(SupervisorJob() + dispatcher + errorHandler)
+
     private val _uiState = MutableStateFlow(PlayerUiState())
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
 
@@ -85,6 +103,9 @@ class PlayerViewModel(
     private var lastAppliedPreferencesUri: String? = null
     private var autoAdvanceCountdownSeconds: Int = 10
 
+    /** The decoder from Settings: what every video without its own choice uses. */
+    private var defaultDecoderStrategy: Int = 0
+
     private var lastSeekTimestampMs: Long = 0L
     private var accumulatedSeekDeltaMs: Long = 0L
     private var accumulatedTargetPosMs: Long? = null
@@ -96,6 +117,7 @@ class PlayerViewModel(
         const val SEEK_ACCUMULATION_THRESHOLD_MS = 800L
         const val CHECKPOINT_INTERVAL_MS = 5000L // TST-REST-01, spec/12A §3.3
         const val SLEEP_TIMER_TICK_MS = 1000L
+        const val AUDIO_EFFECTS_SAVE_DEBOUNCE_MS = 400L
     }
 
     init {
@@ -107,6 +129,47 @@ class PlayerViewModel(
         observeAutoPairedSubtitles()
         observeSkippedItems()
         observePlaybackSettings()
+        observeAudioSession()
+        restoreAndPersistAudioEffects()
+        observeDefaultDecoder()
+    }
+
+    private fun observeDefaultDecoder() {
+        val flow = defaultDecoderFlow ?: return
+        viewModelScope.launch(dispatcher + errorHandler) {
+            flow.distinctUntilChanged().collect { default ->
+                defaultDecoderStrategy = default
+                // A new default applies to what is playing only if that video has no choice of its own.
+                if (!_uiState.value.decoderOverridden) {
+                    _uiState.update { it.copy(decoderStrategy = default) }
+                    playbackController.setDecoderStrategy(default)
+                }
+            }
+        }
+    }
+
+    /** Effects belong to the player's audio session; follow it instead of binding once and hoping it never changes. */
+    private fun observeAudioSession() {
+        viewModelScope.launch(dispatcher + errorHandler) {
+            playbackController.audioSessionIds.collect { sessionId ->
+                audioEnhancementController.attachToSession(sessionId)
+            }
+        }
+    }
+
+    /** Equalizer / bass / virtualizer / loudness survive restarts: load them first, then save every later change. */
+    @OptIn(kotlinx.coroutines.FlowPreview::class)
+    private fun restoreAndPersistAudioEffects() {
+        val store = audioEffectsStore ?: return
+        viewModelScope.launch(dispatcher + errorHandler) {
+            audioEnhancementController.restore(store.load())
+            audioEnhancementController.state
+                .map { audioEnhancementController.snapshot() }
+                .distinctUntilChanged()
+                .drop(1) // the first value is what was just restored
+                .debounce(AUDIO_EFFECTS_SAVE_DEBOUNCE_MS)
+                .collect { store.save(it) }
+        }
     }
 
     private fun observeSkippedItems() {
@@ -133,6 +196,7 @@ class PlayerViewModel(
                 autoAdvanceCountdownSeconds = settings.autoAdvanceCountdownSeconds
                 _uiState.update { it.copy(seekStepMs = settings.seekDeltaSeconds * 1000L) }
                 playbackController.setPauseAtEndOfItems(settings.autoAdvanceCountdownSeconds > 0)
+
             }
         }
     }
@@ -203,7 +267,8 @@ class PlayerViewModel(
                         }
                     }
                     is DomainPlaybackState.Ready -> {
-                        val startedPlaying = state.isPlaying && !_uiState.value.isPlaying
+                        val wasPlaying = _uiState.value.isPlaying
+                        val startedPlaying = state.isPlaying && !wasPlaying
                         _uiState.update {
                             it.copy(
                                 isBuffering = false,
@@ -215,6 +280,11 @@ class PlayerViewModel(
                                 playbackSpeed = state.playbackSpeed,
                                 errorMessage = null
                             )
+                        }
+                        if (wasPlaying && !state.isPlaying) {
+                            // Paused by the notification, a headset, the sleep timer...: nothing else will save this.
+                            lastPersistedPositionMs = state.positionMs
+                            persistCurrentPosition()
                         }
                         val ab = _uiState.value.abRepeat
                         if (ab.isLooping && ab.pointA != null && ab.pointB != null && state.positionMs >= ab.pointB) {
@@ -278,6 +348,12 @@ class PlayerViewModel(
             playbackController.playbackQueue.collect { queue ->
                 val currentItem = queue.currentItem
                 val sanitized = currentItem?.let { SubtitleQuerySanitizer.sanitize(it.title) }
+                if (currentItem != null && currentItem.uri != _uiState.value.videoUri) {
+                    // Leaving a video: keep where it stopped BEFORE the state below switches to the next one, so its
+                    // position is neither lost nor filed under the new video.
+                    persistCurrentPosition()
+                    lastPersistedPositionMs = 0L
+                }
                 _uiState.update {
                     it.copy(
                         queueItems = queue.items,
@@ -315,18 +391,21 @@ class PlayerViewModel(
             AspectRatioMode.FIT
         }
         val restoredSpeed = if (item.playbackSpeed > 0f) item.playbackSpeed else 1.0f
+        val ownDecoder = item.decoderStrategy
+        val effectiveDecoder = ownDecoder ?: defaultDecoderStrategy
         _uiState.update {
             it.copy(
                 resizeMode = restoredResizeMode,
                 playbackSpeed = restoredSpeed,
-                decoderStrategy = item.decoderStrategy,
+                decoderStrategy = effectiveDecoder,
+                decoderOverridden = ownDecoder != null,
                 audioDelayMs = item.audioDelayMs,
                 subtitleDelayMs = item.subtitleDelayMs,
                 abRepeat = AbRepeatState(),
                 isEnded = false
             )
         }
-        playbackController.setDecoderStrategy(item.decoderStrategy)
+        playbackController.setDecoderStrategy(effectiveDecoder)
         if (restoredSpeed != 1.0f) {
             playbackController.setPlaybackSpeed(restoredSpeed)
         }
@@ -399,6 +478,10 @@ class PlayerViewModel(
         val currentItem = items[clampedIndex]
         val sanitized = SubtitleQuerySanitizer.sanitize(currentItem.title)
 
+        if (_uiState.value.videoUri != currentItem.uri) {
+            persistCurrentPosition() // the video being replaced keeps where it stopped
+            lastPersistedPositionMs = 0L
+        }
         _uiState.update {
             it.copy(
                 videoUri = currentItem.uri,
@@ -1037,8 +1120,9 @@ class PlayerViewModel(
         }
     }
 
+    /** The user picked a decoder in the player: that is THIS video's choice and never changes the Settings default. */
     fun setDecoderStrategy(strategy: Int) {
-        _uiState.update { it.copy(decoderStrategy = strategy) }
+        _uiState.update { it.copy(decoderStrategy = strategy, decoderOverridden = true) }
         viewModelScope.launch(dispatcher + errorHandler) {
             playbackController.setDecoderStrategy(strategy)
             persistPlaybackPreferences()
@@ -1065,14 +1149,15 @@ class PlayerViewModel(
             viewModelScope.launch(dispatcher + errorHandler) {
                 mediaRepository.resetPlaybackPreferences(uri)
                 playbackController.setPlaybackSpeed(1.0f)
-                playbackController.setDecoderStrategy(0)
+                playbackController.setDecoderStrategy(defaultDecoderStrategy)
                 playbackController.setAudioDelay(0L)
                 playbackController.setSubtitleDelay(0L)
                 _uiState.update {
                     it.copy(
                         resizeMode = AspectRatioMode.FIT,
                         playbackSpeed = 1.0f,
-                        decoderStrategy = 0,
+                        decoderStrategy = defaultDecoderStrategy,
+                        decoderOverridden = false,
                         audioDelayMs = 0L,
                         subtitleDelayMs = 0L
                     )
@@ -1090,7 +1175,9 @@ class PlayerViewModel(
                 uri = uri,
                 resizeMode = state.resizeMode.name,
                 playbackSpeed = state.playbackSpeed,
-                decoderStrategy = state.decoderStrategy,
+                // Only a decoder the user chose is saved. The automatic software fallback and the Settings default
+                // are not this video's choice, and must not be frozen into it.
+                decoderStrategy = if (state.decoderOverridden) state.decoderStrategy else null,
                 audioDelayMs = state.audioDelayMs,
                 subtitleDelayMs = state.subtitleDelayMs
             )
@@ -1270,10 +1357,16 @@ class PlayerViewModel(
         val pos = _uiState.value.currentPositionMs
         val isEnded = _uiState.value.isEnded
         if (uri.isNotBlank() && pos > 0L) {
-            viewModelScope.launch(dispatcher + errorHandler) {
+            // Captured above, written from a scope that survives the ViewModel (see persistScope).
+            persistScope.launch {
                 mediaRepository.savePlaybackPosition(uri, pos, isEnded)
             }
         }
+    }
+
+    /** Saves progress without touching playback; called when the app goes to the background (ON_STOP). */
+    fun persistProgress() {
+        persistCurrentPosition()
     }
 
     private fun extractTitleFromUri(uri: String): String {
@@ -1315,6 +1408,12 @@ class PlayerViewModel(
         autoAdvanceJob?.cancel()
         bookmarksJob?.cancel()
         persistCurrentPosition()
+        // Free the system's (limited) effect instances, and keep the last tweak even if it is inside the debounce window.
+        audioEffectsStore?.let { store ->
+            val effects = audioEnhancementController.snapshot()
+            persistScope.launch { store.save(effects) }
+        }
+        audioEnhancementController.releaseEffects()
         super.onCleared()
     }
 }

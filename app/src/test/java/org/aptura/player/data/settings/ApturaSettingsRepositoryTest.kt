@@ -105,4 +105,31 @@ class ApturaSettingsRepositoryTest {
             cancelAndIgnoreRemainingEvents()
         }
     }
+
+    @Test
+    fun audioEffects_surviveARestart() = runTest {
+        val saved = org.aptura.player.domain.model.AudioEffectsSettings(
+            enabled = true,
+            preset = org.aptura.player.domain.model.EqualizerPreset.CUSTOM,
+            bandLevelsMb = listOf(100, -200, 300, 0, 50),
+            bassBoostPercent = 40,
+            virtualizerPercent = 25,
+            loudnessBoostPercent = 60
+        )
+        repository.updateAudioEffects(saved)
+
+        // a brand-new repository instance reads the same file, like a new process would
+        val reloaded = ApturaSettingsRepository(context).load()
+
+        assertEquals(saved, reloaded)
+    }
+
+    @Test
+    fun audioEffects_defaultToOff() = runTest {
+        val loaded = repository.load()
+
+        assertFalse(loaded.enabled)
+        assertTrue(loaded.bandLevelsMb.isEmpty())
+        assertEquals(0, loaded.bassBoostPercent)
+    }
 }

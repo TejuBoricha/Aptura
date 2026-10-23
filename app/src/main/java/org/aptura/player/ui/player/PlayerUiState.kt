@@ -103,7 +103,10 @@ data class PlayerUiState(
     val subtitleTextColorHex: String = "#FFFFFF",
     val subtitleBackgroundEnabled: Boolean = false,
     val bookmarks: List<org.aptura.player.domain.model.Bookmark> = emptyList(),
+    /** The decoder in effect for the current video (its own choice, else the Settings default, else a fallback). */
     val decoderStrategy: Int = 0,
+    /** True when [decoderStrategy] is this video's own choice rather than the Settings default. */
+    val decoderOverridden: Boolean = false,
     val cleanSearchQuery: String = "",
     val sanitizedTitle: String = "",
     val recentDownloadedSubtitle: org.aptura.player.data.repository.DetectedSidecarSubtitle? = null,

@@ -13,6 +13,10 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import org.aptura.player.domain.model.AudioEffectsSettings
+import org.aptura.player.domain.model.EqualizerPreset
+import org.aptura.player.domain.repository.AudioEffectsStore
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import java.io.IOException
@@ -31,14 +35,15 @@ data class ApturaSettings(
     val subtitleTextColorHex: String = "#FFFFFF",
     val subtitleBackgroundEnabled: Boolean = false,
     val defaultDecoderStrategy: Int = 0, // 0: Auto, 1: Hardware, 2: Software
-    val persistedSafFolders: Set<String> = emptySet()
+    val persistedSafFolders: Set<String> = emptySet(),
+    val audioEffects: AudioEffectsSettings = AudioEffectsSettings()
 )
 
 /**
  * Asynchronous, DataStore-backed repository for player and library settings (SCR-013, FR-SET-001).
  * Safe against process death and thread concurrency.
  */
-class ApturaSettingsRepository(private val context: Context) {
+class ApturaSettingsRepository(private val context: Context) : AudioEffectsStore {
 
     private object PreferencesKeys {
         val DEFAULT_PLAYBACK_SPEED = floatPreferencesKey("default_playback_speed")
@@ -52,6 +57,12 @@ class ApturaSettingsRepository(private val context: Context) {
         val SUBTITLE_BACKGROUND_ENABLED = booleanPreferencesKey("subtitle_background_enabled")
         val DEFAULT_DECODER_STRATEGY = intPreferencesKey("default_decoder_strategy")
         val PERSISTED_SAF_FOLDERS = stringSetPreferencesKey("persisted_saf_folders")
+        val FX_ENABLED = booleanPreferencesKey("fx_enabled")
+        val FX_PRESET = stringPreferencesKey("fx_preset")
+        val FX_BAND_LEVELS = stringPreferencesKey("fx_band_levels")
+        val FX_BASS = intPreferencesKey("fx_bass_percent")
+        val FX_VIRTUALIZER = intPreferencesKey("fx_virtualizer_percent")
+        val FX_LOUDNESS = intPreferencesKey("fx_loudness_percent")
     }
 
     val settingsFlow: Flow<ApturaSettings> = context.dataStore.data
@@ -74,7 +85,18 @@ class ApturaSettingsRepository(private val context: Context) {
                 subtitleTextColorHex = preferences[PreferencesKeys.SUBTITLE_TEXT_COLOR_HEX] ?: "#FFFFFF",
                 subtitleBackgroundEnabled = preferences[PreferencesKeys.SUBTITLE_BACKGROUND_ENABLED] ?: false,
                 defaultDecoderStrategy = preferences[PreferencesKeys.DEFAULT_DECODER_STRATEGY] ?: 0,
-                persistedSafFolders = preferences[PreferencesKeys.PERSISTED_SAF_FOLDERS] ?: emptySet()
+                persistedSafFolders = preferences[PreferencesKeys.PERSISTED_SAF_FOLDERS] ?: emptySet(),
+                audioEffects = AudioEffectsSettings(
+                    enabled = preferences[PreferencesKeys.FX_ENABLED] ?: false,
+                    preset = preferences[PreferencesKeys.FX_PRESET]
+                        ?.let { name -> EqualizerPreset.entries.firstOrNull { it.name == name } }
+                        ?: EqualizerPreset.FLAT,
+                    bandLevelsMb = preferences[PreferencesKeys.FX_BAND_LEVELS]
+                        ?.split(',')?.mapNotNull { it.trim().toIntOrNull() }.orEmpty(),
+                    bassBoostPercent = preferences[PreferencesKeys.FX_BASS] ?: 0,
+                    virtualizerPercent = preferences[PreferencesKeys.FX_VIRTUALIZER] ?: 0,
+                    loudnessBoostPercent = preferences[PreferencesKeys.FX_LOUDNESS] ?: 0
+                )
             )
         }
 
@@ -135,6 +157,21 @@ class ApturaSettingsRepository(private val context: Context) {
     suspend fun updateDefaultDecoderStrategy(strategy: Int) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.DEFAULT_DECODER_STRATEGY] = strategy
+        }
+    }
+
+    override suspend fun load(): AudioEffectsSettings = settingsFlow.first().audioEffects
+
+    override suspend fun save(settings: AudioEffectsSettings) = updateAudioEffects(settings)
+
+    suspend fun updateAudioEffects(effects: AudioEffectsSettings) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.FX_ENABLED] = effects.enabled
+            preferences[PreferencesKeys.FX_PRESET] = effects.preset.name
+            preferences[PreferencesKeys.FX_BAND_LEVELS] = effects.bandLevelsMb.joinToString(",")
+            preferences[PreferencesKeys.FX_BASS] = effects.bassBoostPercent
+            preferences[PreferencesKeys.FX_VIRTUALIZER] = effects.virtualizerPercent
+            preferences[PreferencesKeys.FX_LOUDNESS] = effects.loudnessBoostPercent
         }
     }
 

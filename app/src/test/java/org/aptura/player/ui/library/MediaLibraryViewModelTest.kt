@@ -86,7 +86,7 @@ class MediaLibraryViewModelTest {
             uri: String,
             resizeMode: String,
             playbackSpeed: Float,
-            decoderStrategy: Int,
+            decoderStrategy: Int?,
             audioDelayMs: Long,
             subtitleDelayMs: Long
         ) {}
