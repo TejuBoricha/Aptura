@@ -38,15 +38,18 @@ class MediaStoreScanner(
 
     /**
      * Scans all video files available in MediaStore and maps them to MediaItemEntity.
-     * Filters out files smaller than 1KB or with 0 duration to prevent phantom files.
+     * Filters out files smaller than 1KB to prevent phantom/corrupt fragments.
+     * Rows MediaStore has not yet probed (duration NULL/0) are INCLUDED with durationMs = 0 so
+     * freshly recorded/downloaded videos appear immediately; MediaScanWorker probes their real
+     * durations via MediaMetadataRetriever. Excluding them would hide videos until another app
+     * happens to probe MediaStore (FR-LIB-004, P1-14 remainder).
      */
     suspend fun scanAllVideos(): List<MediaItemEntity> = withContext(ioDispatcher) {
         val items = mutableListOf<MediaItemEntity>()
 
         val uri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI
         val sortOrder = "${MediaStore.Video.Media.DATE_ADDED} DESC"
-        val selection = "${MediaStore.Video.Media.DURATION} > 0 " +
-            "AND ${MediaStore.Video.Media.SIZE} > 1024 " +
+        val selection = "${MediaStore.Video.Media.SIZE} > 1024 " +
             "AND (${MediaStore.Video.Media.MIME_TYPE} LIKE 'video/%' " +
             "OR ${MediaStore.Video.Media.MIME_TYPE} IN ('application/x-matroska', 'application/ogg', 'application/mp4', 'application/vnd.rn-realmedia'))"
 
@@ -86,8 +89,9 @@ class MediaStoreScanner(
 
                 val contentUri = ContentUris.withAppendedId(uri, mediaStoreId).toString()
 
-                // Filter out non-video artifacts, 0-byte placeholders or corrupt fragments
-                if (size > 1024L && duration > 0L) {
+                // Filter out non-video artifacts and 0-byte placeholders/corrupt fragments.
+                // Duration = 0 is tolerated (un-probed row); the worker fills it in.
+                if (size > 1024L) {
                     items.add(
                         MediaItemEntity(
                             mediaStoreId = mediaStoreId,

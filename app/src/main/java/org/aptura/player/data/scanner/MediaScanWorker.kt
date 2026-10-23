@@ -30,6 +30,63 @@ class MediaScanWorker(
         const val TAG_ONE_TIME_SCAN = "aptura_media_scan_one_time"
         const val TAG_PERIODIC_SCAN = "aptura_media_scan_periodic"
         private const val BATCH_SIZE = 250
+
+        /**
+         * Fills in durations for MediaStore rows the platform has not probed yet
+         * (fresh screen recordings/downloads land with DURATION null).
+         *
+         * Two resolutions, both cheap:
+         *  - A row whose previous scan already knows the duration and whose file size is unchanged
+         *    carries that duration forward (no platform API call, no duration regression to 0:00).
+         *  - A genuinely unknown row is measured once with MediaMetadataRetriever. Failed probes keep
+         *    durationMs = 0 (the grid hides an unknown badge) and retry on the next scan only.
+         */
+        internal fun resolveMissingDurations(
+            context: Context,
+            items: List<MediaItemEntity>,
+            existingByUri: Map<String, MediaItemEntity>
+        ): List<MediaItemEntity> {
+            // Fast path: every row already carries a duration — nothing to resolve.
+            val needsResolution = items.any { it.durationMs <= 0L && it.sizeBytes > 1024L }
+            if (!needsResolution) {
+                return items
+            }
+
+            var retriever: android.media.MediaMetadataRetriever? = null
+            try {
+                return items.map { item ->
+                    if (item.durationMs > 0L || item.sizeBytes <= 1024L) {
+                        return@map item
+                    }
+                    val existing = existingByUri[item.uri]
+                    if (existing != null && existing.durationMs > 0L) {
+                        // Same size = unchanged file: carry the previously measured duration forward.
+                        return@map if (existing.sizeBytes == item.sizeBytes) {
+                            item.copy(durationMs = existing.durationMs)
+                        } else {
+                            item // Replaced content: probe below instead of trusting the stale value.
+                        }
+                    }
+                    if (retriever == null) {
+                        retriever = android.media.MediaMetadataRetriever()
+                    }
+                    try {
+                        retriever?.setDataSource(context, Uri.parse(item.uri))
+                        val durationMs = retriever
+                            ?.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
+                            ?.toLongOrNull() ?: 0L
+                        if (durationMs > 0L) item.copy(durationMs = durationMs) else item
+                    } catch (_: Throwable) {
+                        // Unreadable/corrupt file: keep durationMs = 0 and show it without a badge.
+                        item
+                    }
+                }
+            } finally {
+                try {
+                    retriever?.release()
+                } catch (_: Throwable) {}
+            }
+        }
     }
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
@@ -58,7 +115,13 @@ class MediaScanWorker(
             // 1. Scan Android MediaStore if platform permission is granted
             if (hasStorage) {
                 val mediaStoreScanner = MediaStoreScanner(applicationContext.contentResolver)
-                allScanned.addAll(mediaStoreScanner.scanAllVideos())
+                val mediaStoreItems = mediaStoreScanner.scanAllVideos()
+                // MediaStore leaves DURATION null until some app probes a freshly written file.
+                // Carry known durations forward (unchanged files) and measure the rest once, so
+                // new videos appear complete instead of 0:00, and old ones never regress.
+                allScanned.addAll(
+                    resolveMissingDurations(applicationContext, mediaStoreItems, existingByUri)
+                )
             }
 
             // 2. Scan each persisted SAF folder tree (differential metadata skip for unchanged files)
