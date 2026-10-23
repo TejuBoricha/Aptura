@@ -59,6 +59,7 @@ class ApturaPlaybackService : MediaSessionService() {
             release()
             mediaSession = null
         }
+        PlayerManager.release()
         super.onDestroy()
     }
 

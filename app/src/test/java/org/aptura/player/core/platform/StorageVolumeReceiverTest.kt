@@ -5,8 +5,10 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
+import androidx.work.testing.WorkManagerTestInitHelper
 import org.aptura.player.core.diagnostics.ApturaDiagnostics
 import org.junit.Assert.assertFalse
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -21,6 +23,13 @@ import org.robolectric.annotation.Config
 class StorageVolumeReceiverTest {
 
     private val context: Context = ApplicationProvider.getApplicationContext()
+
+    @Before
+    fun setUp() {
+        try {
+            WorkManagerTestInitHelper.initializeTestWorkManager(context)
+        } catch (_: Throwable) {}
+    }
 
     @Test
     fun receiver_isNotExported_inTheMergedManifest() {
@@ -38,5 +47,17 @@ class StorageVolumeReceiverTest {
         val diagnostics = ApturaDiagnostics.generateDiagnosticMarkdown(context)
         assertFalse(diagnostics.contains("SPOOFED_EJECT_7731"))
         assertFalse(diagnostics.contains("secret-path-7731"))
+    }
+
+    @Test
+    fun aValidBroadcast_redactsRawPath_beforeLogging() {
+        val validMount = Intent(Intent.ACTION_MEDIA_MOUNTED)
+            .setData(Uri.parse("file:///storage/emulated/0/DCIM/SecretFolder/movie.mp4"))
+
+        StorageVolumeReceiver().onReceive(context, validMount)
+
+        val diagnostics = ApturaDiagnostics.generateDiagnosticMarkdown(context)
+        assertFalse(diagnostics.contains("SecretFolder"))
+        assertFalse(diagnostics.contains("/storage/emulated/0/DCIM"))
     }
 }

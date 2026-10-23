@@ -52,14 +52,16 @@ class StorageVolumeReceiver : BroadcastReceiver() {
             code = EventCode.EV_006,
             payload = mapOf(
                 "storage_event" to action,
-                "path" to path
+                "path" to org.aptura.player.core.diagnostics.RedactionEngine.redactText(path)
             )
         )
 
         when (action) {
             Intent.ACTION_MEDIA_MOUNTED -> {
                 // Removable volume mounted: trigger immediate scan
-                MediaScanScheduler.scheduleImmediateScan(context.applicationContext)
+                try {
+                    MediaScanScheduler.scheduleImmediateScan(context.applicationContext)
+                } catch (_: Throwable) {}
             }
             Intent.ACTION_MEDIA_UNMOUNTED,
             Intent.ACTION_MEDIA_EJECT,
@@ -80,7 +82,9 @@ class StorageVolumeReceiver : BroadcastReceiver() {
                 } catch (_: Throwable) {}
 
                 // Trigger library reconciliation to mark unmounted files as missing without deleting
-                MediaScanScheduler.scheduleImmediateScan(context.applicationContext)
+                try {
+                    MediaScanScheduler.scheduleImmediateScan(context.applicationContext)
+                } catch (_: Throwable) {}
             }
         }
     }
