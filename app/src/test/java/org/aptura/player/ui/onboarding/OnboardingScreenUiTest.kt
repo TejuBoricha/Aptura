@@ -103,6 +103,8 @@ class OnboardingScreenUiTest {
         show()
         composeRule.onNodeWithText("No internet permission").assertExists()
         composeRule.onNodeWithText("No accounts, ads or analytics").assertExists()
+        // The one thing that does leave the device must be stated, not hidden behind "nothing can be uploaded" (P1-21).
+        composeRule.onNodeWithText("Subtitle search is yours to start").assertExists()
 
         next()
         composeRule.onNodeWithText("Search, filter and sort").assertExists()

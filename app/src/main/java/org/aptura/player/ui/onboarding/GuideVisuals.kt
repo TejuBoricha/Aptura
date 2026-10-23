@@ -94,7 +94,8 @@ internal fun PrivacyFacts() {
             "No internet permission" to "Android would block Aptura from going online even if it tried.",
             "No accounts, ads or analytics" to "There is nothing to sign in to and nothing that reports on you.",
             "Your files are only read" to "Nothing is renamed, moved or deleted without your explicit confirmation.",
-            "Diagnostics stay on this device" to "Error logs are kept locally, and leave only if you choose to share them."
+            "Diagnostics stay on this device" to "Error logs are kept locally, and leave only if you choose to share them.",
+            "Subtitle search is yours to start" to "It opens your browser with a title you can edit. The video itself never leaves your device."
         )
         facts.forEachIndexed { index, (title, detail) ->
             Row(
@@ -345,7 +346,7 @@ internal data class GuideTool(val icon: ImageVector, val title: String, val deta
 
 /** Everything here exists in the player today; if a tool is removed or added, this list is the one place to update. */
 internal val GuideTools = listOf(
-    GuideTool(Icons.Default.Subtitles, "Subtitles", "Import .srt, .vtt, .ass or a .zip. Nudge timing, tap to sync, and restyle size, colour and outline."),
+    GuideTool(Icons.Default.Subtitles, "Subtitles", "Import .srt, .vtt, .ass or a .zip, or search for one in your browser. Nudge timing, tap to sync, restyle."),
     GuideTool(Icons.Default.GraphicEq, "Sound studio", "Equalizer, bass boost, surround and dialogue boost, plus a lip-sync delay for earbuds."),
     GuideTool(Icons.Default.Repeat, "A-B repeat", "Loop any passage between two points you set."),
     GuideTool(Icons.Default.Bookmark, "Bookmarks", "Save a moment and jump back to it later."),

@@ -484,3 +484,58 @@ Gate: 410 unit tests, 0 failures, lint 0 errors, `assembleRelease` (which now al
 
 ### Still open
 P1-12 · P1-13 · P1-14 (remainder) · P1-17 · P1-22 · P1-23, most P2 items, and the unexplained black-picture episode (Appendix D).
+
+
+---
+
+## Appendix H — Settings screen and welcome guide round (user-reported; follows P1-01, P1-03, P1-21)
+
+Gate at `a47ae25`: 417 unit tests, lint 0 errors, `assembleRelease` with `verifyReleaseApk` passes. After the correction below (one sentence, one fact, one assertion) the unit suite was re-run: **417 tests, 0 failures**; lint and the release build were not re-run for that change.
+
+### Settings screen (`b7fdf6a`)
+The request was "plain, dull, awful, redesign it". The first version was over-decorated and the user called it AI slop; this appendix records both because the second pass is the one worth keeping.
+
+| What | Change | Why it stays |
+|---|---|---|
+| Structure | A large title that collapses into a compact bar; a library readout (videos, total time, footprint); flat panels of related settings with hairline edges | Each part carries information or groups settings |
+| Option groups | A **selector switch** replaces the chips: recessed track, cyan thumb that slides on a spring. Every option is a real radio button for TalkBack (announces selected / not selected), 48 dp tall, with haptics. A stored value that is not among the options selects nothing instead of crashing | Functional improvement, not decoration |
+| Colour | Cyan only for "selected / interactive", red only for actions that destroy something (Delete Diagnostic Data, Clear, remove folder), green only for the single offline statement | Colour tells you something |
+| Also | Settings → **Delete Diagnostic Data** (from Appendix G) lives here; the cache-size walk moved off the main thread; "remove folder" is a 48 dp target | |
+
+**What the slop pass removed** (each was decoration with no job): a lens-dial header that rotated as you scrolled, glow and halo effects, a marketing tagline, the offline guarantee stated four times (status pill, panel title, subtitle, three check chips), "01 / 02 / 03" section numbers, a staggered entrance animation on every open, and a cyan icon tile on every row. It contradicted `DESIGN.md`'s own rule that every element is deliberate; the dial was the clearest case, because it could not do anything except duplicate the selector.
+
+| Evidence | |
+|---|---|
+| Unit | `SettingsChipContrastTest` (6): the selected label is ≥ 4.5:1 on the real thumb and the unselected label on the real track, selected/unselected are announced as radio buttons, tapping an option reports it, an out-of-range stored value selects nothing |
+| Device | Tapped 1.5x, left Settings, re-entered: still 1.5x (real DataStore); the title bar scrim hides content scrolled under it |
+
+### Welcome guide (`a47ae25`, corrected in the next commit)
+Two reports: "it doesn't show when we open the app after installation" and "it is missing many aspects / not updated for the app".
+
+| Finding | Cause | Change |
+|---|---|---|
+| Never shown on first launch when storage access was already granted | `startDestinationFor` was "guide only if access is **not** granted **and** not completed", and "completed" was only recorded inside the permission flow, so a reinstall or any device that pre-grants access skipped it forever and only Settings could reach it (spec/06 says first run) | The first launch always shows it; it depends only on whether it was **seen**. Reaching the last page counts as seen (closing the app there does not bring it back) |
+| Three pages of icons and adjectives; nothing about gestures, subtitles, sound, A-B repeat, bookmarks, sleep timer, queue, PiP, night mode | Written before most of the player existed | Five scannable, skippable pages: privacy facts; the library (a miniature of the real layout, Continue Watching, the ⋮ menu); a **map of the player's touch zones** plus hold for 2×, swipe to seek, two-finger tap, Lock; a grid of **12 tools**, each checked against the code; access |
+| The last page asked for permission even when it was already granted | – | Without access: why, what it can do, alternatives, **Grant** or **Limited Mode**. With access: "You're all set", how to reopen the guide, **Start watching** |
+| Replay stacked a second library | `finish` always pushed `MediaLibrary` | Replay returns to Settings; first run goes on to the library |
+
+Also: Back steps to the previous page; the page indicator is spoken as "Page n of 5"; each illustration is one sentence for TalkBack (its fragments are hidden); scrolled content fades behind the controls and the status bar; Settings row renamed **Welcome Guide**; `spec/06` updated (it said "3 pages max").
+
+**Correction found while writing this appendix.** Page 1 originally said "nothing can be uploaded, tracked or sold". That is the same unqualified offline claim P1-21 (Appendix D) removed from the subtitle search: **Search Subtitles on Web hands an editable title to the user's browser**, which sends it to a third-party site. Page 1 now says the *app itself* cannot upload, track or sell anything, gains a fifth fact ("Subtitle search is yours to start … the video itself never leaves your device"), and the Subtitles tile mentions the browser search. A test pins the fact.
+
+| Evidence | |
+|---|---|
+| Unit | `StartDestinationGateTest` (3): decided only after settings load; first launch → guide; depends only on "seen", not on access. `OnboardingScreenUiTest` (9): Skip and Continue with real pointer events, Back, the indicator, every page's content, the tools list (unique, no blanks, even count), the last page with access (Start watching only) and without (Grant / Limited Mode only), the seen signal fires exactly once |
+| Device | **Access pre-granted** (`pm clear` + `pm grant`, the broken case): guide shows, five pages, "Start watching". **No access**: Skip → "Access Your Library", Grant and Limited Mode. **Grant**: system dialog → "Allow all" → library with thumbnails. **Replay** from Settings → Skip → Start watching → back on Settings |
+
+### Not done / not verified
+- **TalkBack itself was not run** on either screen; the semantics are asserted on the tree it reads.
+- **Layouts beyond a phone were not looked at** (tablet, foldable, landscape) for Settings or the guide; both cap their width (600 / 560 dp) but I did not see the result.
+- The guide's **content comes from a code survey**: every listed tool and gesture exists, but I did not open each one in the player, and "tap the screen to show the controls and menus" is deliberately generic about where each tool lives.
+- **Existing installs** whose "seen" flag was never set will see the guide once.
+- **First launch from "Open with"** (a video opened from a file manager before the guide was ever seen): the guide sits under the player, so Back from the player lands on it. Untested; probably acceptable.
+- The countdown option "Immediate" became "Instant" so five options fit a 360 dp row.
+- The launcher icon and splash are still the default green Android robot. Not touched.
+
+### Still open
+The player's floating **speed pill** (it reads as a stray element under the title bar; suggested fix: a "1.5x" suffix on the title line that still opens the speed sheet) awaits a decision. Otherwise unchanged from Appendix G: P1-12 · P1-13 · P1-14 (remainder) · P1-17 · P1-22 · P1-23, most P2 items, and the unexplained black-picture episode.

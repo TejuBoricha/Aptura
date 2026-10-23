@@ -106,7 +106,7 @@ fun OnboardingScreen(
                         PageHeading(
                             label = "Welcome to Aptura",
                             title = "Everything stays on your device",
-                            body = "Aptura plays the videos already on your phone. It has no internet permission at all, so nothing can be uploaded, tracked or sold."
+                            body = "Aptura plays the videos already on your phone. It has no internet permission at all, so the app itself cannot upload, track or sell anything."
                         )
                         PrivacyFacts()
                     }
