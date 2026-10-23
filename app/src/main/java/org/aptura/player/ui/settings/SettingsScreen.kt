@@ -1,73 +1,79 @@
 package org.aptura.player.ui.settings
 
-import android.content.Context
 import android.content.Intent
+import android.widget.Toast
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Speed
-import androidx.compose.material.icons.filled.Storage
-import androidx.compose.material.icons.filled.Videocam
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.launch
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material3.Surface
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.aptura.player.core.diagnostics.ApturaDiagnostics
 import org.aptura.player.core.platform.AppVersion
 import org.aptura.player.data.settings.ApturaSettings
@@ -76,16 +82,21 @@ import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
 import org.aptura.player.ui.library.MediaFormatters
 
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.ui.text.style.TextOverflow
+private val PlaybackSpeeds = listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
+private val SeekSteps = listOf(5, 10, 15, 30)
+private val CountdownChoices = listOf(5, 10, 15, 0) // seconds; 0 plays the next video straight away
+private val DecoderChoices = listOf("Auto", "Hardware", "Software")
+
+/** How far (in dp) the large title has to scroll before the compact title bar has fully taken over. */
+private const val TITLE_COLLAPSE_DP = 90
 
 /**
  * Settings Root Screen (SCR-013, SCR-014, SCR-015, SCR-016).
  * Unified configuration for playback preferences, storage statistics, diagnostics, and privacy proof.
+ *
+ * A large title that collapses into a compact bar, a library readout, and flat panels of settings. Option groups use
+ * a selector switch (SettingsDesign.kt) instead of chips. Behaviour and callbacks are unchanged by the redesign.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     settings: ApturaSettings,
@@ -104,504 +115,264 @@ fun SettingsScreen(
     onRemoveSafFolder: (String) -> Unit = {},
     hiddenVideoCount: Int = 0,
     onRestoreHiddenVideos: () -> Unit = {},
+    onDeleteDiagnosticData: () -> Unit = { ApturaDiagnostics.clearAll() },
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
-    var isLicensesDialogOpen by remember { mutableStateOf(false) }
+    var isDeleteDiagnosticsDialogOpen by remember { mutableStateOf(false) }
     var cacheSizeBytes by remember { mutableStateOf(0L) }
 
     LaunchedEffect(Unit) {
-        cacheSizeBytes = context.cacheDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+        cacheSizeBytes = withContext(Dispatchers.IO) {
+            context.cacheDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+        }
     }
 
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = ApturaColors.SurfaceBase,
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "Settings",
-                        style = ApturaTypography.headlineMedium,
-                        color = ApturaColors.TextHighEmphasis
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = ApturaColors.TextHighEmphasis
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = ApturaColors.SurfaceBase
+    if (isDeleteDiagnosticsDialogOpen) {
+        AlertDialog(
+            onDismissRequest = { isDeleteDiagnosticsDialogOpen = false },
+            containerColor = ApturaColors.SurfaceElevated2,
+            shape = RoundedCornerShape(24.dp),
+            title = { Text("Delete diagnostic data?", color = ApturaColors.TextHighEmphasis) },
+            text = {
+                Text(
+                    "This erases the error log and crash reports Aptura keeps on this device. " +
+                        "Nothing was ever sent anywhere, and this cannot be undone.",
+                    color = ApturaColors.TextMediumEmphasis
                 )
-            )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        isDeleteDiagnosticsDialogOpen = false
+                        onDeleteDiagnosticData()
+                        Toast.makeText(context, "Diagnostic data deleted", Toast.LENGTH_SHORT).show()
+                    }
+                ) { Text("Delete", color = ApturaColors.StatusError) }
+            },
+            dismissButton = {
+                TextButton(onClick = { isDeleteDiagnosticsDialogOpen = false }) {
+                    Text("Cancel", color = ApturaColors.TextMediumEmphasis)
+                }
+            }
+        )
+    }
+
+    // The compact title bar fades in as the large title scrolls away. The scroll position is read inside the
+    // graphicsLayer lambdas, so scrolling redraws the bar but never recomposes the screen.
+    val listState = rememberLazyListState()
+    val collapseTravelPx = with(LocalDensity.current) { TITLE_COLLAPSE_DP.dp.toPx() }
+    val collapse = remember(listState, collapseTravelPx) {
+        {
+            val scrolled = if (listState.firstVisibleItemIndex == 0) listState.firstVisibleItemScrollOffset.toFloat() else Float.MAX_VALUE
+            (scrolled / collapseTravelPx).coerceIn(0f, 1f)
         }
-    ) { innerPadding ->
-        Box(
+    }
+
+    val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val navigationBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(ApturaColors.SurfaceBase),
+        contentAlignment = Alignment.TopCenter
+    ) {
+        LazyColumn(
+            state = listState,
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            contentAlignment = Alignment.TopCenter
+                .fillMaxHeight()
+                .widthIn(max = 600.dp)
+                .fillMaxWidth(),
+            contentPadding = PaddingValues(
+                start = 16.dp,
+                end = 16.dp,
+                top = statusTop,
+                bottom = navigationBottom + 32.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .widthIn(max = 600.dp)
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
-            ) {
-                // Section 1: Playback Preferences
-                item {
-                    SettingsSectionHeader("Playback Preferences")
-                }
+            item(key = "title", contentType = "title") {
+                Text(
+                    text = "Settings",
+                    style = ApturaTypography.displayLarge.copy(fontSize = 36.sp, lineHeight = 42.sp),
+                    color = ApturaColors.TextHighEmphasis,
+                    modifier = Modifier
+                        .padding(top = 64.dp, start = 4.dp)
+                        .semantics { heading() }
+                )
+            }
 
-                item {
-                    Card(
+            item(key = "stats", contentType = "panel") {
+                SettingsPanel {
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = ApturaColors.SurfaceElevated1)
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            // Default Speed
-                            Text(
-                                text = "Default Playback Speed",
-                                style = ApturaTypography.titleMedium,
-                                color = ApturaColors.TextHighEmphasis
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            FlowRow(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f).forEach { speed ->
-                                    FilterChip(
-                                        selected = settings.defaultPlaybackSpeed == speed,
-                                        onClick = { onUpdateSpeed(speed) },
-                                        label = { Text("${speed}x", style = ApturaTypography.labelSmall) },
-                                        colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor = ApturaColors.AccentPrimary,
-                                            selectedLabelColor = ApturaColors.SurfacePureBlack,
-                                            containerColor = ApturaColors.SurfaceElevated2,
-                                            labelColor = ApturaColors.TextHighEmphasis
-                                        )
-                                    )
-                                }
-                            }
+                        ReadoutCell("${libraryStats.totalVideos}", "Videos", Modifier.weight(1f))
+                        ReadoutDivider()
+                        ReadoutCell(MediaFormatters.formatDuration(libraryStats.totalDurationMs), "Total time", Modifier.weight(1f))
+                        ReadoutDivider()
+                        ReadoutCell(MediaFormatters.formatFileSize(libraryStats.totalSizeBytes), "Footprint", Modifier.weight(1f))
+                    }
+                }
+            }
 
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            // Double-tap Seek Delta
-                            Text(
-                                text = "Double-Tap Seek Step",
-                                style = ApturaTypography.titleMedium,
-                                color = ApturaColors.TextHighEmphasis
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            FlowRow(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                listOf(5, 10, 15, 30).forEach { seconds ->
-                                    FilterChip(
-                                        selected = settings.seekDeltaSeconds == seconds,
-                                        onClick = { onUpdateSeekDelta(seconds) },
-                                        label = { Text("${seconds}s", style = ApturaTypography.labelSmall) },
-                                        colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor = ApturaColors.AccentPrimary,
-                                            selectedLabelColor = ApturaColors.SurfacePureBlack,
-                                            containerColor = ApturaColors.SurfaceElevated2,
-                                            labelColor = ApturaColors.TextHighEmphasis
-                                        )
-                                    )
-                                }
-                            }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Auto-Advance Countdown
-                        Text(
-                            text = "Up Next Countdown",
-                            style = ApturaTypography.titleMedium,
-                            color = ApturaColors.TextHighEmphasis
+            // Playback (SCR-013)
+            item(key = "playback", contentType = "section") {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SectionLabel("Playback")
+                    SettingsPanel {
+                        PickerRow(
+                            title = "Default Playback Speed",
+                            subtitle = null,
+                            options = PlaybackSpeeds.map { "${it}x" },
+                            selectedIndex = PlaybackSpeeds.indexOf(settings.defaultPlaybackSpeed),
+                            onSelect = { onUpdateSpeed(PlaybackSpeeds[it]) }
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            listOf(5, 10, 15, 0).forEach { seconds ->
-                                val label = if (seconds == 0) "Immediate" else "${seconds}s"
-                                FilterChip(
-                                    selected = settings.autoAdvanceCountdownSeconds == seconds,
-                                    onClick = { onUpdateAutoAdvanceCountdown(seconds) },
-                                    label = { Text(label, style = ApturaTypography.labelSmall) },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = ApturaColors.AccentPrimary,
-                                        selectedLabelColor = ApturaColors.SurfacePureBlack,
-                                        containerColor = ApturaColors.SurfaceElevated2,
-                                        labelColor = ApturaColors.TextHighEmphasis
-                                    )
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Background Audio Switch
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Background Audio Playback",
-                                    style = ApturaTypography.titleMedium,
-                                    color = ApturaColors.TextHighEmphasis
-                                )
-                                Text(
-                                    text = "Continue audio when switching apps or locking screen",
-                                    style = ApturaTypography.bodyMedium,
-                                    color = ApturaColors.TextMediumEmphasis
-                                )
-                            }
-                            Switch(
-                                checked = settings.backgroundAudioEnabled,
-                                onCheckedChange = onUpdateBackgroundAudio,
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = ApturaColors.SurfacePureBlack,
-                                    checkedTrackColor = ApturaColors.AccentPrimary
-                                )
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
+                        PanelDivider()
+                        PickerRow(
+                            title = "Double-Tap Seek Step",
+                            subtitle = "How far each double-tap on the video jumps",
+                            options = SeekSteps.map { "${it}s" },
+                            selectedIndex = SeekSteps.indexOf(settings.seekDeltaSeconds),
+                            onSelect = { onUpdateSeekDelta(SeekSteps[it]) }
+                        )
+                        PanelDivider()
+                        PickerRow(
+                            title = "Up Next Countdown",
+                            subtitle = "Wait before the next video starts",
+                            options = CountdownChoices.map { if (it == 0) "Instant" else "${it}s" },
+                            selectedIndex = CountdownChoices.indexOf(settings.autoAdvanceCountdownSeconds),
+                            onSelect = { onUpdateAutoAdvanceCountdown(CountdownChoices[it]) }
+                        )
+                        PanelDivider()
+                        ToggleRow(
+                            title = "Background Audio Playback",
+                            subtitle = "Continue audio when switching apps or locking screen",
+                            checked = settings.backgroundAudioEnabled,
+                            onCheckedChange = onUpdateBackgroundAudio
+                        )
+                        PanelDivider()
                         // Decoder Engine Strategy (FR-PLAY-003, Q13)
-                        Text(
-                            text = "Default Decoder",
-                            style = ApturaTypography.titleMedium,
-                            color = ApturaColors.TextHighEmphasis
-                        )
-                        val decoderExplanation = when (settings.defaultDecoderStrategy) {
-                            1 -> "Hardware · Low battery consumption, relies on GPU decoders"
-                            2 -> "Software · CPU decoding fallback for problematic streams"
-                            else -> "Auto · Optimal balance between hardware decoders and compatibility"
-                        }
-                        Text(
-                            text = "$decoderExplanation. A video you changed in the player keeps its own choice.",
-                            style = ApturaTypography.bodySmall,
-                            color = ApturaColors.TextMediumEmphasis,
-                            modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
-                        )
-                        FlowRow(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            listOf(
-                                0 to "Auto",
-                                1 to "Hardware",
-                                2 to "Software"
-                            ).forEach { (strategy, label) ->
-                                FilterChip(
-                                    selected = settings.defaultDecoderStrategy == strategy,
-                                    onClick = { onUpdateDecoderStrategy(strategy) },
-                                    label = { Text(label, style = ApturaTypography.labelSmall) },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = ApturaColors.AccentPrimary,
-                                        selectedLabelColor = ApturaColors.SurfacePureBlack,
-                                        containerColor = ApturaColors.SurfaceElevated2,
-                                        labelColor = ApturaColors.TextHighEmphasis
+                        PickerRow(
+                            title = "Default Decoder",
+                            subtitle = null,
+                            options = DecoderChoices,
+                            selectedIndex = settings.defaultDecoderStrategy.takeIf { it in DecoderChoices.indices } ?: -1,
+                            onSelect = onUpdateDecoderStrategy,
+                            footer = {
+                                AnimatedContent(
+                                    targetState = settings.defaultDecoderStrategy,
+                                    transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(120)) },
+                                    label = "decoder-note"
+                                ) { strategy ->
+                                    Text(
+                                        text = "${decoderExplanation(strategy)}. A video you changed in the player keeps its own choice.",
+                                        style = ApturaTypography.bodySmall,
+                                        color = ApturaColors.TextMediumEmphasis,
+                                        modifier = Modifier.padding(top = 12.dp)
                                     )
-                                )
+                                }
                             }
-                        }
+                        )
                     }
                 }
             }
 
-            // Section 2: Storage & Indexing (SCR-014)
-            item {
-                SettingsSectionHeader("Library & Storage")
-            }
-
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = ApturaColors.SurfaceElevated1)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        FlowRow(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            StorageStatPill("Videos", "${libraryStats.totalVideos}")
-                            StorageStatPill("Total Time", MediaFormatters.formatDuration(libraryStats.totalDurationMs))
-                            StorageStatPill("Footprint", MediaFormatters.formatFileSize(libraryStats.totalSizeBytes))
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
+            // Library & Storage (SCR-014)
+            item(key = "library", contentType = "section") {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SectionLabel("Library & Storage")
+                    SettingsPanel {
                         // Custom Storage Folders (SAF - FR-LIB-005)
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Custom Storage Folders",
-                                    style = ApturaTypography.titleMedium,
-                                    color = ApturaColors.TextHighEmphasis
-                                )
-                                Text(
-                                    text = "Additional SAF directories & external SD cards",
-                                    style = ApturaTypography.bodyMedium,
-                                    color = ApturaColors.TextMediumEmphasis
+                        ActionRow(
+                            icon = Icons.Default.Folder,
+                            title = "Custom Storage Folders",
+                            subtitle = "Additional SAF directories & external SD cards",
+                            trailing = {
+                                PillButton(
+                                    text = "Add",
+                                    onClick = onAddFolderClick,
+                                    leading = {
+                                        Icon(Icons.Default.Add, contentDescription = null, tint = ApturaColors.AccentPrimary, modifier = Modifier.size(16.dp))
+                                    }
                                 )
                             }
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = ApturaColors.AccentPrimary.copy(alpha = 0.15f),
-                                border = BorderStroke(1.dp, ApturaColors.AccentPrimary.copy(alpha = 0.4f)),
-                                modifier = Modifier.clickable {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    onAddFolderClick()
-                                }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Add,
-                                        contentDescription = null,
-                                        tint = ApturaColors.AccentPrimary,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = "Add",
-                                        style = ApturaTypography.labelSmall,
-                                        color = ApturaColors.AccentPrimary,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                        }
-
+                        )
                         if (settings.persistedSafFolders.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Column(
+                                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
                                 settings.persistedSafFolders.forEach { folderUri ->
-                                    val displayName = try {
-                                        android.net.Uri.decode(folderUri).substringAfterLast(':').substringAfterLast('/').ifBlank { folderUri }
-                                    } catch (_: Throwable) {
-                                        folderUri
-                                    }
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(ApturaColors.SurfaceElevated2)
-                                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.FolderOpen,
-                                            contentDescription = null,
-                                            tint = ApturaColors.AccentPrimary,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(10.dp))
-                                        Text(
-                                            text = displayName,
-                                            style = ApturaTypography.bodyMedium,
-                                            color = ApturaColors.TextHighEmphasis,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        IconButton(
-                                            onClick = {
-                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                onRemoveSafFolder(folderUri)
-                                            },
-                                            modifier = Modifier.size(32.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.DeleteOutline,
-                                                contentDescription = "Remove folder",
-                                                tint = ApturaColors.StatusError,
-                                                modifier = Modifier.size(18.dp)
-                                            )
+                                    FolderChip(
+                                        name = folderDisplayName(folderUri),
+                                        onRemove = {
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            onRemoveSafFolder(folderUri)
                                         }
-                                    }
+                                    )
                                 }
                             }
                         }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(ApturaColors.SurfaceElevated2)
-                                .clickable(onClick = onRescanClick)
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = null,
-                                tint = ApturaColors.AccentPrimary,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Rescan Media Library",
-                                    style = ApturaTypography.titleMedium,
-                                    color = ApturaColors.TextHighEmphasis
-                                )
-                                Text(
-                                    text = "Discover newly added, renamed or moved video files",
-                                    style = ApturaTypography.bodyMedium,
-                                    color = ApturaColors.TextMediumEmphasis
-                                )
-                            }
-                        }
-
+                        PanelDivider()
+                        ActionRow(
+                            icon = Icons.Default.Refresh,
+                            title = "Rescan Media Library",
+                            subtitle = "Discover newly added, renamed or moved video files",
+                            onClick = onRescanClick
+                        )
                         if (hiddenVideoCount > 0) {
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(ApturaColors.SurfaceElevated2)
-                                    .padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.VisibilityOff,
-                                    contentDescription = null,
-                                    tint = ApturaColors.AccentPrimary,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Hidden Videos",
-                                        style = ApturaTypography.titleMedium,
-                                        color = ApturaColors.TextHighEmphasis
-                                    )
-                                    Text(
-                                        text = "$hiddenVideoCount hidden from your library",
-                                        style = ApturaTypography.bodyMedium,
-                                        color = ApturaColors.TextMediumEmphasis
-                                    )
-                                }
-                                TextButton(onClick = onRestoreHiddenVideos) {
-                                    Text("Restore all", color = ApturaColors.AccentPrimary)
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // Thumbnail Cache Management (FR-LIB-022)
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(ApturaColors.SurfaceElevated2)
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.DeleteSweep,
-                                contentDescription = null,
-                                tint = ApturaColors.AccentPrimary,
-                                modifier = Modifier.size(24.dp)
+                            PanelDivider()
+                            ActionRow(
+                                icon = Icons.Default.VisibilityOff,
+                                title = "Hidden Videos",
+                                subtitle = "$hiddenVideoCount hidden from your library",
+                                trailing = { PillButton("Restore all", onRestoreHiddenVideos) }
                             )
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Thumbnail Cache",
-                                    style = ApturaTypography.titleMedium,
-                                    color = ApturaColors.TextHighEmphasis
-                                )
-                                Text(
-                                    text = "Preview storage: ${MediaFormatters.formatFileSize(cacheSizeBytes)}",
-                                    style = ApturaTypography.bodyMedium.copy(fontFeatureSettings = "tnum"),
-                                    color = ApturaColors.TextMediumEmphasis
-                                )
-                            }
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = ApturaColors.SurfaceElevated3,
-                                border = BorderStroke(1.dp, ApturaColors.BorderSubtle),
-                                modifier = Modifier.clickable {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    onClearThumbnailCache()
-                                    cacheSizeBytes = 0L
-                                }
-                            ) {
-                                Text(
-                                    text = "Clear",
-                                    style = ApturaTypography.labelSmall,
-                                    color = ApturaColors.StatusError,
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
                         }
+                        PanelDivider()
+                        // Thumbnail Cache Management (FR-LIB-022)
+                        ActionRow(
+                            icon = Icons.Default.DeleteSweep,
+                            title = "Thumbnail Cache",
+                            subtitle = "Preview storage: ${MediaFormatters.formatFileSize(cacheSizeBytes)}",
+                            trailing = {
+                                PillButton(
+                                    text = "Clear",
+                                    tint = ApturaColors.StatusError,
+                                    onClick = {
+                                        onClearThumbnailCache()
+                                        cacheSizeBytes = 0L
+                                    }
+                                )
+                            }
+                        )
                     }
                 }
             }
 
-            // Section 3: Privacy & Diagnostics (SCR-015, SCR-016)
-            item {
-                SettingsSectionHeader("Privacy & Transparency")
-            }
-
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = ApturaColors.SurfaceElevated1)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        // Offline Trust Badge
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .background(ApturaColors.SurfaceElevated2),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Security,
-                                    contentDescription = null,
-                                    tint = ApturaColors.AccentPrimary,
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
+            // Privacy & Transparency (SCR-015, SCR-016)
+            item(key = "privacy", contentType = "section") {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SectionLabel("Privacy & Transparency")
+                    SettingsPanel {
+                        // The one place the offline guarantee is stated. The build enforces it: the merged-manifest and
+                        // dependency invariant tests fail if INTERNET or a telemetry SDK ever appears.
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Security,
+                                contentDescription = null,
+                                tint = ApturaColors.StatusSuccess,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(Modifier.width(16.dp))
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = "100% Offline & Private",
                                     style = ApturaTypography.titleMedium,
@@ -611,99 +382,51 @@ fun SettingsScreen(
                                 Text(
                                     text = "Zero INTERNET permission in Manifest · 0 telemetry SDKs",
                                     style = ApturaTypography.bodyMedium,
-                                    color = ApturaColors.AccentPrimary
+                                    color = ApturaColors.TextMediumEmphasis
                                 )
                             }
                         }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Diagnostics Export Button
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(ApturaColors.SurfaceElevated2)
-                                .clickable {
-                                    val markdown = ApturaDiagnostics.generateDiagnosticMarkdown(context)
-                                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                        type = "text/plain"
-                                        putExtra(Intent.EXTRA_SUBJECT, "Aptura Redacted Diagnostic Report")
-                                        putExtra(Intent.EXTRA_TEXT, markdown)
-                                    }
-                                    context.startActivity(Intent.createChooser(shareIntent, "Export Diagnostic Report"))
+                        PanelDivider()
+                        ActionRow(
+                            icon = Icons.Default.Share,
+                            title = "Export Redacted Diagnostics",
+                            subtitle = "Shareable local error log with file paths and PII stripped",
+                            onClick = {
+                                val markdown = ApturaDiagnostics.generateDiagnosticMarkdown(context)
+                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_SUBJECT, "Aptura Redacted Diagnostic Report")
+                                    putExtra(Intent.EXTRA_TEXT, markdown)
                                 }
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Share,
-                                contentDescription = null,
-                                tint = ApturaColors.AccentPrimary,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Export Redacted Diagnostics",
-                                    style = ApturaTypography.titleMedium,
-                                    color = ApturaColors.TextHighEmphasis
-                                )
-                                Text(
-                                    text = "Shareable local error log with file paths and PII stripped",
-                                    style = ApturaTypography.bodyMedium,
-                                    color = ApturaColors.TextMediumEmphasis
-                                )
+                                context.startActivity(Intent.createChooser(shareIntent, "Export Diagnostic Report"))
                             }
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // Replay Onboarding
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(ApturaColors.SurfaceElevated2)
-                                .clickable(onClick = onReplayOnboardingClick)
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Info,
-                                contentDescription = null,
-                                tint = ApturaColors.TextMediumEmphasis,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Replay Welcome Guide",
-                                    style = ApturaTypography.titleMedium,
-                                    color = ApturaColors.TextHighEmphasis
-                                )
-                                Text(
-                                    text = "Review Aptura features and privacy architecture",
-                                    style = ApturaTypography.bodyMedium,
-                                    color = ApturaColors.TextMediumEmphasis
-                                )
-                            }
-                            Icon(
-                                imageVector = Icons.Default.ChevronRight,
-                                contentDescription = null,
-                                tint = ApturaColors.TextLowEmphasis
-                            )
-                        }
+                        )
+                        PanelDivider()
+                        // Delete Diagnostic Data (spec/14 §2): removes the on-device event log and crash reports.
+                        ActionRow(
+                            icon = Icons.Default.DeleteForever,
+                            title = "Delete Diagnostic Data",
+                            subtitle = "Erase the local error log and crash reports stored on this device",
+                            tint = ApturaColors.StatusError,
+                            onClick = { isDeleteDiagnosticsDialogOpen = true }
+                        )
+                        PanelDivider()
+                        ActionRow(
+                            icon = Icons.Default.Info,
+                            title = "Replay Welcome Guide",
+                            subtitle = "Review Aptura features and privacy architecture",
+                            onClick = onReplayOnboardingClick,
+                            trailing = { NavigationChevron() }
+                        )
                     }
                 }
             }
 
-            // Section 4: App Information & Licenses
-            item {
+            item(key = "footer", contentType = "footer") {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 16.dp),
+                        .padding(vertical = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
@@ -711,7 +434,7 @@ fun SettingsScreen(
                         style = ApturaTypography.labelMedium,
                         color = ApturaColors.TextLowEmphasis
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(Modifier.height(4.dp))
                     Text(
                         text = "Media3 · Jetpack Compose · Room · Coil",
                         style = ApturaTypography.labelSmall,
@@ -720,39 +443,97 @@ fun SettingsScreen(
                 }
             }
         }
-    }
+
+        // Compact title bar: solid behind the title and back button, with a soft lower edge so scrolled content never
+        // shows through the title. The back button itself never moves.
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(statusTop + 88.dp)
+                .graphicsLayer { alpha = collapse() }
+                .background(
+                    Brush.verticalGradient(
+                        0f to ApturaColors.SurfaceBase,
+                        0.70f to ApturaColors.SurfaceBase,
+                        1f to Color.Transparent
+                    )
+                )
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = statusTop)
+                .height(56.dp)
+                .padding(horizontal = 8.dp)
+        ) {
+            CircleIconButton(
+                icon = Icons.AutoMirrored.Filled.ArrowBack,
+                description = "Back",
+                onClick = onBackClick,
+                modifier = Modifier.align(Alignment.CenterStart)
+            )
+            Text(
+                text = "Settings",
+                style = ApturaTypography.headlineMedium,
+                color = ApturaColors.TextHighEmphasis,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .graphicsLayer { alpha = collapse() }
+                    // The large title is the heading; this one only appears visually, so TalkBack skips it.
+                    .clearAndSetSemantics { }
+            )
+        }
     }
 }
 
-@Composable
-private fun SettingsSectionHeader(title: String) {
-    Text(
-        text = title,
-        style = ApturaTypography.titleSmall,
-        color = ApturaColors.AccentPrimary,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
-    )
-}
+// ---- pieces specific to this screen -----------------------------------------------------------------------------
 
 @Composable
-private fun StorageStatPill(label: String, value: String) {
-    Column(
+private fun FolderChip(name: String, onRemove: () -> Unit) {
+    Row(
         modifier = Modifier
-            .background(ApturaColors.SurfaceElevated2, RoundedCornerShape(12.dp))
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(ApturaColors.SurfacePureBlack.copy(alpha = 0.40f))
+            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
+            .padding(start = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
+        Icon(
+            imageVector = Icons.Default.FolderOpen,
+            contentDescription = null,
+            tint = ApturaColors.TextMediumEmphasis,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(Modifier.width(10.dp))
         Text(
-            text = value,
-            style = ApturaTypography.titleMedium,
+            text = name,
+            style = ApturaTypography.bodyMedium,
             color = ApturaColors.TextHighEmphasis,
-            fontWeight = FontWeight.Bold
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Start,
+            modifier = Modifier.weight(1f)
         )
-        Text(
-            text = label,
-            style = ApturaTypography.labelSmall,
-            color = ApturaColors.TextMediumEmphasis
-        )
+        IconButton(onClick = onRemove, modifier = Modifier.size(48.dp)) {
+            Icon(
+                imageVector = Icons.Default.DeleteOutline,
+                contentDescription = "Remove folder",
+                tint = ApturaColors.StatusError,
+                modifier = Modifier.size(20.dp)
+            )
+        }
     }
+}
+
+private fun folderDisplayName(folderUri: String): String = try {
+    android.net.Uri.decode(folderUri).substringAfterLast(':').substringAfterLast('/').ifBlank { folderUri }
+} catch (_: Throwable) {
+    folderUri
+}
+
+private fun decoderExplanation(strategy: Int): String = when (strategy) {
+    1 -> "Hardware · Low battery consumption, relies on GPU decoders"
+    2 -> "Software · CPU decoding fallback for problematic streams"
+    else -> "Auto · Optimal balance between hardware decoders and compatibility"
 }
