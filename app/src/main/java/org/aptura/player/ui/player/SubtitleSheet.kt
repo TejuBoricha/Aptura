@@ -530,7 +530,9 @@ private fun SubtitleTracksTab(
                                     }
                                 }
                                 val subText = buildString {
-                                    if (!track.language.isNullOrBlank()) {
+                                    // "und" is the platform's undefined language marker (exact-name sidecars have
+                                    // no language); surfacing it as "UND" is techspeak, so skip it.
+                                    if (!track.language.isNullOrBlank() && !track.language.equals("und", ignoreCase = true)) {
                                         append(track.language.uppercase())
                                     }
                                     if (track.isExternal) {

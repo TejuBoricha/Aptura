@@ -10,10 +10,13 @@ class AndroidSidecarSubtitleResolver(private val context: Context) : SidecarSubt
 
     override suspend fun resolve(mediaUri: String): List<DomainExternalSubtitle> =
         SidecarSubtitleDetector.detectSidecars(context, Uri.parse(mediaUri)).map { sidecar ->
+            // A sidecar without a language tag must not read "External (Sidecar) (File.srt)" - the plain file
+            // name is the clearest label for it (and the toast reads "Auto-paired: File.srt").
             DomainExternalSubtitle(
                 uri = sidecar.uri.toString(),
                 mimeType = sidecar.mimeType,
-                label = "${sidecar.languageLabel} (${sidecar.displayName})",
+                label = if (sidecar.languageCode != null) "${sidecar.languageLabel} (${sidecar.displayName})"
+                        else sidecar.displayName,
                 language = sidecar.languageCode,
                 isDefault = sidecar.isDefault
             )
