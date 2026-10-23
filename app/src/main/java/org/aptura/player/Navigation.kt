@@ -47,6 +47,7 @@ import org.aptura.player.core.platform.PermissionHelper
 import org.aptura.player.data.database.ApturaDatabase
 import org.aptura.player.data.playback.PlayerManager
 import org.aptura.player.data.repository.MediaRepositoryImpl
+import org.aptura.player.core.media.ThumbnailRepository
 import org.aptura.player.data.scanner.MediaScanScheduler
 import org.aptura.player.data.settings.ApturaSettings
 import org.aptura.player.data.settings.ApturaSettingsRepository
@@ -372,6 +373,7 @@ private fun AppNavHost(
                 var itemToDelete by remember { mutableStateOf<DomainMediaItem?>(null) }
                 var itemToHide by remember { mutableStateOf<DomainMediaItem?>(null) }
                 val deleteFlow = rememberMediaDeleteFlow(onDeleted = { uri ->
+                    ThumbnailRepository.deleteThumbnail(context, uri)
                     libraryViewModel.onVideoDeleted(uri)
                     backStack.removeLastOrNull()
                 })
@@ -511,10 +513,7 @@ private fun AppNavHost(
                     onClearThumbnailCache = {
                         coroutineScope.launch(Dispatchers.IO) {
                             try {
-                                context.cacheDir.deleteRecursively()
-                                context.cacheDir.mkdirs()
-                                coil3.SingletonImageLoader.get(context).diskCache?.clear()
-                                coil3.SingletonImageLoader.get(context).memoryCache?.clear()
+                                ThumbnailRepository.clearCache(context)
                             } catch (_: Throwable) {}
                         }
                     },

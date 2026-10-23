@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import org.aptura.player.core.diagnostics.ApturaDiagnostics
 import org.aptura.player.core.diagnostics.EventCode
+import org.aptura.player.core.media.ThumbnailRepository
 import org.aptura.player.core.platform.PermissionHelper
 import org.aptura.player.data.database.ApturaDatabase
 import org.aptura.player.data.database.MediaItemEntity
@@ -89,6 +90,18 @@ class MediaScanWorker(
             val bookmarkDao = database.bookmarkDao()
             reconciliation.uriRemaps.forEach { (oldUri, newUri) ->
                 bookmarkDao.remapMediaUri(oldUri, newUri)
+            }
+
+            // 4c. Pre-warm persistent thumbnail disk cache for first batch of scanned items
+            val preheatItems = reconciliation.itemsToUpsert.take(24)
+            for (item in preheatItems) {
+                try {
+                    ThumbnailRepository.getOrCreateThumbnail(
+                        context = applicationContext,
+                        uri = item.uri,
+                        dateModifiedSec = item.dateModifiedSec
+                    )
+                } catch (_: Throwable) {}
             }
 
             // 5. Delete obsolete IDs if any were explicitly flagged

@@ -25,7 +25,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -38,7 +42,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
+import coil3.request.crossfade
 import coil3.video.videoFrameMillis
+import org.aptura.player.core.media.ThumbnailRepository
 import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
 
@@ -88,8 +94,29 @@ private fun ContinueWatchingCard(card: VideoCardUiModel, onClick: () -> Unit) {
                     .background(ApturaColors.SurfacePureBlack)
             ) {
                 val context = LocalContext.current
-                val request = remember(card.uri) {
-                    ImageRequest.Builder(context).data(card.uri).videoFrameMillis(2000L).build()
+                var thumbnailFile by remember(card.uri, card.rawItem.dateModifiedSec) {
+                    mutableStateOf(ThumbnailRepository.getCachedThumbnailFile(context, card.uri, card.rawItem.dateModifiedSec))
+                }
+
+                LaunchedEffect(card.uri, card.rawItem.dateModifiedSec) {
+                    if (thumbnailFile == null) {
+                        val file = ThumbnailRepository.getOrCreateThumbnail(context, card.uri, card.rawItem.dateModifiedSec)
+                        if (file != null) {
+                            thumbnailFile = file
+                        }
+                    }
+                }
+
+                val request = remember(thumbnailFile, card.uri) {
+                    ImageRequest.Builder(context)
+                        .data(thumbnailFile ?: card.uri)
+                        .apply {
+                            if (thumbnailFile == null) {
+                                videoFrameMillis(2000L)
+                            }
+                        }
+                        .crossfade(true)
+                        .build()
                 }
                 AsyncImage(
                     model = request,

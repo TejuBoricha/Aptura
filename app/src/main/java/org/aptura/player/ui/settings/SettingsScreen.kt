@@ -75,6 +75,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.aptura.player.core.diagnostics.ApturaDiagnostics
+import org.aptura.player.core.media.ThumbnailRepository
 import org.aptura.player.core.platform.AppVersion
 import org.aptura.player.data.settings.ApturaSettings
 import org.aptura.player.domain.repository.LibraryStatistics
@@ -125,7 +126,7 @@ fun SettingsScreen(
 
     LaunchedEffect(Unit) {
         cacheSizeBytes = withContext(Dispatchers.IO) {
-            context.cacheDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+            ThumbnailRepository.getCacheSizeBytes(context)
         }
     }
 

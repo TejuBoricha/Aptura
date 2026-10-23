@@ -76,6 +76,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -92,7 +93,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
+import coil3.request.crossfade
 import coil3.video.videoFrameMillis
+import org.aptura.player.core.media.ThumbnailRepository
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
@@ -225,6 +228,7 @@ private fun MediaLibraryContentView(
     var itemToDelete by remember { mutableStateOf<DomainMediaItem?>(null) }
     val deleteFlow = rememberMediaDeleteFlow(onDeleted = { uri ->
         selectedDetailItem = null
+        ThumbnailRepository.deleteThumbnail(context, uri)
         onVideoDeleted(uri)
     })
 
@@ -821,10 +825,28 @@ fun VideoGridCard(
                     .background(ApturaColors.SurfacePureBlack)
             ) {
                 val context = LocalContext.current
-                val imageRequest = remember(card.uri) {
+                var thumbnailFile by remember(card.uri, card.rawItem.dateModifiedSec) {
+                    mutableStateOf(ThumbnailRepository.getCachedThumbnailFile(context, card.uri, card.rawItem.dateModifiedSec))
+                }
+
+                LaunchedEffect(card.uri, card.rawItem.dateModifiedSec) {
+                    if (thumbnailFile == null) {
+                        val file = ThumbnailRepository.getOrCreateThumbnail(context, card.uri, card.rawItem.dateModifiedSec)
+                        if (file != null) {
+                            thumbnailFile = file
+                        }
+                    }
+                }
+
+                val imageRequest = remember(thumbnailFile, card.uri) {
                     ImageRequest.Builder(context)
-                        .data(card.uri)
-                        .videoFrameMillis(2000L) // 2-second offset avoids initial black title cards
+                        .data(thumbnailFile ?: card.uri)
+                        .apply {
+                            if (thumbnailFile == null) {
+                                videoFrameMillis(2000L) // 2-second offset avoids initial black title cards
+                            }
+                        }
+                        .crossfade(true)
                         .build()
                 }
 
