@@ -1026,6 +1026,12 @@ class PlayerViewModel(
         }
     }
 
+    fun removeExternalSubtitle(trackLabel: String) {
+        viewModelScope.launch(dispatcher + errorHandler) {
+            playbackController.removeExternalSubtitle(trackLabel)
+        }
+    }
+
     fun setSubtitleFontSize(sizeSp: Int) {
         _uiState.update { it.copy(subtitleFontSizeSp = sizeSp) }
         viewModelScope.launch(dispatcher + errorHandler) {

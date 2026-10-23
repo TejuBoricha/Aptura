@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -138,15 +139,22 @@ private fun ContinueWatchingCard(card: VideoCardUiModel, onClick: () -> Unit) {
                         modifier = Modifier.size(26.dp)
                     )
                 }
-                LinearProgressIndicator(
-                    progress = { card.progressFraction },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(3.dp)
-                        .align(Alignment.BottomCenter),
-                    color = ApturaColors.AccentPrimary,
-                    trackColor = ApturaColors.SurfaceScrim
-                )
+                if (card.progressFraction > 0f) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(3.dp)
+                            .align(Alignment.BottomCenter)
+                            .background(ApturaColors.SurfaceScrim)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .fillMaxWidth(card.progressFraction.coerceIn(0f, 1f))
+                                .background(ApturaColors.AccentPrimary)
+                        )
+                    }
+                }
             }
             Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
                 Text(

@@ -242,7 +242,7 @@ fun PlayerScreen(
     isPipMode: Boolean = false,
     onEnterPip: () -> Unit = {},
     onExternalSubtitleSelected: (android.net.Uri, String, String) -> Unit = { _, _, _ -> },
-    onRemoveExternalSubtitle: () -> Unit = {},
+    onRemoveExternalSubtitle: (String) -> Unit = {},
     onSubtitleFontSizeChanged: (Int) -> Unit = {},
     onSubtitleTextColorChanged: (String) -> Unit = {},
     onSubtitleBackgroundChanged: (Boolean) -> Unit = {},
@@ -1078,7 +1078,7 @@ fun PlayerScreen(
                         enabled = uiState.hasPrevious,
                         modifier = Modifier
                             .size(skipSize)
-                            .background(ApturaColors.SurfaceScrim.copy(alpha = 0.5f), CircleShape)
+                            .background(ApturaColors.SurfaceScrim, CircleShape)
                     ) {
                         Icon(
                             imageVector = Icons.Filled.SkipPrevious,
@@ -1095,7 +1095,7 @@ fun PlayerScreen(
                         },
                         modifier = Modifier
                             .size(seekSize)
-                            .background(ApturaColors.SurfaceScrim.copy(alpha = 0.5f), CircleShape)
+                            .background(ApturaColors.SurfaceScrim, CircleShape)
                     ) {
                         SeekStepIcon(
                             forward = false,
@@ -1132,7 +1132,7 @@ fun PlayerScreen(
                         },
                         modifier = Modifier
                             .size(seekSize)
-                            .background(ApturaColors.SurfaceScrim.copy(alpha = 0.5f), CircleShape)
+                            .background(ApturaColors.SurfaceScrim, CircleShape)
                     ) {
                         SeekStepIcon(
                             forward = true,
@@ -1149,7 +1149,7 @@ fun PlayerScreen(
                         enabled = uiState.hasNext,
                         modifier = Modifier
                             .size(skipSize)
-                            .background(ApturaColors.SurfaceScrim.copy(alpha = 0.5f), CircleShape)
+                            .background(ApturaColors.SurfaceScrim, CircleShape)
                     ) {
                         Icon(
                             imageVector = Icons.Filled.SkipNext,
@@ -1989,7 +1989,7 @@ fun PlayerScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                listOf(0.5f, 0.75f, 1.0f).forEach { speed ->
+                                listOf(0.25f, 0.5f, 0.75f, 1.0f).forEach { speed ->
                                     val isSelected = uiState.playbackSpeed == speed
                                     Surface(
                                         shape = RoundedCornerShape(8.dp),
@@ -2000,7 +2000,7 @@ fun PlayerScreen(
                                             .clickable { onSpeedSelected(speed) }
                                     ) {
                                         Text(
-                                            text = if (speed == 1.0f) "1.0x (Normal)" else "${speed}x",
+                                            text = if (speed == 1.0f) "1.0x" else "${speed}x",
                                             style = ApturaTypography.labelSmall,
                                             color = if (isSelected) ApturaColors.SurfacePureBlack else ApturaColors.TextHighEmphasis,
                                             textAlign = TextAlign.Center,
@@ -2013,7 +2013,7 @@ fun PlayerScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                listOf(1.25f, 1.5f, 2.0f).forEach { speed ->
+                                listOf(1.25f, 1.5f, 1.75f, 2.0f).forEach { speed ->
                                     val isSelected = uiState.playbackSpeed == speed
                                     Surface(
                                         shape = RoundedCornerShape(8.dp),

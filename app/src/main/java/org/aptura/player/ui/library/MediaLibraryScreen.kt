@@ -903,17 +903,22 @@ fun VideoGridCard(
                     }
                 }
 
-                // Playback Progress Bar (Linear indicator along bottom edge)
+                // Playback Progress Bar (Flush 3 dp indicator along bottom edge without stop dot - P2-05)
                 if (card.progressFraction > 0f) {
-                    LinearProgressIndicator(
-                        progress = { card.progressFraction },
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(3.dp)
-                            .align(Alignment.BottomCenter),
-                        color = ApturaColors.AccentPrimary,
-                        trackColor = ApturaColors.SurfaceScrim
-                    )
+                            .align(Alignment.BottomCenter)
+                            .background(ApturaColors.SurfaceScrim)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .fillMaxWidth(card.progressFraction.coerceIn(0f, 1f))
+                                .background(ApturaColors.AccentPrimary)
+                        )
+                    }
                 }
             }
 
@@ -932,6 +937,7 @@ fun VideoGridCard(
                         text = card.title,
                         style = ApturaTypography.titleMedium,
                         maxLines = 2,
+                        minLines = 2, // Fixed 2-line title slot ensures consistent baseline alignment (P2-01)
                         overflow = TextOverflow.Ellipsis,
                         color = ApturaColors.TextHighEmphasis,
                         modifier = Modifier.weight(1f)

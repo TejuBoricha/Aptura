@@ -957,6 +957,14 @@ class Media3PlaybackController(
         replaceCurrentItem(currentItem.buildUpon().setSubtitleConfigurations(emptyList()).build())
     }
 
+    override suspend fun removeExternalSubtitle(trackLabel: String) {
+        externalSubtitleLabels.remove(trackLabel)
+        val currentItem = player.currentMediaItem ?: return
+        val existingConfigs = currentItem.localConfiguration?.subtitleConfigurations ?: emptyList()
+        val remaining = existingConfigs.filterNot { it.label == trackLabel }
+        replaceCurrentItem(currentItem.buildUpon().setSubtitleConfigurations(remaining).build())
+    }
+
     /** Swaps the playing media item in place and restores position + play state (no global seek-mode side effects). */
     private fun replaceCurrentItem(updated: MediaItem) {
         val index = player.currentMediaItemIndex

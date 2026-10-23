@@ -630,7 +630,7 @@ private fun AppNavHost(
                     onExternalSubtitleSelected = { uri, mimeType, label ->
                         playerViewModel.addExternalSubtitle(uri.toString(), mimeType, label)
                     },
-                    onRemoveExternalSubtitle = playerViewModel::removeExternalSubtitles,
+                    onRemoveExternalSubtitle = playerViewModel::removeExternalSubtitle,
                     onSubtitleFontSizeChanged = { sizeSp ->
                         playerViewModel.setSubtitleFontSize(sizeSp)
                         coroutineScope.launch { settingsRepository.updateSubtitleFontSize(sizeSp) }

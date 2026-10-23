@@ -52,6 +52,7 @@ interface PlaybackController {
     suspend fun addExternalSubtitle(uri: String, mimeType: String = "application/x-subrip", label: String = "External Subtitle")
     suspend fun addExternalSubtitles(subtitles: List<org.aptura.player.domain.model.DomainExternalSubtitle>) {}
     suspend fun removeExternalSubtitles() {}
+    suspend fun removeExternalSubtitle(trackLabel: String) {}
     suspend fun setDecoderStrategy(strategy: Int) {}
     suspend fun retryPlayback() {}
     suspend fun playQueueItem(index: Int) {}

@@ -213,6 +213,11 @@ class PlayerViewModelTest {
             lastExternalSubtitles = subtitles
         }
 
+        var removedExternalSubtitleLabel: String? = null
+        override suspend fun removeExternalSubtitle(trackLabel: String) {
+            removedExternalSubtitleLabel = trackLabel
+        }
+
         override suspend fun removeExternalSubtitles() {
             hasRemovedExternalSubtitles = true
             lastExternalSubtitleUri = null
@@ -1230,6 +1235,20 @@ class PlayerViewModelTest {
 
         assertTrue(controller.hasRemovedExternalSubtitles)
         assertNull(controller.lastExternalSubtitleUri)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun removeExternalSubtitle_delegatesToController() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        viewModel.removeExternalSubtitle("English.srt")
+        runCurrent()
+
+        assertEquals("English.srt", controller.removedExternalSubtitleLabel)
 
         viewModel.clearForTesting()
     }

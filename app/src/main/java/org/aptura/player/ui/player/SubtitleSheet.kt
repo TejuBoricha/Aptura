@@ -93,7 +93,7 @@ fun SubtitleSheet(
     onSubtitleTrackSelected: (Int?) -> Unit,
     onSubtitleDelayChanged: (Long) -> Unit,
     onImportSubtitleClick: () -> Unit,
-    onRemoveExternalSubtitle: () -> Unit,
+    onRemoveExternalSubtitle: (String) -> Unit = {},
     onSubtitleFontSizeChanged: (Int) -> Unit,
     onSubtitleTextColorChanged: (String) -> Unit,
     onSubtitleBackgroundChanged: (Boolean) -> Unit,
@@ -276,7 +276,7 @@ private fun SubtitleTracksTab(
     uiState: PlayerUiState,
     onSubtitleTrackSelected: (Int?) -> Unit,
     onImportSubtitleClick: () -> Unit,
-    onRemoveExternalSubtitle: () -> Unit,
+    onRemoveExternalSubtitle: (String) -> Unit,
     onSearchWebClick: () -> Unit,
     onAttachRecentSubtitle: (DetectedSidecarSubtitle) -> Unit,
     onDismissRecentSubtitle: () -> Unit
@@ -546,7 +546,7 @@ private fun SubtitleTracksTab(
                         ) {
                             if (track.isExternal) {
                                 IconButton(
-                                    onClick = onRemoveExternalSubtitle,
+                                    onClick = { onRemoveExternalSubtitle(track.label) },
                                     modifier = Modifier.size(32.dp)
                                 ) {
                                     Icon(
