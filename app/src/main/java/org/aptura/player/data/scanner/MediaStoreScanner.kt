@@ -47,7 +47,8 @@ class MediaStoreScanner(
         val sortOrder = "${MediaStore.Video.Media.DATE_ADDED} DESC"
         val selection = "${MediaStore.Video.Media.DURATION} > 0 " +
             "AND ${MediaStore.Video.Media.SIZE} > 1024 " +
-            "AND ${MediaStore.Video.Media.MIME_TYPE} LIKE 'video/%'"
+            "AND (${MediaStore.Video.Media.MIME_TYPE} LIKE 'video/%' " +
+            "OR ${MediaStore.Video.Media.MIME_TYPE} IN ('application/x-matroska', 'application/ogg', 'application/mp4', 'application/vnd.rn-realmedia'))"
 
         val cursor: Cursor? = contentResolver.query(
             uri,

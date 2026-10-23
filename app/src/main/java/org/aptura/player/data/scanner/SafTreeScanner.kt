@@ -28,7 +28,8 @@ class SafTreeScanner(
 
     companion object {
         private val VIDEO_EXTENSIONS = setOf(
-            "mp4", "mkv", "webm", "mov", "avi", "ts", "flv", "3gp", "m4v", "wmv", "ogv"
+            "mp4", "mkv", "webm", "mov", "avi", "ts", "m2ts", "mts", "flv", "3gp", "3g2",
+            "m4v", "wmv", "ogv", "mpg", "mpeg", "vob", "divx", "f4v", "asf", "m2v", "mp2v", "mpv", "rmvb"
         )
 
         private val DOCUMENT_PROJECTION = arrayOf(

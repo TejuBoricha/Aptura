@@ -1,12 +1,13 @@
 package org.aptura.player.core.ffmpeg
 
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Automated test asserting that FFmpeg build configuration and symbol policies
- * strictly enforce LGPL-2.1 invariants per Brief L1 & RQ-02.
+ * Automated test asserting that FFmpeg build configuration, runtime extension presence,
+ * and symbol policies strictly enforce LGPL-2.1 invariants per Brief L1 & RQ-02.
  */
 class LgplBuildVerificationTest {
 
@@ -33,8 +34,8 @@ class LgplBuildVerificationTest {
         "--disable-doc",
         "--disable-network",
         "--disable-everything",
-        "--enable-decoder=flac,vorbis,opus,mp3,aac",
-        "--enable-parser=flac,vorbis,opus,mpegaudio,aac"
+        "--enable-decoder=flac,vorbis,opus,mp3,aac,ac3,eac3,dca,truehd,mlp,alac,pcm_alaw,pcm_mulaw",
+        "--enable-parser=flac,vorbis,opus,mpegaudio,aac,ac3,dca,mlp"
     )
 
     @Test
@@ -67,5 +68,13 @@ class LgplBuildVerificationTest {
             assertFalse(flag.contains("prores"))
             assertFalse(flag.contains("av1"))
         }
+    }
+
+    @Test
+    fun ffmpegAudioRenderer_isPresentOnRuntimeClasspath() {
+        val rendererClass = Class.forName("androidx.media3.decoder.ffmpeg.FfmpegAudioRenderer")
+        val libraryClass = Class.forName("androidx.media3.decoder.ffmpeg.FfmpegLibrary")
+        assertNotNull(rendererClass)
+        assertNotNull(libraryClass)
     }
 }

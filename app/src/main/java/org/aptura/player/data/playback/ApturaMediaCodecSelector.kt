@@ -2,6 +2,7 @@
 
 package org.aptura.player.data.playback
 
+import androidx.media3.common.MimeTypes
 import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 
@@ -14,21 +15,48 @@ import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
  * - 1 (Hardware): Hardware-accelerated decoders only; no software fallback.
  * - 2 (Software): Prioritizes platform software decoders (e.g. c2.android.hevc.decoder)
  *   to avoid hardware codec crashes or unsupported profile failures (e.g. 10-bit HEVC).
+ *
+ * Also appends HEVC/AVC base-layer fallback decoders when [MimeTypes.VIDEO_DOLBY_VISION] is
+ * requested, so Dolby Vision streams play cleanly on devices without a dedicated DV decoder.
  */
 class ApturaMediaCodecSelector(
+    private val baseSelector: MediaCodecSelector = MediaCodecSelector.DEFAULT,
     private val getStrategy: () -> Int = { 0 }
 ) : MediaCodecSelector {
+
+    constructor(getStrategy: () -> Int) : this(MediaCodecSelector.DEFAULT, getStrategy)
 
     override fun getDecoderInfos(
         mimeType: String,
         requiresSecureDecoder: Boolean,
         requiresTunnelingDecoder: Boolean
     ): List<MediaCodecInfo> {
-        val defaultList = MediaCodecSelector.DEFAULT.getDecoderInfos(
+        val primaryList = baseSelector.getDecoderInfos(
             mimeType,
             requiresSecureDecoder,
             requiresTunnelingDecoder
         )
+
+        val defaultList = if (mimeType == MimeTypes.VIDEO_DOLBY_VISION) {
+            val hevcFallbacks = baseSelector.getDecoderInfos(
+                MimeTypes.VIDEO_H265,
+                requiresSecureDecoder,
+                requiresTunnelingDecoder
+            )
+            val avcFallbacks = if (hevcFallbacks.isEmpty()) {
+                baseSelector.getDecoderInfos(
+                    MimeTypes.VIDEO_H264,
+                    requiresSecureDecoder,
+                    requiresTunnelingDecoder
+                )
+            } else {
+                emptyList()
+            }
+            (primaryList + hevcFallbacks + avcFallbacks).distinctBy { it.name }
+        } else {
+            primaryList
+        }
+
         if (defaultList.isEmpty()) return emptyList()
 
         return when (getStrategy()) {

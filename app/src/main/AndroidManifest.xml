@@ -56,6 +56,9 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:mimeType="video/*" />
+                <data android:mimeType="application/x-matroska" />
+                <data android:mimeType="application/ogg" />
+                <data android:mimeType="application/mp4" />
                 <data android:scheme="content" />
                 <data android:scheme="file" />
             </intent-filter>

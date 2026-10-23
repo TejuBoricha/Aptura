@@ -14,6 +14,9 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.extractor.DefaultExtractorsFactory
+import androidx.media3.extractor.ts.TsExtractor
 import org.aptura.player.data.repository.AndroidSidecarSubtitleResolver
 import java.io.ByteArrayOutputStream
 
@@ -67,10 +70,17 @@ object PlayerManager {
                 .setAudioProcessors(arrayOf(audioDelayProcessor))
                 .build()
         }
+            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
             .setEnableDecoderFallback(true)
             .setMediaCodecSelector(codecSelector)
 
+        val extractorsFactory = DefaultExtractorsFactory()
+            .setConstantBitrateSeekingEnabled(true)
+            .setConstantBitrateSeekingAlwaysEnabled(true)
+            .setTsExtractorTimestampSearchBytes(1500 * TsExtractor.TS_PACKET_SIZE)
+
         val player = ExoPlayer.Builder(appContext, renderersFactory)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(appContext, extractorsFactory))
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)

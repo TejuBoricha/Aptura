@@ -343,12 +343,13 @@ dependencies {
   androidTestImplementation(libs.androidx.compose.ui.test.junit4)
   debugImplementation(libs.androidx.compose.ui.test.manifest)
 
-  // Media3 Playback Engine (Media3 core + ExoPlayer + UI)
+  // Media3 Playback Engine (Media3 core + ExoPlayer + UI + LGPL FFmpeg Audio Decoder)
   implementation(libs.androidx.media3.exoplayer)
   implementation(libs.androidx.media3.session)
   implementation(libs.androidx.media3.ui)
   implementation(libs.androidx.media3.common)
   implementation(libs.androidx.media3.extractor)
+  implementation(libs.jellyfin.media3.ffmpeg.decoder)
 
   // Local Media Indexing & Metadata (Room)
   implementation(libs.androidx.room.runtime)
