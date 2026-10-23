@@ -346,7 +346,9 @@ private fun MediaLibraryContentView(
                             Text(
                                 text = "Search videos",
                                 style = ApturaTypography.bodyMedium,
-                                color = ApturaColors.TextLowEmphasis
+                                color = ApturaColors.TextLowEmphasis,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         },
                         leadingIcon = {
@@ -467,8 +469,8 @@ private fun MediaLibraryContentView(
                     }
                 }
 
-        // Folder Chips Row
-        if (state.folders.isNotEmpty()) {
+        // Folder Chips Row (FR-LIB-009, FR-LIB-018)
+        if (state.videos.isNotEmpty()) {
             LazyRow(
                 modifier = Modifier
                     .fillMaxWidth()

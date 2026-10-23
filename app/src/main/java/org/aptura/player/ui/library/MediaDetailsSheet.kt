@@ -508,7 +508,8 @@ fun MediaDetailsContent(
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = ApturaColors.TextHighEmphasis),
-                border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3)
+                border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3),
+                contentPadding = PaddingValues(vertical = 10.dp)
             ) {
                 Icon(imageVector = Icons.Default.FastForward, contentDescription = null, modifier = Modifier.size(16.dp), tint = ApturaColors.AccentPrimary)
                 Spacer(modifier = Modifier.width(6.dp))
@@ -520,7 +521,8 @@ fun MediaDetailsContent(
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = ApturaColors.TextHighEmphasis),
-                border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3)
+                border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3),
+                contentPadding = PaddingValues(vertical = 10.dp)
             ) {
                 Icon(imageVector = Icons.AutoMirrored.Filled.QueueMusic, contentDescription = null, modifier = Modifier.size(16.dp), tint = ApturaColors.AccentSecondary)
                 Spacer(modifier = Modifier.width(6.dp))
@@ -530,10 +532,10 @@ fun MediaDetailsContent(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Action Buttons: Secondary Management Row 1 (Rename, Open With)
+        // Utility Row: Rename, Share, Open With
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             OutlinedButton(
                 onClick = onRenameClick,
@@ -543,9 +545,22 @@ fun MediaDetailsContent(
                 border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3),
                 contentPadding = PaddingValues(vertical = 10.dp)
             ) {
-                Icon(imageVector = Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp), tint = ApturaColors.AccentPrimary)
-                Spacer(modifier = Modifier.width(6.dp))
+                Icon(imageVector = Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp), tint = ApturaColors.TextMediumEmphasis)
+                Spacer(modifier = Modifier.width(4.dp))
                 Text(text = "Rename", style = ApturaTypography.labelMedium)
+            }
+
+            OutlinedButton(
+                onClick = onShareClick,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = ApturaColors.TextHighEmphasis),
+                border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3),
+                contentPadding = PaddingValues(vertical = 10.dp)
+            ) {
+                Icon(imageVector = Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp), tint = ApturaColors.TextMediumEmphasis)
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(text = "Share", style = ApturaTypography.labelMedium)
             }
 
             OutlinedButton(
@@ -557,31 +572,21 @@ fun MediaDetailsContent(
                 contentPadding = PaddingValues(vertical = 10.dp)
             ) {
                 Icon(imageVector = Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp), tint = ApturaColors.TextMediumEmphasis)
-                Spacer(modifier = Modifier.width(6.dp))
+                Spacer(modifier = Modifier.width(4.dp))
                 Text(text = "Open With", style = ApturaTypography.labelMedium)
             }
         }
 
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Quarantined Destructive Actions (Hide, Delete) - P2-03
+        HorizontalDivider(color = ApturaColors.BorderSubtle)
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Action Buttons: Secondary Management Row 2 (Share, Hide, Delete)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            OutlinedButton(
-                onClick = onShareClick,
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = ApturaColors.TextHighEmphasis),
-                border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3),
-                contentPadding = PaddingValues(vertical = 10.dp)
-            ) {
-                Icon(imageVector = Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp), tint = ApturaColors.TextHighEmphasis)
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(text = "Share", style = ApturaTypography.labelMedium)
-            }
-
             OutlinedButton(
                 onClick = onHideClick,
                 modifier = Modifier.weight(1f),
@@ -592,7 +597,7 @@ fun MediaDetailsContent(
             ) {
                 Icon(imageVector = Icons.Default.VisibilityOff, contentDescription = null, modifier = Modifier.size(16.dp), tint = ApturaColors.TextMediumEmphasis)
                 Spacer(modifier = Modifier.width(6.dp))
-                Text(text = "Hide", style = ApturaTypography.labelMedium)
+                Text(text = "Hide from Library", style = ApturaTypography.labelMedium)
             }
 
             OutlinedButton(
