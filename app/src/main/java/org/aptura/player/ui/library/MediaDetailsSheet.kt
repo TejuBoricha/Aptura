@@ -58,6 +58,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -65,7 +66,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.aptura.player.core.media.MediaExtendedMetadata
 import org.aptura.player.core.media.MediaMetadataInspector
+import org.aptura.player.core.media.MediaPathResolver
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
@@ -155,14 +160,25 @@ fun MediaDetailsContent(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val storagePath = MediaFormatters.resolveStoragePath(item.folderPath, item.title)
-
-    val extended = remember(item.uri) {
-        try {
-            MediaMetadataInspector.inspect(context, Uri.parse(item.uri))
-        } catch (_: Throwable) {
-            null
+    // Both lookups touch the file system / MediaStore, so they run off the main thread. `null` = still loading.
+    val resolvedPath by produceState<DetailLookup<String>?>(null, item.uri) {
+        value = DetailLookup(withContext(Dispatchers.IO) { MediaPathResolver.resolve(context, item.uri) })
+    }
+    val inspection by produceState<MediaExtendedMetadata?>(null, item.uri) {
+        value = withContext(Dispatchers.IO) {
+            try {
+                MediaMetadataInspector.inspect(context, Uri.parse(item.uri))
+            } catch (_: Throwable) {
+                MediaExtendedMetadata(inspected = false)
+            }
         }
+    }
+    val extended: MediaExtendedMetadata? = inspection
+    val storagePath: String? = resolvedPath?.value
+    val storagePathLabel = when {
+        resolvedPath == null -> "Locating file…"
+        storagePath == null -> "Unknown"
+        else -> storagePath
     }
 
     Column(
@@ -273,15 +289,16 @@ fun MediaDetailsContent(
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = storagePath,
+                            text = storagePathLabel,
                             style = ApturaTypography.bodyMedium,
                             color = ApturaColors.TextHighEmphasis
                         )
                     }
                     IconButton(
+                        enabled = storagePath != null,
                         onClick = {
                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            val clip = ClipData.newPlainText("Video Path", storagePath)
+                            val clip = ClipData.newPlainText("Video Path", storagePath.orEmpty())
                             clipboard.setPrimaryClip(clip)
                             Toast.makeText(context, "Storage path copied to clipboard", Toast.LENGTH_SHORT).show()
                         },
@@ -302,8 +319,7 @@ fun MediaDetailsContent(
 
         // Section 1: Video Specifications
         SectionHeader("VIDEO SPECIFICATIONS")
-        val videoCodec = extended?.videoCodec ?: MediaFormatters.formatContainer(item.mimeType, item.title)
-        MetadataRow("Video Codec", videoCodec)
+        MetadataRow("Video Codec", extended?.videoCodec ?: unknownOrLoading(extended))
 
         if (item.width > 0 && item.height > 0) {
             MetadataRow("Resolution", MediaFormatters.formatResolution(item.width, item.height))
@@ -313,9 +329,12 @@ fun MediaDetailsContent(
             MetadataRow("Frame Rate", "%.2f fps".format(item.frameRate))
         }
 
-        val bitrateVal = extended?.videoBitrate ?: extended?.bitRateTotal
-        if (bitrateVal != null && bitrateVal > 0L) {
-            MetadataRow("Video Bitrate", MediaMetadataInspector.formatBitrate(bitrateVal))
+        // Label what the number really is: the container's overall bitrate is not the video stream's bitrate.
+        val streamBitrate = extended?.videoBitrate?.takeIf { it > 0L }
+        val overallBitrate = extended?.bitRateTotal?.takeIf { it > 0L }
+        when {
+            streamBitrate != null -> MetadataRow("Video Bitrate", MediaMetadataInspector.formatBitrate(streamBitrate))
+            overallBitrate != null -> MetadataRow("Overall Bitrate", MediaMetadataInspector.formatBitrate(overallBitrate))
         }
 
         if (extended != null && extended.colorTransfer != null) {
@@ -344,7 +363,7 @@ fun MediaDetailsContent(
                 )
             }
         } else {
-            MetadataRow("Audio Stream", "Stereo (System Decoded)")
+            MetadataRow("Audio Stream", if (extended?.inspected == true) "None found" else unknownOrLoading(extended))
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -357,7 +376,7 @@ fun MediaDetailsContent(
                 MetadataRow("Subtitle Track ${idx + 1}$langStr", sub.format)
             }
         } else {
-            MetadataRow("Subtitles", "No embedded subtitles")
+            MetadataRow("Subtitles", if (extended?.inspected == true) "None embedded" else unknownOrLoading(extended))
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -886,3 +905,11 @@ fun RemoveFromLibraryDialog(
         onDismiss = onDismiss
     )
 }
+
+/** Result of a lookup that may legitimately find nothing; the holder lets "not finished yet" be told apart from "none". */
+private data class DetailLookup<T>(val value: T?)
+
+/** What to show for a value we could not read: "Reading…" while inspection runs, "Unknown" once it has failed. */
+private fun unknownOrLoading(inspection: MediaExtendedMetadata?): String =
+    if (inspection == null) "Reading…" else "Unknown"
+

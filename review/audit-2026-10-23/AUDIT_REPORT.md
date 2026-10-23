@@ -353,3 +353,36 @@ Scope: the ten Appendix B quick wins, then — on the instruction "fix and make 
 - Not re-checked on the device by eye: audio-delay audibility, contrast/saturation/night-mode appearance, seek-step & countdown settings, Audio Only, sleep timer, brightness restore, VIEW-intent + night-mode back stack, hardware-only decoder choice, frame-step on real footage. They have unit/real-player tests but no device evidence.
 - Untouched P1/P2 items: decoder per-video vs global precedence, scrubber semantics/48 dp targets, localisation, thumbnail cache, diagnostics persistence, natural sort/folder identity, manifest-invariant test, instrumented E2E suite.
 - Nothing is committed. `tools/gate.ps1`: compile ✔, unit tests ✔ (279 run, 0 failed, 0 skipped — up from 206), lint ✔ with **0 errors** (2 errors the changes introduced — a missing API-29 guard and the WorkManager initializer — were fixed); the existing ~70 lint warnings are unchanged in kind.
+
+---
+
+## Appendix D — Second remediation round (device pass + trust fixes)
+
+Same evidence key as Appendix C. Everything below is uncommitted until the commit that follows this round.
+
+### Device pass (emulator, API 35) over the items Appendix C listed as "not verified"
+| Item | Result |
+|---|---|
+| Seek-step setting | ✔ buttons become "Rewind/Forward 30s" and seek 30 s. The double-tap *gesture* itself could not be driven reliably through `adb` (two `input tap` processes are slower than the double-tap window), so it is covered by the Compose test only |
+| Up Next countdown setting | ✔ set to 5 s, the countdown starts at 5 |
+| Audio Only | ✔ panel shown, session keeps playing. **Found a real bug:** *Show video* could never be pressed — the full-screen gesture layer sat above the panel and swallowed every touch. Fixed (panel moved above the gesture layer); ↺ red/green with a real touch-injection Compose test; ✔ on device afterwards |
+| Sleep timer | ✔ "Cancel (14:58 left)" and it keeps counting after a speed change (was reset to "Off") |
+| Brightness restore | ✔ override `NaN` → `0.68` while swiping → `NaN` again after leaving the player |
+| VIEW intent + night-mode ×2 | ✔ one Back reaches the library, the second leaves the app (was 3 + 1) |
+| Contrast / saturation / night-mode *appearance* | ✘ still not checked by eye on a device |
+| Audio-delay audibility, hardware-only decoder, frame-step on real footage | ✘ not checked on a device |
+
+One unexplained episode: right after the emulator was cold-booted, the very first playback (started as Audio Only) showed a black picture after *Show video*, and stayed black for later videos in that process. Three later attempts, including the identical sequence on a fresh process, rendered correctly. I could not reproduce it and cannot say whether it is an app bug or a cold-emulator codec problem; flagging it rather than hiding it.
+
+### Fixed this round
+| Finding | Change | Unit | Device |
+|---|---|---|---|
+| P1-09 fabricated values | Details reads the real path from MediaStore (`RELATIVE_PATH` + file name; volume-relative for SD cards; "Unknown" instead of a guess; Copy disabled when unknown). Audio/subtitle fallbacks say "None found/embedded" only after the container was really read, otherwise "Unknown/Reading…". Overall bitrate is labelled as such. Stats no longer default to "Stereo / 48 kHz / video/mp4". Settings footer shows the installed package's version, and the "LGPL FFmpeg" credit (not in the build) is gone. Metadata inspection moved off the main thread | ✔ real-provider tests, real `PackageInfo` | ✔ `/storage/emulated/0/Movies/Verify/Verify_C.mp4`, "Overall Bitrate", "None embedded", "v1.0.0 (build 1)" |
+| P2-22 storage receiver | Manifest `exported="false"`; runtime registration `RECEIVER_NOT_EXPORTED`; any action outside the five storage broadcasts is ignored before it is logged. (Correction to the original finding: those actions are protected broadcasts, so the practical exposure was log/diagnostic noise from explicit intents, not spoofed ejects.) | ✔ ↺ (merged-manifest check, spoof test) | ✔ registered in `dumpsys package` |
+| P1-21 privacy messaging | Search dialog states that Aptura stays offline but the browser sends the text to the chosen site, and that file names can hold personal details; "(Recommended)" removed from the third-party default | ✔ | – |
+| Mid-queue failure | A file that cannot be opened (not found / no permission / IO) is skipped with a "Skipped “X”: file unavailable" notice; bounded to queue-size − 1 so an all-broken queue (even in Repeat All) cannot loop; a single broken video still shows its error | ✔ ↺ real ExoPlayer erroring on real missing files | ✘ not triggered on the device (ExoPlayer had already opened the next file before I removed it, and a rescan then dropped it from the queue — which also demonstrates the earlier "missing files are not queued" fix) |
+| P1-19 (part) | `exportSchema = true` with `schemas/…/5.json` committed; migration list exposed and a chain test fails if a schema bump has no migration; destructive fallback now only for the ancient v1 and for downgrades (a forgotten migration fails loudly instead of wiping history); `.github/workflows/ci.yml` runs compile, tests, lint and an R8 release build | ✔ ↺ | – (CI has not run: the repo has no remote) |
+| (new) stale label | Frame stepper no longer says "~42 ms" | – | – |
+
+### Still open
+P1-06 decoder precedence · P1-10 top bar on 360 dp · P1-11 scrubber a11y · P1-12 localisation · P1-13 thumbnail cache · P1-14 library model · P1-15 remainder (`onCleared` persistence) · P1-16 audio-effects release/persistence · P1-17 performance · P1-18 diagnostics persistence/crash handler · P1-20 merged-manifest/dependency invariants · P1-22 audio codec coverage · P1-23 architecture · most P2 items · the unexplained black-picture episode above.

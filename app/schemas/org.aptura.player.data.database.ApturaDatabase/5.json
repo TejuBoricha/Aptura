@@ -1,0 +1,274 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 5,
+    "identityHash": "135ad97acd8ff749f8e1d629ff167d95",
+    "entities": [
+      {
+        "tableName": "media_items",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `mediaStoreId` INTEGER NOT NULL, `uri` TEXT NOT NULL, `title` TEXT NOT NULL, `displayName` TEXT NOT NULL, `durationMs` INTEGER NOT NULL, `sizeBytes` INTEGER NOT NULL, `mimeType` TEXT, `width` INTEGER NOT NULL, `height` INTEGER NOT NULL, `frameRate` REAL NOT NULL, `dateAddedSec` INTEGER NOT NULL, `dateModifiedSec` INTEGER NOT NULL, `folderPath` TEXT NOT NULL, `playbackPositionMs` INTEGER NOT NULL, `isCompleted` INTEGER NOT NULL, `lastPlayedTimestamp` INTEGER NOT NULL, `isMissing` INTEGER NOT NULL, `resizeMode` TEXT NOT NULL, `playbackSpeed` REAL NOT NULL, `decoderStrategy` INTEGER NOT NULL, `audioDelayMs` INTEGER NOT NULL, `subtitleDelayMs` INTEGER NOT NULL, `customTitle` TEXT, `isHidden` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mediaStoreId",
+            "columnName": "mediaStoreId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "uri",
+            "columnName": "uri",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "displayName",
+            "columnName": "displayName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "durationMs",
+            "columnName": "durationMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sizeBytes",
+            "columnName": "sizeBytes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mimeType",
+            "columnName": "mimeType",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "width",
+            "columnName": "width",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "height",
+            "columnName": "height",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "frameRate",
+            "columnName": "frameRate",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dateAddedSec",
+            "columnName": "dateAddedSec",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dateModifiedSec",
+            "columnName": "dateModifiedSec",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "folderPath",
+            "columnName": "folderPath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "playbackPositionMs",
+            "columnName": "playbackPositionMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isCompleted",
+            "columnName": "isCompleted",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastPlayedTimestamp",
+            "columnName": "lastPlayedTimestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isMissing",
+            "columnName": "isMissing",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "resizeMode",
+            "columnName": "resizeMode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "playbackSpeed",
+            "columnName": "playbackSpeed",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "decoderStrategy",
+            "columnName": "decoderStrategy",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "audioDelayMs",
+            "columnName": "audioDelayMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "subtitleDelayMs",
+            "columnName": "subtitleDelayMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "customTitle",
+            "columnName": "customTitle",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "isHidden",
+            "columnName": "isHidden",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_media_items_mediaStoreId",
+            "unique": true,
+            "columnNames": [
+              "mediaStoreId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_media_items_mediaStoreId` ON `${TABLE_NAME}` (`mediaStoreId`)"
+          },
+          {
+            "name": "index_media_items_folderPath",
+            "unique": false,
+            "columnNames": [
+              "folderPath"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_media_items_folderPath` ON `${TABLE_NAME}` (`folderPath`)"
+          },
+          {
+            "name": "index_media_items_dateAddedSec",
+            "unique": false,
+            "columnNames": [
+              "dateAddedSec"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_media_items_dateAddedSec` ON `${TABLE_NAME}` (`dateAddedSec`)"
+          },
+          {
+            "name": "index_media_items_title",
+            "unique": false,
+            "columnNames": [
+              "title"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_media_items_title` ON `${TABLE_NAME}` (`title`)"
+          }
+        ]
+      },
+      {
+        "tableName": "bookmarks",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `mediaUri` TEXT NOT NULL, `timestampMs` INTEGER NOT NULL, `note` TEXT NOT NULL, `createdAtSec` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mediaUri",
+            "columnName": "mediaUri",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timestampMs",
+            "columnName": "timestampMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "note",
+            "columnName": "note",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtSec",
+            "columnName": "createdAtSec",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_bookmarks_mediaUri",
+            "unique": false,
+            "columnNames": [
+              "mediaUri"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_bookmarks_mediaUri` ON `${TABLE_NAME}` (`mediaUri`)"
+          },
+          {
+            "name": "index_bookmarks_mediaUri_timestampMs",
+            "unique": false,
+            "columnNames": [
+              "mediaUri",
+              "timestampMs"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_bookmarks_mediaUri_timestampMs` ON `${TABLE_NAME}` (`mediaUri`, `timestampMs`)"
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '135ad97acd8ff749f8e1d629ff167d95')"
+    ]
+  }
+}

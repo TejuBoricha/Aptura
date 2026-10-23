@@ -5,6 +5,7 @@ import android.database.ContentObserver
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
+import androidx.core.content.ContextCompat
 import androidx.work.Configuration
 import org.aptura.player.data.scanner.MediaScanScheduler
 import coil.ImageLoader
@@ -26,7 +27,13 @@ open class ApturaApplication : Application(), ImageLoaderFactory, Configuration.
         super.onCreate()
         try {
             val filter = org.aptura.player.core.platform.StorageVolumeReceiver.createIntentFilter()
-            registerReceiver(org.aptura.player.core.platform.StorageVolumeReceiver(), filter)
+            // Not exported: only the system (which sends these broadcasts) and this app may reach the receiver.
+            ContextCompat.registerReceiver(
+                this,
+                org.aptura.player.core.platform.StorageVolumeReceiver(),
+                filter,
+                ContextCompat.RECEIVER_NOT_EXPORTED
+            )
         } catch (_: Throwable) {}
 
         // Index new videos without the user having to press Refresh (audit P0-09).

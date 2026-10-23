@@ -54,6 +54,9 @@ class Media3PlaybackControllerQueueTest {
 
     private val items = (1..4).map(::item)
 
+    /** Files that do not exist: the real ExoPlayer fails to open them with a real IO_FILE_NOT_FOUND error. */
+    private val missingFiles = (1..3).map { item(it).copy(uri = "file:///definitely/missing/video$it.mp4") }
+
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
@@ -109,6 +112,71 @@ class Media3PlaybackControllerQueueTest {
 
         assertEquals("resume was lost: seek was clamped to the unknown duration", 25_000L, player.currentPosition)
         assertEquals(1, player.currentMediaItemIndex)
+    }
+
+    /**
+     * ExoPlayer schedules its work with delayed messages on its own thread. Robolectric's clock only moves when told
+     * to, so move it a little on every turn, drain the main looper, and give the real threads a moment to run.
+     */
+    private fun waitUntil(timeoutMs: Long = 5_000, condition: () -> Boolean): Boolean {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        val mainLooper = shadowOf(Looper.getMainLooper())
+        while (System.currentTimeMillis() < deadline) {
+            mainLooper.idleFor(java.time.Duration.ofMillis(50))
+            if (condition()) return true
+            Thread.sleep(10)
+        }
+        mainLooper.idle()
+        return condition()
+    }
+
+    @Test
+    fun anItemThatCannotBeOpened_isSkipped_andTheRestOfTheQueueIsNotStranded() = runTest(testDispatcher) {
+        val controller = controller()
+        val skipped = mutableListOf<String>()
+        val collector = launch(testDispatcher) { controller.skippedItems.collect { skipped += it } }
+        runCurrent()
+
+        controller.playQueue(missingFiles, startIndex = 0)
+        waitUntil { runCurrent(); skipped.size >= 2 } // the collector only runs when the test scheduler is advanced
+        runCurrent()
+
+        assertEquals("Track 1 and Track 2 are skipped; Track 3 has nowhere further to go", listOf("Track 1", "Track 2"), skipped)
+        assertEquals(2, player.currentMediaItemIndex)
+        collector.cancel()
+    }
+
+    @Test
+    fun aBrokenQueueInRepeatAll_doesNotSkipForever() = runTest(testDispatcher) {
+        val controller = controller()
+        val skipped = mutableListOf<String>()
+        val collector = launch(testDispatcher) { controller.skippedItems.collect { skipped += it } }
+        runCurrent()
+
+        controller.setPlayMode(PlayMode.REPEAT_ALL)
+        controller.playQueue(missingFiles, startIndex = 0)
+        waitUntil { runCurrent(); skipped.size >= 2 } // the collector only runs when the test scheduler is advanced
+        Thread.sleep(400) // give a runaway loop the chance to show itself
+        settle()
+        runCurrent()
+
+        assertEquals("at most queue-size minus one skips, then the error is shown", 2, skipped.size)
+        collector.cancel()
+    }
+
+    @Test
+    fun aSingleBrokenVideo_isNotSkipped_theUserSeesTheError() = runTest(testDispatcher) {
+        val controller = controller()
+        val skipped = mutableListOf<String>()
+        val collector = launch(testDispatcher) { controller.skippedItems.collect { skipped += it } }
+        runCurrent()
+
+        controller.playQueue(missingFiles.take(1), startIndex = 0)
+        waitUntil { controller.playbackState.value is org.aptura.player.domain.model.DomainPlaybackState.Error }
+
+        assertEquals(emptyList<String>(), skipped)
+        assertTrue(controller.playbackState.value is org.aptura.player.domain.model.DomainPlaybackState.Error)
+        collector.cancel()
     }
 
     @Test

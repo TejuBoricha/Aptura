@@ -137,14 +137,5 @@ object MediaFormatters {
         }
     }
 
-    fun resolveStoragePath(folderPath: String, title: String): String {
-        val cleanFolder = folderPath.trim()
-        return when {
-            cleanFolder.startsWith("/") -> if (cleanFolder.endsWith(title)) cleanFolder else "${cleanFolder.trimEnd('/')}/$title"
-            cleanFolder.isNotBlank() && cleanFolder != "Internal Storage" -> "/storage/emulated/0/$cleanFolder/$title"
-            else -> "/storage/emulated/0/Movies/$title"
-        }
-    }
-
     fun cleanTitle(rawTitle: String): String = org.aptura.player.domain.model.cleanDisplayTitle(rawTitle)
 }

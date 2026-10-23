@@ -115,6 +115,12 @@ class Media3PlaybackController(
     private val _playbackState = MutableStateFlow<DomainPlaybackState>(DomainPlaybackState.Idle)
     override val playbackState: StateFlow<DomainPlaybackState> = _playbackState.asStateFlow()
 
+    private val _skippedItems = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    override val skippedItems: SharedFlow<String> = _skippedItems.asSharedFlow()
+
+    /** Items skipped in a row because they could not be opened; bounds the skipping so an all-broken queue cannot loop. */
+    private var consecutiveSkips = 0
+
     private val _autoPairedSubtitles = MutableSharedFlow<String>(extraBufferCapacity = 4)
     override val autoPairedSubtitles: SharedFlow<String> = _autoPairedSubtitles.asSharedFlow()
 
@@ -168,7 +174,10 @@ class Media3PlaybackController(
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
-            if (isPlaying) pausedAtItemEnd = false
+            if (isPlaying) {
+                pausedAtItemEnd = false
+                consecutiveSkips = 0
+            }
             checkPositionTicker(isPlaying)
             updatePlaybackState()
             updatePlaybackStats()
@@ -204,6 +213,9 @@ class Media3PlaybackController(
 
         override fun onPlayerError(error: PlaybackException) {
             checkPositionTicker(false)
+
+            // A file that has vanished or cannot be opened must not strand the whole queue on an error screen.
+            if (error.errorCode in UNOPENABLE_FILE_ERRORS && skipUnopenableItem()) return
 
             val isDecoderFailure = error.errorCode == PlaybackException.ERROR_CODE_DECODING_FAILED ||
                 error.errorCode == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
@@ -419,10 +431,10 @@ class Media3PlaybackController(
             2 -> "Stereo (2 ch)"
             6 -> "5.1 Surround (6 ch)"
             8 -> "7.1 Surround (8 ch)"
-            null -> "Stereo (2 ch)"
+            null -> "Unknown"
             else -> "${audioFormat.channelCount} ch"
         }
-        val audioSampleRateHz = audioFormat?.sampleRate ?: 48000
+        val audioSampleRateHz = audioFormat?.sampleRate?.takeIf { it > 0 } ?: 0
         val audioBitrateKbps = if (audioFormat != null && audioFormat.bitrate > 0) audioFormat.bitrate / 1000 else 0
 
         val hdrFormat = when (videoFormat?.colorInfo?.colorTransfer) {
@@ -445,7 +457,7 @@ class Media3PlaybackController(
             decoderPath = decoderPath,
             isHardwareAccelerated = isVideoHardware && currentDecoderStrategy != 2,
             videoDecoderName = currentVideoDecoderName,
-            videoMimeType = videoFormat?.sampleMimeType ?: "video/mp4",
+            videoMimeType = videoFormat?.sampleMimeType.orEmpty(),
             videoCodec = videoFormat?.codecs ?: videoFormat?.sampleMimeType?.substringAfter('/') ?: "",
             videoResolution = if (width > 0 && height > 0) "${width}x${height}" else "",
             frameRate = frameRate,
@@ -453,7 +465,7 @@ class Media3PlaybackController(
             droppedFrames = totalDroppedFrames,
             dropPercentage = dropPct,
             audioDecoderName = currentAudioDecoderName,
-            audioMimeType = audioFormat?.sampleMimeType ?: "audio/mp4a-latm",
+            audioMimeType = audioFormat?.sampleMimeType.orEmpty(),
             audioCodec = audioFormat?.codecs ?: audioFormat?.sampleMimeType?.substringAfter('/') ?: "",
             audioChannels = audioChannels,
             audioSampleRateHz = audioSampleRateHz,
@@ -504,6 +516,19 @@ class Media3PlaybackController(
                     .build()
             })
             .build()
+    }
+
+    /** Moves on to the next queue item after the current one could not be opened. @return false when there is nowhere to go. */
+    private fun skipUnopenableItem(): Boolean {
+        if (queueItems.size < 2 || !player.hasNextMediaItem()) return false
+        if (consecutiveSkips >= queueItems.size - 1) return false
+        consecutiveSkips++
+        queueItems.getOrNull(player.currentMediaItemIndex)?.let { _skippedItems.tryEmit(cleanDisplayTitle(it.title)) }
+        pausedAtItemEnd = false
+        player.seekToNextMediaItem()
+        player.prepare() // recovers the player from its error state; the playlist and settings are kept
+        player.play()
+        return true
     }
 
     private suspend fun resolveSidecars(item: DomainMediaItem): List<DomainExternalSubtitle> {
@@ -631,6 +656,7 @@ class Media3PlaybackController(
         }
 
         pausedAtItemEnd = false
+        consecutiveSkips = 0
         queueItems.clear()
         queueItems.addAll(items)
         sidecarsByUri.clear()
@@ -1091,5 +1117,10 @@ class Media3PlaybackController(
 
     private companion object {
         const val DEFAULT_FRAME_RATE = 30f
+        val UNOPENABLE_FILE_ERRORS = setOf(
+            PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND,
+            PlaybackException.ERROR_CODE_IO_NO_PERMISSION,
+            PlaybackException.ERROR_CODE_IO_UNSPECIFIED
+        )
     }
 }

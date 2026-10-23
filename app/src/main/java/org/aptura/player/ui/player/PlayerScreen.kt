@@ -431,15 +431,6 @@ fun PlayerScreen(
             )
         }
 
-        // 1b. Audio-only panel (the video view above is not composed in this mode)
-        if (uiState.isAudioOnly && !isPipMode) {
-            AudioOnlyPanel(
-                title = uiState.videoTitle,
-                onShowVideo = { onAudioOnlyChanged(false) },
-                modifier = Modifier.align(Alignment.Center)
-            )
-        }
-
         // 2. Gesture Detector Layer
         var swipeDragAccumulator by remember { mutableFloatStateOf(0f) }
         val swipeSensitivityMsPerPixel = remember(uiState.durationMs) {
@@ -797,6 +788,16 @@ fun PlayerScreen(
                     }
                 }
             }
+        }
+
+        // 2b. Audio-only panel (the video view is not composed in this mode). It must sit ABOVE the gesture layer:
+        // the full-screen gesture detector otherwise swallows the touch and "Show video" can never be pressed.
+        if (uiState.isAudioOnly && !isPipMode) {
+            AudioOnlyPanel(
+                title = uiState.videoTitle,
+                onShowVideo = { onAudioOnlyChanged(false) },
+                modifier = Modifier.align(Alignment.Center)
+            )
         }
 
         // 3. Transient Feedback Overlays (Volume, Brightness, Double-Tap Seek, Horizontal Swipe Seek, Lock Hint)
@@ -2204,7 +2205,7 @@ fun PlayerScreen(
                         // 4. Frame-by-Frame Stepper (Unwrapped buttons with full tactile width)
                         Column(modifier = Modifier.fillMaxWidth()) {
                             Text(
-                                text = "FRAME-BY-FRAME STEPPER (~42ms)",
+                                text = "FRAME-BY-FRAME STEPPER",
                                 style = ApturaTypography.labelSmall,
                                 color = ApturaColors.AccentPrimary,
                                 modifier = Modifier.padding(bottom = 8.dp)

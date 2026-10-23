@@ -238,7 +238,7 @@ fun StatsOverlay(
                     }
                     StatsRow(
                         label = "Audio Channels",
-                        value = "${stats.audioChannels} · ${stats.audioSampleRateHz} Hz",
+                        value = if (stats.audioSampleRateHz > 0) "${stats.audioChannels} · ${stats.audioSampleRateHz} Hz" else stats.audioChannels,
                         isTabular = true
                     )
                     if (stats.audioBitrateKbps > 0) {
@@ -310,7 +310,7 @@ private fun buildDiagnosticsString(stats: PlaybackStatsInfo): String {
         appendLine("Audio Decoder: ${stats.audioDecoderName}")
         appendLine("Audio Codec: ${stats.audioCodec}")
         appendLine("Audio Channels: ${stats.audioChannels}")
-        appendLine("Audio Sample Rate: ${stats.audioSampleRateHz} Hz")
+        appendLine("Audio Sample Rate: " + if (stats.audioSampleRateHz > 0) "${stats.audioSampleRateHz} Hz" else "Unknown")
         appendLine("A/V Delay Offset: ${stats.audioDelayMs} ms")
         appendLine("Subtitle Offset: ${stats.subtitleDelayMs} ms")
         appendLine("HDR Transfer: ${stats.hdrFormat}")

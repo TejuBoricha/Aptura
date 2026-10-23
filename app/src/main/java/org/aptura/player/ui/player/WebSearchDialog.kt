@@ -52,6 +52,14 @@ import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
 
 /**
+ * Shown above the Search button. Aptura itself has no network access, but this feature opens the browser and sends the
+ * search text to a third-party site, so the dialog says so instead of leaving the "100% offline" claim unqualified.
+ */
+const val WEB_SEARCH_DISCLOSURE =
+    "Aptura stays offline. Pressing Search opens your browser, which sends the text above (not your video) " +
+        "to the site you choose. Check it first: file names can contain personal details."
+
+/**
  * High-precision Subtitle Web Search Assistant Dialog.
  *
  * Provides title sanitation review, provider selection (Subdl, OpenSubtitles, Google),
@@ -70,7 +78,7 @@ fun WebSearchDialog(
 
     val providers = remember {
         listOf(
-            Triple(0, "Subdl (Recommended)", "Direct multi-language .srt releases & sync hashes"),
+            Triple(0, "Subdl", "Direct multi-language .srt releases & sync hashes"),
             Triple(1, "OpenSubtitles Web", "Massive community-contributed subtitle index"),
             Triple(2, "Google Search", "Universal fallback search with exact release title")
         )
@@ -278,6 +286,21 @@ fun WebSearchDialog(
                             }
                         }
                     }
+                }
+
+                // Privacy disclosure: Aptura is offline, but this action hands text to the browser (and a third party).
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = ApturaColors.SurfaceElevated1,
+                    border = BorderStroke(1.dp, ApturaColors.BorderSubtle),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = WEB_SEARCH_DISCLOSURE,
+                        style = ApturaTypography.labelSmall.copy(fontSize = 11.sp, lineHeight = 15.sp),
+                        color = ApturaColors.TextHighEmphasis,
+                        modifier = Modifier.padding(10.dp)
+                    )
                 }
 
                 // Workflow Notice Banner

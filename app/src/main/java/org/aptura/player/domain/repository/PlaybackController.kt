@@ -29,6 +29,10 @@ interface PlaybackController {
     val autoPairedSubtitles: kotlinx.coroutines.flow.SharedFlow<String>
         get() = kotlinx.coroutines.flow.MutableSharedFlow()
 
+    /** Emits the title of a queue item that was skipped because its file could not be opened (deleted, unmounted, no access). */
+    val skippedItems: kotlinx.coroutines.flow.SharedFlow<String>
+        get() = kotlinx.coroutines.flow.MutableSharedFlow()
+
     suspend fun playMediaItem(item: DomainMediaItem)
     suspend fun playQueue(items: List<DomainMediaItem>, startIndex: Int = 0)
     suspend fun play()

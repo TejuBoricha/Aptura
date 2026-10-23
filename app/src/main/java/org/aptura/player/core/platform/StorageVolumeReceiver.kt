@@ -26,13 +26,18 @@ import org.aptura.player.data.scanner.MediaScanScheduler
 class StorageVolumeReceiver : BroadcastReceiver() {
 
     companion object {
+        /** The only broadcasts this receiver acts on. Anything else is ignored before it is even logged. */
+        private val STORAGE_ACTIONS = setOf(
+            Intent.ACTION_MEDIA_MOUNTED,
+            Intent.ACTION_MEDIA_UNMOUNTED,
+            Intent.ACTION_MEDIA_EJECT,
+            Intent.ACTION_MEDIA_REMOVED,
+            Intent.ACTION_MEDIA_BAD_REMOVAL
+        )
+
         fun createIntentFilter(): IntentFilter {
             return IntentFilter().apply {
-                addAction(Intent.ACTION_MEDIA_MOUNTED)
-                addAction(Intent.ACTION_MEDIA_UNMOUNTED)
-                addAction(Intent.ACTION_MEDIA_EJECT)
-                addAction(Intent.ACTION_MEDIA_REMOVED)
-                addAction(Intent.ACTION_MEDIA_BAD_REMOVAL)
+                STORAGE_ACTIONS.forEach { addAction(it) }
                 addDataScheme("file")
             }
         }
@@ -40,6 +45,7 @@ class StorageVolumeReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent?) {
         val action = intent?.action ?: return
+        if (action !in STORAGE_ACTIONS) return
         val path = intent.data?.path ?: ""
 
         ApturaDiagnostics.logEvent(

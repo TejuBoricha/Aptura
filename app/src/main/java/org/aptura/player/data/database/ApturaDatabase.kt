@@ -8,14 +8,17 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
+/** Current schema version. Bump it together with a new migration in [ApturaDatabase.ALL_MIGRATIONS]. */
+const val APTURA_DB_VERSION = 5
+
 /**
  * Local Room SQLite database for Aptura Video Player.
  * Zero network, local offline storage only (DEC-001, ADR-004).
  */
 @Database(
     entities = [MediaItemEntity::class, BookmarkEntity::class],
-    version = 5,
-    exportSchema = false
+    version = APTURA_DB_VERSION,
+    exportSchema = true // schemas/ is committed; migrations are checked against it (see ApturaDatabaseMigrationTest)
 )
 abstract class ApturaDatabase : RoomDatabase() {
 
@@ -48,6 +51,9 @@ abstract class ApturaDatabase : RoomDatabase() {
             }
         }
 
+        /** Every migration, in order. A schema bump without a matching entry here fails the migration-chain test. */
+        val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+
         @Volatile
         private var INSTANCE: ApturaDatabase? = null
 
@@ -58,8 +64,11 @@ abstract class ApturaDatabase : RoomDatabase() {
                     ApturaDatabase::class.java,
                     DATABASE_NAME
                 )
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
-                .fallbackToDestructiveMigration(dropAllTables = true)
+                .addMigrations(*ALL_MIGRATIONS)
+                // A forgotten migration must fail loudly (and in the chain test), not silently wipe the user's
+                // watch history, resume positions and bookmarks. Only the pre-migration v1 and downgrades may reset.
+                .fallbackToDestructiveMigrationFrom(true, 1)
+                .fallbackToDestructiveMigrationOnDowngrade(true)
                 .build()
                 .also { INSTANCE = it }
             }

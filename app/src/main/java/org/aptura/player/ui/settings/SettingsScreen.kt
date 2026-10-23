@@ -69,6 +69,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import org.aptura.player.core.diagnostics.ApturaDiagnostics
+import org.aptura.player.core.platform.AppVersion
 import org.aptura.player.data.settings.ApturaSettings
 import org.aptura.player.domain.repository.LibraryStatistics
 import org.aptura.player.theme.ApturaColors
@@ -706,13 +707,13 @@ fun SettingsScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "Aptura Video Player v1.0.0 (Build 63)",
+                        text = AppVersion.label(LocalContext.current),
                         style = ApturaTypography.labelMedium,
                         color = ApturaColors.TextLowEmphasis
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Media3 · Jetpack Compose · Room · Coil · LGPL FFmpeg",
+                        text = "Media3 · Jetpack Compose · Room · Coil",
                         style = ApturaTypography.labelSmall,
                         color = ApturaColors.TextLowEmphasis
                     )

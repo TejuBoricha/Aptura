@@ -72,7 +72,9 @@ android {
       unitTests.isReturnDefaultValues = true
       unitTests.isIncludeAndroidResources = true
       unitTests.all { testTask ->
-        testTask.timeout.set(Duration.ofSeconds(30))
+        // Hang guard for the WHOLE unit-test task. It was 30 s when the suite took ~15 s; the suite now has ~300 tests
+        // (several against a real ExoPlayer / WorkManager / SQLite), so the guard is sized to the suite, not removed.
+        testTask.timeout.set(Duration.ofSeconds(120))
         testTask.testLogging {
           events("failed", "skipped")
           showStandardStreams = false
@@ -113,6 +115,11 @@ android {
 
 kotlin {
     jvmToolchain(17)
+}
+
+// Room writes each schema version here (committed) so migrations can be verified against real history.
+ksp {
+  arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 dependencies {

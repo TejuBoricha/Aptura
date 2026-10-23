@@ -23,7 +23,9 @@ data class MediaExtendedMetadata(
     val audioTracks: List<AudioTrackMetadata> = emptyList(),
     val subtitleTracks: List<SubtitleTrackMetadata> = emptyList(),
     val durationMs: Long = 0L,
-    val bitRateTotal: Long? = null
+    val bitRateTotal: Long? = null,
+    /** True only when the container was actually opened and its tracks listed (so "no tracks" is a fact, not a guess). */
+    val inspected: Boolean = false
 )
 
 data class AudioTrackMetadata(
@@ -56,6 +58,7 @@ object MediaMetadataInspector {
         var colorTransferStr: String? = null
         var totalBitrate: Long? = null
         var durationMs = 0L
+        var inspected = false
 
         // 1. MediaMetadataRetriever pass for overall container stats
         try {
@@ -78,6 +81,7 @@ object MediaMetadataInspector {
         val extractor = MediaExtractor()
         try {
             extractor.setDataSource(context, uri, null)
+            inspected = true
             val trackCount = extractor.trackCount
             for (i in 0 until trackCount) {
                 val format = extractor.getTrackFormat(i)
@@ -167,7 +171,8 @@ object MediaMetadataInspector {
             audioTracks = audioTracks,
             subtitleTracks = subtitleTracks,
             durationMs = durationMs,
-            bitRateTotal = totalBitrate
+            bitRateTotal = totalBitrate,
+            inspected = inspected
         )
     }
 

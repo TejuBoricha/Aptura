@@ -87,7 +87,7 @@
         <!-- Hardware Storage Volume Hot-Plug Receiver (FR-LIB-021) -->
         <receiver
             android:name=".core.platform.StorageVolumeReceiver"
-            android:exported="true">
+            android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.MEDIA_MOUNTED" />
                 <action android:name="android.intent.action.MEDIA_UNMOUNTED" />

@@ -105,7 +105,16 @@ class PlayerViewModel(
         observeAudioEnhancements()
         observeCompatibilityMode()
         observeAutoPairedSubtitles()
+        observeSkippedItems()
         observePlaybackSettings()
+    }
+
+    private fun observeSkippedItems() {
+        viewModelScope.launch(dispatcher + errorHandler) {
+            playbackController.skippedItems.collect { title ->
+                setAutoPairedSubtitleToast("Skipped \"$title\": file unavailable")
+            }
+        }
     }
 
     private fun observeAutoPairedSubtitles() {
