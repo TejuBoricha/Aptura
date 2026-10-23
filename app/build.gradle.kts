@@ -183,6 +183,11 @@ android {
         versionName = "1.0.0"
     }
 
+    // Instrumented tests can target exactly one build type (AGP default: debug). Run the E2E
+    // suite against the R8 release build with: gradlew connectedReleaseAndroidTest
+    // -Paptura.testBuildType=release
+    testBuildType = (findProperty("aptura.testBuildType") as String?) ?: "debug"
+
     // B-01: Release signing is opt-in and secret-free in the repo. Provide the upload keystore via
     // local.properties or environment variables (CI secrets); without them the release artifact
     // stays unsigned (assembleRelease still works for size/R8 verification).
