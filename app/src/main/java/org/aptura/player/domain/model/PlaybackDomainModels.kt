@@ -63,7 +63,9 @@ data class DomainMediaItem(
     /** The decoder the user chose for THIS video, or null to follow the default from Settings. */
     val decoderStrategy: Int? = null,
     val audioDelayMs: Long = 0L,
-    val subtitleDelayMs: Long = 0L
+    val subtitleDelayMs: Long = 0L,
+    /** Epoch millis of the last time the user watched this video; 0 = never. */
+    val lastPlayedTimestamp: Long = 0L
 )
 
 /**

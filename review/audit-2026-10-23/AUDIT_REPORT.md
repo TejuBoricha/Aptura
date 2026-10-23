@@ -418,3 +418,29 @@ Evidence key as before. Gate: 321 unit tests, 0 failures, lint 0 errors.
 
 ### Still open
 P1-10 · P1-11 · P1-12 · P1-13 · P1-14 · P1-17 · P1-18 · P1-20 · P1-22 · P1-23, most P2 items, and the unexplained black-picture episode (Appendix D). Not checked on a device: audible effect of the equalizer (only that the effects exist, are enabled and carry our levels).
+
+---
+
+## Appendix F — Library and accessibility round (P1-14 part, P1-10, P1-11)
+
+Gate: 354 unit tests, 0 failures, lint 0 errors.
+
+### Library
+| Finding | Change | Unit | Device |
+|---|---|---|---|
+| Titles sorted by `lowercase()`, so `E10` came before `E2` | `NaturalOrder`: digit runs compare by value, text ignores case/accents, always a total order (no reshuffling between equal refreshes). Every sort falls back to it, so items that tie (a season downloaded in one second) stay readable | ✔ 7 cases incl. 20-digit numbers | ✔ |
+| Default newest-first listed episodes E03, E02, E01 and left "Next" disabled on E01 | **Automatic sort:** newest-first on the home view, *episode order inside a folder*; a sort the user picks is kept everywhere. The player queue is the visible list, so Next follows episode order | ✔ ↺ (fails on the old code) | ✔ folder "Verify" opens A, B, C |
+| Only 2 sort modes | Recently Added · **Recently Played** · Title (A–Z, natural) · **Longest** · **Largest** (needs the new `lastPlayedTimestamp` on the domain item) | ✔ | ✔ all five in the menu |
+| No "Continue watching" | A shelf above the grid on the unfiltered home view: started (≥ 10 s), not finished (< 95 %, not marked completed), still on disk, most recently played first, max 10; "N min left"; tapping resumes with the library's own item (so the saved position travels); hidden while searching or inside a folder | ✔ view-model + real Compose click | ✔ appears after watching, "Resume Verify C, 2 min left" |
+
+### Player
+| Finding | Change | Unit | Device |
+|---|---|---|---|
+| **P1-11** seek bar is an unlabelled `Canvas` (TalkBack cannot use it) | Semantics: "Seek bar", state "0:30 of 2:00", `ProgressBarRangeInfo`, `SetProgress` (clamped to the video), custom actions "Rewind/Forward N seconds" (the seek-step setting). Height 36 → 48 dp | ✔ ↺ | ✔ node is exposed 126 px (48 dp) tall |
+| **P1-10** top bar: five controls + chips squeezed the title ("lo…") | Below 560 dp wide: ← title (2 lines) · queue chip · ⋮ menu (speed, aspect, orientation, PiP; each row 48 dp). A speed other than 1.0× gets its own chip line under the title so it is not forgotten. At tablet width everything stays inline | ✔ ↺ (title ≥ 40 % of width at 360 dp, nothing cut off) | ✔ title 214 dp of 411; menu rows 48 dp apart; "Speed 1.5x" line |
+| 40 dp controls | Orientation / PiP / aspect (were 40), speed and queue chips, transport skip/seek buttons (were 36–46 on narrow windows), library card ⋮ (was 40) are now ≥ 48 dp; verified from the semantics node's real touch bounds | ✔ ↺ | – |
+
+Not done / not verified
+- **TalkBack itself was not run** (no screen-reader session on the emulator): the semantics are asserted on the tree TalkBack reads, and the node is present on the device, but how it *sounds* is unverified. The two time labels beside the bar are still read separately ("0:30", the bar, "1:30"), which is a little noisy.
+- The folder identity is still the bucket's *display name* (two folders with the same name merge) and the SAF scan still re-reads every file (P1-14/P2-23 remainder); no folder hierarchy view, no multi-select.
+- Other 40 dp targets may remain in sheets and Settings (only the player and the library home were audited this round).

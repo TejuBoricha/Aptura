@@ -49,8 +49,8 @@ class MediaLibraryViewModel(
     private val _selectedFolder = MutableStateFlow<String?>(null)
     val selectedFolder: StateFlow<String?> = _selectedFolder
 
-    private val _sortOrder = MutableStateFlow(LibrarySortOrder.DATE_ADDED_DESC)
-    val sortOrder: StateFlow<LibrarySortOrder> = _sortOrder
+    /** The sort the user picked; null = automatic (newest first overall, episode order inside a folder). */
+    private val _chosenSort = MutableStateFlow<LibrarySortOrder?>(null)
 
     private val _isRefreshing = MutableStateFlow(false)
 
@@ -68,6 +68,7 @@ class MediaLibraryViewModel(
         val query: String,
         val folder: String?,
         val sort: LibrarySortOrder,
+        val showContinueWatching: Boolean,
         val isRefreshing: Boolean,
         val isPermissionDenied: Boolean
     )
@@ -80,11 +81,19 @@ class MediaLibraryViewModel(
     private val filterState = combine(
         debouncedQuery,
         _selectedFolder,
-        _sortOrder,
+        _chosenSort,
         _isRefreshing,
         _isPermissionDenied
-    ) { query, folder, sort, refreshing, permissionDenied ->
-        FilterState(query, folder, sort, refreshing, permissionDenied)
+    ) { query, folder, chosenSort, refreshing, permissionDenied ->
+        FilterState(
+            query = query,
+            folder = folder,
+            sort = chosenSort ?: automaticSortOrder(folder),
+            // "Continue watching" belongs to the unfiltered home view only.
+            showContinueWatching = query.isBlank() && folder == null,
+            isRefreshing = refreshing,
+            isPermissionDenied = permissionDenied
+        )
     }
 
     private val libraryContent: kotlinx.coroutines.flow.Flow<MediaLibraryUiState> = combine(
@@ -111,11 +120,8 @@ class MediaLibraryViewModel(
                 }
             }
 
-            // Apply sort order
-            filtered = when (filter.sort) {
-                LibrarySortOrder.DATE_ADDED_DESC -> filtered.sortedByDescending { it.dateAddedSec }
-                LibrarySortOrder.TITLE_ASC -> filtered.sortedBy { it.title.lowercase() }
-            }
+            // Apply sort order (natural for titles: "Episode 2" before "Episode 10")
+            filtered = filtered.sortedFor(filter.sort)
 
             if (filtered.isEmpty()) {
                 MediaLibraryUiState.Empty(isFiltered = true, query = filter.query)
@@ -129,7 +135,12 @@ class MediaLibraryViewModel(
                     sortOrder = filter.sort,
                     totalCount = cards.size,
                     isRefreshing = filter.isRefreshing,
-                    isLimitedMode = filter.isPermissionDenied
+                    isLimitedMode = filter.isPermissionDenied,
+                    continueWatching = if (filter.showContinueWatching) {
+                        allVideos.continueWatching().map { it.toCardUiModel() }
+                    } else {
+                        emptyList()
+                    }
                 )
             }
         }
@@ -206,7 +217,7 @@ class MediaLibraryViewModel(
     }
 
     fun onSortOrderChanged(newSortOrder: LibrarySortOrder) {
-        _sortOrder.value = newSortOrder
+        _chosenSort.value = newSortOrder
     }
 
     fun onRefresh(onTriggerScan: (() -> Unit)? = null) {

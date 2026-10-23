@@ -26,13 +26,18 @@ sealed interface MediaLibraryUiState {
         val sortOrder: LibrarySortOrder = LibrarySortOrder.DATE_ADDED_DESC,
         val totalCount: Int = videos.size,
         val isRefreshing: Boolean = false,
-        val isLimitedMode: Boolean = false
+        val isLimitedMode: Boolean = false,
+        /** Started-but-unfinished videos, most recently played first. Empty while searching or inside a folder. */
+        val continueWatching: List<VideoCardUiModel> = emptyList()
     ) : MediaLibraryUiState
 }
 
 enum class LibrarySortOrder(val displayName: String) {
     DATE_ADDED_DESC("Recently Added"),
-    TITLE_ASC("Title (A-Z)")
+    LAST_PLAYED_DESC("Recently Played"),
+    TITLE_ASC("Title (A-Z)"),
+    DURATION_DESC("Longest First"),
+    SIZE_DESC("Largest First")
 }
 
 @Immutable
@@ -87,6 +92,18 @@ object MediaFormatters {
     fun calculateProgressFraction(positionMs: Long, durationMs: Long): Float {
         if (durationMs <= 0L || positionMs <= 0L) return 0f
         return (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
+    }
+
+    /** "12 min left", "1 h 5 min left", "Less than 1 min left" — what a viewer wants to know about a half-watched video. */
+    fun formatRemaining(positionMs: Long, durationMs: Long): String {
+        if (durationMs <= 0L) return "Unknown length"
+        val remainingMinutes = ((durationMs - positionMs).coerceAtLeast(0L) + 59_999L) / 60_000L
+        return when {
+            remainingMinutes < 1L -> "Less than 1 min left"
+            remainingMinutes < 60L -> "$remainingMinutes min left"
+            remainingMinutes % 60L == 0L -> "${remainingMinutes / 60L} h left"
+            else -> "${remainingMinutes / 60L} h ${remainingMinutes % 60L} min left"
+        }
     }
 
     fun formatExactBytes(bytes: Long): String {

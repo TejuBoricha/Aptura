@@ -422,4 +422,127 @@ class MediaLibraryViewModelTest {
 
         assertEquals("Inception Remastered", repo.videosFlow.value.first().title)
     }
+
+    // ---- natural sort, automatic folder order, Continue Watching (audit P1-14) ------------------------------------
+
+    private fun episode(n: Int, dateAddedSec: Long = 1_000L, folder: String = "Show") = DomainMediaItem(
+        uri = "content://media/ep$n",
+        title = "Show.S01E$n",
+        durationMs = 2_700_000L,
+        sizeBytes = 100_000_000L,
+        mimeType = "video/mp4",
+        dateAddedSec = dateAddedSec + n, // later episodes were downloaded later, as they usually are
+        folderPath = folder
+    )
+
+    @Test
+    fun insideAFolder_episodesAppearInEpisodeOrder_notNewestFirst() = runTest(testDispatcher) {
+        val repo = FakeMediaRepository()
+        repo.videosFlow.value = listOf(episode(10), episode(2), episode(1), episode(11), episode(3))
+        val viewModel = MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 0L)
+
+        viewModel.uiState.test {
+            assertEquals(MediaLibraryUiState.Loading, awaitItem())
+            assertTrue(awaitItem() is MediaLibraryUiState.Success)
+
+            viewModel.onFolderSelected("Show")
+            val folderState = awaitItem() as MediaLibraryUiState.Success
+
+            assertEquals(
+                "E1, E2, E3, E10, E11 — not E11, E10, E3...",
+                listOf("Show.S01E1", "Show.S01E2", "Show.S01E3", "Show.S01E10", "Show.S01E11"),
+                folderState.videos.map { it.rawItem.title }
+            )
+            assertEquals(LibrarySortOrder.TITLE_ASC, folderState.sortOrder)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun theHomeViewStaysNewestFirst_untilTheUserChoosesAnotherSort() = runTest(testDispatcher) {
+        val repo = FakeMediaRepository()
+        repo.videosFlow.value = listOf(episode(1), episode(2), episode(3))
+        val viewModel = MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 0L)
+
+        viewModel.uiState.test {
+            assertEquals(MediaLibraryUiState.Loading, awaitItem())
+            val home = awaitItem() as MediaLibraryUiState.Success
+            assertEquals(LibrarySortOrder.DATE_ADDED_DESC, home.sortOrder)
+            assertEquals(listOf("Show.S01E3", "Show.S01E2", "Show.S01E1"), home.videos.map { it.rawItem.title })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun aSortTheUserChose_isKeptWhenEnteringAFolder() = runTest(testDispatcher) {
+        val repo = FakeMediaRepository()
+        repo.videosFlow.value = listOf(episode(1), episode(2).copy(durationMs = 9_000_000L), episode(3))
+        val viewModel = MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 0L)
+
+        viewModel.uiState.test {
+            awaitItem(); awaitItem()
+            viewModel.onSortOrderChanged(LibrarySortOrder.DURATION_DESC)
+            awaitItem()
+            viewModel.onFolderSelected("Show")
+            val state = awaitItem() as MediaLibraryUiState.Success
+
+            assertEquals(LibrarySortOrder.DURATION_DESC, state.sortOrder)
+            assertEquals("Show.S01E2", state.videos.first().rawItem.title)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun continueWatching_listsStartedUnfinishedVideos_mostRecentlyPlayedFirst() = runTest(testDispatcher) {
+        val repo = FakeMediaRepository()
+        val older = episode(1).copy(playbackPositionMs = 600_000L, lastPlayedTimestamp = 1_000L)
+        val newer = episode(2).copy(playbackPositionMs = 900_000L, lastPlayedTimestamp = 5_000L)
+        val barelyStarted = episode(3).copy(playbackPositionMs = 4_000L, lastPlayedTimestamp = 9_000L)
+        val nearlyDone = episode(4).copy(playbackPositionMs = 2_650_000L, lastPlayedTimestamp = 9_500L) // 98 %
+        val finished = episode(5).copy(playbackPositionMs = 2_700_000L, isCompleted = true, lastPlayedTimestamp = 9_900L)
+        val gone = episode(6).copy(playbackPositionMs = 600_000L, isMissing = true, lastPlayedTimestamp = 9_950L)
+        val neverPlayed = episode(7)
+        repo.videosFlow.value = listOf(older, newer, barelyStarted, nearlyDone, finished, gone, neverPlayed)
+        val viewModel = MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 0L)
+
+        viewModel.uiState.test {
+            awaitItem()
+            val state = awaitItem() as MediaLibraryUiState.Success
+
+            assertEquals(
+                "only started + unfinished + present, newest play first",
+                listOf("Show.S01E2", "Show.S01E1"),
+                state.continueWatching.map { it.rawItem.title }
+            )
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun continueWatching_isHiddenWhileSearchingOrInsideAFolder() = runTest(testDispatcher) {
+        val repo = FakeMediaRepository()
+        repo.videosFlow.value = listOf(episode(1).copy(playbackPositionMs = 600_000L, lastPlayedTimestamp = 1_000L), episode(2))
+        val viewModel = MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 0L)
+
+        viewModel.uiState.test {
+            awaitItem()
+            val home = awaitItem() as MediaLibraryUiState.Success
+            assertEquals(1, home.continueWatching.size)
+
+            viewModel.onFolderSelected("Show")
+            val inFolder = awaitItem() as MediaLibraryUiState.Success
+            assertTrue("a folder view is a list, not a home screen", inFolder.continueWatching.isEmpty())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun continueWatching_isCappedAtTen() {
+        val many = (1..15).map { episode(it).copy(playbackPositionMs = 600_000L, lastPlayedTimestamp = it * 1_000L) }
+
+        val rail = many.continueWatching()
+
+        assertEquals(10, rail.size)
+        assertEquals("the most recently played is first", "Show.S01E15", rail.first().title)
+    }
 }

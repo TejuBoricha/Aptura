@@ -92,6 +92,7 @@ fun MediaItemEntity.toDomainMediaItem(): DomainMediaItem {
         playbackSpeed = playbackSpeed,
         decoderStrategy = if (decoderOverridden) decoderStrategy else null,
         audioDelayMs = audioDelayMs,
-        subtitleDelayMs = subtitleDelayMs
+        subtitleDelayMs = subtitleDelayMs,
+        lastPlayedTimestamp = lastPlayedTimestamp
     )
 }

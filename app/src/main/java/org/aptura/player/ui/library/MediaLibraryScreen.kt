@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
@@ -629,6 +630,18 @@ private fun MediaLibraryContentView(
             verticalArrangement = Arrangement.spacedBy(16.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            if (state.continueWatching.isNotEmpty()) {
+                item(
+                    key = "continue_watching",
+                    span = { GridItemSpan(maxLineSpan) },
+                    contentType = "continue_watching"
+                ) {
+                    ContinueWatchingRow(
+                        cards = state.continueWatching,
+                        onResume = { card -> onVideoClick(card.rawItem, allRawVideos) }
+                    )
+                }
+            }
             items(
                 items = state.videos,
                 key = { item -> item.uri },
@@ -886,7 +899,7 @@ fun VideoGridCard(
                     if (onMoreClick != null) {
                         IconButton(
                             onClick = onMoreClick,
-                            modifier = Modifier.size(40.dp)
+                            modifier = Modifier.size(48.dp) // the 48 dp touch-target minimum
                         ) {
                             Icon(
                                 imageVector = Icons.Default.MoreVert,

@@ -115,6 +115,19 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.setProgress
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -952,6 +965,7 @@ fun PlayerScreen(
                         .windowInsetsPadding(WindowInsets.statusBars)
                         .padding(horizontal = 16.dp, vertical = 12.dp)
                 ) {
+                    Column {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
@@ -973,103 +987,56 @@ fun PlayerScreen(
                             text = uiState.videoTitle,
                             style = ApturaTypography.titleMedium,
                             color = ApturaColors.TextHighEmphasis,
-                            maxLines = 1,
+                            maxLines = if (screenWidth < TOP_BAR_INLINE_MIN_WIDTH) 2 else 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )
 
                         Spacer(modifier = Modifier.width(8.dp))
 
-                        // Orientation toggle button (SCR-010e)
+                        // Orientation toggle (SCR-010e)
                         val configuration = androidx.compose.ui.platform.LocalConfiguration.current
                         val isExpandedWindow = configuration.screenWidthDp >= 600
-
-                        IconButton(
-                            onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                if (isExpandedWindow) {
-                                    orientationToastMessage = "Orientation managed by system on large screens"
-                                } else {
-                                    currentOrientationMode = (currentOrientationMode + 1) % 3
-                                    when (currentOrientationMode) {
-                                        1 -> {
-                                            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-                                            orientationToastMessage = "Landscape Locked"
-                                        }
-                                        2 -> {
-                                            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-                                            orientationToastMessage = "Portrait Locked"
-                                        }
-                                        else -> {
-                                            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-                                            orientationToastMessage = "Auto-Rotate"
-                                        }
+                        val onOrientationClick: () -> Unit = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            if (isExpandedWindow) {
+                                orientationToastMessage = "Orientation managed by system on large screens"
+                            } else {
+                                currentOrientationMode = (currentOrientationMode + 1) % 3
+                                when (currentOrientationMode) {
+                                    1 -> {
+                                        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                                        orientationToastMessage = "Landscape Locked"
+                                    }
+                                    2 -> {
+                                        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                                        orientationToastMessage = "Portrait Locked"
+                                    }
+                                    else -> {
+                                        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                                        orientationToastMessage = "Auto-Rotate"
                                     }
                                 }
-                                coroutineScope.launch {
-                                    kotlinx.coroutines.delay(1800L)
-                                    orientationToastMessage = null
-                                }
-                            },
-                            modifier = Modifier.size(40.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.ScreenRotation,
-                                contentDescription = "Screen Orientation",
-                                tint = if (currentOrientationMode != 0 && !isExpandedWindow) ApturaColors.AccentPrimary else ApturaColors.TextMediumEmphasis
-                            )
-                        }
-
-                        // PiP button (SCR-010e, FR-CTRL-014)
-                        IconButton(
-                            onClick = onEnterPip,
-                            modifier = Modifier.size(40.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.PictureInPictureAlt,
-                                contentDescription = "Picture in Picture",
-                                tint = ApturaColors.TextHighEmphasis
-                            )
-                        }
-
-                        // Aspect ratio button
-                        IconButton(
-                            onClick = onResizeModeToggle,
-                            modifier = Modifier.size(40.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.AspectRatio,
-                                contentDescription = "Aspect Ratio",
-                                tint = if (uiState.resizeMode != AspectRatioMode.FIT) ApturaColors.AccentPrimary else ApturaColors.TextMediumEmphasis,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-
-                        // Speed selector button
-                        Surface(
-                            onClick = { onSpeedSheetVisible(true) },
-                            shape = RoundedCornerShape(16.dp),
-                            color = ApturaColors.SurfaceScrim.copy(alpha = 0.65f),
-                            border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3.copy(alpha = 0.6f)),
-                            modifier = Modifier.padding(horizontal = 2.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Speed,
-                                    contentDescription = "Speed",
-                                    tint = ApturaColors.TextMediumEmphasis,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
-                                    text = "${uiState.playbackSpeed}x",
-                                    style = ApturaTypography.labelSmall,
-                                    color = ApturaColors.TextHighEmphasis
-                                )
                             }
+                            coroutineScope.launch {
+                                kotlinx.coroutines.delay(1800L)
+                                orientationToastMessage = null
+                            }
+                        }
+                        val orientationTint = if (currentOrientationMode != 0 && !isExpandedWindow) ApturaColors.AccentPrimary else ApturaColors.TextMediumEmphasis
+                        val aspectTint = if (uiState.resizeMode != AspectRatioMode.FIT) ApturaColors.AccentPrimary else ApturaColors.TextMediumEmphasis
+
+                        // On a phone the title is the primary orientation cue, so the secondary actions move into an
+                        // overflow menu instead of squeezing it down to "lo…" (audit P1-10).
+                        val compactTopBar = screenWidth < TOP_BAR_INLINE_MIN_WIDTH
+                        var overflowOpen by remember { mutableStateOf(false) }
+
+                        if (!compactTopBar) {
+                            TopBarIconButton(Icons.Filled.ScreenRotation, "Screen Orientation", orientationTint, onOrientationClick)
+                            TopBarIconButton(Icons.Filled.PictureInPictureAlt, "Picture in Picture", ApturaColors.TextHighEmphasis, onEnterPip)
+                            TopBarIconButton(Icons.Filled.AspectRatio, "Aspect Ratio", aspectTint, onResizeModeToggle)
+
+                            TopBarSpeedChip(uiState.playbackSpeed) { onSpeedSheetVisible(true) }
                         }
 
                         // Queue button (SCR-010f, FR-CTRL-001) - prominent chip when queue has multiple items
@@ -1082,7 +1049,9 @@ fun PlayerScreen(
                                 shape = RoundedCornerShape(16.dp),
                                 color = ApturaColors.AccentSubtle,
                                 border = BorderStroke(1.dp, ApturaColors.AccentPrimary),
-                                modifier = Modifier.padding(horizontal = 2.dp)
+                                modifier = Modifier
+                                    .minimumInteractiveComponentSize()
+                                    .padding(horizontal = 2.dp)
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
@@ -1103,6 +1072,42 @@ fun PlayerScreen(
                                 }
                             }
                         }
+
+                        if (compactTopBar) {
+                            Box {
+                                TopBarIconButton(
+                                    icon = Icons.Filled.MoreVert,
+                                    description = "More options",
+                                    tint = ApturaColors.TextHighEmphasis,
+                                    onClick = { overflowOpen = true }
+                                )
+                                DropdownMenu(expanded = overflowOpen, onDismissRequest = { overflowOpen = false }) {
+                                    OverflowMenuItem(Icons.Filled.Speed, "Playback speed (${uiState.playbackSpeed}x)") {
+                                        overflowOpen = false
+                                        onSpeedSheetVisible(true)
+                                    }
+                                    OverflowMenuItem(Icons.Filled.AspectRatio, "Aspect ratio") {
+                                        overflowOpen = false
+                                        onResizeModeToggle()
+                                    }
+                                    OverflowMenuItem(Icons.Filled.ScreenRotation, "Screen orientation") {
+                                        overflowOpen = false
+                                        onOrientationClick()
+                                    }
+                                    OverflowMenuItem(Icons.Filled.PictureInPictureAlt, "Picture in picture") {
+                                        overflowOpen = false
+                                        onEnterPip()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // A speed other than 1.0x is easy to forget; on a phone it gets its own line instead of a title squeeze.
+                    if (screenWidth < TOP_BAR_INLINE_MIN_WIDTH && uiState.playbackSpeed != 1.0f) {
+                        Row(modifier = Modifier.padding(start = 56.dp)) {
+                            TopBarSpeedChip(uiState.playbackSpeed) { onSpeedSheetVisible(true) }
+                        }
+                    }
                     }
                 }
 
@@ -1114,9 +1119,9 @@ fun PlayerScreen(
                 val clusterSpacing = if (isNarrowWindow) 6.dp else if (isCompactCluster) 10.dp else 16.dp
                 val playSize = if (isNarrowWindow) 52.dp else if (isCompactCluster) 62.dp else 72.dp
                 val playIconSize = if (isNarrowWindow) 28.dp else if (isCompactCluster) 34.dp else 40.dp
-                val seekSize = if (isNarrowWindow) 40.dp else if (isCompactCluster) 46.dp else 52.dp
+                val seekSize = if (isNarrowWindow) 48.dp else if (isCompactCluster) 48.dp else 52.dp
                 val seekIconSize = if (isNarrowWindow) 22.dp else if (isCompactCluster) 26.dp else 30.dp
-                val skipSize = if (isNarrowWindow) 36.dp else if (isCompactCluster) 42.dp else 48.dp
+                val skipSize = 48.dp // never below the 48 dp touch-target minimum, even in narrow split windows
                 val skipIconSize = if (isNarrowWindow) 20.dp else if (isCompactCluster) 24.dp else 28.dp
 
                 Row(
@@ -1250,11 +1255,43 @@ fun PlayerScreen(
                             val trackHeight = 6.dp
                             val thumbRadius = if (uiState.isScrubbing) 12.dp else 10.dp
 
+                            val scrubberStepMs = uiState.seekStepMs
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(36.dp)
+                                    .height(48.dp)
                                     .onSizeChanged { scrubberWidthPx = it.width.toFloat() }
+                                    // TalkBack: an adjustable seek bar (it used to be an unlabelled drawing).
+                                    .semantics {
+                                        contentDescription = "Seek bar"
+                                        stateDescription = "${MediaFormatters.formatDuration(uiState.effectivePositionMs)} of " +
+                                            MediaFormatters.formatDuration(uiState.durationMs)
+                                        progressBarRangeInfo = ProgressBarRangeInfo(
+                                            current = uiState.effectivePositionMs.toFloat().coerceIn(0f, uiState.durationMs.toFloat().coerceAtLeast(0f)),
+                                            range = 0f..uiState.durationMs.toFloat().coerceAtLeast(0f)
+                                        )
+                                        setProgress(label = "Seek") { targetMs ->
+                                            if (uiState.durationMs <= 0L) {
+                                                false
+                                            } else {
+                                                val target = targetMs.toLong().coerceIn(0L, uiState.durationMs)
+                                                onScrubStart(target)
+                                                onScrubMove(target)
+                                                onScrubEnd()
+                                                true
+                                            }
+                                        }
+                                        customActions = listOf(
+                                            CustomAccessibilityAction("Rewind ${scrubberStepMs / 1000} seconds") {
+                                                onSeekRelative(-scrubberStepMs)
+                                                true
+                                            },
+                                            CustomAccessibilityAction("Forward ${scrubberStepMs / 1000} seconds") {
+                                                onSeekRelative(scrubberStepMs)
+                                                true
+                                            }
+                                        )
+                                    }
                                     .pointerInput(uiState.durationMs) {
                                         detectTapGestures(
                                             onPress = { offset ->
@@ -1302,7 +1339,7 @@ fun PlayerScreen(
                                 Canvas(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(36.dp)
+                                        .height(48.dp)
                                 ) {
                                     val cy = size.height / 2f
                                     val trackH = trackHeight.toPx()
@@ -2752,3 +2789,63 @@ fun PlayerScreen(
     }
 }
 
+/** Width below which the top bar keeps only the title and the most important chips and moves the rest to a menu. */
+private val TOP_BAR_INLINE_MIN_WIDTH = 560.dp
+
+/** A top-bar action with the full 48 dp touch target. */
+@Composable
+private fun TopBarIconButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    description: String,
+    tint: Color,
+    onClick: () -> Unit
+) {
+    IconButton(onClick = onClick, modifier = Modifier.size(48.dp)) {
+        Icon(imageVector = icon, contentDescription = description, tint = tint)
+    }
+}
+
+@Composable
+private fun OverflowMenuItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    DropdownMenuItem(
+        text = { Text(label, style = ApturaTypography.bodyMedium) },
+        leadingIcon = { Icon(imageVector = icon, contentDescription = null) },
+        onClick = onClick,
+        modifier = Modifier.heightIn(min = 48.dp)
+    )
+}
+
+@Composable
+private fun TopBarSpeedChip(speed: Float, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        color = ApturaColors.SurfaceScrim.copy(alpha = 0.65f),
+        border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3.copy(alpha = 0.6f)),
+        modifier = Modifier
+            .minimumInteractiveComponentSize()
+            .padding(horizontal = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Speed,
+                contentDescription = "Speed",
+                tint = ApturaColors.TextMediumEmphasis,
+                modifier = Modifier.size(16.dp)
+            )
+            Text(
+                text = "${speed}x",
+                style = ApturaTypography.labelSmall,
+                color = ApturaColors.TextHighEmphasis
+            )
+        }
+    }
+}
