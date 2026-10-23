@@ -119,6 +119,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
@@ -983,14 +984,26 @@ fun PlayerScreen(
 
                         Spacer(modifier = Modifier.width(8.dp))
 
-                        Text(
-                            text = uiState.videoTitle,
-                            style = ApturaTypography.titleMedium,
-                            color = ApturaColors.TextHighEmphasis,
-                            maxLines = if (screenWidth < TOP_BAR_INLINE_MIN_WIDTH) 2 else 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
+                        // On a phone, a speed other than 1.0x is a suffix at the end of the title line: easy to forget, and the
+                        // full set of controls does not fit in the bar. It opens the speed sheet.
+                        val compactTitleBar = screenWidth < TOP_BAR_INLINE_MIN_WIDTH
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = uiState.videoTitle,
+                                style = ApturaTypography.titleMedium,
+                                color = ApturaColors.TextHighEmphasis,
+                                maxLines = if (compactTitleBar) 2 else 1,
+                                overflow = TextOverflow.Ellipsis,
+                                // A filling weight, not fill = false: that variant collapsed the text to a single letter.
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (compactTitleBar && uiState.playbackSpeed != 1.0f) {
+                                TitleSpeedSuffix(uiState.playbackSpeed) { onSpeedSheetVisible(true) }
+                            }
+                        }
 
                         Spacer(modifier = Modifier.width(8.dp))
 
@@ -1100,12 +1113,6 @@ fun PlayerScreen(
                                     }
                                 }
                             }
-                        }
-                    }
-                    // A speed other than 1.0x is easy to forget; on a phone it gets its own line instead of a title squeeze.
-                    if (screenWidth < TOP_BAR_INLINE_MIN_WIDTH && uiState.playbackSpeed != 1.0f) {
-                        Row(modifier = Modifier.padding(start = 56.dp)) {
-                            TopBarSpeedChip(uiState.playbackSpeed) { onSpeedSheetVisible(true) }
                         }
                     }
                     }
@@ -2817,6 +2824,29 @@ private fun OverflowMenuItem(
         onClick = onClick,
         modifier = Modifier.heightIn(min = 48.dp)
     )
+}
+
+/**
+ * The playback speed as a suffix on the title line, shown on phones when it is not 1.0x. It is part of the title row
+ * (not a floating element) and a real 48 dp target; accent colour marks it as the one interactive piece of the title.
+ */
+@Composable
+private fun TitleSpeedSuffix(speed: Float, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .minimumInteractiveComponentSize()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics(mergeDescendants = true) { contentDescription = "Playback speed ${speed}x" },
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "${speed}x",
+            style = ApturaTypography.titleMedium,
+            color = ApturaColors.AccentPrimary,
+            fontWeight = FontWeight.Bold
+        )
+    }
 }
 
 @Composable

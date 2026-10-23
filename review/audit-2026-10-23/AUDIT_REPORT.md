@@ -437,7 +437,7 @@ Gate: 354 unit tests, 0 failures, lint 0 errors.
 | Finding | Change | Unit | Device |
 |---|---|---|---|
 | **P1-11** seek bar is an unlabelled `Canvas` (TalkBack cannot use it) | Semantics: "Seek bar", state "0:30 of 2:00", `ProgressBarRangeInfo`, `SetProgress` (clamped to the video), custom actions "Rewind/Forward N seconds" (the seek-step setting). Height 36 → 48 dp | ✔ ↺ | ✔ node is exposed 126 px (48 dp) tall |
-| **P1-10** top bar: five controls + chips squeezed the title ("lo…") | Below 560 dp wide: ← title (2 lines) · queue chip · ⋮ menu (speed, aspect, orientation, PiP; each row 48 dp). A speed other than 1.0× gets its own chip line under the title so it is not forgotten. At tablet width everything stays inline | ✔ ↺ (title ≥ 40 % of width at 360 dp, nothing cut off) | ✔ title 214 dp of 411; menu rows 48 dp apart; "Speed 1.5x" line |
+| **P1-10** top bar: five controls + chips squeezed the title ("lo…") | Below 560 dp wide: ← title (2 lines) · queue chip · ⋮ menu (speed, aspect, orientation, PiP; each row 48 dp). A speed other than 1.0× gets its own chip line under the title so it is not forgotten. *(Superseded in Appendix H: it is now a suffix on the title line.)* At tablet width everything stays inline | ✔ ↺ (title ≥ 40 % of width at 360 dp, nothing cut off) | ✔ title 214 dp of 411; menu rows 48 dp apart; "Speed 1.5x" line |
 | 40 dp controls | Orientation / PiP / aspect (were 40), speed and queue chips, transport skip/seek buttons (were 36–46 on narrow windows), library card ⋮ (was 40) are now ≥ 48 dp; verified from the semantics node's real touch bounds | ✔ ↺ | – |
 
 Not done / not verified
@@ -488,7 +488,7 @@ P1-12 · P1-13 · P1-14 (remainder) · P1-17 · P1-22 · P1-23, most P2 items, a
 
 ---
 
-## Appendix H — Settings screen and welcome guide round (user-reported; follows P1-01, P1-03, P1-21)
+## Appendix H — Settings screen, welcome guide and speed indicator round (user-reported; follows P1-01, P1-03, P1-10, P1-21)
 
 Gate at `a47ae25`: 417 unit tests, lint 0 errors, `assembleRelease` with `verifyReleaseApk` passes. After the correction below (one sentence, one fact, one assertion) the unit suite was re-run: **417 tests, 0 failures**; lint and the release build were not re-run for that change.
 
@@ -537,5 +537,15 @@ Also: Back steps to the previous page; the page indicator is spoken as "Page n o
 - The countdown option "Immediate" became "Instant" so five options fit a 360 dp row.
 - The launcher icon and splash are still the default green Android robot. Not touched.
 
+### Player speed pill (follow-up, decided by the user)
+The floating "1.5x" pill under the phone title bar (added in Appendix F for P1-10) read as a stray element: detached from the bar, no label. It is gone. On a phone a speed other than 1.0x is now a **suffix at the end of the title line** (accent colour, a real 48 dp target, spoken as "Playback speed 1.5x") that opens the speed sheet; at 1.0x nothing is shown, and the ⋮ menu still lists the speed. Tablet width is unchanged (the speed button stays in the bar).
+
+| Evidence | |
+|---|---|
+| Unit | `PlayerAccessibilityTest`: the suffix is on the title row (to the right of the title, vertically within it), the old chip is gone, tapping it opens the speed sheet, no suffix at 1.0x, and the title keeps at least 100 dp of the ~156 dp region at 360 dp (the 48 dp target comes out of the title's width: a long title now wraps within 108 dp instead of 156 dp, which is the cost of a real touch target) |
+| Device | Set 1.5x: "Verify B  …  1.5x [queue] ⋮" on one line; tapping it opened the speed sheet 3 of 3 times with the controls showing (two earlier taps only re-showed auto-hidden controls, which is the intended behaviour); the next video at 1.0x shows no suffix |
+
+**A layout trap worth recording:** `Modifier.weight(1f, fill = false)` on the title `Text` inside a nested `Row` collapsed it to a single letter (13 dp) in the test and would have on a device with a long title; a short title on the device looked fine, which is how it nearly slipped through. The title uses a filling weight, so the suffix sits at the end of the title area rather than directly after a short title.
+
 ### Still open
-The player's floating **speed pill** (it reads as a stray element under the title bar; suggested fix: a "1.5x" suffix on the title line that still opens the speed sheet) awaits a decision. Otherwise unchanged from Appendix G: P1-12 · P1-13 · P1-14 (remainder) · P1-17 · P1-22 · P1-23, most P2 items, and the unexplained black-picture episode.
+Unchanged from Appendix G: P1-12 · P1-13 · P1-14 (remainder) · P1-17 · P1-22 · P1-23, most P2 items, and the unexplained black-picture episode.

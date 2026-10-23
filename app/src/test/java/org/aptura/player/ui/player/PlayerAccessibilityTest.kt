@@ -16,6 +16,7 @@ import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.theme.ApturaTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -42,6 +43,7 @@ class PlayerAccessibilityTest {
         val scrub = mutableListOf<String>()
         val relativeSeeks = mutableListOf<Long>()
         var aspectToggles = 0
+        var speedSheetOpens = 0
     }
 
     private fun show(
@@ -75,7 +77,7 @@ class PlayerAccessibilityTest {
                     onLockToggle = {},
                     onSpeedSelected = {},
                     onResizeModeToggle = { calls.aspectToggles++ },
-                    onSpeedSheetVisible = {},
+                    onSpeedSheetVisible = { if (it) calls.speedSheetOpens++ },
                     onAudioSheetVisible = {},
                     onSubtitleSheetVisible = {},
                     onAudioTrackSelected = {},
@@ -199,18 +201,46 @@ class PlayerAccessibilityTest {
     }
 
     @Test
-    fun onAPhone_aNonNormalSpeedGetsItsOwnChip_withoutShrinkingTheTitle() {
-        show(title = "Show.S01E01 The Long Title", speed = 1.5f)
+    fun onAPhone_aNonNormalSpeedIsASuffixOnTheTitleLine_notAFloatingChip() {
+        show(title = "Show.S01E01", speed = 1.5f)
 
-        composeRule.onNodeWithContentDescription("Speed").assertTouchTarget48()
-        composeRule.onNodeWithText("Show.S01E01 The Long Title").assertWidthIsAtLeast(144.dp)
+        val suffix = composeRule.onNodeWithContentDescription("Playback speed 1.5x")
+        suffix.assertTouchTarget48()
+        val suffixBounds = suffix.fetchSemanticsNode().boundsInRoot
+        val titleBounds = composeRule.onNodeWithText("Show.S01E01").fetchSemanticsNode().boundsInRoot
+
+        assertTrue("the suffix follows the title on the same line: $suffixBounds vs $titleBounds", suffixBounds.left >= titleBounds.right - 1f)
+        assertTrue(
+            "the suffix is vertically within the title row, not on a line of its own",
+            suffixBounds.center.y in titleBounds.top..titleBounds.bottom
+        )
+        assertEquals("the old floating chip is gone", 0, countWithDescription("Speed"))
     }
 
     @Test
-    fun onAPhone_normalSpeedShowsNoChip() {
+    fun onAPhone_tappingTheSpeedSuffix_opensTheSpeedSheet() {
+        val calls = show(speed = 1.5f)
+
+        composeRule.onNodeWithContentDescription("Playback speed 1.5x").performClick()
+
+        assertEquals(1, calls.speedSheetOpens)
+    }
+
+    @Test
+    fun onAPhone_theSuffixCostsTheTitleOnlyItsOwnWidth() {
+        // At 360 dp the title region is about 156 dp. The 48 dp suffix target comes out of that, so a long title keeps
+        // at least 100 dp (two readable lines) rather than being squeezed to a few letters.
+        show(title = "Show.S01E01 The Long Title", speed = 1.5f)
+
+        composeRule.onNodeWithText("Show.S01E01 The Long Title").assertWidthIsAtLeast(100.dp)
+    }
+
+    @Test
+    fun onAPhone_normalSpeedShowsNoSuffix() {
         show()
 
-        assertEquals(0, countWithDescription("Speed"))
+        val anySpeedLabel = composeRule.onAllNodes(hasContentDescription("Playback speed", substring = true)).fetchSemanticsNodes()
+        assertEquals(0, anySpeedLabel.size)
     }
 
     @Test
