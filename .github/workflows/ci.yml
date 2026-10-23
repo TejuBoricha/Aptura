@@ -34,7 +34,9 @@ jobs:
       - name: Lint
         run: ./gradlew lintDebug --stacktrace
 
-      - name: Release build (R8 + resource shrinking)
+      # assembleRelease is finalized by verifyReleaseApk: the build fails if the shipped code contains a network stack
+      # or a telemetry SDK (R8 mapping + dex check), complementing the dependency-graph and merged-manifest unit tests.
+      - name: Release build (R8 + resource shrinking) and shipped-code invariants
         run: ./gradlew assembleRelease --stacktrace
 
       - name: Upload reports

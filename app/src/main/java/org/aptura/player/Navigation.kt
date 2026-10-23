@@ -1,5 +1,5 @@
 @file:OptIn(
-    coil.annotation.ExperimentalCoilApi::class,
+    coil3.annotation.ExperimentalCoilApi::class,
     androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi::class
 )
 
@@ -40,6 +40,9 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.aptura.player.core.diagnostics.ApturaDiagnostics
+import org.aptura.player.core.diagnostics.DiagnosticStore
 import org.aptura.player.core.platform.PermissionHelper
 import org.aptura.player.data.database.ApturaDatabase
 import org.aptura.player.data.playback.PlayerManager
@@ -270,8 +273,30 @@ private fun AppNavHost(
                 )
             ) {
                 val uiState by libraryViewModel.uiState.collectAsStateWithLifecycle()
+                // Read off the main thread: the crash log is a file.
+                var pendingCrash by remember { mutableStateOf<DiagnosticStore.StoredCrash?>(null) }
+                LaunchedEffect(Unit) {
+                    pendingCrash = withContext(Dispatchers.IO) { ApturaDiagnostics.pendingCrashNotice() }
+                }
                 MediaLibraryScreen(
                     uiState = uiState,
+                    showCrashNotice = pendingCrash != null,
+                    onShareCrashDetails = {
+                        pendingCrash?.let { crash ->
+                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_SUBJECT, "Aptura Redacted Diagnostic Report")
+                                putExtra(Intent.EXTRA_TEXT, ApturaDiagnostics.generateDiagnosticMarkdown(context))
+                            }
+                            context.startActivity(Intent.createChooser(shareIntent, "Share crash details"))
+                            ApturaDiagnostics.acknowledgeCrash(crash.name)
+                        }
+                        pendingCrash = null
+                    },
+                    onDismissCrashNotice = {
+                        pendingCrash?.let { ApturaDiagnostics.acknowledgeCrash(it.name) }
+                        pendingCrash = null
+                    },
                     onVideoClick = { item, items ->
                         val request = buildPlayQueueRequest(item, items)
                         playerViewModel.playQueue(request.items, request.startIndex)
@@ -477,8 +502,8 @@ private fun AppNavHost(
                             try {
                                 context.cacheDir.deleteRecursively()
                                 context.cacheDir.mkdirs()
-                                coil.Coil.imageLoader(context).diskCache?.clear()
-                                coil.Coil.imageLoader(context).memoryCache?.clear()
+                                coil3.SingletonImageLoader.get(context).diskCache?.clear()
+                                coil3.SingletonImageLoader.get(context).memoryCache?.clear()
                             } catch (_: Throwable) {}
                         }
                     },

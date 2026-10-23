@@ -4,6 +4,7 @@
 #   1. Unit Test Compilation (Catches syntax & visibility errors)
 #   2. Unit Test Suite (Enforces 30s timeout & fail-fast execution)
 #   3. Android Lint (Validates opt-in annotations, licenses & offline invariants)
+#   4. Release build, which also runs verifyReleaseApk (no network stack / telemetry SDK in the shipped code)
 # ==============================================================================
 
 $ErrorActionPreference = "Stop"
@@ -39,6 +40,10 @@ Run-Step "Execute Unit Tests (Fail-Fast)" {
 
 Run-Step "Execute Android Lint (Debug)" {
     .\gradlew.bat lintDebug --daemon
+}
+
+Run-Step "Release build + shipped-code invariants (R8, no network/telemetry code)" {
+    .\gradlew.bat assembleRelease --daemon
 }
 
 Write-Host "`n==========================================================" -ForegroundColor Green

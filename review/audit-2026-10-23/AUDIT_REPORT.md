@@ -444,3 +444,43 @@ Not done / not verified
 - **TalkBack itself was not run** (no screen-reader session on the emulator): the semantics are asserted on the tree TalkBack reads, and the node is present on the device, but how it *sounds* is unverified. The two time labels beside the bar are still read separately ("0:30", the bar, "1:30"), which is a little noisy.
 - The folder identity is still the bucket's *display name* (two folders with the same name merge) and the SAF scan still re-reads every file (P1-14/P2-23 remainder); no folder hierarchy view, no multi-select.
 - Other 40 dp targets may remain in sheets and Settings (only the player and the library home were audited this round).
+
+
+---
+
+## Appendix G — Diagnostics persistence and invariants round (P1-18, P1-20)
+
+Gate: 410 unit tests, 0 failures, lint 0 errors, `assembleRelease` (which now also runs `verifyReleaseApk`) passes.
+
+### P1-18 · Diagnostics that can diagnose
+| Finding | Change | Unit | Device |
+|---|---|---|---|
+| Events lived only in memory, so a report written after a crash said "No errors logged" about the session that crashed | `DiagnosticStore`: bounded on-device log `files/diagnostics/events.jsonl` (≤ 2 MB, last 5 sessions, 30 days, payloads redacted **before** they are written, a write cut off by a crash costs only that line). Restored into the ring buffer at start | ✔ 11 against real files (round trip, no raw path/e-mail/IP on disk, size cap keeps newest, retention, 5 sessions, torn write, unwritable store) | ✔ second launch: `restoredEvents: 2`, `previousExit: crash` |
+| No crash capture at all | `CrashHandler` writes a plain-text report (class names and frames only — **never the exception message**, which routinely contains file names) and an `EV_018` event before delegating to Android's own handler; keeps the last 3; cannot throw or recurse | ✔ 5 (no message, cause chain, truncation, delegate still runs, storage failure harmless) | ✔ `adb shell am crash` produced `crash-<ms>.txt` |
+| Export hard-coded build info ("aptura-part63") and a constant session id | Version, version code, build type and the git revision (a generated string resource) are read from the installed package; one rotating session id per process; Android 11+ `ApplicationExitInfo` adds *why* the last process ended (crash / ANR / native / low memory) | ✔ | ✔ report header `1.0.0 (1) debug dd35cc5b` |
+| Export had no crash section | New "Crash Log" section; error history includes crashes | ✔ crash appears in the next run's export instead of "No errors logged" | – |
+| No post-crash prompt, no way to delete diagnostics (spec/14 §2) | Quiet card on the library after a crash ("Share details" opens the user's own share sheet with the redacted report; "Not now" stops asking, report is kept). Settings → **Delete Diagnostic Data** with a confirmation | ✔ 6 Compose tests on the real `ApturaDiagnostics` and real files (delete test is red when the handler is a no-op) | ✔ card shown once, gone after "Not now" + relaunch; Delete leaves `files/diagnostics` empty |
+
+### P1-20 · Invariants that check what ships
+| Finding | Change | Unit | Build |
+|---|---|---|---|
+| Manifest tests read `src/main/AndroidManifest.xml`, which shows 4 of the 8 permissions the shipped app requests | `MergedManifestInvariantsTest` parses the **merged release manifest**: permissions must equal an allow-list with a reason each (the library-added ones are `WAKE_LOCK`, `ACCESS_NETWORK_STATE`, `RECEIVE_BOOT_COMPLETED` and AndroidX's signature permission); exactly 4 components are exported (MainActivity and three library components each gated by `BIND_JOB_SERVICE`/`DUMP`); backup off, not debuggable, no cleartext, no `<queries>` packages | ✔ 12 (4 on the real manifest, 8 fixtures that prove each rule fires) | ✔ red when INTERNET is added (3 tests fail) |
+| "No telemetry SDK" was a substring search of `build.gradle.kts` — blind to transitive libraries, and any line containing "adjust" would have failed it | `DependencyInvariantsTest` reads the **resolved release runtime graph** (210 libraries, written by a new `writeReleaseRuntimeDependencies` task): no telemetry, crash-reporting or ad SDK and no HTTP client stack, matched on group/artifact boundaries (`adjust` no longer false-positives); exceptions must be reasoned, bounded to a parent library and not stale; telemetry Gradle plugins are refused | ✔ 12 (5 on the real graph, 7 fixtures) | ✔ red when the exception list is broken |
+| Nothing checked what R8 actually ships | `verifyReleaseApk` (finalizes `assembleRelease`, so CI and the gate run it): R8's mapping is read for kept classes in forbidden packages — R8 renames classes (`okhttp3.internal.http.HttpHeaders` is `xb.e`), so searching the dex for names finds almost nothing — plus a dex text search as a second net; it refuses to pass on an empty mapping or an APK without dex | – | ✔ **red on the first run, green after the fix below** |
+
+**Correction.** Earlier in this work I took it for granted that R8 strips the OkHttp that Coil 2.7 brings in, and an interim note said the release dex had none. That was wrong: the new check found **119 retained `okhttp3` classes in the release APK** (`OkHttpClient`, `RealCall`, `RealConnection`, `ConnectionPool` …) plus Coil's `HttpUriFetcher`. They could not connect (no `INTERNET` permission), but "no HTTP clients may exist" was false for the shipped app.
+
+**Fix, not an excuse.** Coil is now 3.3.0 with **no `coil-network-*` artifact** (`io.coil-kt.coil3:coil-compose` and `coil-video`). Touch points: `ApturaApplication` (`SingletonImageLoader.Factory`), the thumbnail-cache clear in `Navigation`, and the two `AsyncImage` call sites. The release graph now has no OkHttp at all, `approvedExceptions` is empty, and `verifyReleaseApk` scans 5,643 kept classes clean. ✔ device: grid and Continue-watching thumbnails render exactly as before; "Clear" tapped without error.
+
+### Not done / not verified
+- The crash card appears on the library's **Success** state only; with an empty or still-loading library it waits.
+- Native crashes and ANRs leave no stack (only the next launch's `previousExit` reason); the Java handler cannot see them.
+- The report's build hash is `HEAD` when the app was built; uncommitted changes are not reflected in it.
+- Media3's own `HttpURLConnection`-based data source still ships (part of ExoPlayer, inert without `INTERNET`); it is not asserted either way.
+- Three library components stay exported on purpose (WorkManager's job service, WorkManager's and the profile installer's diagnostics receivers); the test pins their permission gates but does not question the libraries.
+- Thumbnails were compared by eye, not pixel-diffed against Coil 2; the thumbnail disk cache holds ~0 B for local video, so "Clear" mostly empties `cacheDir`.
+- The delete flow was confirmed on the device against another session's redesigned Settings screen (the emulator was shared); the unit test covers the screen present in this commit.
+- `gate.ps1` is about a minute longer: it now builds the release APK.
+
+### Still open
+P1-12 · P1-13 · P1-14 (remainder) · P1-17 · P1-22 · P1-23, most P2 items, and the unexplained black-picture episode (Appendix D).

@@ -8,16 +8,18 @@ import android.provider.MediaStore
 import androidx.core.content.ContextCompat
 import androidx.work.Configuration
 import org.aptura.player.data.scanner.MediaScanScheduler
-import coil.ImageLoader
-import coil.ImageLoaderFactory
-import coil.decode.VideoFrameDecoder
+import coil3.ImageLoader
+import coil3.PlatformContext
+import coil3.SingletonImageLoader
+import coil3.request.crossfade
+import coil3.video.VideoFrameDecoder
 
 /**
  * Aptura Application class.
  * Configures application-wide singletons and hardware-accelerated Coil VideoFrameDecoder
  * for video thumbnail rendering (ADR-001, spec/06).
  */
-open class ApturaApplication : Application(), ImageLoaderFactory, Configuration.Provider {
+open class ApturaApplication : Application(), SingletonImageLoader.Factory, Configuration.Provider {
 
     /** On-demand WorkManager initialisation: scans can be scheduled from `onCreate` regardless of provider ordering. */
     override val workManagerConfiguration: Configuration
@@ -25,6 +27,8 @@ open class ApturaApplication : Application(), ImageLoaderFactory, Configuration.
 
     override fun onCreate() {
         super.onCreate()
+        // Persistent local diagnostics + crash handler first, so a crash in anything below is captured.
+        org.aptura.player.core.diagnostics.ApturaDiagnostics.initialize(this)
         try {
             val filter = org.aptura.player.core.platform.StorageVolumeReceiver.createIntentFilter()
             // Not exported: only the system (which sends these broadcasts) and this app may reach the receiver.
@@ -61,8 +65,8 @@ open class ApturaApplication : Application(), ImageLoaderFactory, Configuration.
         const val MEDIASTORE_RESCAN_DEBOUNCE_MS = 4_000L
     }
 
-    override fun newImageLoader(): ImageLoader {
-        return ImageLoader.Builder(this)
+    override fun newImageLoader(context: PlatformContext): ImageLoader {
+        return ImageLoader.Builder(context)
             .components {
                 add(VideoFrameDecoder.Factory())
             }

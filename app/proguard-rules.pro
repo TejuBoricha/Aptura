@@ -11,7 +11,7 @@
 
 # Optional / compile-time-only references inside the playback and imaging stacks.
 -dontwarn androidx.media3.**
--dontwarn coil.**
+-dontwarn coil3.**
 -dontwarn androidx.room.paging.**
 
 # Coroutines: Main dispatcher is resolved through ServiceLoader.

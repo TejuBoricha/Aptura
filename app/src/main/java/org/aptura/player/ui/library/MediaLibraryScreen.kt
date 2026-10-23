@@ -90,9 +90,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
-import coil.request.videoFrameMillis
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.video.videoFrameMillis
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
@@ -120,6 +120,9 @@ fun MediaLibraryScreen(
     onPlayNext: (DomainMediaItem) -> Unit = {},
     onAddToQueue: (DomainMediaItem) -> Unit = {},
     onVideoDeleted: (String) -> Unit = onRemoveVideo,
+    showCrashNotice: Boolean = false,
+    onShareCrashDetails: () -> Unit = {},
+    onDismissCrashNotice: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -175,6 +178,9 @@ fun MediaLibraryScreen(
                         onPlayNext = onPlayNext,
                         onAddToQueue = onAddToQueue,
                         onVideoDeleted = onVideoDeleted,
+                        showCrashNotice = showCrashNotice,
+                        onShareCrashDetails = onShareCrashDetails,
+                        onDismissCrashNotice = onDismissCrashNotice,
                         bottomPadding = innerPadding.calculateBottomPadding()
                     )
                 }
@@ -202,6 +208,9 @@ private fun MediaLibraryContentView(
     onPlayNext: (DomainMediaItem) -> Unit = {},
     onAddToQueue: (DomainMediaItem) -> Unit = {},
     onVideoDeleted: (String) -> Unit = onRemoveVideo,
+    showCrashNotice: Boolean = false,
+    onShareCrashDetails: () -> Unit = {},
+    onDismissCrashNotice: () -> Unit = {},
     bottomPadding: androidx.compose.ui.unit.Dp,
     modifier: Modifier = Modifier
 ) {
@@ -560,6 +569,15 @@ private fun MediaLibraryContentView(
                     )
                 }
             }
+        }
+
+        // Post-crash prompt (spec/14 §2): quiet, once, never blocks the library.
+        if (showCrashNotice) {
+            CrashNoticeCard(
+                onShareDetails = onShareCrashDetails,
+                onDismiss = onDismissCrashNotice,
+                modifier = Modifier.wrapContentWidth(Alignment.CenterHorizontally)
+            )
         }
 
         // Limited Storage Mode Banner (SCR-012)

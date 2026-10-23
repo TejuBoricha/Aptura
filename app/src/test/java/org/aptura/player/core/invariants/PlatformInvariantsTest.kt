@@ -88,29 +88,9 @@ class PlatformInvariantsTest {
         )
     }
 
-    @Test
-    fun buildGradle_containsZeroThirdPartyTelemetrySdk() {
-        assertTrue("app/build.gradle.kts must exist", buildGradleFile.exists())
-        val content = buildGradleFile.readText().lowercase()
-
-        val bannedTelemetryKeywords = listOf(
-            "firebase",
-            "crashlytics",
-            "sentry",
-            "mixpanel",
-            "datadog",
-            "newrelic",
-            "appsflyer",
-            "adjust"
-        )
-
-        for (banned in bannedTelemetryKeywords) {
-            assertFalse(
-                "CRITICAL INVARIANT VIOLATION (ADR-007): Banned telemetry SDK detected in build.gradle.kts: $banned",
-                content.contains(banned)
-            )
-        }
-    }
+    // The "no telemetry SDK" check used to be a substring search of this build file. It could not see transitive
+    // libraries and flagged any line containing the word "adjust". It now lives in DependencyInvariantsTest, which reads
+    // the resolved release runtime graph; the merged-manifest rules are in MergedManifestInvariantsTest.
 
     @Test
     fun buildGradle_disablesLanguageDynamicSplit() {

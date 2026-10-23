@@ -35,6 +35,8 @@ object DiagnosticBundleExporter {
         val errorHistory: List<DiagnosticEvent>,
         val eventLogExcerpt: List<DiagnosticEvent>,
         val settingsSnapshot: Map<String, String>,
+        /** Plain-text crash reports (class names and stacks only), newest first. */
+        val crashReports: List<String> = emptyList(),
         val exportTimestampMs: Long = System.currentTimeMillis()
     )
 
@@ -43,10 +45,14 @@ object DiagnosticBundleExporter {
         deviceContext: DeviceContext,
         appContext: AppContext = AppContext(),
         settings: Map<String, String> = emptyMap(),
-        includeFileName: Boolean = false
+        includeFileName: Boolean = false,
+        crashReports: List<String> = emptyList()
     ): DiagnosticBundle {
         val allRedacted = ringBuffer.getRedactedEvents(includeFileName)
-        val errors = allRedacted.filter { it.code == EventCode.EV_011 || it.code == EventCode.EV_006 }
+        val errors = allRedacted.filter {
+            it.code == EventCode.EV_011 || it.code == EventCode.EV_006 ||
+                (it.code == EventCode.EV_018 && it.payload["event"] == "crash")
+        }
         val recentEvents = allRedacted.takeLast(50)
 
         return DiagnosticBundle(
@@ -54,7 +60,8 @@ object DiagnosticBundleExporter {
             deviceContext = deviceContext,
             errorHistory = errors,
             eventLogExcerpt = recentEvents,
-            settingsSnapshot = settings
+            settingsSnapshot = settings,
+            crashReports = crashReports
         )
     }
 
@@ -85,12 +92,24 @@ object DiagnosticBundleExporter {
             }
         }
         sb.appendLine()
-        sb.appendLine("## 4. Recent Event Log (${bundle.eventLogExcerpt.size} events)")
+        sb.appendLine("## 4. Crash Log (${bundle.crashReports.size} recorded, newest first)")
+        if (bundle.crashReports.isEmpty()) {
+            sb.appendLine("No crashes recorded.")
+        } else {
+            bundle.crashReports.forEach { report ->
+                sb.appendLine("```")
+                sb.append(report.trimEnd())
+                sb.appendLine()
+                sb.appendLine("```")
+            }
+        }
+        sb.appendLine()
+        sb.appendLine("## 5. Recent Event Log (${bundle.eventLogExcerpt.size} events)")
         for (evt in bundle.eventLogExcerpt) {
             sb.appendLine("- `${evt.code.eventName}` (${evt.code.category}) [Session: ${evt.sessionId}]: ${evt.payload}")
         }
         sb.appendLine()
-        sb.appendLine("## 5. Non-Sensitive Settings Snapshot")
+        sb.appendLine("## 6. Non-Sensitive Settings Snapshot")
         if (bundle.settingsSnapshot.isEmpty()) {
             sb.appendLine("Default player settings active.")
         } else {
