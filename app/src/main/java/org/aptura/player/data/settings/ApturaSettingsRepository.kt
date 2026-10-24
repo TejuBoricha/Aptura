@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.Flow
 import org.aptura.player.domain.model.AudioEffectsSettings
 import org.aptura.player.domain.model.EqualizerPreset
 import org.aptura.player.domain.repository.AudioEffectsStore
+import org.aptura.player.theme.AccentColor
+import org.aptura.player.theme.ThemeMode
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
@@ -30,6 +32,10 @@ data class ApturaSettings(
     val seekDeltaSeconds: Int = 10,
     val backgroundAudioEnabled: Boolean = true,
     val onboardingCompleted: Boolean = false,
+    /** The app version whose welcome guide was last completed. A mismatch means the guide is shown again. */
+    val lastSeenGuideVersion: Int = 0,
+    val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val accentColor: AccentColor = AccentColor.CYAN,
     val autoAdvanceCountdownSeconds: Int = 10,
     val subtitleFontSizeSp: Int = 18,
     val subtitleTextColorHex: String = "#FFFFFF",
@@ -51,6 +57,9 @@ class ApturaSettingsRepository(private val context: Context) : AudioEffectsStore
         val SEEK_DELTA_SECONDS = intPreferencesKey("seek_delta_seconds")
         val BACKGROUND_AUDIO_ENABLED = booleanPreferencesKey("background_audio_enabled")
         val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
+        val LAST_SEEN_GUIDE_VERSION = intPreferencesKey("last_seen_guide_version")
+        val THEME_MODE = stringPreferencesKey("theme_mode")
+        val ACCENT_COLOR = stringPreferencesKey("accent_color")
         val AUTO_ADVANCE_COUNTDOWN = intPreferencesKey("auto_advance_countdown")
         val SUBTITLE_FONT_SIZE_SP = intPreferencesKey("subtitle_font_size_sp")
         val SUBTITLE_TEXT_COLOR_HEX = stringPreferencesKey("subtitle_text_color_hex")
@@ -80,6 +89,13 @@ class ApturaSettingsRepository(private val context: Context) : AudioEffectsStore
                 seekDeltaSeconds = preferences[PreferencesKeys.SEEK_DELTA_SECONDS] ?: 10,
                 backgroundAudioEnabled = preferences[PreferencesKeys.BACKGROUND_AUDIO_ENABLED] ?: true,
                 onboardingCompleted = preferences[PreferencesKeys.ONBOARDING_COMPLETED] ?: false,
+                lastSeenGuideVersion = preferences[PreferencesKeys.LAST_SEEN_GUIDE_VERSION] ?: 0,
+                themeMode = preferences[PreferencesKeys.THEME_MODE]
+                    ?.let { name -> ThemeMode.entries.firstOrNull { it.name == name } }
+                    ?: ThemeMode.SYSTEM,
+                accentColor = preferences[PreferencesKeys.ACCENT_COLOR]
+                    ?.let { name -> AccentColor.entries.firstOrNull { it.name == name } }
+                    ?: AccentColor.CYAN,
                 autoAdvanceCountdownSeconds = preferences[PreferencesKeys.AUTO_ADVANCE_COUNTDOWN] ?: 10,
                 subtitleFontSizeSp = preferences[PreferencesKeys.SUBTITLE_FONT_SIZE_SP] ?: 18,
                 subtitleTextColorHex = preferences[PreferencesKeys.SUBTITLE_TEXT_COLOR_HEX] ?: "#FFFFFF",
@@ -127,6 +143,24 @@ class ApturaSettingsRepository(private val context: Context) : AudioEffectsStore
     suspend fun setOnboardingCompleted(completed: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.ONBOARDING_COMPLETED] = completed
+        }
+    }
+
+    suspend fun setLastSeenGuideVersion(versionCode: Int) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.LAST_SEEN_GUIDE_VERSION] = versionCode
+        }
+    }
+
+    suspend fun updateThemeMode(mode: ThemeMode) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.THEME_MODE] = mode.name
+        }
+    }
+
+    suspend fun updateAccentColor(accent: AccentColor) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.ACCENT_COLOR] = accent.name
         }
     }
 

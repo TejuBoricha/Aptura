@@ -28,6 +28,7 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
@@ -56,6 +57,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.aptura.player.theme.AccentColor
 import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
 
@@ -65,7 +67,7 @@ import org.aptura.player.theme.ApturaTypography
  * green only for the offline guarantee. Nothing here is decoration; the one piece of craft is the selector switch.
  */
 
-private val Hairline = ApturaColors.BorderSubtle
+private val Hairline: Color get() = ApturaColors.BorderSubtle
 
 // ---- structure --------------------------------------------------------------------------------------------------
 
@@ -81,7 +83,7 @@ internal fun SettingsPanel(
             .fillMaxWidth()
             .clip(shape)
             .background(ApturaColors.SurfaceElevated1)
-            .border(1.dp, Color.White.copy(alpha = 0.07f), shape),
+            .border(1.dp, Hairline, shape),
         content = content
     )
 }
@@ -269,7 +271,7 @@ internal fun SegmentedPicker(
             .fillMaxWidth()
             .height(54.dp)
             .clip(trackShape)
-            .background(ApturaColors.SurfacePureBlack.copy(alpha = 0.50f))
+            .background(ApturaColors.SurfaceRecessed)
             .border(1.dp, Hairline, trackShape)
             .drawBehind {
                 if (options.isEmpty()) return@drawBehind
@@ -339,6 +341,79 @@ internal fun PickerRow(
         Spacer(Modifier.height(12.dp))
         SegmentedPicker(options = options, selectedIndex = selectedIndex, onSelect = onSelect, label = title)
         footer?.invoke()
+    }
+}
+
+/**
+ * A row of colour swatches, one per accent. The swatch shows the variant that belongs to the palette on screen, so
+ * choosing "Amber" in light mode shows the exact amber the controls will use. Each dot is a real radio button.
+ */
+@Composable
+internal fun AccentPickerRow(
+    title: String,
+    subtitle: String,
+    selected: AccentColor,
+    onSelect: (AccentColor) -> Unit
+) {
+    val haptic = LocalHapticFeedback.current
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
+        RowText(title, subtitle)
+        Spacer(Modifier.height(14.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth().selectableGroup(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            AccentColor.entries.forEach { accent ->
+                val isSelected = accent == selected
+                Column(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .selectable(
+                            selected = isSelected,
+                            role = Role.RadioButton,
+                            onClick = {
+                                if (!isSelected) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onSelect(accent)
+                            }
+                        )
+                        .semantics { contentDescription = "${accent.label} accent" }
+                        .padding(vertical = 2.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .border(
+                                width = 2.dp,
+                                color = if (isSelected) ApturaColors.TextHighEmphasis else Color.Transparent,
+                                shape = CircleShape
+                            )
+                            .padding(4.dp)
+                            .clip(CircleShape)
+                            .background(accent.previewPrimary(ApturaColors.IsDark)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isSelected) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                tint = if (ApturaColors.IsDark) Color(0xFF001217) else Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = accent.label,
+                        style = ApturaTypography.labelSmall.copy(fontSize = 10.sp),
+                        color = if (isSelected) ApturaColors.TextHighEmphasis else ApturaColors.TextMediumEmphasis,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        maxLines = 1
+                    )
+                }
+            }
+        }
     }
 }
 

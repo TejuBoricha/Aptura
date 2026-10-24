@@ -381,7 +381,9 @@ fun PlayerScreen(
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
-            .background(ApturaColors.SurfacePureBlack)
+            // The player is always dark; keep the letterbox black even on the first frame, before the dark theme
+            // override has been applied to the rest of the chrome.
+            .background(Color.Black)
     ) {
         val screenWidth = maxWidth
         // 1. Video Surface (Media3 PlayerView isolated from position ticks)

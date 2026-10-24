@@ -13,6 +13,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.aptura.player.theme.AccentColor
+import org.aptura.player.theme.ThemeMode
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -38,6 +40,9 @@ class ApturaSettingsRepositoryTest {
             assertEquals(10, initial.seekDeltaSeconds)
             assertTrue(initial.backgroundAudioEnabled)
             assertFalse(initial.onboardingCompleted)
+            assertEquals(0, initial.lastSeenGuideVersion)
+            assertEquals(ThemeMode.SYSTEM, initial.themeMode)
+            assertEquals(AccentColor.CYAN, initial.accentColor)
             assertEquals(10, initial.autoAdvanceCountdownSeconds)
             assertEquals(18, initial.subtitleFontSizeSp)
             assertEquals("#FFFFFF", initial.subtitleTextColorHex)
@@ -73,6 +78,16 @@ class ApturaSettingsRepositoryTest {
             // Update onboarding completed
             repository.setOnboardingCompleted(true)
             assertTrue(awaitItem().onboardingCompleted)
+
+            // Record the guide version and appearance
+            repository.setLastSeenGuideVersion(7)
+            assertEquals(7, awaitItem().lastSeenGuideVersion)
+
+            repository.updateThemeMode(ThemeMode.LIGHT)
+            assertEquals(ThemeMode.LIGHT, awaitItem().themeMode)
+
+            repository.updateAccentColor(AccentColor.VIOLET)
+            assertEquals(AccentColor.VIOLET, awaitItem().accentColor)
 
             // Update auto-advance countdown
             repository.updateAutoAdvanceCountdown(5)

@@ -130,7 +130,7 @@ private fun ContinueWatchingCard(card: VideoCardUiModel, onClick: () -> Unit) {
                     Icon(
                         imageVector = Icons.Filled.PlayArrow,
                         contentDescription = null,
-                        tint = ApturaColors.TextHighEmphasis,
+                        tint = ApturaColors.TextOnScrim,
                         modifier = Modifier.size(26.dp)
                     )
                 }

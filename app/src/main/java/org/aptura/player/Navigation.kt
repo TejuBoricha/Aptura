@@ -10,6 +10,8 @@ import android.content.pm.ActivityInfo
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import org.aptura.player.theme.ApturaColors
 import androidx.compose.foundation.background
@@ -41,6 +43,7 @@ import kotlinx.coroutines.withContext
 import org.aptura.player.core.diagnostics.ApturaDiagnostics
 import org.aptura.player.core.diagnostics.DiagnosticStore
 import org.aptura.player.core.platform.PermissionHelper
+import org.aptura.player.core.platform.AppVersion
 import org.aptura.player.data.database.ApturaDatabase
 import org.aptura.player.data.playback.PlayerManager
 import org.aptura.player.data.repository.MediaRepositoryImpl
@@ -63,6 +66,9 @@ import org.aptura.player.ui.onboarding.OnboardingScreen
 import org.aptura.player.ui.player.PlayerScreen
 import org.aptura.player.ui.player.PlayerViewModel
 import org.aptura.player.ui.settings.SettingsScreen
+import org.aptura.player.theme.AccentColor
+import org.aptura.player.theme.ApturaTheme
+import org.aptura.player.theme.ThemeMode
 
 /**
  * Single back-navigation policy used by the system Back gesture/button *and* the top-bar arrow.
@@ -80,9 +86,21 @@ internal fun handleBack(backStack: MutableList<NavKey>, onPlayerDismissed: () ->
  * Where the app starts: the welcome guide on the first launch, the library afterwards. Storage access does not matter
  * here: the guide used to be skipped whenever access was already granted (a reinstall, a device that pre-grants), and
  * since "seen" was only recorded inside the permission flow, those users never saw it at all.
+ *
+ * The guide is also shown once after an update: [lastSeenGuideVersion] records the build the user last finished it on,
+ * so a new [currentVersionCode] means there is something new to explain. A stored 0 is a build from before versions
+ * were recorded; those installs adopt the current version silently instead of being treated as an update.
  */
-internal fun startDestinationFor(onboardingCompleted: Boolean): NavKey =
-    if (onboardingCompleted) MediaLibrary else Onboarding
+internal fun startDestinationFor(
+    onboardingCompleted: Boolean,
+    lastSeenGuideVersion: Int = 0,
+    currentVersionCode: Int = 0
+): NavKey = when {
+    !onboardingCompleted -> Onboarding
+    lastSeenGuideVersion == 0 -> MediaLibrary
+    currentVersionCode > 0 && lastSeenGuideVersion != currentVersionCode -> Onboarding
+    else -> MediaLibrary
+}
 
 /**
  * Decides the start destination only AFTER the persisted settings have loaded. It used to be computed from the
@@ -92,6 +110,7 @@ internal fun startDestinationFor(onboardingCompleted: Boolean): NavKey =
 @Composable
 internal fun StartDestinationGate(
     settingsFlow: Flow<ApturaSettings>,
+    currentVersionCode: Int = 0,
     content: @Composable (initialSettings: ApturaSettings, startKey: NavKey) -> Unit
 ) {
     val loaded by produceState<ApturaSettings?>(initialValue = null, settingsFlow) {
@@ -102,8 +121,16 @@ internal fun StartDestinationGate(
         Box(modifier = Modifier.fillMaxSize().background(ApturaColors.SurfaceBase))
         return
     }
-    val startKey = remember(initialSettings.onboardingCompleted) {
-        startDestinationFor(initialSettings.onboardingCompleted)
+    val startKey = remember(
+        initialSettings.onboardingCompleted,
+        initialSettings.lastSeenGuideVersion,
+        currentVersionCode
+    ) {
+        startDestinationFor(
+            onboardingCompleted = initialSettings.onboardingCompleted,
+            lastSeenGuideVersion = initialSettings.lastSeenGuideVersion,
+            currentVersionCode = currentVersionCode
+        )
     }
     content(initialSettings, startKey)
 }
@@ -118,18 +145,44 @@ fun MainNavigation(
 ) {
     val context = LocalContext.current
     val settingsRepository = remember { ApturaSettingsRepository(context) }
+    val currentVersionCode = remember(context) { AppVersion.versionCode(context) }
 
-    StartDestinationGate(settingsRepository.settingsFlow) { initialSettings, startKey ->
-        AppNavHost(
-            settingsRepository = settingsRepository,
-            initialSettings = initialSettings,
-            startKey = startKey,
-            initialLaunchUri = initialLaunchUri,
-            onLaunchUriConsumed = onLaunchUriConsumed,
-            isPipMode = isPipMode,
-            onEnterPip = onEnterPip,
-            onPlayerRouteActiveChanged = onPlayerRouteActiveChanged
-        )
+    // The theme is applied here, above the start-destination gate, so the loading frame and every screen share it.
+    // A null flow value means "settings not read yet": follow the system until the real choice arrives.
+    val themeSettings by settingsRepository.settingsFlow
+        .collectAsStateWithLifecycle<ApturaSettings?>(initialValue = null)
+    var isPlayerRouteActive by remember { mutableStateOf(false) }
+
+    ApturaTheme(
+        // The player is always dark: it is a cinema, not a settings panel, and a bright control surface would
+        // compete with the picture.
+        themeMode = if (isPlayerRouteActive) ThemeMode.DARK else themeSettings?.themeMode ?: ThemeMode.SYSTEM,
+        accentColor = themeSettings?.accentColor ?: AccentColor.CYAN
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            StartDestinationGate(
+                settingsFlow = settingsRepository.settingsFlow,
+                currentVersionCode = currentVersionCode
+            ) { initialSettings, startKey ->
+                AppNavHost(
+                    settingsRepository = settingsRepository,
+                    initialSettings = initialSettings,
+                    startKey = startKey,
+                    currentVersionCode = currentVersionCode,
+                    initialLaunchUri = initialLaunchUri,
+                    onLaunchUriConsumed = onLaunchUriConsumed,
+                    isPipMode = isPipMode,
+                    onEnterPip = onEnterPip,
+                    onPlayerRouteActiveChanged = { active ->
+                        isPlayerRouteActive = active
+                        onPlayerRouteActiveChanged(active)
+                    }
+                )
+            }
+        }
     }
 }
 
@@ -138,6 +191,7 @@ private fun AppNavHost(
     settingsRepository: ApturaSettingsRepository,
     initialSettings: ApturaSettings,
     startKey: NavKey,
+    currentVersionCode: Int,
     initialLaunchUri: String?,
     onLaunchUriConsumed: () -> Unit,
     isPipMode: Boolean,
@@ -148,6 +202,14 @@ private fun AppNavHost(
     val coroutineScope = rememberCoroutineScope()
 
     val settings by settingsRepository.settingsFlow.collectAsStateWithLifecycle(initialValue = initialSettings)
+
+    // Installs from before the guide recorded a version adopt the current build silently. Without this, the first
+    // launch after updating to this build would look like an update and replay the guide for everyone.
+    LaunchedEffect(settings.onboardingCompleted, settings.lastSeenGuideVersion, currentVersionCode) {
+        if (settings.onboardingCompleted && settings.lastSeenGuideVersion == 0 && currentVersionCode > 0) {
+            settingsRepository.setLastSeenGuideVersion(currentVersionCode)
+        }
+    }
 
     val database = remember { ApturaDatabase.getInstance(context) }
     val mediaRepository = remember { MediaRepositoryImpl(database.mediaItemDao(), database.bookmarkDao()) }
@@ -174,7 +236,10 @@ private fun AppNavHost(
         val allGranted = results.values.all { it }
         libraryViewModel.setPermissionDenied(!allGranted)
         if (allGranted) {
-            coroutineScope.launch { settingsRepository.setOnboardingCompleted(true) }
+            coroutineScope.launch {
+                settingsRepository.setOnboardingCompleted(true)
+                settingsRepository.setLastSeenGuideVersion(currentVersionCode)
+            }
             MediaScanScheduler.scheduleImmediateScan(context)
             if (backStack.lastOrNull() == Onboarding) {
                 backStack.removeLastOrNull()
@@ -253,7 +318,12 @@ private fun AppNavHost(
         entryProvider = entryProvider {
             entry<Onboarding> {
                 // Leaves the guide: back to Settings when it was replayed from there, otherwise on to the library.
+                // Finishing (by the button or by skipping) counts as seen, so the guide does not return next launch.
                 val finishGuide: () -> Unit = {
+                    coroutineScope.launch {
+                        settingsRepository.setOnboardingCompleted(true)
+                        settingsRepository.setLastSeenGuideVersion(currentVersionCode)
+                    }
                     backStack.removeLastOrNull()
                     if (backStack.isEmpty()) backStack.add(MediaLibrary)
                 }
@@ -269,7 +339,10 @@ private fun AppNavHost(
                     onFinishClick = finishGuide,
                     // Reaching the last page counts as having seen the guide, even if the app is closed right there.
                     onReachedLastPage = {
-                        coroutineScope.launch { settingsRepository.setOnboardingCompleted(true) }
+                        coroutineScope.launch {
+                            settingsRepository.setOnboardingCompleted(true)
+                            settingsRepository.setLastSeenGuideVersion(currentVersionCode)
+                        }
                     }
                 )
             }
@@ -506,6 +579,12 @@ private fun AppNavHost(
                     onUpdateDecoderStrategy = { strategy ->
                         // The Settings screen edits the DEFAULT; the player picks it up from the settings flow.
                         coroutineScope.launch { settingsRepository.updateDefaultDecoderStrategy(strategy) }
+                    },
+                    onUpdateThemeMode = { mode ->
+                        coroutineScope.launch { settingsRepository.updateThemeMode(mode) }
+                    },
+                    onUpdateAccentColor = { accent ->
+                        coroutineScope.launch { settingsRepository.updateAccentColor(accent) }
                     },
                     onClearThumbnailCache = {
                         coroutineScope.launch(Dispatchers.IO) {

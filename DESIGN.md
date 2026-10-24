@@ -10,13 +10,15 @@
 ## 1. Aesthetic Vision & Philosophy
 
 Aptura is a **precision optical instrument for personal media**. 
-- **Distraction-Free Immersion:** In playback mode, content is the hero. The interface retreats into invisibility until summoned.
-- **Cinematic Dark-First:** Engineered for OLED/AMOLED displays with true `#000000` deep blacks to maximize battery savings and visual contrast.
+- **Distraction-Free Immersion:** In playback mode, content is the hero. The interface retreats into invisibility until summoned. The player is **always dark**, even when the app is in light mode.
+- **Cinematic Dark-First, Not Dark-Only:** The dark palette remains the design baseline, engineered for OLED/AMOLED displays with true `#000000` black in the player. The app follows the system theme by default and can be pinned to Light or Dark.
 - **Anti-Slop Guarantee:** Zero generic cookie-cutter templates, zero childish saturated gradients, zero rounded bubbly cards with no purpose. Every element is deliberate, refined, and tactile.
 
 ---
 
 ## 2. Color Tokens & Semantic Roles
+
+Appearance is a user setting (`ThemeMode` = `System` / `Light` / `Dark`, plus one of five accents: Cyan, Blue, Violet, Amber, Rose). `ApturaTheme` swaps one complete palette at a time, so a token always means the same thing. The dark palette below is unchanged from the original specification; the light palette is its daylight counterpart. The player always resolves to the dark palette.
 
 ### 2.1 Surfaces & Backgrounds (Dark Mode Baseline)
 | Token | Hex Value | Semantic Role / Usage |
@@ -26,18 +28,47 @@ Aptura is a **precision optical instrument for personal media**.
 | `SurfaceElevated1` | `#16181D` | Standard media cards, list item surfaces, top app bar |
 | `SurfaceElevated2` | `#20232A` | Dialogs, bottom sheets, search bar container |
 | `SurfaceElevated3` | `#2B2F38` | Hover/pressed states, focused list items, active chips |
+| `SurfaceRecessed` | `#00000080` | Recessed tracks: selector switches, folder chips |
 | `SurfaceScrim` | `#000000CC` | 80% opacity overlay behind HUD controls during playback |
 | `SurfaceGlass` | `#16181DB3` | 70% opacity blurred backdrop for quick-setting flyouts |
 
-### 2.2 Brand & Functional Accents
-| Token | Hex Value | Role |
+### 2.1b Light Palette (same token names)
+| Token | Hex Value | Notes |
 |---|---|---|
-| `AccentPrimary` | `#00E5FF` | **Aptura Electric Cyan** — Primary active state, playback scrubber fill, active tab indicator |
-| `AccentSecondary` | `#00B4D8` | Deep Teal — Secondary highlights, track badge outlines, subtle glows |
-| `AccentSubtle` | `#00E5FF26` | 15% Cyan fill for selected chip backgrounds and scrubber buffer indicator |
+| `SurfacePureBlack` | `#FFFFFF` | The brightest surface in light mode (thumbnails, selected-chip labels) |
+| `SurfaceBase` | `#F5F6F8` | Primary background |
+| `SurfaceElevated1` | `#FFFFFF` | Cards and panels |
+| `SurfaceElevated2` | `#FCFCFD` | Dialogs and sheets |
+| `SurfaceElevated3` | `#EDEFF3` | Pressed/active states |
+| `SurfaceRecessed` | `#0F172A0F` | 6% ink recessed track |
+| `SurfaceScrim` | `#0A0C10CC` | Scrims stay dark over imagery |
+| `SurfaceGlass` | `#FFFFFFB3` | Light glass |
+| `BorderSubtle` | `#0F172A1F` | 12% ink hairline |
+| `TextHighEmphasis` | `#111418` | 16:1 on the light base |
+| `TextMediumEmphasis` | `#4B5563` | 7:1 on white |
+| `TextLowEmphasis` | `#6B7280` | 4.8:1 on white |
+| `TextOnAccent` | `#FFFFFF` | Light accents are dark enough for white labels |
+| `TextOnScrim` | `#F0F4F8` | Fixed light text over dark scrims, in either mode |
+| `StatusSuccess` | `#087A42` | Darkened for 4.5:1 on white |
+| `StatusWarning` | `#9A6B00` | Darkened for 4.5:1 on white |
+| `StatusError` | `#C62828` | Darkened for 4.5:1 on white |
+| `StatusInfo` | `#0B6FA4` | Darkened for 4.5:1 on white |
+
+### 2.2 Brand & Functional Accents
+Each accent has a dark and a light primary/secondary variant; the active pair is part of the palette.
+
+| Accent | Dark primary | Light primary | Role |
+|---|---|---|---|
+| Cyan (default) | `#00E5FF` | `#00707F` | **Aptura Electric Cyan** — active states, scrubber fill, selection |
+| Blue | `#6EA8FF` | `#1D4ED8` | Cool secondary identity |
+| Violet | `#B388FF` | `#6D28D9` | Expressive secondary identity |
+| Amber | `#FFC857` | `#8A5300` | Warm secondary identity |
+| Rose | `#FF6E9C` | `#B3124B` | Warm secondary identity |
+
+`AccentSubtle` is the active primary at 15% alpha (dark) or 12% alpha (light). `BorderSubtle` is `#FFFFFF26` in dark and `#0F172A1F` in light.
 
 ### 2.3 Semantic State Colors
-| Token | Hex Value | Role |
+| Token | Hex Value (dark) | Role |
 |---|---|---|
 | `StatusSuccess` | `#00E676` | Verified format badges, completed scans, healthy states |
 | `StatusWarning` | `#FFD600` | Unsupported audio channel fallback notice, high thermal warning |
@@ -45,12 +76,13 @@ Aptura is a **precision optical instrument for personal media**.
 | `StatusInfo` | `#40C4FF` | Format discovery tags, informational badges |
 
 ### 2.4 Typography Color Scale
-| Token | Hex Value | Contrast Ratio on `SurfaceBase` | Role |
+| Token | Hex Value (dark) | Contrast Ratio on `SurfaceBase` | Role |
 |---|---|---|---|
 | `TextHighEmphasis` | `#F0F4F8` | 16.2:1 (Exceeds WCAG AAA) | Video titles, primary labels, current timecode |
 | `TextMediumEmphasis`| `#9BA3AF` | 7.8:1 (WCAG AAA) | Video duration, file resolution, folder item counts |
 | `TextLowEmphasis` | `#606978` | 4.6:1 (WCAG AA) | Inactive icons, subtitle track codecs, disabled states |
 | `TextOnAccent` | `#001217` | 17.5:1 on Cyan | Text inside primary cyan badges or action buttons |
+| `TextOnScrim` | `#F0F4F8` | - | Text/icons on a dark scrim over thumbnails |
 
 ---
 

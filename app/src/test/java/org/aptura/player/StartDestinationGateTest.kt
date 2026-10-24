@@ -24,6 +24,9 @@ import org.robolectric.annotation.Config
  * First run: the guide used to be skipped whenever storage access was already granted (a reinstall, a device or install
  * command that pre-grants it), and "seen" was only recorded inside the permission flow, so those users never saw it and
  * could only find it in Settings. The first launch now always shows it.
+ *
+ * Updates: the guide is shown once after an update too. The stored build number is compared with the installed one, so
+ * finishing the guide on 1.0.1 and installing 1.0.2 brings it back exactly once.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -68,5 +71,49 @@ class StartDestinationGateTest {
     fun theGuideDependsOnlyOnWhetherItWasSeen_notOnStorageAccess() {
         assertEquals(Onboarding, startDestinationFor(onboardingCompleted = false))
         assertEquals(MediaLibrary, startDestinationFor(onboardingCompleted = true))
+    }
+
+    @Test
+    fun anUpdate_showsTheGuideAgain() {
+        val settings = MutableSharedFlow<ApturaSettings>(replay = 1)
+        settings.tryEmit(ApturaSettings(onboardingCompleted = true, lastSeenGuideVersion = 3))
+        composeRule.setContent {
+            StartDestinationGate(settings, currentVersionCode = 4) { _, startKey ->
+                Text("START=$startKey")
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("START=Onboarding").assertIsDisplayed()
+    }
+
+    @Test
+    fun theSameVersion_keepsTheGuideAway() {
+        val settings = MutableSharedFlow<ApturaSettings>(replay = 1)
+        settings.tryEmit(ApturaSettings(onboardingCompleted = true, lastSeenGuideVersion = 4))
+        composeRule.setContent {
+            StartDestinationGate(settings, currentVersionCode = 4) { _, startKey ->
+                Text("START=$startKey")
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("START=MediaLibrary").assertIsDisplayed()
+    }
+
+    @Test
+    fun aLegacyInstallWithoutAVersion_isNotTreatedAsAnUpdate() {
+        // Builds from before this feature have 0 stored. They adopt the current version silently (AppNavHost), so the
+        // first launch after updating does not replay the guide for every existing user.
+        assertEquals(
+            MediaLibrary,
+            startDestinationFor(onboardingCompleted = true, lastSeenGuideVersion = 0, currentVersionCode = 9)
+        )
+        assertEquals(
+            Onboarding,
+            startDestinationFor(onboardingCompleted = true, lastSeenGuideVersion = 8, currentVersionCode = 9)
+        )
+        assertEquals(
+            MediaLibrary,
+            startDestinationFor(onboardingCompleted = true, lastSeenGuideVersion = 9, currentVersionCode = 9)
+        )
     }
 }

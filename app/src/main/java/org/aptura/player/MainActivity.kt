@@ -11,13 +11,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.C
 import androidx.media3.common.Player
@@ -26,7 +22,6 @@ import androidx.media3.common.VideoSize
 import kotlinx.coroutines.launch
 import org.aptura.player.data.playback.PlayerManager
 import org.aptura.player.data.settings.ApturaSettingsRepository
-import org.aptura.player.theme.ApturaTheme
 import org.aptura.player.ui.player.PipSupport
 
 class MainActivity : ComponentActivity() {
@@ -65,26 +60,23 @@ class MainActivity : ComponentActivity() {
                 android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
         }
 
-        // Force dark system bar style so status/navigation bar icons stay light across all rotations (F-26).
+        // Edge-to-edge with transparent bars. Their icon colour follows the in-app theme, which can differ from the
+        // system's own mode, so ApturaTheme sets it on every theme change instead of pinning it here (F-26).
         enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
-            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+            statusBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
         )
         setContent {
-            ApturaTheme {
-                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    MainNavigation(
-                        initialLaunchUri = pendingLaunchUri,
-                        onLaunchUriConsumed = { pendingLaunchUri = null },
-                        isPipMode = isPipMode.value,
-                        onEnterPip = ::enterPictureInPicture,
-                        onPlayerRouteActiveChanged = { active ->
-                            isPlayerRouteActive = active
-                            updatePictureInPictureParams()
-                        }
-                    )
+            MainNavigation(
+                initialLaunchUri = pendingLaunchUri,
+                onLaunchUriConsumed = { pendingLaunchUri = null },
+                isPipMode = isPipMode.value,
+                onEnterPip = ::enterPictureInPicture,
+                onPlayerRouteActiveChanged = { active ->
+                    isPlayerRouteActive = active
+                    updatePictureInPictureParams()
                 }
-            }
+            )
         }
 
         observePlayerForPictureInPicture()

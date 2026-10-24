@@ -69,7 +69,7 @@ import org.aptura.player.theme.ApturaTypography
  * TalkBack and their parts are hidden from it, so a screen reader hears one clear sentence instead of fragments.
  */
 
-private val Hairline = Color.White.copy(alpha = 0.10f)
+private val Hairline: Color get() = ApturaColors.BorderSubtle
 
 @Composable
 internal fun GuidePanel(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
@@ -79,7 +79,7 @@ internal fun GuidePanel(modifier: Modifier = Modifier, content: @Composable Colu
             .fillMaxWidth()
             .clip(shape)
             .background(ApturaColors.SurfaceElevated1)
-            .border(1.dp, Color.White.copy(alpha = 0.07f), shape),
+            .border(1.dp, Hairline, shape),
         content = content
     )
 }
@@ -246,11 +246,11 @@ internal fun GestureMap(modifier: Modifier = Modifier) {
             .aspectRatio(16f / 8.2f)
             .clip(shape)
             .background(ApturaColors.SurfacePureBlack)
-            .border(1.dp, Color.White.copy(alpha = 0.18f), shape)
+            .border(1.dp, Hairline, shape)
             .drawBehind {
                 // The seam between the two halves.
                 drawLine(
-                    color = Color.White.copy(alpha = 0.22f),
+                    color = ApturaColors.BorderSubtle,
                     start = Offset(size.width / 2, 14.dp.toPx()),
                     end = Offset(size.width / 2, size.height - 38.dp.toPx()),
                     strokeWidth = 1.dp.toPx(),
@@ -293,7 +293,7 @@ internal fun GestureMap(modifier: Modifier = Modifier) {
                     .weight(1f)
                     .height(4.dp)
                     .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.18f))
+                    .background(ApturaColors.BorderSubtle)
             ) {
                 Box(Modifier.fillMaxWidth(0.42f).fillMaxHeight().background(ApturaColors.AccentPrimary))
             }
@@ -382,7 +382,7 @@ private fun ToolTile(tool: GuideTool, modifier: Modifier = Modifier) {
         modifier = modifier
             .clip(shape)
             .background(ApturaColors.SurfaceElevated1)
-            .border(1.dp, Color.White.copy(alpha = 0.07f), shape)
+            .border(1.dp, Hairline, shape)
             .padding(14.dp)
     ) {
         Icon(tool.icon, contentDescription = null, tint = ApturaColors.AccentPrimary, modifier = Modifier.size(22.dp))

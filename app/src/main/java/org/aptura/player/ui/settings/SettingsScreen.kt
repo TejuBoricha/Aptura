@@ -91,8 +91,10 @@ import org.aptura.player.core.media.ThumbnailRepository
 import org.aptura.player.core.platform.AppVersion
 import org.aptura.player.data.settings.ApturaSettings
 import org.aptura.player.domain.repository.LibraryStatistics
+import org.aptura.player.theme.AccentColor
 import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
+import org.aptura.player.theme.ThemeMode
 import org.aptura.player.ui.library.MediaFormatters
 
 private val PlaybackSpeeds = listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
@@ -123,6 +125,8 @@ fun SettingsScreen(
     onUpdateAutoAdvanceCountdown: (Int) -> Unit,
     onRescanClick: () -> Unit,
     onReplayOnboardingClick: () -> Unit,
+    onUpdateThemeMode: (ThemeMode) -> Unit = {},
+    onUpdateAccentColor: (AccentColor) -> Unit = {},
     onUpdateDecoderStrategy: (Int) -> Unit = {},
     onClearThumbnailCache: () -> Unit = {},
     onAddFolderClick: () -> Unit = {},
@@ -247,6 +251,29 @@ fun SettingsScreen(
                         ReadoutCell(MediaFormatters.formatDuration(libraryStats.totalDurationMs), "Total time", Modifier.weight(1f))
                         ReadoutDivider()
                         ReadoutCell(MediaFormatters.formatFileSize(libraryStats.totalSizeBytes), "Footprint", Modifier.weight(1f))
+                    }
+                }
+            }
+
+            // Appearance
+            item(key = "appearance", contentType = "section") {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SectionLabel("Appearance")
+                    SettingsPanel {
+                        PickerRow(
+                            title = "App Theme",
+                            subtitle = "System follows your device. The player always stays dark.",
+                            options = ThemeMode.entries.map { it.label },
+                            selectedIndex = settings.themeMode.ordinal,
+                            onSelect = { onUpdateThemeMode(ThemeMode.entries[it]) }
+                        )
+                        PanelDivider()
+                        AccentPickerRow(
+                            title = "Accent Color",
+                            subtitle = "Controls, selection and progress",
+                            selected = settings.accentColor,
+                            onSelect = onUpdateAccentColor
+                        )
                     }
                 }
             }
@@ -561,8 +588,8 @@ private fun FolderChip(name: String, onRemove: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(ApturaColors.SurfacePureBlack.copy(alpha = 0.40f))
-            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
+            .background(ApturaColors.SurfaceRecessed)
+            .border(1.dp, ApturaColors.BorderSubtle, RoundedCornerShape(12.dp))
             .padding(start = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

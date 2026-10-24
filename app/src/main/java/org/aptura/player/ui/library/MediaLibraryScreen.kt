@@ -901,7 +901,7 @@ fun VideoGridCard(
                         Text(
                             text = card.durationFormatted,
                             style = ApturaTypography.labelSmall,
-                            color = ApturaColors.TextHighEmphasis
+                            color = ApturaColors.TextOnScrim
                         )
                     }
                 }
@@ -911,7 +911,7 @@ fun VideoGridCard(
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(ApturaColors.SurfacePureBlack.copy(alpha = 0.55f))
+                            .background(ApturaColors.SurfaceScrim.copy(alpha = 0.55f))
                     )
                     Box(
                         modifier = Modifier
@@ -924,14 +924,14 @@ fun VideoGridCard(
                             Icon(
                                 imageVector = Icons.Default.FolderOff,
                                 contentDescription = null,
-                                tint = ApturaColors.TextHighEmphasis,
+                                tint = ApturaColors.TextOnScrim,
                                 modifier = Modifier.size(12.dp)
                             )
                             Spacer(Modifier.width(4.dp))
                             Text(
                                 text = "Missing",
                                 style = ApturaTypography.labelSmall,
-                                color = ApturaColors.TextHighEmphasis
+                                color = ApturaColors.TextOnScrim
                             )
                         }
                     }
