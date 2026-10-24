@@ -28,7 +28,16 @@ sealed interface MediaLibraryUiState {
         val isRefreshing: Boolean = false,
         val isLimitedMode: Boolean = false,
         /** Started-but-unfinished videos, most recently played first. Empty while searching or inside a folder. */
-        val continueWatching: List<VideoCardUiModel> = emptyList()
+        val continueWatching: List<VideoCardUiModel> = emptyList(),
+        /**
+         * Whole-library figures for the wide-screen sidebar. They deliberately do not change when a folder or search
+         * filter is active: the sidebar describes the collection, while the grid describes the current view.
+         */
+        val libraryVideoCount: Int = totalCount,
+        val libraryDurationMs: Long = 0L,
+        val librarySizeBytes: Long = 0L,
+        /** Videos per folder path, including folders that are not in the current filtered result. */
+        val folderCounts: Map<String, Int> = emptyMap()
     ) : MediaLibraryUiState
 }
 
@@ -66,6 +75,19 @@ object MediaFormatters {
             String.format(Locale.US, "%d:%02d:%02d", hours, minutes, seconds)
         } else {
             String.format(Locale.US, "%d:%02d", minutes, seconds)
+        }
+    }
+
+    /** Compact collection runtime for the library sidebar: "11h 51m", "45m", "2h". */
+    fun formatRuntime(durationMs: Long): String {
+        if (durationMs <= 0L) return "0m"
+        val totalMinutes = (durationMs + 59_999L) / 60_000L
+        val hours = totalMinutes / 60L
+        val minutes = totalMinutes % 60L
+        return when {
+            hours > 0L && minutes > 0L -> "${hours}h ${minutes}m"
+            hours > 0L -> "${hours}h"
+            else -> "${minutes}m"
         }
     }
 

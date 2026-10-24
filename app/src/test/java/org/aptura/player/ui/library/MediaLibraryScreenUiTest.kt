@@ -196,7 +196,7 @@ class MediaLibraryScreenUiTest {
             }
         }
 
-        composeTestRule.onNodeWithContentDescription("More actions").performClick()
+        composeTestRule.onNodeWithContentDescription("More actions for Oppenheimer").performClick()
         composeTestRule.onNodeWithText("Play Next").assertIsDisplayed()
         composeTestRule.onNodeWithText("Add to Queue").assertIsDisplayed()
         composeTestRule.onNodeWithText("Video Details").assertIsDisplayed()
@@ -205,7 +205,7 @@ class MediaLibraryScreenUiTest {
         composeTestRule.onNodeWithText("Play Next").performClick()
         assertEquals("content://media/1", playNextItem?.uri)
 
-        composeTestRule.onNodeWithContentDescription("More actions").performClick()
+        composeTestRule.onNodeWithContentDescription("More actions for Oppenheimer").performClick()
         composeTestRule.onNodeWithText("Video Details").performClick()
         assertEquals("content://media/1", detailsShownItem?.uri)
     }

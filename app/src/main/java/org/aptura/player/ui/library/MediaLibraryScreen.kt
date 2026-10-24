@@ -1,5 +1,13 @@
 package org.aptura.player.ui.library
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -68,25 +76,25 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.NavigationRail
-import androidx.compose.material3.NavigationRailItem
-import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -236,6 +244,9 @@ private fun MediaLibraryContentView(
     bottomPadding: androidx.compose.ui.unit.Dp,
     modifier: Modifier = Modifier
 ) {
+    // The full index is the better default on a tablet; the rail is one tap away when the viewer would
+    // rather spend the width on the grid. Saved so a rotation does not undo the choice.
+    var sidebarExpanded by rememberSaveable { mutableStateOf(true) }
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     var sortMenuExpanded by remember { mutableStateOf(false) }
@@ -267,83 +278,55 @@ private fun MediaLibraryContentView(
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val containerWidth = maxWidth
         val isWideScreen = containerWidth >= 600.dp && windowAdaptiveInfo.windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND)
+        // At 700 dp there is room for the full collection index. Above 150% font the labels cannot breathe in
+        // 248 dp, so the rail compresses instead of truncating every folder name.
+        val canExpandSidebar = isWideScreen && containerWidth >= 700.dp && LocalDensity.current.fontScale < 1.5f
+        val isExpandedSidebar = canExpandSidebar && sidebarExpanded
 
         Row(modifier = Modifier.fillMaxSize()) {
             if (isWideScreen) {
-                NavigationRail(
-                    modifier = Modifier.fillMaxHeight(),
-                    containerColor = ApturaColors.SurfaceElevated1,
-                    contentColor = ApturaColors.TextHighEmphasis,
-                    header = {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.padding(top = topPadding + 10.dp, bottom = 8.dp)
-                        ) {
-                            Text(
-                                text = "APTURA",
-                                style = ApturaTypography.labelSmall,
-                                color = ApturaColors.TextHighEmphasis,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(Modifier.height(10.dp))
-                            HorizontalDivider(
-                                modifier = Modifier.width(36.dp),
-                                color = ApturaColors.BorderSubtle
-                            )
-                        }
+                AnimatedContent(
+                    targetState = isExpandedSidebar,
+                    transitionSpec = {
+                        val expanding = targetState
+                        val enter = fadeIn(tween(180)) +
+                            slideInHorizontally(tween(220)) { width -> if (expanding) -width / 10 else width / 10 }
+                        val exit = fadeOut(tween(140)) +
+                            slideOutHorizontally(tween(220)) { width -> if (expanding) width / 10 else -width / 10 }
+                        (enter togetherWith exit).using(
+                            SizeTransform(clip = true, sizeAnimationSpec = { _, _ -> tween(220) })
+                        )
+                    },
+                    label = "librarySidebar"
+                ) { expanded ->
+                    if (expanded) {
+                        LibrarySidebar(
+                            state = state,
+                            topPadding = topPadding,
+                            bottomPadding = bottomPadding,
+                            onFolderSelected = onFolderSelected,
+                            onAddFolderClick = onAddFolderClick,
+                            onOpenFilePicker = onOpenFilePicker,
+                            onRefresh = onRefresh,
+                            onSettingsClick = onSettingsClick,
+                            onCollapse = { sidebarExpanded = false }
+                        )
+                    } else {
+                        LibraryCompactRail(
+                            state = state,
+                            topPadding = topPadding,
+                            bottomPadding = bottomPadding,
+                            canExpand = canExpandSidebar,
+                            onExpand = { sidebarExpanded = true },
+                            onOpenFilePicker = onOpenFilePicker,
+                            onRefresh = onRefresh,
+                            onSettingsClick = onSettingsClick
+                        )
                     }
-                ) {
-                    NavigationRailItem(
-                        selected = true,
-                        onClick = { },
-                        icon = { Icon(Icons.Default.VideoLibrary, contentDescription = "Videos") },
-                        label = { Text("Videos", style = ApturaTypography.labelSmall) },
-                        colors = NavigationRailItemDefaults.colors(
-                            selectedIconColor = ApturaColors.AccentPrimary,
-                            selectedTextColor = ApturaColors.AccentPrimary,
-                            indicatorColor = ApturaColors.AccentSubtle,
-                            unselectedIconColor = ApturaColors.TextMediumEmphasis,
-                            unselectedTextColor = ApturaColors.TextMediumEmphasis
-                        )
-                    )
-                    HorizontalDivider(
-                        modifier = Modifier
-                            .width(36.dp)
-                            .padding(vertical = 6.dp),
-                        color = ApturaColors.BorderSubtle
-                    )
-                    NavigationRailItem(
-                        selected = false,
-                        onClick = onOpenFilePicker,
-                        icon = { Icon(Icons.Filled.FolderOpen, contentDescription = "Open File") },
-                        label = { Text("Open", style = ApturaTypography.labelSmall) },
-                        colors = NavigationRailItemDefaults.colors(
-                            unselectedIconColor = ApturaColors.TextMediumEmphasis,
-                            unselectedTextColor = ApturaColors.TextMediumEmphasis
-                        )
-                    )
-                    NavigationRailItem(
-                        selected = false,
-                        onClick = onRefresh,
-                        icon = { Icon(Icons.Default.Refresh, contentDescription = "Refresh") },
-                        label = { Text("Refresh", style = ApturaTypography.labelSmall) },
-                        colors = NavigationRailItemDefaults.colors(
-                            unselectedIconColor = ApturaColors.TextMediumEmphasis,
-                            unselectedTextColor = ApturaColors.TextMediumEmphasis
-                        )
-                    )
-                    Spacer(modifier = Modifier.weight(1f))
-                    NavigationRailItem(
-                        selected = false,
-                        onClick = onSettingsClick,
-                        icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-                        label = { Text("Settings", style = ApturaTypography.labelSmall) },
-                        colors = NavigationRailItemDefaults.colors(
-                            unselectedIconColor = ApturaColors.TextMediumEmphasis,
-                            unselectedTextColor = ApturaColors.TextMediumEmphasis
-                        )
-                    )
                 }
+                // The sidebar and the collection are both near-white in the light theme; a hairline keeps the
+                // boundary intentional instead of letting the panel dissolve into the grid.
+                VerticalDivider(color = ApturaColors.BorderSubtle)
             }
 
             Column(
@@ -491,8 +474,9 @@ private fun MediaLibraryContentView(
                     }
                 }
 
-        // Folder Chips Row (FR-LIB-009, FR-LIB-018)
-        if (state.videos.isNotEmpty()) {
+        // Folder Chips Row (FR-LIB-009, FR-LIB-018). The expanded sidebar owns this job on wide screens and keeps the
+        // top edge quiet; the compact rail still relies on the chips.
+        if (state.videos.isNotEmpty() && !isExpandedSidebar) {
             LazyRow(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -534,13 +518,7 @@ private fun MediaLibraryContentView(
                 }
 
                 items(state.folders, key = { it }, contentType = { "folder_chip" }) { folder ->
-                    val friendlyName = remember(folder) {
-                        if (folder.contains('/')) {
-                            folder.trimEnd('/').substringAfterLast('/').ifBlank { "Internal Storage" }
-                        } else {
-                            folder
-                        }
-                    }
+                    val friendlyName = remember(folder) { friendlyFolderName(folder) }
                     FilterChip(
                         selected = state.selectedFolder == folder,
                         onClick = { onFolderSelected(folder) },
@@ -658,11 +636,16 @@ private fun MediaLibraryContentView(
         // Adaptive Video Grid (Responds from 1 to 4+ columns automatically)
         val allRawVideos = remember(state.videos) { state.videos.map { it.rawItem } }
 
-        val gridMinSize = when {
+        val baseGridMinSize = when {
             containerWidth >= 1200.dp -> 240.dp
             isWideScreen -> 200.dp
             else -> 140.dp
         }
+        // Fixed 140 dp cells at 200% font turn titles into "Aptura Audit Cl…" and make sibling episodes
+        // indistinguishable. Growing the cell with the font scale buys the extra line it needs (and at the
+        // extreme falls back to a single column) without changing the normal-density layout.
+        val fontScale = LocalDensity.current.fontScale
+        val gridMinSize = baseGridMinSize * fontScale.coerceIn(1f, 1.6f)
 
         LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = gridMinSize),
@@ -991,7 +974,9 @@ fun VideoGridCard(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.MoreVert,
-                                    contentDescription = "More actions",
+                                    // With a grid full of identical ellipses, "More actions" alone tells a
+                                    // screen-reader user nothing about which video will be changed.
+                                    contentDescription = "More actions for ${card.title}",
                                     tint = ApturaColors.TextMediumEmphasis,
                                     modifier = Modifier.size(22.dp)
                                 )

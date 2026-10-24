@@ -141,7 +141,11 @@ class MediaLibraryViewModel(
                         allVideos.continueWatching().map { it.toCardUiModel() }
                     } else {
                         emptyList()
-                    }
+                    },
+                    libraryVideoCount = allVideos.size,
+                    libraryDurationMs = allVideos.sumOf { it.durationMs },
+                    librarySizeBytes = allVideos.sumOf { it.sizeBytes },
+                    folderCounts = allVideos.groupingBy { it.folderPath }.eachCount()
                 )
             }
         }

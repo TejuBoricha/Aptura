@@ -59,6 +59,7 @@ class LibraryTouchTargetsTest {
         listOf("Sort library", "Refresh library", "Settings").forEach { description ->
             composeRule.onNodeWithContentDescription(description).assertTouchTarget(composeRule.density)
         }
-        composeRule.onAllNodesWithContentDescription("More actions").onFirst().assertTouchTarget(composeRule.density)
+        composeRule.onAllNodesWithContentDescription("More actions for", substring = true).onFirst()
+            .assertTouchTarget(composeRule.density)
     }
 }
