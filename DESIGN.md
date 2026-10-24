@@ -18,7 +18,7 @@ Aptura is a **precision optical instrument for personal media**.
 
 ## 2. Color Tokens & Semantic Roles
 
-Appearance is a user setting (`ThemeMode` = `System` / `Light` / `Dark`, plus one of five accents: Cyan, Blue, Violet, Amber, Rose). `ApturaTheme` swaps one complete palette at a time, so a token always means the same thing. The dark palette below is unchanged from the original specification; the light palette is its daylight counterpart. The player always resolves to the dark palette.
+Appearance is a user setting (`ThemeMode` = `System` / `Light` / `Dark`, plus one of five accents: Cyan, Blue, Violet, Amber, Rose). `ApturaTheme` swaps one complete palette at a time, so a token always means the same thing. The dark palette below is unchanged from the original specification; the light palette is its daylight counterpart. The player and its menus always resolve to the dark palette.
 
 ### 2.1 Surfaces & Backgrounds (Dark Mode Baseline)
 | Token | Hex Value | Semantic Role / Usage |

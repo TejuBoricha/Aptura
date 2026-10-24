@@ -262,7 +262,7 @@ fun SettingsScreen(
                     SettingsPanel {
                         PickerRow(
                             title = "App Theme",
-                            subtitle = "System follows your device. The player always stays dark.",
+                            subtitle = "System follows your device. Playback and its menus always stay dark.",
                             options = ThemeMode.entries.map { it.label },
                             selectedIndex = settings.themeMode.ordinal,
                             onSelect = { onUpdateThemeMode(ThemeMode.entries[it]) }
