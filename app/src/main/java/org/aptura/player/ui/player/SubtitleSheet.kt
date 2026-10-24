@@ -37,7 +37,6 @@ import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.SubtitlesOff
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
@@ -59,6 +58,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
@@ -131,6 +131,7 @@ fun SubtitleSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(
+                    modifier = Modifier.weight(1f),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
@@ -148,7 +149,7 @@ fun SubtitleSheet(
                             )
                         }
                     }
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "Subtitles",
                             style = ApturaTypography.headlineMedium.copy(fontSize = 18.sp),
@@ -161,7 +162,9 @@ fun SubtitleSheet(
                         Text(
                             text = "Active: $activeTrackLabel",
                             style = ApturaTypography.labelSmall,
-                            color = if (uiState.selectedSubtitleTrackIndex != null) ApturaColors.AccentPrimary else ApturaColors.TextLowEmphasis
+                            color = if (uiState.selectedSubtitleTrackIndex != null) ApturaColors.AccentPrimary else ApturaColors.TextLowEmphasis,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -398,187 +401,57 @@ private fun SubtitleTracksTab(
             }
         }
 
-        // Unified Track Selector Surface
-        Surface(
-            shape = RoundedCornerShape(14.dp),
-            color = ApturaColors.SurfaceElevated3,
-            border = BorderStroke(1.dp, ApturaColors.BorderSubtle),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column {
-                // Option: Subtitles Off
-                val isOffSelected = uiState.selectedSubtitleTrackIndex == null
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            onSubtitleTrackSelected(null)
-                        }
-                        .background(if (isOffSelected) ApturaColors.AccentPrimary.copy(alpha = 0.08f) else Color.Transparent)
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = if (isOffSelected) ApturaColors.AccentSubtle else ApturaColors.SurfaceElevated2,
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.SubtitlesOff,
-                                    contentDescription = null,
-                                    tint = if (isOffSelected) ApturaColors.AccentPrimary else ApturaColors.TextLowEmphasis,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-                        Column {
-                            Text(
-                                text = "Subtitles Off",
-                                style = ApturaTypography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                                color = if (isOffSelected) ApturaColors.AccentPrimary else ApturaColors.TextHighEmphasis
-                            )
-                            Text(
-                                text = "Disable on-screen captions",
-                                style = ApturaTypography.labelSmall,
-                                color = ApturaColors.TextLowEmphasis
-                            )
-                        }
-                    }
+        // Caption track list: one card per option keeps long sidecar names readable.
+        Text(
+            text = "CAPTION TRACK",
+            style = ApturaTypography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
+            color = ApturaColors.TextLowEmphasis
+        )
 
-                    if (isOffSelected) {
-                        Icon(
-                            imageVector = Icons.Filled.Check,
-                            contentDescription = "Selected",
-                            tint = ApturaColors.AccentPrimary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-
-                // Available Tracks (Embedded & External)
-                uiState.subtitleTracks.forEach { track ->
-                    HorizontalDivider(color = ApturaColors.BorderSubtle)
-                    val isSelected = uiState.selectedSubtitleTrackIndex == track.index
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                onSubtitleTrackSelected(track.index)
-                            }
-                            .background(if (isSelected) ApturaColors.AccentPrimary.copy(alpha = 0.08f) else Color.Transparent)
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            modifier = Modifier.weight(1f),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Surface(
-                                shape = CircleShape,
-                                color = if (isSelected) ApturaColors.AccentSubtle else ApturaColors.SurfaceElevated2,
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.Subtitles,
-                                        contentDescription = null,
-                                        tint = if (isSelected) ApturaColors.AccentPrimary else ApturaColors.TextMediumEmphasis,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            }
-                            Column {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Text(
-                                        text = track.label,
-                                        style = ApturaTypography.bodyMedium.copy(
-                                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
-                                        ),
-                                        color = if (isSelected) ApturaColors.AccentPrimary else ApturaColors.TextHighEmphasis,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    if (track.isExternal) {
-                                        Surface(
-                                            shape = RoundedCornerShape(4.dp),
-                                            color = ApturaColors.AccentSubtle,
-                                            border = BorderStroke(0.5.dp, ApturaColors.AccentPrimary.copy(alpha = 0.4f))
-                                        ) {
-                                            Text(
-                                                text = "EXTERNAL",
-                                                style = ApturaTypography.labelSmall.copy(
-                                                    fontWeight = FontWeight.Bold,
-                                                    fontSize = 9.sp
-                                                ),
-                                                color = ApturaColors.AccentPrimary,
-                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                                val subText = buildString {
-                                    // "und" is the platform's undefined language marker (exact-name sidecars have
-                                    // no language); surfacing it as "UND" is techspeak, so skip it.
-                                    if (!track.language.isNullOrBlank() && !track.language.equals("und", ignoreCase = true)) {
-                                        append(track.language.uppercase())
-                                    }
-                                    if (track.isExternal) {
-                                        if (isNotEmpty()) append(" • ")
-                                        append("Imported File")
-                                    }
-                                }
-                                if (subText.isNotBlank()) {
-                                    Text(
-                                        text = subText,
-                                        style = ApturaTypography.labelSmall,
-                                        color = ApturaColors.TextMediumEmphasis
-                                    )
-                                }
-                            }
-                        }
-
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            if (track.isExternal) {
-                                IconButton(
-                                    onClick = { onRemoveExternalSubtitle(track.label) },
-                                    modifier = Modifier.size(48.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "Remove external subtitle",
-                                        tint = ApturaColors.StatusError,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            }
-                            if (isSelected) {
-                                Icon(
-                                    imageVector = Icons.Filled.Check,
-                                    contentDescription = "Selected",
-                                    tint = ApturaColors.AccentPrimary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-                    }
-                }
+        val isOffSelected = uiState.selectedSubtitleTrackIndex == null
+        TrackOptionCard(
+            selected = isOffSelected,
+            icon = Icons.Default.SubtitlesOff,
+            title = "Off",
+            subtitle = "Hide all on-screen captions",
+            onClick = {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                onSubtitleTrackSelected(null)
             }
+        )
+
+        uiState.subtitleTracks.forEach { track ->
+            val language = track.language
+                ?.takeIf { it.isNotBlank() && !it.equals("und", ignoreCase = true) }
+                ?.uppercase()
+            // Sidecar labels are built as "English · SDH (file.en.srt)": keep the language/role as the
+            // title and let the file name take the metadata line instead of truncating both.
+            val splitAt = if (track.isExternal) track.label.indexOf(" (") else -1
+            val hasFileHint = splitAt > 0 && track.label.endsWith(")")
+            val title = if (hasFileHint) track.label.substring(0, splitAt) else track.label
+            val fileHint = if (hasFileHint) track.label.substring(splitAt + 2, track.label.length - 1) else null
+            val subtitle = when {
+                fileHint != null -> fileHint
+                track.isExternal -> "Imported file"
+                language != null -> "Embedded - $language"
+                else -> "Embedded"
+            }
+            TrackOptionCard(
+                selected = uiState.selectedSubtitleTrackIndex == track.index,
+                icon = Icons.Default.Subtitles,
+                title = title,
+                subtitle = subtitle,
+                badge = if (track.isExternal) "External" else null,
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onSubtitleTrackSelected(track.index)
+                },
+                onRemove = if (track.isExternal) {
+                    { onRemoveExternalSubtitle(track.label) }
+                } else {
+                    null
+                }
+            )
         }
 
         // Import External Subtitle Affordance Card
@@ -701,6 +574,126 @@ private fun SubtitleTracksTab(
                 )
             }
         }
+    }
+}
+
+/**
+ * One selectable caption track. Long sidecar file names stay on a single ellipsized line, while the
+ * metadata line (source + language) gets its own row so badges never get squeezed into a vertical strip.
+ */
+@Composable
+private fun TrackOptionCard(
+    selected: Boolean,
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    badge: String? = null,
+    onRemove: (() -> Unit)? = null
+) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = if (selected) ApturaColors.AccentPrimary.copy(alpha = 0.10f) else ApturaColors.SurfaceElevated1,
+        border = BorderStroke(
+            1.dp,
+            if (selected) ApturaColors.AccentPrimary.copy(alpha = 0.55f) else ApturaColors.BorderSubtle
+        ),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(role = Role.RadioButton, onClick = onClick)
+                .padding(start = 14.dp, end = 6.dp, top = 10.dp, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = if (selected) ApturaColors.AccentSubtle else ApturaColors.SurfaceElevated2,
+                modifier = Modifier.size(40.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = if (selected) ApturaColors.AccentPrimary else ApturaColors.TextMediumEmphasis,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(
+                    text = title,
+                    style = ApturaTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = if (selected) ApturaColors.AccentPrimary else ApturaColors.TextHighEmphasis,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = subtitle,
+                        style = ApturaTypography.labelSmall,
+                        color = ApturaColors.TextMediumEmphasis,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    if (badge != null) {
+                        MetaBadge(text = badge)
+                    }
+                }
+            }
+
+            if (onRemove != null) {
+                IconButton(onClick = onRemove, modifier = Modifier.size(40.dp)) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Remove external subtitle",
+                        tint = ApturaColors.StatusError.copy(alpha = 0.85f),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+
+            if (selected) {
+                Icon(
+                    imageVector = Icons.Filled.Check,
+                    contentDescription = "Selected",
+                    tint = ApturaColors.AccentPrimary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MetaBadge(text: String) {
+    Surface(
+        shape = RoundedCornerShape(4.dp),
+        color = ApturaColors.AccentSubtle,
+        border = BorderStroke(0.5.dp, ApturaColors.AccentPrimary.copy(alpha = 0.35f))
+    ) {
+        Text(
+            text = text.uppercase(),
+            style = ApturaTypography.labelSmall.copy(
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.5.sp
+            ),
+            color = ApturaColors.AccentPrimary,
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+        )
     }
 }
 
