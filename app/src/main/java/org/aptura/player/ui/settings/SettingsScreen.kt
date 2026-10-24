@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -29,16 +30,20 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Share
@@ -46,6 +51,7 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -62,19 +68,25 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.aptura.player.core.diagnostics.ApturaDiagnostics
+import org.aptura.player.core.media.CodecSupportEntry
+import org.aptura.player.core.media.CodecSupportReport
+import org.aptura.player.core.media.DeviceCodecSupport
 import org.aptura.player.core.media.ThumbnailRepository
 import org.aptura.player.core.platform.AppVersion
 import org.aptura.player.data.settings.ApturaSettings
@@ -125,12 +137,28 @@ fun SettingsScreen(
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     var isDeleteDiagnosticsDialogOpen by remember { mutableStateOf(false) }
+    var isCodecDialogOpen by remember { mutableStateOf(false) }
+    var codecReport by remember { mutableStateOf<CodecSupportReport?>(null) }
     var cacheSizeBytes by remember { mutableStateOf(0L) }
 
     LaunchedEffect(Unit) {
         cacheSizeBytes = withContext(Dispatchers.IO) {
             ThumbnailRepository.getCacheSizeBytes(context)
         }
+    }
+
+    // Reading MediaCodecList is cheap but not free; do it off the main thread and only when the report is opened.
+    LaunchedEffect(isCodecDialogOpen) {
+        if (isCodecDialogOpen && codecReport == null) {
+            codecReport = withContext(Dispatchers.IO) { DeviceCodecSupport.report() }
+        }
+    }
+
+    if (isCodecDialogOpen) {
+        CodecSupportDialog(
+            report = codecReport,
+            onDismiss = { isCodecDialogOpen = false }
+        )
     }
 
     if (isDeleteDiagnosticsDialogOpen) {
@@ -275,16 +303,26 @@ fun SettingsScreen(
                             selectedIndex = settings.defaultDecoderStrategy.takeIf { it in DecoderChoices.indices } ?: -1,
                             onSelect = onUpdateDecoderStrategy,
                             footer = {
-                                AnimatedContent(
-                                    targetState = settings.defaultDecoderStrategy,
-                                    transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(120)) },
-                                    label = "decoder-note"
-                                ) { strategy ->
+                                Column {
+                                    AnimatedContent(
+                                        targetState = settings.defaultDecoderStrategy,
+                                        transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(120)) },
+                                        label = "decoder-note"
+                                    ) { strategy ->
+                                        Text(
+                                            text = "${decoderExplanation(strategy)}. A video you changed in the player keeps its own choice.",
+                                            style = ApturaTypography.bodySmall,
+                                            color = ApturaColors.TextMediumEmphasis,
+                                            modifier = Modifier.padding(top = 12.dp)
+                                        )
+                                    }
                                     Text(
-                                        text = "${decoderExplanation(strategy)}. A video you changed in the player keeps its own choice.",
+                                        text = "Aptura decodes video with this device's built-in decoders. The bundled " +
+                                            "FFmpeg extension adds audio codecs only; a video this phone cannot decode " +
+                                            "can be opened in an external player.",
                                         style = ApturaTypography.bodySmall,
-                                        color = ApturaColors.TextMediumEmphasis,
-                                        modifier = Modifier.padding(top = 12.dp)
+                                        color = ApturaColors.TextLowEmphasis,
+                                        modifier = Modifier.padding(top = 6.dp)
                                     )
                                 }
                             }
@@ -407,6 +445,14 @@ fun SettingsScreen(
                                 )
                             }
                         }
+                        PanelDivider()
+                        ActionRow(
+                            icon = Icons.Default.Memory,
+                            title = "Device Codec Support",
+                            subtitle = "Video and audio decoders this phone exposes, plus bundled audio codecs",
+                            onClick = { isCodecDialogOpen = true },
+                            trailing = { NavigationChevron() }
+                        )
                         PanelDivider()
                         ActionRow(
                             icon = Icons.Default.Share,
@@ -553,8 +599,176 @@ private fun folderDisplayName(folderUri: String): String = try {
     folderUri
 }
 
+/**
+ * Honest capability sheet: what this device can decode, and why video is platform-only.
+ * The report is copyable because it is the first thing a support conversation needs.
+ */
+@Composable
+private fun CodecSupportDialog(report: CodecSupportReport?, onDismiss: () -> Unit) {
+    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = ApturaColors.SurfaceElevated2
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 600.dp)
+                    .padding(20.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Device Codec Support",
+                            style = ApturaTypography.titleLarge,
+                            color = ApturaColors.TextHighEmphasis
+                        )
+                        Text(
+                            text = report?.deviceLabel ?: "Reading decoder list...",
+                            style = ApturaTypography.labelSmall,
+                            color = ApturaColors.TextMediumEmphasis,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(40.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = ApturaColors.TextMediumEmphasis,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "Aptura uses this device's built-in decoders and bundles no software video " +
+                        "decoders. If a codec is missing below, the player offers an external-player hand-off.",
+                    style = ApturaTypography.bodySmall,
+                    color = ApturaColors.TextMediumEmphasis
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    if (report == null) {
+                        Text(
+                            text = "Reading decoder list...",
+                            style = ApturaTypography.bodySmall,
+                            color = ApturaColors.TextLowEmphasis
+                        )
+                    } else {
+                        CodecSection(title = "Video", entries = report.video)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        CodecSection(title = "Audio", entries = report.audio)
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Text(
+                            text = CodecSupportReport.FFMPEG_NOTE,
+                            style = ApturaTypography.labelSmall,
+                            color = ApturaColors.TextLowEmphasis
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(
+                        onClick = {
+                            report?.let {
+                                clipboard.setText(AnnotatedString(it.toPlainText()))
+                                Toast.makeText(context, "Codec report copied", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        enabled = report != null
+                    ) {
+                        Text(
+                            text = "Copy report",
+                            color = if (report != null) ApturaColors.AccentPrimary else ApturaColors.TextLowEmphasis
+                        )
+                    }
+                    TextButton(onClick = onDismiss) {
+                        Text(text = "Close", color = ApturaColors.TextMediumEmphasis)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CodecSection(title: String, entries: List<CodecSupportEntry>) {
+    Text(
+        text = title.uppercase(),
+        style = ApturaTypography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
+        color = ApturaColors.TextLowEmphasis
+    )
+    Spacer(modifier = Modifier.height(6.dp))
+    if (entries.isEmpty()) {
+        Text(
+            text = "None reported",
+            style = ApturaTypography.bodySmall,
+            color = ApturaColors.TextLowEmphasis
+        )
+        return
+    }
+    entries.forEach { entry ->
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = entry.label,
+                    style = ApturaTypography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                    color = ApturaColors.TextHighEmphasis
+                )
+                Text(
+                    text = entry.decoderName,
+                    style = ApturaTypography.labelSmall,
+                    color = ApturaColors.TextLowEmphasis,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Surface(
+                shape = RoundedCornerShape(4.dp),
+                color = if (entry.hardware) {
+                    ApturaColors.StatusSuccess.copy(alpha = 0.12f)
+                } else {
+                    ApturaColors.SurfaceElevated3
+                }
+            ) {
+                Text(
+                    text = if (entry.hardware) "Hardware" else "Software",
+                    style = ApturaTypography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
+                    color = if (entry.hardware) ApturaColors.StatusSuccess else ApturaColors.TextMediumEmphasis,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                )
+            }
+        }
+    }
+}
+
 private fun decoderExplanation(strategy: Int): String = when (strategy) {
-    1 -> "Hardware · Low battery consumption, relies on GPU decoders"
-    2 -> "Software · CPU decoding fallback for problematic streams"
-    else -> "Auto · Optimal balance between hardware decoders and compatibility"
+    1 -> "Hardware only · GPU/ISP decoders; a codec without one fails instead of falling back"
+    2 -> "Platform software · Android's CPU decoders; slower and hotter, but rescues broken hardware paths"
+    else -> "Auto · hardware first, then Android's platform software decoder"
 }

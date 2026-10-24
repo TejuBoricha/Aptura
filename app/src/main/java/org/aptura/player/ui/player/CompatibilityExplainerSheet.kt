@@ -175,9 +175,9 @@ fun CompatibilityExplainerContent(
             )
 
             val strategies = listOf(
-                Triple(0, "Auto", "Picks the best decoder automatically (recommended)"),
-                Triple(1, "Hardware", "Faster and easier on battery; best when smooth"),
-                Triple(2, "Software", "Most compatible; may use more battery on large files")
+                Triple(0, "Auto", "Hardware first, then Android's platform software decoder"),
+                Triple(1, "Hardware", "GPU/ISP decoders only; fails instead of falling back"),
+                Triple(2, "Software", "Android's CPU decoders; slower, but rescues broken hardware paths")
             )
 
             strategies.forEach { (strategy, title, description) ->
