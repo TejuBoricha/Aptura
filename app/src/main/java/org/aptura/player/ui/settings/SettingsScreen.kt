@@ -89,6 +89,7 @@ import org.aptura.player.core.media.CodecSupportEntry
 import org.aptura.player.core.media.CodecSupportReport
 import org.aptura.player.core.media.DeviceCodecSupport
 import org.aptura.player.core.media.ThumbnailRepository
+import org.aptura.player.core.playback.PlaybackSpeedOptions
 import org.aptura.player.core.platform.AppVersion
 import org.aptura.player.data.settings.ApturaSettings
 import org.aptura.player.domain.repository.LibraryStatistics
@@ -96,9 +97,9 @@ import org.aptura.player.theme.AccentColor
 import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
 import org.aptura.player.theme.ThemeMode
+import org.aptura.player.ui.components.SpeedRail
 import org.aptura.player.ui.library.MediaFormatters
 
-private val PlaybackSpeeds = listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
 private val ResizeModeChoices = listOf("Fit", "Fill", "Zoom", "16:9", "4:3")
 private val SeekSteps = listOf(5, 10, 15, 30)
 private val CountdownChoices = listOf(5, 10, 15, 0) // seconds; 0 plays the next video straight away
@@ -294,13 +295,17 @@ fun SettingsScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     SectionLabel("Playback")
                     SettingsPanel {
-                        PickerRow(
-                            title = "Default Playback Speed",
-                            subtitle = null,
-                            options = PlaybackSpeeds.map { "${it}x" },
-                            selectedIndex = PlaybackSpeeds.indexOf(settings.defaultPlaybackSpeed),
-                            onSelect = { onUpdateSpeed(PlaybackSpeeds[it]) }
-                        )
+                        // The same eight speeds the player offers, so any speed can also be the default.
+                        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
+                            RowText("Default Playback Speed", "Every new video starts here")
+                            Spacer(Modifier.height(6.dp))
+                            SpeedRail(
+                                speeds = PlaybackSpeedOptions.all,
+                                selectedSpeed = settings.defaultPlaybackSpeed,
+                                onSelect = onUpdateSpeed,
+                                label = "Default Playback Speed"
+                            )
+                        }
                         PanelDivider()
                         PickerRow(
                             title = "Default Aspect Ratio",

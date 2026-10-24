@@ -71,6 +71,7 @@ class MainActivity : ComponentActivity() {
                 initialLaunchUri = pendingLaunchUri,
                 onLaunchUriConsumed = { pendingLaunchUri = null },
                 isPipMode = isPipMode.value,
+                pipSupported = supportsPictureInPicture(),
                 onEnterPip = ::enterPictureInPicture,
                 onPlayerRouteActiveChanged = { active ->
                     isPlayerRouteActive = active

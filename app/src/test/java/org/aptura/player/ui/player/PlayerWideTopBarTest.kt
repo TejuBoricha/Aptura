@@ -42,4 +42,27 @@ class PlayerWideTopBarTest {
                 .assertTouchTarget(composeRule.density)
         }
     }
+
+    @Test
+    fun withoutPipSupport_theInlineControlIsHidden_butTheOtherActionsStay() {
+        composeRule.setContent {
+            ApturaTheme {
+                PlayerScreen(
+                    uiState = PlayerUiState(videoTitle = "Show.S01E01", durationMs = 120_000L, isPlaying = true, isControlsVisible = true),
+                    player = null,
+                    pipSupported = false,
+                    onBackClick = {}, onPlayPauseClick = {}, onSeekRelative = {}, onScrubStart = {}, onScrubMove = {},
+                    onScrubEnd = {}, onControlsVisibilityToggle = {}, onLockToggle = {}, onSpeedSelected = {},
+                    onResizeModeToggle = {}, onSpeedSheetVisible = {}, onAudioSheetVisible = {}, onSubtitleSheetVisible = {},
+                    onAudioTrackSelected = {}, onSubtitleTrackSelected = {}, onVolumePercentChanged = {},
+                    onBrightnessPercentChanged = {}, onRetryPlayback = {}
+                )
+            }
+        }
+
+        assertEquals(0, composeRule.onAllNodes(hasContentDescription("Picture in Picture")).fetchSemanticsNodes().size)
+        listOf("Screen Orientation", "Aspect Ratio", "Speed").forEach { description ->
+            composeRule.onNodeWithContentDescription(description).assertIsDisplayed()
+        }
+    }
 }

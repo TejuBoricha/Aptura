@@ -122,6 +122,7 @@ import org.aptura.player.core.diagnostics.ApturaDiagnostics
 import org.aptura.player.core.diagnostics.ErrorTaxonomy
 import org.aptura.player.core.media.SubtitleFileValidator
 import org.aptura.player.core.media.SubtitleValidationResult
+import org.aptura.player.core.playback.PlaybackSpeedOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -191,6 +192,7 @@ import androidx.media3.ui.PlayerView
 import org.aptura.player.domain.model.PlayMode
 import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
+import org.aptura.player.ui.components.SpeedRail
 import org.aptura.player.ui.library.MediaFormatters
 
 /**
@@ -257,6 +259,8 @@ fun PlayerScreen(
     onCancelAutoAdvance: () -> Unit = {},
     onPlayNextImmediately: () -> Unit = {},
     isPipMode: Boolean = false,
+    // False on devices without the PiP system feature: the control is hidden instead of failing silently.
+    pipSupported: Boolean = true,
     onEnterPip: () -> Unit = {},
     onExternalSubtitleSelected: (android.net.Uri, String, String) -> Unit = { _, _, _ -> },
     onRemoveExternalSubtitle: (String) -> Unit = {},
@@ -1053,7 +1057,9 @@ fun PlayerScreen(
 
                         if (!compactTopBar) {
                             TopBarIconButton(Icons.Filled.ScreenRotation, "Screen Orientation", orientationTint, onOrientationClick)
-                            TopBarIconButton(Icons.Filled.PictureInPictureAlt, "Picture in Picture", ApturaColors.TextHighEmphasis, onEnterPip)
+                            if (pipSupported) {
+                                TopBarIconButton(Icons.Filled.PictureInPictureAlt, "Picture in Picture", ApturaColors.TextHighEmphasis, onEnterPip)
+                            }
                             TopBarIconButton(Icons.Filled.AspectRatio, "Aspect Ratio", aspectTint, onResizeModeToggle)
 
                             TopBarSpeedChip(uiState.playbackSpeed) { onSpeedSheetVisible(true) }
@@ -1114,9 +1120,11 @@ fun PlayerScreen(
                                         overflowOpen = false
                                         onOrientationClick()
                                     }
-                                    OverflowMenuItem(Icons.Filled.PictureInPictureAlt, "Picture in picture") {
-                                        overflowOpen = false
-                                        onEnterPip()
+                                    if (pipSupported) {
+                                        OverflowMenuItem(Icons.Filled.PictureInPictureAlt, "Picture in picture") {
+                                            overflowOpen = false
+                                            onEnterPip()
+                                        }
                                     }
                                 }
                             }
@@ -1858,9 +1866,8 @@ fun PlayerScreen(
                         color = ApturaColors.TextHighEmphasis,
                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
                     )
-                    val speedOptions = listOf(0.25f, 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f)
                     LazyColumn {
-                        items(speedOptions) { speed ->
+                        items(PlaybackSpeedOptions.all) { speed ->
                             val isSelected = uiState.playbackSpeed == speed
                             Row(
                                 modifier = Modifier
@@ -1871,7 +1878,7 @@ fun PlayerScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = if (speed == 1.0f) "Normal (1.0x)" else "${speed}x",
+                                    text = if (speed == 1.0f) "Normal (1.0x)" else PlaybackSpeedOptions.label(speed),
                                     style = ApturaTypography.bodyMedium.copy(fontFeatureSettings = "tnum"),
                                     color = if (isSelected) ApturaColors.AccentPrimary else ApturaColors.TextHighEmphasis
                                 )
@@ -2081,66 +2088,19 @@ fun PlayerScreen(
 
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        // 1. Playback Speed Selector (2 balanced rows, zero truncation)
+                        // 1. Playback Speed Selector. The same ramp as Settings: one line instead of two rows of cards.
                         Text(
                             text = "PLAYBACK SPEED",
                             style = ApturaTypography.labelSmall,
                             color = ApturaColors.AccentPrimary,
-                            modifier = Modifier.padding(bottom = 8.dp)
+                            modifier = Modifier.padding(bottom = 2.dp)
                         )
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                listOf(0.25f, 0.5f, 0.75f, 1.0f).forEach { speed ->
-                                    val isSelected = uiState.playbackSpeed == speed
-                                    Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = if (isSelected) ApturaColors.AccentPrimary else ApturaColors.SurfaceElevated3,
-                                        border = if (isSelected) null else BorderStroke(1.dp, ApturaColors.BorderSubtle),
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clickable { onSpeedSelected(speed) }
-                                    ) {
-                                        Text(
-                                            text = if (speed == 1.0f) "1.0x" else "${speed}x",
-                                            style = ApturaTypography.labelSmall.copy(fontFeatureSettings = "tnum"),
-                                            color = if (isSelected) ApturaColors.SurfacePureBlack else ApturaColors.TextHighEmphasis,
-                                            textAlign = TextAlign.Center,
-                                            modifier = Modifier.padding(vertical = 10.dp)
-                                        )
-                                    }
-                                }
-                            }
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                listOf(1.25f, 1.5f, 1.75f, 2.0f).forEach { speed ->
-                                    val isSelected = uiState.playbackSpeed == speed
-                                    Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = if (isSelected) ApturaColors.AccentPrimary else ApturaColors.SurfaceElevated3,
-                                        border = if (isSelected) null else BorderStroke(1.dp, ApturaColors.BorderSubtle),
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clickable { onSpeedSelected(speed) }
-                                    ) {
-                                        Text(
-                                            text = "${speed}x",
-                                            style = ApturaTypography.labelSmall.copy(fontFeatureSettings = "tnum"),
-                                            color = if (isSelected) ApturaColors.SurfacePureBlack else ApturaColors.TextHighEmphasis,
-                                            textAlign = TextAlign.Center,
-                                            modifier = Modifier.padding(vertical = 10.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
+                        SpeedRail(
+                            speeds = PlaybackSpeedOptions.all,
+                            selectedSpeed = uiState.playbackSpeed,
+                            onSelect = onSpeedSelected,
+                            label = "Playback Speed"
+                        )
 
                         Spacer(modifier = Modifier.height(20.dp))
 

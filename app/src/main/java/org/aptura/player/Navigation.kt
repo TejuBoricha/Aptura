@@ -140,6 +140,8 @@ fun MainNavigation(
     initialLaunchUri: String? = null,
     onLaunchUriConsumed: () -> Unit = {},
     isPipMode: Boolean = false,
+    // Devices without the PiP feature (some TVs and low-end tablets) must not show a control that can never work.
+    pipSupported: Boolean = true,
     onEnterPip: () -> Unit = {},
     onPlayerRouteActiveChanged: (Boolean) -> Unit = {}
 ) {
@@ -175,6 +177,7 @@ fun MainNavigation(
                     initialLaunchUri = initialLaunchUri,
                     onLaunchUriConsumed = onLaunchUriConsumed,
                     isPipMode = isPipMode,
+                    pipSupported = pipSupported,
                     onEnterPip = onEnterPip,
                     onPlayerRouteActiveChanged = { active ->
                         isPlayerRouteActive = active
@@ -195,6 +198,7 @@ private fun AppNavHost(
     initialLaunchUri: String?,
     onLaunchUriConsumed: () -> Unit,
     isPipMode: Boolean,
+    pipSupported: Boolean,
     onEnterPip: () -> Unit,
     onPlayerRouteActiveChanged: (Boolean) -> Unit
 ) {
@@ -656,6 +660,7 @@ private fun AppNavHost(
                     uiState = uiState,
                     player = playbackController.player,
                     isPipMode = isPipMode,
+                    pipSupported = pipSupported,
                     onEnterPip = onEnterPip,
                     onBackClick = { handleBack(backStack, dismissPlayerAndResetOrientation) },
                     onPlayPauseClick = playerViewModel::togglePlayPause,
