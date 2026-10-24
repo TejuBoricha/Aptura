@@ -35,6 +35,7 @@ import kotlinx.coroutines.withContext
 import org.aptura.player.core.diagnostics.ApturaDiagnostics
 import org.aptura.player.core.diagnostics.ErrorTaxonomy
 import org.aptura.player.core.diagnostics.EventCode
+import org.aptura.player.core.media.MediaLanguageLabels
 import org.aptura.player.domain.model.DomainExternalSubtitle
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.domain.model.DomainPlaybackQueue
@@ -1024,15 +1025,7 @@ class Media3PlaybackController(
                 val format = group.getTrackFormat(i)
                 val id = format.id ?: "${group.mediaTrackGroup.id}_$i"
                 val language = format.language
-                val resolvedLanguage = if (!language.isNullOrBlank() && !language.equals("und", ignoreCase = true)) {
-                    try {
-                        val loc = java.util.Locale.forLanguageTag(language)
-                        val display = loc.getDisplayLanguage(java.util.Locale.ENGLISH)
-                        if (display.isNotBlank()) display else language.uppercase()
-                    } catch (_: Throwable) {
-                        language.uppercase()
-                    }
-                } else null
+                val resolvedLanguage = MediaLanguageLabels.displayName(language)
 
                 val channelDesc = when (format.channelCount) {
                     1 -> "Mono"

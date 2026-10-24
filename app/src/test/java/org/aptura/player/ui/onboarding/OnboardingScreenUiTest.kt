@@ -129,6 +129,18 @@ class OnboardingScreenUiTest {
         assertEquals(0, GuideTools.size % 2)
     }
 
+    /**
+     * Regression for the 2026-10-24 walk: page 2's last row sat inside the bottom scrim forever because the content's
+     * bottom padding (224 dp) was smaller than the fade (280 dp). The scroll range must clear the scrim.
+     */
+    @Test
+    fun theContent_canScrollClearOfTheBottomFade() {
+        assertTrue(
+            "content padding ($GUIDE_CONTENT_BOTTOM_PADDING) must exceed the fade ($GUIDE_BOTTOM_FADE_HEIGHT)",
+            GUIDE_CONTENT_BOTTOM_PADDING > GUIDE_BOTTOM_FADE_HEIGHT
+        )
+    }
+
     // ---- the last page depends on whether access is already granted ---------------------------------------------------
 
     @Test

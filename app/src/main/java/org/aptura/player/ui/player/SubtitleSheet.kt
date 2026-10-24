@@ -71,6 +71,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.aptura.player.core.media.MediaLanguageLabels
 import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
 
@@ -421,9 +422,7 @@ private fun SubtitleTracksTab(
         )
 
         uiState.subtitleTracks.forEach { track ->
-            val language = track.language
-                ?.takeIf { it.isNotBlank() && !it.equals("und", ignoreCase = true) }
-                ?.uppercase()
+            val language = MediaLanguageLabels.displayName(track.language)
             // Sidecar labels are built as "English · SDH (file.en.srt)": keep the language/role as the
             // title and let the file name take the metadata line instead of truncating both.
             val splitAt = if (track.isExternal) track.label.indexOf(" (") else -1

@@ -64,13 +64,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -105,6 +106,16 @@ private val DecoderChoices = listOf("Auto", "Hardware", "Software")
 
 /** How far (in dp) the large title has to scroll before the compact title bar has fully taken over. */
 private const val TITLE_COLLAPSE_DP = 90
+
+/** Height of the compact bar's content row. The bar is drawn on top of the list, so it must cover exactly this. */
+internal const val SETTINGS_TOP_BAR_HEIGHT_DP = 56
+
+/**
+ * The compact bar must be an opaque fill. A gradient that fades out inside the bar's own height lets the rows
+ * scrolling underneath show through the back button and title (audit 2026-10-24).
+ */
+internal val SettingsTopBarBackground: Brush
+    get() = SolidColor(ApturaColors.SurfaceBase)
 
 /**
  * Settings Root Screen (SCR-013, SCR-014, SCR-015, SCR-016).
@@ -538,26 +549,30 @@ fun SettingsScreen(
             }
         }
 
-        // Compact title bar: solid behind the title and back button, with a soft lower edge so scrolled content never
-        // shows through the title. The back button itself never moves.
+        // Compact title bar: an opaque strip exactly as tall as the back button/title row. It fades in with the
+        // scroll, then hides everything that scrolls beneath it; the hairline makes the edge deliberate instead of
+        // letting half-faded content show through the title (the previous gradient faded out inside the strip).
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(statusTop + 88.dp)
+                .height(statusTop + SETTINGS_TOP_BAR_HEIGHT_DP.dp)
                 .graphicsLayer { alpha = collapse() }
-                .background(
-                    Brush.verticalGradient(
-                        0f to ApturaColors.SurfaceBase,
-                        0.70f to ApturaColors.SurfaceBase,
-                        1f to Color.Transparent
-                    )
-                )
-        )
+                .background(SettingsTopBarBackground)
+                .testTag("settings_compact_bar")
+        ) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(ApturaColors.BorderSubtle)
+            )
+        }
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = statusTop)
-                .height(56.dp)
+                .height(SETTINGS_TOP_BAR_HEIGHT_DP.dp)
                 .padding(horizontal = 8.dp)
         ) {
             CircleIconButton(

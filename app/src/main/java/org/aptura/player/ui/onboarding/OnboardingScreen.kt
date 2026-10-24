@@ -1,7 +1,6 @@
 package org.aptura.player.ui.onboarding
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.fadeIn
@@ -42,6 +41,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -88,128 +88,136 @@ fun OnboardingScreen(
         coroutineScope.launch { pagerState.animateScrollToPage(page - 1) }
     }
 
-    Box(
+    Column(
         modifier = modifier
             .fillMaxSize()
             .background(ApturaColors.SurfaceBase)
     ) {
-        HorizontalPager(
-            state = pagerState,
-            modifier = Modifier.fillMaxSize()
-        ) { index ->
-            GuidePage(
-                // Pages dim slightly as they slide away, so the swipe reads as one motion.
-                distanceFromCenter = { abs((pagerState.currentPage - index) + pagerState.currentPageOffsetFraction) }
-            ) {
-                when (index) {
-                    0 -> {
-                        PageHeading(
-                            label = "Welcome to Aptura",
-                            title = "Everything stays on your device",
-                            body = "Aptura plays the videos already on your phone. It has no internet permission at all, so the app itself cannot upload, track or sell anything."
-                        )
-                        PrivacyFacts()
-                    }
-                    1 -> {
-                        PageHeading(
-                            label = "Your library",
-                            title = "Find it, then pick up where you left off",
-                            body = "Videos appear on their own and stay up to date."
-                        )
-                        LibraryMock()
-                        FeatureList(
-                            listOf(
-                                "Search, filter and sort" to "Search by title, filter by folder, and order the grid your way.",
-                                "Continue Watching" to "Videos you stopped partway sit at the top, with the time left.",
-                                "The ⋮ menu on any video" to "Play next, add to queue, play audio only, share, open in another player, rename, hide or delete.",
-                                "More places" to "Add a folder or an SD card, or open a single file."
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .clipToBounds()
+        ) {
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize()
+            ) { index ->
+                GuidePage(
+                    // Pages dim slightly as they slide away, so the swipe reads as one motion.
+                    distanceFromCenter = { abs((pagerState.currentPage - index) + pagerState.currentPageOffsetFraction) }
+                ) {
+                    when (index) {
+                        0 -> {
+                            PageHeading(
+                                label = "Welcome to Aptura",
+                                title = "Everything stays on your device",
+                                body = "Aptura plays the videos already on your phone. It has no internet permission at all, so the app itself cannot upload, track or sell anything."
                             )
-                        )
-                    }
-                    2 -> {
-                        PageHeading(
-                            label = "In the player",
-                            title = "Control playback with your thumbs",
-                            body = "The screen is split in two. No buttons needed."
-                        )
-                        GestureMap()
-                        FeatureList(ExtraGestures)
-                    }
-                    3 -> {
-                        PageHeading(
-                            label = "Tools",
-                            title = "Tools for the details",
-                            body = "Tap the screen while a video plays to show the controls and menus. These are in there."
-                        )
-                        ToolGrid()
-                    }
-                    else -> {
-                        PageHeading(
-                            label = if (hasStorageAccess) "Ready" else "Access",
-                            title = if (hasStorageAccess) "You're all set" else "Access Your Library",
-                            body = if (hasStorageAccess) {
-                                "You can start watching now."
-                            } else {
-                                "To list the videos on your device, Aptura needs permission to read them."
-                            }
-                        )
-                        AccessExplainer(hasAccess = hasStorageAccess)
+                            PrivacyFacts()
+                        }
+                        1 -> {
+                            PageHeading(
+                                label = "Your library",
+                                title = "Find it, then pick up where you left off",
+                                body = "Videos appear on their own and stay up to date."
+                            )
+                            LibraryMock()
+                            FeatureList(
+                                listOf(
+                                    "Search, filter and sort" to "Search by title, filter by folder, and order the grid your way.",
+                                    "Continue Watching" to "Videos you stopped partway sit at the top, with the time left.",
+                                    "The ⋮ menu on any video" to "Play next, add to queue, play audio only, share, open in another player, rename, hide or delete.",
+                                    "More places" to "Add a folder or an SD card, or open a single file."
+                                )
+                            )
+                        }
+                        2 -> {
+                            PageHeading(
+                                label = "In the player",
+                                title = "Control playback with your thumbs",
+                                body = "The screen is split in two. No buttons needed."
+                            )
+                            GestureMap()
+                            FeatureList(ExtraGestures)
+                        }
+                        3 -> {
+                            PageHeading(
+                                label = "Tools",
+                                title = "Tools for the details",
+                                body = "Tap the screen while a video plays to show the controls and menus. These are in there."
+                            )
+                            ToolGrid()
+                        }
+                        else -> {
+                            PageHeading(
+                                label = if (hasStorageAccess) "Ready" else "Access",
+                                title = if (hasStorageAccess) "You're all set" else "Access Your Library",
+                                body = if (hasStorageAccess) {
+                                    "You can start watching now."
+                                } else {
+                                    "To list the videos on your device, Aptura needs permission to read them."
+                                }
+                            )
+                            AccessExplainer(hasAccess = hasStorageAccess)
+                        }
                     }
                 }
             }
-        }
 
-        // The same fade at the top, so scrolled content never runs under the status bar or the Skip button.
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .fillMaxWidth()
-                .height(WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 80.dp)
-                .background(
-                    Brush.verticalGradient(
-                        0f to ApturaColors.SurfaceBase,
-                        0.65f to ApturaColors.SurfaceBase,
-                        1f to Color.Transparent
+            // The same fade at the top, so scrolled content never runs under the status bar or the Skip button.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .height(WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 80.dp)
+                    .background(
+                        Brush.verticalGradient(
+                            0f to ApturaColors.SurfaceBase,
+                            0.65f to ApturaColors.SurfaceBase,
+                            1f to Color.Transparent
+                        )
                     )
-                )
-        )
+            )
 
-        // Skip. Declared AFTER the pager: later siblings draw and receive touches on top. When it was declared before
-        // the full-screen pager, the pager swallowed every tap and Skip never worked (audit P1-03).
-        AnimatedVisibility(
-            visible = page < LAST_PAGE,
-            enter = fadeIn(),
-            exit = fadeOut(),
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .statusBarsPadding()
-                .padding(top = 8.dp, end = 16.dp)
-        ) {
-            TextButton(
-                onClick = { coroutineScope.launch { pagerState.animateScrollToPage(LAST_PAGE) } }
+            // Skip. Declared AFTER the pager: later siblings draw and receive touches on top. When it was declared
+            // before the full-screen pager, the pager swallowed every tap and Skip never worked (audit P1-03).
+            // Fully qualified: the imported name resolves to the ColumnScope extension of the outer footer column.
+            androidx.compose.animation.AnimatedVisibility(
+                visible = page < LAST_PAGE,
+                enter = fadeIn(),
+                exit = fadeOut(),
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(top = 8.dp, end = 16.dp)
             ) {
-                Text(text = "Skip", style = ApturaTypography.labelLarge, color = ApturaColors.TextMediumEmphasis)
+                TextButton(
+                    onClick = { coroutineScope.launch { pagerState.animateScrollToPage(LAST_PAGE) } }
+                ) {
+                    Text(text = "Skip", style = ApturaTypography.labelLarge, color = ApturaColors.TextMediumEmphasis)
+                }
             }
+
+            // A short fade at the page/footer boundary hints that the page scrolls without washing out a whole row.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(GUIDE_BOTTOM_FADE_HEIGHT)
+                    .background(
+                        Brush.verticalGradient(
+                            0f to Color.Transparent,
+                            1f to ApturaColors.SurfaceBase
+                        )
+                    )
+            )
         }
 
-        // A pages content scrolls, and it must never show through the controls: fade it out behind them.
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .height(280.dp)
-                .background(
-                    Brush.verticalGradient(
-                        0f to Color.Transparent,
-                        0.30f to ApturaColors.SurfaceBase,
-                        1f to ApturaColors.SurfaceBase
-                    )
-                )
-        )
         Column(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
                 .fillMaxWidth()
+                .background(ApturaColors.SurfaceBase)
                 .navigationBarsPadding()
                 .padding(horizontal = 24.dp, vertical = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -270,7 +278,15 @@ fun OnboardingScreen(
     }
 }
 
-/** One scrolling page: content is capped to a readable width and leaves room for Skip above and the controls below. */
+internal val GUIDE_BOTTOM_FADE_HEIGHT = 20.dp
+
+/**
+ * Bottom inset for a page's content. It must exceed the edge fade, otherwise the last row can never be scrolled
+ * completely out of the scrim (audit 2026-10-24: page 2's "More places" and page 4's tool grid were stuck half-faded).
+ */
+internal val GUIDE_CONTENT_BOTTOM_PADDING = GUIDE_BOTTOM_FADE_HEIGHT + 16.dp
+
+/** One scrolling page: content is capped to a readable width and leaves room for Skip above and the fixed footer. */
 @Composable
 private fun GuidePage(
     distanceFromCenter: () -> Float,
@@ -288,8 +304,7 @@ private fun GuidePage(
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .statusBarsPadding()
-                .navigationBarsPadding()
-                .padding(start = 24.dp, end = 24.dp, top = 64.dp, bottom = 224.dp),
+                .padding(start = 24.dp, end = 24.dp, top = 64.dp, bottom = GUIDE_CONTENT_BOTTOM_PADDING),
             verticalArrangement = Arrangement.spacedBy(24.dp),
             content = content
         )

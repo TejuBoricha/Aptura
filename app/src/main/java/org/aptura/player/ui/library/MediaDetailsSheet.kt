@@ -69,6 +69,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.aptura.player.core.media.MediaExtendedMetadata
+import org.aptura.player.core.media.MediaLanguageLabels
 import org.aptura.player.core.media.MediaMetadataInspector
 import org.aptura.player.core.media.MediaPathResolver
 import org.aptura.player.domain.model.DomainMediaItem
@@ -293,7 +294,7 @@ fun MediaDetailsContent(
                 val channelStr = MediaMetadataInspector.formatChannels(track.channelCount)
                 val sampleRateStr = MediaMetadataInspector.formatSampleRate(track.sampleRate)
                 val brStr = if (track.bitrate != null && track.bitrate > 0L) " • ${MediaMetadataInspector.formatBitrate(track.bitrate)}" else ""
-                val langStr = if (!track.language.isNullOrBlank()) " (${track.language})" else ""
+                val langStr = MediaLanguageLabels.displayName(track.language)?.let { " ($it)" } ?: ""
                 MetadataRow(
                     label = if (extended.audioTracks.size > 1) "Audio Track ${idx + 1}$langStr" else "Audio Stream$langStr",
                     value = "${track.codec} • $channelStr • $sampleRateStr$brStr"
@@ -309,7 +310,7 @@ fun MediaDetailsContent(
         SectionHeader("SUBTITLE TRACKS")
         if (extended != null && extended.subtitleTracks.isNotEmpty()) {
             extended.subtitleTracks.forEachIndexed { idx, sub ->
-                val langStr = if (!sub.language.isNullOrBlank()) " (${sub.language})" else ""
+                val langStr = MediaLanguageLabels.displayName(sub.language)?.let { " ($it)" } ?: ""
                 MetadataRow("Subtitle Track ${idx + 1}$langStr", sub.format)
             }
         } else {
