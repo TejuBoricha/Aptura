@@ -170,6 +170,17 @@ class ApturaSettingsRepository(private val context: Context) : AudioEffectsStore
         }
     }
 
+    suspend fun resetPlaybackDefaults() {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.DEFAULT_PLAYBACK_SPEED] = 1.0f
+            preferences[PreferencesKeys.DEFAULT_RESIZE_MODE] = 0
+            preferences[PreferencesKeys.SEEK_DELTA_SECONDS] = 10
+            preferences[PreferencesKeys.BACKGROUND_AUDIO_ENABLED] = true
+            preferences[PreferencesKeys.AUTO_ADVANCE_COUNTDOWN] = 10
+            preferences[PreferencesKeys.DEFAULT_DECODER_STRATEGY] = 0
+        }
+    }
+
     suspend fun updateSubtitleFontSize(sizeSp: Int) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.SUBTITLE_FONT_SIZE_SP] = sizeSp

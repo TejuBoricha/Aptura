@@ -1969,9 +1969,9 @@ fun PlayerScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
                         .windowInsetsPadding(WindowInsets.navigationBars)
                         .imePadding()
+                        .verticalScroll(rememberScrollState())
                         .padding(bottom = 24.dp)
                         .padding(horizontal = 24.dp)
                 ) {

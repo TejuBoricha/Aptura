@@ -135,6 +135,7 @@ fun SettingsScreen(
     onUpdateSeekDelta: (Int) -> Unit,
     onUpdateBackgroundAudio: (Boolean) -> Unit,
     onUpdateAutoAdvanceCountdown: (Int) -> Unit,
+    onResetPlaybackDefaults: () -> Unit = {},
     onRescanClick: () -> Unit,
     onReplayOnboardingClick: () -> Unit,
     onUpdateThemeMode: (ThemeMode) -> Unit = {},
@@ -153,6 +154,7 @@ fun SettingsScreen(
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     var isDeleteDiagnosticsDialogOpen by remember { mutableStateOf(false) }
+    var isResetPlaybackDialogOpen by remember { mutableStateOf(false) }
     var isCodecDialogOpen by remember { mutableStateOf(false) }
     var codecReport by remember { mutableStateOf<CodecSupportReport?>(null) }
     var cacheSizeBytes by remember { mutableStateOf(0L) }
@@ -201,6 +203,35 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { isDeleteDiagnosticsDialogOpen = false }) {
+                    Text("Cancel", color = ApturaColors.TextMediumEmphasis)
+                }
+            }
+        )
+    }
+
+    if (isResetPlaybackDialogOpen) {
+        AlertDialog(
+            onDismissRequest = { isResetPlaybackDialogOpen = false },
+            containerColor = ApturaColors.SurfaceElevated2,
+            shape = RoundedCornerShape(24.dp),
+            title = { Text("Reset playback defaults?", color = ApturaColors.TextHighEmphasis) },
+            text = {
+                Text(
+                    "This restores the default speed, aspect ratio, seek step, background-audio preference, and auto-advance timing.",
+                    color = ApturaColors.TextMediumEmphasis
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        isResetPlaybackDialogOpen = false
+                        onResetPlaybackDefaults()
+                        Toast.makeText(context, "Playback defaults restored", Toast.LENGTH_SHORT).show()
+                    }
+                ) { Text("Reset", color = ApturaColors.AccentPrimary) }
+            },
+            dismissButton = {
+                TextButton(onClick = { isResetPlaybackDialogOpen = false }) {
                     Text("Cancel", color = ApturaColors.TextMediumEmphasis)
                 }
             }
@@ -336,6 +367,18 @@ fun SettingsScreen(
                             subtitle = "Continue audio when switching apps or locking screen",
                             checked = settings.backgroundAudioEnabled,
                             onCheckedChange = onUpdateBackgroundAudio
+                        )
+                        PanelDivider()
+                        ActionRow(
+                            icon = Icons.Default.Refresh,
+                            title = "Reset Playback Defaults",
+                            subtitle = "Restore the default speed, format, seek step, and auto-advance profile",
+                            trailing = {
+                                PillButton(
+                                    text = "Reset",
+                                    onClick = { isResetPlaybackDialogOpen = true }
+                                )
+                            }
                         )
                         PanelDivider()
                         // Decoder Engine Strategy (FR-PLAY-003, Q13)

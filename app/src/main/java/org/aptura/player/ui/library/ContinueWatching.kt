@@ -1,10 +1,12 @@
 package org.aptura.player.ui.library
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -24,6 +26,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -67,7 +70,10 @@ fun ContinueWatchingRow(
                 .padding(bottom = 8.dp)
                 .semantics { heading() }
         )
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(horizontal = 2.dp)
+        ) {
             items(cards, key = { it.uri }, contentType = { "continue_watching_card" }) { card ->
                 ContinueWatchingCard(card = card, onClick = { onResume(card) })
             }
@@ -80,11 +86,12 @@ private fun ContinueWatchingCard(card: VideoCardUiModel, onClick: () -> Unit) {
     val remaining = MediaFormatters.formatRemaining(card.rawItem.playbackPositionMs, card.rawItem.durationMs)
     Card(
         modifier = Modifier
-            .width(200.dp)
+            .width(220.dp)
             // One TalkBack stop per card, announced as an action: "Resume Title, 12 min left".
             .clearAndSetSemantics { contentDescription = "Resume ${card.title}, $remaining" }
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, ApturaColors.BorderSubtle),
         colors = CardDefaults.cardColors(containerColor = ApturaColors.SurfaceElevated1)
     ) {
         Column {
@@ -120,10 +127,33 @@ private fun ContinueWatchingCard(card: VideoCardUiModel, onClick: () -> Unit) {
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(ApturaColors.SurfaceScrim.copy(alpha = 0.12f))
+                )
+
+                Surface(
+                    shape = RoundedCornerShape(999.dp),
+                    color = ApturaColors.SurfaceElevated2.copy(alpha = 0.88f),
+                    border = BorderStroke(1.dp, ApturaColors.AccentPrimary.copy(alpha = 0.25f)),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                ) {
+                    Text(
+                        text = "Resume",
+                        style = ApturaTypography.labelSmall,
+                        color = ApturaColors.TextHighEmphasis,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                    )
+                }
+
                 Box(
                     modifier = Modifier
                         .align(Alignment.Center)
-                        .size(40.dp)
+                        .size(42.dp)
                         .background(ApturaColors.SurfaceScrim, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
@@ -134,19 +164,19 @@ private fun ContinueWatchingCard(card: VideoCardUiModel, onClick: () -> Unit) {
                         modifier = Modifier.size(26.dp)
                     )
                 }
+
                 if (card.progressFraction > 0f) {
-                    Box(
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(3.dp)
                             .align(Alignment.BottomCenter)
-                            .background(ApturaColors.SurfaceScrim)
+                            .padding(horizontal = 8.dp, vertical = 8.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxHeight()
-                                .fillMaxWidth(card.progressFraction.coerceIn(0f, 1f))
-                                .background(ApturaColors.AccentPrimary)
+                        LinearProgressIndicator(
+                            progress = { card.progressFraction.coerceIn(0f, 1f) },
+                            modifier = Modifier.fillMaxWidth(),
+                            color = ApturaColors.AccentPrimary,
+                            trackColor = ApturaColors.SurfaceScrim
                         )
                     }
                 }

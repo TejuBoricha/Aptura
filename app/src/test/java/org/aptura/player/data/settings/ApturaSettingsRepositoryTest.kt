@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import app.cash.turbine.test
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -119,6 +120,26 @@ class ApturaSettingsRepositoryTest {
 
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun resetPlaybackDefaults_restoresFactoryProfile() = runTest {
+        repository.updateDefaultPlaybackSpeed(1.75f)
+        repository.updateDefaultResizeMode(3)
+        repository.updateSeekDeltaSeconds(30)
+        repository.updateBackgroundAudioEnabled(false)
+        repository.updateAutoAdvanceCountdown(0)
+        repository.updateDefaultDecoderStrategy(2)
+
+        repository.resetPlaybackDefaults()
+
+        val reset = repository.settingsFlow.first()
+        assertEquals(1.0f, reset.defaultPlaybackSpeed)
+        assertEquals(0, reset.defaultResizeMode)
+        assertEquals(10, reset.seekDeltaSeconds)
+        assertTrue(reset.backgroundAudioEnabled)
+        assertEquals(10, reset.autoAdvanceCountdownSeconds)
+        assertEquals(0, reset.defaultDecoderStrategy)
     }
 
     @Test

@@ -574,6 +574,9 @@ private fun AppNavHost(
                     onUpdateAutoAdvanceCountdown = { cd ->
                         coroutineScope.launch { settingsRepository.updateAutoAdvanceCountdown(cd) }
                     },
+                    onResetPlaybackDefaults = {
+                        coroutineScope.launch { settingsRepository.resetPlaybackDefaults() }
+                    },
                     onRescanClick = {
                         MediaScanScheduler.scheduleImmediateScan(context)
                     },

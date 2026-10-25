@@ -200,24 +200,12 @@ internal fun LibraryCompactRail(
                     .width(CompactSidebarWidth)
             ) {
                 if (canExpand) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 48.dp),
-                        horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            onClick = onExpand,
-                            modifier = Modifier.size(48.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                contentDescription = "Expand sidebar",
-                                tint = ApturaColors.TextMediumEmphasis
-                            )
-                        }
-                    }
+                    SidebarControlButton(
+                        onClick = onExpand,
+                        icon = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = "Expand sidebar"
+                    )
+                    Spacer(Modifier.size(8.dp))
                 }
                 SidebarMark(size = 34.dp)
                 if (showLabels) {
@@ -333,18 +321,39 @@ private fun SidebarBrand(onCollapse: () -> Unit) {
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            IconButton(
+            SidebarControlButton(
                 onClick = onCollapse,
-                modifier = Modifier.size(48.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                    contentDescription = "Collapse sidebar",
-                    tint = ApturaColors.TextMediumEmphasis
-                )
-            }
+                icon = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                contentDescription = "Collapse sidebar"
+            )
         }
         HorizontalDivider(color = ApturaColors.BorderSubtle)
+    }
+}
+
+@Composable
+private fun SidebarControlButton(
+    onClick: () -> Unit,
+    icon: ImageVector,
+    contentDescription: String,
+    iconSize: Dp = 24.dp,
+    backgroundColor: Color = ApturaColors.SurfaceElevated2,
+    iconTint: Color = ApturaColors.AccentPrimary,
+    modifier: Modifier = Modifier
+) {
+    IconButton(
+        onClick = onClick,
+        modifier = modifier
+            .size(48.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(backgroundColor)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = iconTint,
+            modifier = Modifier.size(iconSize)
+        )
     }
 }
 
@@ -417,17 +426,14 @@ private fun CollectionsHeader(onAddFolderClick: () -> Unit) {
         Spacer(modifier = Modifier.weight(1f))
         // Pinned to the section heading: on a short landscape window the list scrolls, so a trailing
         // "Add a folder" row would be the first thing to disappear.
-        IconButton(
+        SidebarControlButton(
             onClick = onAddFolderClick,
-            modifier = Modifier.size(48.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Add,
-                contentDescription = "Add a folder",
-                tint = ApturaColors.TextMediumEmphasis,
-                modifier = Modifier.size(18.dp)
-            )
-        }
+            icon = Icons.Default.Add,
+            contentDescription = "Add a folder",
+            iconSize = 18.dp,
+            backgroundColor = ApturaColors.SurfaceElevated2,
+            iconTint = ApturaColors.TextMediumEmphasis
+        )
     }
 }
 
