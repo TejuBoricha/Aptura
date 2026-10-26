@@ -1,8 +1,9 @@
 # Aptura - Follow-up Audit and Remediation
 
-**Snapshot:** `main` @ data-integrity round (2026-10-26)  
+**Snapshot:** `main` @ `65e54be` (2026-10-26)  
 **Baseline:** `review/audit-2026-10-23/AUDIT_REPORT.md` @ `588cc3a`  
-**Delta for the first round:** 56 files, +5,430 / -799 across `14f26d1^..90ce6b9`; this report also records the follow-up data-integrity round  
+**Delta for the first round:** 56 files, +5,430 / -799 across `14f26d1^..90ce6b9`  
+**Delta for the data-integrity round:** 18 files, +1,389 / -402 across `48f6b43..65e54be`  
 **Quality gate after the final code change:** **531 tests / 82 suites, 0 failures, 0 skipped**; lint 0 errors; `assembleRelease` + `verifyReleaseApk` clean  
 **Runtime evidence:** `review/audit-2026-10-24/evidence/` (8 curated captures + UI XML)
 
@@ -633,8 +634,9 @@ These are not one-time fixes; they are the next layer of process.
 | `5e47b29` | Add a collapsible tablet library index | 248/88 dp sidebar, 600/700 dp breakpoints, collection index |
 | `90c0b61` | Polish library and playback settings | Continue Watching, reset defaults, sheet insets, sidebar controls |
 | `90ce6b9` | Complete library file actions and compact sidebar polish | Explicit Select, batch bar, rename, SAF move, trash, clipboard, swipe, compact HUD, 68 x 48 chip |
+| `65e54be` | Make SAF rename, missing-item removal, and transfers safe | Provider-allocated rename URI with row/bookmark remap, per-item missing-file removal, byte progress/cancel/free-space transfer pipeline |
 
-**Diff:** 56 files, +5,430 / -799 across `14f26d1^..90ce6b9`.
+**Diff:** 56 files, +5,430 / -799 across `14f26d1^..90ce6b9`; 18 files, +1,389 / -402 across `48f6b43..65e54be`.
 
 ---
 
