@@ -364,7 +364,7 @@ Severity here is product severity, not the previous report's P0 scale: **P1** = 
 - `MediaRepositoryImpl` also remaps `bookmarks.mediaUri` when the URI changes. A title-only update still uses `updateCustomTitle`, so it cannot overwrite the real file name or its extension.
 - The extension rule is unchanged: prefer the current file's extension, then the MIME type; `Dr. Strangelove` is a title, not a suffix.
 
-**Proof.** `ApturaMediaFileManagerTest` (5) drives the four extension cases through `DocumentsContract.renameDocument` against a registered `ContentProvider`, asserting that the provider receives the requested name and that its **new** document URI is returned; `renamingALocalFileReturnsTheNewUri` covers the file path. `MediaRepositoryTest` (9) includes `renameVideo_withANewSafUri_movesTheRowAndBookmarks_andKeepsProgress`, which seeds 42 s of progress, renames `Clip.mp4` to `Holiday.mp4` under a new SAF URI, and asserts the old URI is gone, the progress survives and the bookmark follows. A real `DocumentsProvider` instrumented test remains a future step (section 7).
+**Proof.** `ApturaMediaFileManagerTest` (5) drives the four extension cases through `DocumentsContract.renameDocument` against a registered `ContentProvider`, asserting that the provider receives the requested name and that its **new** document URI is returned; `renamingALocalFileReturnsTheNewUri` covers the file path. `MediaRepositoryTest` (9) includes `renameVideo_withANewSafUri_movesTheRowAndBookmarks_andKeepsProgress`, which seeds 42 s of progress, renames `Clip.mp4` to `Holiday.mp4` under a new SAF URI, and asserts the old URI is gone, the progress survives and the bookmark follows. The real provider path is now covered outside the unit gate: `DocumentsProviderRenameTest` (2, instrumented on the API 35 emulator) renames through Android's real `DocumentsContract` against a debug-only `DocumentsProvider` whose `renameDocument` allocates `renamed-1`. It asserts that the returned URI is the new document, that the old document ID stops resolving, and that an extension-bearing title reaches the provider unchanged. The provider is protected by `MANAGE_DOCUMENTS`, is declared only in the debug manifest and is absent from the release merged manifest. The instrumented test runs under `connectedDebugAndroidTest`, not under `tools/gate.ps1`.
 
 ---
 
@@ -500,6 +500,12 @@ All paths are relative to this folder.
 
 **Next step.** Capture on hardware, or use a `TextureView`-based debug build for screenshots if pixel evidence of the video layer is required. Do not change the production surface path solely for screenshots.
 
+### 4.6 The instrumented provider proof is outside the commit gate
+
+**Why it is open.** `tools/gate.ps1` and CI run JVM/Robolectric tests only. `DocumentsProviderRenameTest` needs a connected device and a debug build, so it is currently a local command rather than a protected check. The debug-only provider is excluded from release, but a regression in the test wiring would not fail the gate.
+
+**Next step.** Add a connected-device job that runs `:app:connectedDebugAndroidTest` on an API 35 emulator, plus an explicit release-manifest assertion that the test authority is absent. The existing exported-provider invariant already fails if a provider leaks into `main`, but the authority check makes the debug-only intent direct.
+
 ---
 
 ## 5. Why the earlier reviews missed this
@@ -591,7 +597,7 @@ The gate now includes, among others:
 | `PlayerPipAvailabilityTest` | 1 | No PiP control without the feature |
 | `LibraryTouchTargetsTest` | 1 | 48 dp targets |
 
-That is **149 tests across the 31 suites most relevant to this round**; the full gate is **556 / 88**.
+That is **149 tests across the 31 suites most relevant to this round**; the full gate is **556 / 88**. Outside the unit gate, `DocumentsProviderRenameTest` (2) runs on a connected API 35 emulator against the debug-only provider; instrumented tests are not part of either count.
 
 ### 6.3 Layout tests at the sizes that break layouts
 
@@ -628,7 +634,7 @@ A layout that only works at the reviewer's window is no longer accepted.
 ### 6.6 Documentation
 
 - `DESIGN.md` now records the 248/88 dp sidebar, the 600/700 dp breakpoints, the 150% font fallback, the 68 x 48 chip, the 680 dp action bar, the shared speed rail, the player-dark rule, and the file-action contract, including URI remapping, rename-before-scan ordering, transfer progress/cancel and the missing-item rule.
-- `.agents/MEMORY.md` Part 74 records the first audit round; Part 75 records the data-integrity round; Part 76 records the visual/capability round.
+- `.agents/MEMORY.md` Part 74 records the first audit round; Part 75 records the data-integrity round; Part 76 records the visual/capability round; Part 77 records the real `DocumentsProvider` rename proof.
 
 ### 6.7 Device capability matrix
 
@@ -649,7 +655,7 @@ The merged release manifest is now parsed for `<uses-feature>` and for the inten
 These are not one-time fixes; they are the next layer of process.
 
 1. **Coarse pixel guards are now in place** for the scrolled Settings bar, the selection bar, the guide footer and the player's quick sheet under a Light app theme. They deliberately assert flat regions, not glyphs or golden files. The remaining step is a hardware-captured screenshot matrix for typography, illustrations and the player's video layer, where a golden image is the only honest evidence.
-2. **A real `DocumentsProvider` instrumented test** that renames a document, changes its document ID, and proves the library row, saved progress and bookmarks follow the new URI. The repository remap and the provider-allocated URI path are unit-tested with a plain `ContentProvider`; a real provider's document-id change is still unverified.
+2. **The real `DocumentsProvider` path is now proven.** `DocumentsProviderRenameTest` (2, instrumented, API 35) renames through Android's `DocumentsContract` against a debug-only provider that allocates a new document ID; it asserts the new URI is returned, the old ID stops resolving and the extension rule still holds. `MediaRepositoryTest` proves the row, saved progress and bookmarks follow that URI. The remaining step is to run the instrumented test in CI on a connected emulator, not only locally.
 3. **A process-durable transfer** (foreground service or WorkManager) with the same progress, cancellation, free-space and partial-cleanup contract, so rotation, navigation or process death cannot stop a long copy. Do not duplicate `MediaFileTransfer`'s byte loop.
 4. **The capability matrix is now enforced in every gate**: the merged manifest's features and categories are allow-listed, PiP is optional in both the store declaration and the activity flag, `DeviceCapabilities` has present/absent/sub-API tests, and storage-era behavior is pinned at API 29/30/35. The remaining step is to run the same matrix on a device farm, including a real PiP-absent image.
 5. **Release-variant instrumented E2E** on a device farm, or an explicit signed release smoke checklist in CI. The current manual release smoke is honest but not scalable.

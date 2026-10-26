@@ -1,0 +1,18 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!--
+      Debug-only provider used by DocumentsProviderRenameTest. It is deliberately absent from release builds.
+      The framework requires a DocumentsProvider to be exported, grant URI permissions, and be protected by
+      MANAGE_DOCUMENTS (a signature permission), so the provider is not reachable by ordinary apps even though
+      it is exported. The instrumented test calls it from the same app UID.
+    -->
+    <application>
+        <provider
+            android:name=".core.media.RenamingDocumentsProvider"
+            android:authorities="org.aptura.player.test.documents"
+            android:exported="true"
+            android:grantUriPermissions="true"
+            android:permission="android.permission.MANAGE_DOCUMENTS"
+            android:readPermission="android.permission.MANAGE_DOCUMENTS"
+            android:writePermission="android.permission.MANAGE_DOCUMENTS" />
+    </application>
+</manifest>
