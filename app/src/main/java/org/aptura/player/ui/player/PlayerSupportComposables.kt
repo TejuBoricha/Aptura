@@ -10,14 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Forward10
-import androidx.compose.material.icons.filled.Forward30
-import androidx.compose.material.icons.filled.Forward5
 import androidx.compose.material.icons.filled.Headphones
-import androidx.compose.material.icons.filled.Replay
-import androidx.compose.material.icons.filled.Replay10
-import androidx.compose.material.icons.filled.Replay30
-import androidx.compose.material.icons.filled.Replay5
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -29,17 +22,24 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.filled.Forward10
+import androidx.compose.material.icons.filled.Forward30
+import androidx.compose.material.icons.filled.Forward5
+import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material.icons.filled.Replay10
+import androidx.compose.material.icons.filled.Replay30
+import androidx.compose.material.icons.filled.Replay5
 import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
 
 /**
- * Transport seek button icon that follows the user's seek-step setting (5 / 10 / 15 / 30 s). Material has dedicated
- * icons for 5, 10 and 30; other steps draw the generic arrow with the number on top.
+ * Transport seek button icon that follows the user's seek-step setting.
  */
 @Composable
 fun SeekStepIcon(forward: Boolean, seconds: Int, iconSize: Dp) {

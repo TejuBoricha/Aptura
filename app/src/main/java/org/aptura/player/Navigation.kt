@@ -8,7 +8,9 @@ import android.app.Activity
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -48,6 +50,7 @@ import org.aptura.player.data.database.ApturaDatabase
 import org.aptura.player.data.playback.PlayerManager
 import org.aptura.player.data.repository.MediaRepositoryImpl
 import org.aptura.player.core.media.ThumbnailRepository
+import org.aptura.player.core.media.ApturaMediaFileManager
 import org.aptura.player.data.scanner.MediaScanScheduler
 import org.aptura.player.data.settings.ApturaSettings
 import org.aptura.player.data.settings.ApturaSettingsRepository
@@ -61,7 +64,9 @@ import org.aptura.player.ui.library.MediaLibraryUiState
 import org.aptura.player.ui.library.MediaLibraryViewModel
 import org.aptura.player.ui.library.RenameVideoDialog
 import org.aptura.player.ui.library.buildPlayQueueRequest
+import org.aptura.player.ui.library.canMoveToSystemTrash
 import org.aptura.player.ui.library.rememberMediaDeleteFlow
+import org.aptura.player.ui.library.rememberMediaTrashFlow
 import org.aptura.player.ui.onboarding.OnboardingScreen
 import org.aptura.player.ui.player.PlayerScreen
 import org.aptura.player.ui.player.PlayerViewModel
@@ -443,11 +448,42 @@ private fun AppNavHost(
                 var itemToRename by remember { mutableStateOf<DomainMediaItem?>(null) }
                 var itemToDelete by remember { mutableStateOf<DomainMediaItem?>(null) }
                 var itemToHide by remember { mutableStateOf<DomainMediaItem?>(null) }
+                var pendingRenameUri by remember { mutableStateOf<String?>(null) }
+                var pendingRenameTitle by remember { mutableStateOf<String?>(null) }
+                val renameLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.StartIntentSenderForResult()
+                ) { result ->
+                    val uri = pendingRenameUri
+                    val title = pendingRenameTitle
+                    if (result.resultCode == Activity.RESULT_OK && uri != null && title != null) {
+                        val renamed = ApturaMediaFileManager.renameMediaFile(
+                            context = context,
+                            uri = Uri.parse(uri),
+                            newNameWithExt = title
+                        )
+                        if (renamed) {
+                            libraryViewModel.renameVideo(uri, title)
+                            Toast.makeText(context, "Renamed to \"$title\"", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "Android did not allow the rename.", Toast.LENGTH_LONG).show()
+                        }
+                    } else if (result.resultCode != Activity.RESULT_OK) {
+                        Toast.makeText(context, "Rename cancelled. The file name was not changed.", Toast.LENGTH_SHORT).show()
+                    }
+                    pendingRenameUri = null
+                    pendingRenameTitle = null
+                }
                 val deleteFlow = rememberMediaDeleteFlow(onDeleted = { uri ->
                     ThumbnailRepository.deleteThumbnail(context, uri)
                     libraryViewModel.onVideoDeleted(uri)
                     backStack.removeLastOrNull()
                 })
+                val trashFlow = rememberMediaTrashFlow { uris ->
+                    uris.forEach { uri ->
+                        libraryViewModel.hideVideo(uri)
+                    }
+                    backStack.removeLastOrNull()
+                }
 
                 MediaDetailsContent(
                     item = item,
@@ -511,7 +547,24 @@ private fun AppNavHost(
                     RenameVideoDialog(
                         itemTitle = target.title,
                         onConfirm = { newName ->
-                            libraryViewModel.renameVideo(target.uri, newName)
+                            var waitingForConsent = false
+                            val renamed = ApturaMediaFileManager.renameMediaFile(
+                                context = context,
+                                uri = Uri.parse(target.uri),
+                                newNameWithExt = newName,
+                                onNeedsWritePermission = { sender ->
+                                    waitingForConsent = true
+                                    pendingRenameUri = target.uri
+                                    pendingRenameTitle = newName
+                                    renameLauncher.launch(IntentSenderRequest.Builder(sender).build())
+                                }
+                            )
+                            if (!waitingForConsent && renamed) {
+                                libraryViewModel.renameVideo(target.uri, newName)
+                                Toast.makeText(context, "Renamed to \"$newName\"", Toast.LENGTH_SHORT).show()
+                            } else if (!waitingForConsent) {
+                                Toast.makeText(context, "Could not rename this video file.", Toast.LENGTH_LONG).show()
+                            }
                             itemToRename = null
                         },
                         onDismiss = { itemToRename = null }
@@ -537,6 +590,10 @@ private fun AppNavHost(
                             // Real deletion (system consent when required); the screen closes only on success.
                             deleteFlow.delete(target.uri)
                             itemToDelete = null
+                        },
+                        allowTrash = canMoveToSystemTrash(listOf(target.uri)),
+                        onTrashClick = {
+                            if (trashFlow.trash(listOf(target.uri))) itemToDelete = null
                         },
                         onDismiss = { itemToDelete = null }
                     )

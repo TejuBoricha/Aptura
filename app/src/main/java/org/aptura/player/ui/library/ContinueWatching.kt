@@ -29,11 +29,9 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -61,6 +59,7 @@ fun ContinueWatchingRow(
     onResume: (VideoCardUiModel) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     Column(modifier = modifier.fillMaxWidth()) {
         Text(
             text = CONTINUE_WATCHING_TITLE,
@@ -75,14 +74,18 @@ fun ContinueWatchingRow(
             contentPadding = PaddingValues(horizontal = 2.dp)
         ) {
             items(cards, key = { it.uri }, contentType = { "continue_watching_card" }) { card ->
-                ContinueWatchingCard(card = card, onClick = { onResume(card) })
+                ContinueWatchingCard(card = card, context = context, onClick = { onResume(card) })
             }
         }
     }
 }
 
 @Composable
-private fun ContinueWatchingCard(card: VideoCardUiModel, onClick: () -> Unit) {
+private fun ContinueWatchingCard(
+    card: VideoCardUiModel,
+    context: android.content.Context,
+    onClick: () -> Unit
+) {
     val remaining = MediaFormatters.formatRemaining(card.rawItem.playbackPositionMs, card.rawItem.durationMs)
     Card(
         modifier = Modifier
@@ -101,17 +104,20 @@ private fun ContinueWatchingCard(card: VideoCardUiModel, onClick: () -> Unit) {
                     .aspectRatio(16f / 9f)
                     .background(ApturaColors.SurfacePureBlack)
             ) {
-                val context = LocalContext.current
-                var thumbnailFile by remember(card.uri, card.rawItem.dateModifiedSec) {
-                    mutableStateOf(ThumbnailRepository.getCachedThumbnailFile(context, card.uri, card.rawItem.dateModifiedSec))
+                val cachedThumbnail = remember(card.uri, card.rawItem.dateModifiedSec) {
+                    ThumbnailRepository.getCachedThumbnailFile(context, card.uri, card.rawItem.dateModifiedSec)
                 }
-
-                LaunchedEffect(card.uri, card.rawItem.dateModifiedSec) {
-                    if (thumbnailFile == null) {
-                        val file = ThumbnailRepository.getOrCreateThumbnail(context, card.uri, card.rawItem.dateModifiedSec)
-                        if (file != null) {
-                            thumbnailFile = file
-                        }
+                val thumbnailFile by produceState<java.io.File?>(
+                    initialValue = cachedThumbnail,
+                    card.uri,
+                    card.rawItem.dateModifiedSec
+                ) {
+                    if (value == null) {
+                        value = ThumbnailRepository.getOrCreateThumbnail(
+                            context,
+                            card.uri,
+                            card.rawItem.dateModifiedSec
+                        )
                     }
                 }
 

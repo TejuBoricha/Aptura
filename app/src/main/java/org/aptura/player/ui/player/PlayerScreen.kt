@@ -47,6 +47,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -872,13 +873,16 @@ fun PlayerScreen(
             visible = uiState.seekDeltaSeconds != null,
             enter = fadeIn() + scaleIn(),
             exit = fadeOut() + scaleOut(),
-            modifier = Modifier.align(
-                if (uiState.doubleTapSeekSide == SeekTapSide.LEFT || (uiState.seekDeltaSeconds ?: 0) < 0) {
-                    Alignment.CenterStart
-                } else {
-                    Alignment.CenterEnd
-                }
-            )
+            modifier = Modifier
+                .align(
+                    if (uiState.doubleTapSeekSide == SeekTapSide.LEFT || (uiState.seekDeltaSeconds ?: 0) < 0) {
+                        Alignment.CenterStart
+                    } else {
+                        Alignment.CenterEnd
+                    }
+                )
+                .offset(y = (-72).dp)
+                .padding(horizontal = 20.dp)
         ) {
             val delta = uiState.seekDeltaSeconds ?: 0
             val side = uiState.doubleTapSeekSide ?: if (delta < 0) SeekTapSide.LEFT else SeekTapSide.RIGHT
@@ -1867,7 +1871,11 @@ fun PlayerScreen(
                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
                     )
                     LazyColumn {
-                        items(PlaybackSpeedOptions.all) { speed ->
+                        items(
+                            items = PlaybackSpeedOptions.all,
+                            key = { it },
+                            contentType = { "playback_speed_option" }
+                        ) { speed ->
                             val isSelected = uiState.playbackSpeed == speed
                             Row(
                                 modifier = Modifier

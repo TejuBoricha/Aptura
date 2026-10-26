@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.DocumentsContract
 import android.provider.MediaStore
+import android.provider.OpenableColumns
 import java.io.File
 
 /**
@@ -23,8 +24,11 @@ object ApturaMediaFileManager {
         newNameWithExt: String,
         onNeedsWritePermission: ((IntentSender) -> Unit)? = null
     ): Boolean {
-        val cleanName = newNameWithExt.trim()
-        if (cleanName.isBlank()) return false
+        val requestedName = newNameWithExt.trim().trimEnd('.')
+        if (requestedName.isBlank()) return false
+        // Callers only know the library title, which often has no extension. Keep the real file extension so a
+        // rename does not turn "Holiday.mp4" into an extension-less file that Android can no longer play.
+        val cleanName = withPreservedExtension(context, uri, requestedName)
 
         // 1. MediaStore content URI update
         if (uri.authority == MediaStore.AUTHORITY || uri.scheme == "content") {
@@ -78,5 +82,52 @@ object ApturaMediaFileManager {
         }
 
         return false
+    }
+
+    private fun withPreservedExtension(context: Context, uri: Uri, requestedName: String): String {
+        if (extensionOf(requestedName) != null) return requestedName
+        val currentName = currentDisplayName(context, uri)
+        val extension = currentName?.let(::extensionOf)
+            ?: extensionForMime(context.contentResolver.getType(uri))
+            ?: return requestedName
+        return "$requestedName.$extension"
+    }
+
+    private fun currentDisplayName(context: Context, uri: Uri): String? {
+        if (uri.scheme == "file") return uri.lastPathSegment
+        return try {
+            context.contentResolver.query(
+                uri,
+                arrayOf(OpenableColumns.DISPLAY_NAME),
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (index >= 0 && cursor.moveToFirst()) cursor.getString(index) else null
+            }
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    /** A dot is only an extension when the suffix looks like one, so "Dr. Strangelove" keeps its title. */
+    private fun extensionOf(name: String): String? {
+        val dot = name.lastIndexOf('.')
+        if (dot <= 0 || dot == name.lastIndex) return null
+        val extension = name.substring(dot + 1)
+        return extension.takeIf {
+            it.length in 2..5 && it.all(Char::isLetterOrDigit) && it.any(Char::isLetter)
+        }
+    }
+
+    private fun extensionForMime(mimeType: String?): String? = when (mimeType?.lowercase()) {
+        "video/mp4", "video/m4v" -> "mp4"
+        "video/x-matroska" -> "mkv"
+        "video/webm" -> "webm"
+        "video/quicktime" -> "mov"
+        "video/3gpp" -> "3gp"
+        "video/x-msvideo" -> "avi"
+        else -> null
     }
 }

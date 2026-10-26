@@ -746,34 +746,56 @@ fun RenameVideoDialog(
 @Composable
 fun DeleteFromDeviceDialog(
     itemTitle: String,
+    itemCount: Int = 1,
     onConfirm: () -> Unit,
+    allowTrash: Boolean = false,
+    onTrashClick: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = "Delete from Device?",
+                text = if (itemCount > 1) "Delete $itemCount videos from device?" else "Delete from Device?",
                 style = ApturaTypography.headlineSmall,
                 color = ApturaColors.TextHighEmphasis
             )
         },
         text = {
             Text(
-                text = "Permanently delete \"$itemTitle\" from your device's storage?\n\nThis frees up space and cannot be undone. Android may ask you to confirm the deletion.",
+                text = if (allowTrash) {
+                    if (itemCount > 1) {
+                        "$itemCount videos can be moved to Android's trash and restored later, or deleted permanently. Android may ask you to confirm either action."
+                    } else {
+                        "\"$itemTitle\" can be moved to Android's trash and restored later, or deleted permanently. Android may ask you to confirm either action."
+                    }
+                } else {
+                    if (itemCount > 1) {
+                        "Permanently delete $itemCount videos from your device's storage?\n\nThis frees up space and cannot be undone. Android may ask you to confirm the deletion."
+                    } else {
+                        "Permanently delete \"$itemTitle\" from your device's storage?\n\nThis frees up space and cannot be undone. Android may ask you to confirm the deletion."
+                    }
+                },
                 style = ApturaTypography.bodyMedium,
                 color = ApturaColors.TextMediumEmphasis
             )
         },
         confirmButton = {
-            Button(
-                onClick = onConfirm,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = ApturaColors.StatusError,
-                    contentColor = ApturaColors.TextHighEmphasis
-                )
-            ) {
-                Text("Delete Permanently")
+            Column(horizontalAlignment = Alignment.End) {
+                if (allowTrash) {
+                    TextButton(onClick = onTrashClick) {
+                        Text("Move to trash", color = ApturaColors.AccentPrimary)
+                    }
+                }
+                Button(
+                    onClick = onConfirm,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = ApturaColors.StatusError,
+                        contentColor = ApturaColors.TextHighEmphasis
+                    )
+                ) {
+                    Text("Delete permanently")
+                }
             }
         },
         dismissButton = {
@@ -855,4 +877,3 @@ private data class DetailLookup<T>(val value: T?)
 /** What to show for a value we could not read: "Reading…" while inspection runs, "Unknown" once it has failed. */
 private fun unknownOrLoading(inspection: MediaExtendedMetadata?): String =
     if (inspection == null) "Reading…" else "Unknown"
-

@@ -101,7 +101,8 @@ fun OnboardingScreen(
         ) {
             HorizontalPager(
                 state = pagerState,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
+                key = { it }
             ) { index ->
                 GuidePage(
                     // Pages dim slightly as they slide away, so the swipe reads as one motion.

@@ -111,10 +111,10 @@ internal fun LibrarySidebar(
                 contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 22.dp, bottom = 10.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                item(key = "collections_label") {
+                item(key = "collections_label", contentType = "header") {
                     CollectionsHeader(onAddFolderClick = onAddFolderClick)
                 }
-                item(key = "all_videos") {
+                item(key = "all_videos", contentType = "collection") {
                     SidebarCollectionRow(
                         icon = Icons.Default.VideoLibrary,
                         label = "All videos",
@@ -123,7 +123,11 @@ internal fun LibrarySidebar(
                         onClick = { onFolderSelected(null) }
                     )
                 }
-                items(state.folders, key = { "folder:$it" }) { folder ->
+                items(
+                    items = state.folders,
+                    key = { "folder:$it" },
+                    contentType = { "collection" }
+                ) { folder ->
                     val selected = state.selectedFolder == folder
                     SidebarCollectionRow(
                         icon = if (selected) Icons.Default.FolderOpen else Icons.Default.Folder,
@@ -134,7 +138,7 @@ internal fun LibrarySidebar(
                     )
                 }
                 if (state.folders.isEmpty()) {
-                    item(key = "folders_hint") {
+                    item(key = "folders_hint", contentType = "hint") {
                         Text(
                             text = "Folders appear here after a scan or when you add a storage folder.",
                             style = ApturaTypography.bodySmall,
@@ -200,14 +204,11 @@ internal fun LibraryCompactRail(
                     .width(CompactSidebarWidth)
             ) {
                 if (canExpand) {
-                    SidebarControlButton(
-                        onClick = onExpand,
-                        icon = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = "Expand sidebar"
-                    )
-                    Spacer(Modifier.size(8.dp))
+                    CompactExpandButton(onClick = onExpand)
+                    Spacer(Modifier.size(10.dp))
+                } else {
+                    SidebarMark(size = 34.dp)
                 }
-                SidebarMark(size = 34.dp)
                 if (showLabels) {
                     Spacer(Modifier.size(8.dp))
                     Text(
@@ -328,6 +329,37 @@ private fun SidebarBrand(onCollapse: () -> Unit) {
             )
         }
         HorizontalDivider(color = ApturaColors.BorderSubtle)
+    }
+}
+
+/**
+ * One control instead of a floating chevron above a separate mark: the rail's brand and its expand action read as
+ * a single object, so the top of the collapsed sidebar does not look like two unrelated leftovers.
+ */
+@Composable
+private fun CompactExpandButton(onClick: () -> Unit) {
+    IconButton(
+        onClick = onClick,
+        modifier = Modifier
+            .width(68.dp)
+            .height(48.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(ApturaColors.SurfaceElevated2)
+            .semantics { contentDescription = "Expand sidebar" }
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            SidebarMark(size = 26.dp)
+            Spacer(Modifier.size(4.dp))
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = ApturaColors.AccentPrimary,
+                modifier = Modifier.size(18.dp)
+            )
+        }
     }
 }
 

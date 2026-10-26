@@ -4,8 +4,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.BrightnessMedium
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import org.aptura.player.theme.ApturaTheme
 import org.junit.Rule
@@ -69,7 +71,11 @@ class GestureHudUiTest {
         }
 
         composeTestRule.onNodeWithText("+20s").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Fast-Forward").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Ahead").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("Forward seek direction").assertIsDisplayed()
+        val bounds = composeTestRule.onNodeWithTag("double_tap_seek_hud").getUnclippedBoundsInRoot()
+        org.junit.Assert.assertEquals(132f, (bounds.right - bounds.left).value, 0.1f)
+        org.junit.Assert.assertEquals(68f, (bounds.bottom - bounds.top).value, 0.1f)
     }
 
     @Test
@@ -84,7 +90,8 @@ class GestureHudUiTest {
         }
 
         composeTestRule.onNodeWithText("-30s").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Rewind").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Back").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("Backward seek direction").assertIsDisplayed()
     }
 
     @Test

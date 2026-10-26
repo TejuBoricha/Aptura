@@ -4,6 +4,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
@@ -129,6 +130,9 @@ class LibrarySidebarTest {
         composeRule.onAllNodesWithText("All videos").assertCountEquals(0)
         composeRule.onNodeWithText("All Videos").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Expand sidebar").assertIsDisplayed()
+        val expandBounds = composeRule.onNodeWithContentDescription("Expand sidebar").getUnclippedBoundsInRoot()
+        assertEquals(68f, (expandBounds.right - expandBounds.left).value, 0.5f)
+        assertEquals(48f, (expandBounds.bottom - expandBounds.top).value, 0.5f)
 
         // Expanding restores the index without losing the page.
         composeRule.onNodeWithContentDescription("Expand sidebar").performClick()

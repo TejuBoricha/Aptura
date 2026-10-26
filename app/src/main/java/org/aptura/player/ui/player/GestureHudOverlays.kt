@@ -16,18 +16,22 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Forward10
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.aptura.player.theme.ApturaColors
@@ -102,10 +106,7 @@ fun VerticalLevelGaugeHud(
     }
 }
 
-/**
- * Curved edge ripple scrim overlay for double-tap seek accumulation (FR-CTRL-002, SCR-010).
- * Sweeps inward from the left or right edge, displaying accumulated seek seconds in tabular figures.
- */
+/** Compact directional feedback for double-tap seeking. */
 @Composable
 fun DoubleTapSeekRippleOverlay(
     seekDeltaSeconds: Int,
@@ -116,65 +117,54 @@ fun DoubleTapSeekRippleOverlay(
     val absSeconds = kotlin.math.abs(seekDeltaSeconds)
     val deltaText = if (isForward) "+${absSeconds}s" else "-${absSeconds}s"
 
-    val shape = if (isForward) {
-        RoundedCornerShape(topStart = 110.dp, bottomStart = 110.dp)
-    } else {
-        RoundedCornerShape(topEnd = 110.dp, bottomEnd = 110.dp)
-    }
-
-    val brush = if (isForward) {
-        Brush.horizontalGradient(
-            listOf(
-                ApturaColors.SurfaceElevated2.copy(alpha = 0.90f),
-                ApturaColors.SurfaceScrim.copy(alpha = 0.95f)
-            )
-        )
-    } else {
-        Brush.horizontalGradient(
-            listOf(
-                ApturaColors.SurfaceScrim.copy(alpha = 0.95f),
-                ApturaColors.SurfaceElevated2.copy(alpha = 0.90f)
-            )
-        )
-    }
-
     Surface(
-        shape = shape,
-        color = ApturaColors.SurfaceElevated2.copy(alpha = 0.90f),
-        border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3),
-        shadowElevation = 10.dp,
+        shape = RoundedCornerShape(18.dp),
+        color = ApturaColors.SurfaceScrim.copy(alpha = 0.88f),
+        border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3.copy(alpha = 0.55f)),
+        shadowElevation = 8.dp,
         modifier = modifier
-            .width(136.dp)
-            .height(210.dp)
+            .width(132.dp)
+            .height(68.dp)
+            .testTag("double_tap_seek_hud")
     ) {
-        Box(
-            modifier = Modifier
-                .background(brush)
-                .padding(horizontal = 20.dp, vertical = 24.dp),
-            contentAlignment = Alignment.Center
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+            Surface(
+                color = ApturaColors.AccentPrimary.copy(alpha = 0.14f),
+                shape = CircleShape,
+                modifier = Modifier.size(42.dp)
             ) {
-                Icon(
-                    imageVector = if (isForward) Icons.Filled.Forward10 else Icons.Filled.Replay10,
-                    contentDescription = null,
-                    tint = ApturaColors.AccentPrimary,
-                    modifier = Modifier.size(38.dp)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
+                Box(contentAlignment = Alignment.Center) {
+                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                        Icon(
+                            imageVector = if (isForward) {
+                                Icons.AutoMirrored.Filled.ArrowForward
+                            } else {
+                                Icons.AutoMirrored.Filled.ArrowBack
+                            },
+                            contentDescription = if (isForward) "Forward seek direction" else "Backward seek direction",
+                            tint = ApturaColors.AccentPrimary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+            }
+            Column(
+                verticalArrangement = Arrangement.spacedBy(1.dp)
+            ) {
                 Text(
                     text = deltaText,
                     style = ApturaTypography.titleMedium.copy(
                         fontFeatureSettings = "tnum",
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.SemiBold
                     ),
                     color = ApturaColors.TextHighEmphasis
                 )
-                Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = if (isForward) "Fast-Forward" else "Rewind",
+                    text = if (isForward) "Ahead" else "Back",
                     style = ApturaTypography.labelSmall,
                     color = ApturaColors.TextMediumEmphasis
                 )
