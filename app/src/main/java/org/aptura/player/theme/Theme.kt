@@ -13,6 +13,14 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 /**
+ * Resolves the theme a route must use. Playback is always a dark room, even when the app itself is pinned to Light;
+ * every other route follows the chosen mode. Pure on purpose: the navigation tree reads it, and the rule itself is
+ * unit-tested without composing a single screen.
+ */
+fun themeModeForRoute(isPlayerRouteActive: Boolean, appThemeMode: ThemeMode): ThemeMode =
+    if (isPlayerRouteActive) ThemeMode.DARK else appThemeMode
+
+/**
  * Aptura Theme Definition
  * Source of truth: DESIGN.md §1 & §2
  *

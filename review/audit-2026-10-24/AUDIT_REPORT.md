@@ -1,11 +1,12 @@
 # Aptura - Follow-up Audit and Remediation
 
-**Snapshot:** `main` @ `65e54be` (2026-10-26)  
+**Snapshot:** `main` @ `f5b566d` (2026-10-26)  
 **Baseline:** `review/audit-2026-10-23/AUDIT_REPORT.md` @ `588cc3a`  
 **Delta for the first round:** 56 files, +5,430 / -799 across `14f26d1^..90ce6b9`  
 **Delta for the data-integrity round:** 18 files, +1,389 / -402 across `48f6b43..65e54be`  
-**Quality gate after the final code change:** **531 tests / 82 suites, 0 failures, 0 skipped**; lint 0 errors; `assembleRelease` + `verifyReleaseApk` clean  
-**Runtime evidence:** `review/audit-2026-10-24/evidence/` (8 curated captures + UI XML)
+**Delta for the visual/capability round:** includes the reusable pixel helper, four coarse pixel guards, the route-theme resolver and the manifest feature/category matrix  
+**Quality gate after the final code change:** **556 tests / 88 suites, 0 failures, 0 skipped**; lint 0 errors; `assembleRelease` + `verifyReleaseApk` clean  
+**Runtime evidence:** `review/audit-2026-10-24/evidence/` (8 curated captures + UI XML); new visual guards are Robolectric pixel checks, not device screenshots
 
 > This round was not a second hunt for the P0 playback defects fixed in the previous audit. It targeted the layer underneath those fixes: **features that were absent, controls that looked wired but were not, and UI that only worked at the reviewer's window size, font scale and theme.** The report records what was found, what changed, what is still open, why the earlier passes missed this class of defect, and what now prevents it from coming back.
 
@@ -23,7 +24,10 @@ The most important outcome is not any single screen. It is that the app now has 
 - one file-action pipeline that copies first, deletes only after consent, and reports retained originals;
 - one rename contract that returns the file's new URI and moves the row, its saved position and its bookmarks with it;
 - one transfer job that reports real byte progress, checks space before writing, and cancels without touching the originals;
-- one language-label mapper so raw container codes stop leaking into the UI.
+- one language-label mapper so raw container codes stop leaking into the UI;
+- one route-theme resolver so no screen can accidentally bring the Light palette into playback;
+- one manifest capability matrix so the store listing and the runtime feature checks describe the same device set;
+- one synchronous pixel-capture helper whose guards test flat surfaces, not fonts or golden files.
 
 No known P0 defect remains in the reviewed scope. The three data-integrity caveats from the first pass are closed: SAF rename no longer orphans the row, large transfers have progress/cancellation/free-space preflight, and missing items have an explicit per-item removal. The remaining risk is concentrated in **physical-device verification** and **process-durable long transfers**, not in the main journeys.
 
@@ -34,7 +38,7 @@ No known P0 defect remains in the reviewed scope. The three data-integrity cavea
 | Responsive / adaptive | **A-** | The library is a real tablet index, not a stretched phone; large text is a first-class state. |
 | Accessibility | **B** | Touch targets and slider semantics are tested; TalkBack on hardware is still unverified. |
 | Data / file safety | **A-** | Copy-before-delete, URI remap for SAF rename, resumable-safe cancellation and explicit missing-item removal; transfers are not yet process-durable. |
-| Test / QA | **B** | Strong Robolectric coverage and live checks; no release-variant instrumented E2E. |
+| Test / QA | **B+** | Strong Robolectric coverage, coarse pixel guards and a manifest capability matrix; no release-variant instrumented E2E. |
 | Evidence honesty | **B** | Library/Settings captures are clean; the player capture limitation is documented rather than hidden. |
 
 ---
@@ -46,6 +50,8 @@ No known P0 defect remains in the reviewed scope. The three data-integrity cavea
 - Every commit in `14f26d1^..90ce6b9`, with the delivered behavior checked against the code, not the commit message.
 - The library at phone width, tablet width (2560 x 1600, 240 dpi), Light and Dark, 100% and 200% font scale.
 - Settings, the welcome guide, the player controls, the speed sheet, the subtitle sheet, the selection bar and the compact sidebar.
+- The pixels beneath four surfaces that had failed structurally before: the scrolled Settings bar, the selection bar, the guide footer and the player's quick speed sheet under a Light app theme.
+- The merged release manifest's `<uses-feature>` declarations and component intent categories, because those decide which devices the store considers compatible.
 - Real MediaStore rename through Android's content resolver, then a query of `_display_name` and `_data` to prove the file on disk changed, not only the database row.
 - The final gate output and the test-result XML, not a cached summary.
 
@@ -169,9 +175,9 @@ Severity here is product severity, not the previous report's P0 scale: **P1** = 
 - `SpeedRail` is one control, not a grid: a live value bubble rides the finger, the ticks rise from slower to faster, and the ends name the range. The needle springs to the nearest detent on release.
 - The whole rail is one accessible slider (`progressBarRangeInfo`, `setProgress`, `stateDescription`), so TalkBack can change it with the standard action.
 - The bubble grows with the font instead of clipping at 200% type; haptics fire when crossing a detent.
-- Settings and both player surfaces (the speed chip sheet and the advanced sheet) use the same list and the same rail.
+- Settings and both player surfaces (the speed chip sheet and the advanced sheet) use the same list and the same rail. The quick sheet later drifted back to a vertical list; F-21 records the re-fix and the guard that now prevents a third version.
 
-**Proof.** `PlaybackSpeedOptionsTest` (2), `SpeedRailMathTest` (5), `SettingsSpeedOptionsTest` (6), `PlayerSpeedRailTest` (2), `SettingsChipContrastTest` (4). The tests cover every speed, half speed, tapping the far right for 2.0x, an unknown stored speed snapping to the nearest value, and the rail remaining reachable after scrolling.
+**Proof.** `PlaybackSpeedOptionsTest` (2), `SpeedRailMathTest` (5), `SettingsSpeedOptionsTest` (6), `PlayerSpeedRailTest` (4, now covering both player sheets), `SettingsChipContrastTest` (4). The tests cover every speed, half speed, tapping the far right for 2.0x, an unknown stored speed snapping to the nearest value, and the rail remaining reachable after scrolling.
 
 ---
 
@@ -184,9 +190,10 @@ Severity here is product severity, not the previous report's P0 scale: **P1** = 
 **Fix (`cec17b1`).**
 - `pipSupported` is passed into `PlayerScreen`.
 - The inline control and the overflow item are both omitted when the feature is absent; every other action stays in place.
-- The caller derives the value from `PackageManager.hasSystemFeature(FEATURE_PICTURE_IN_PICTURE)`.
+- `DeviceCapabilities.supportsPictureInPicture` is the single runtime check (API 26+ **and** the system feature), used by `MainActivity`.
+- The manifest now declares `android.software.picture_in_picture` with `required="false"`, so a device without PiP can install Aptura instead of being filtered out by the store. The manifest invariants require both halves: the optional feature and `android:supportsPictureInPicture="true"` on the activity.
 
-**Proof.** `PlayerPipAvailabilityTest` (1) on a phone without PiP; `PlayerWideTopBarTest` (2) on an 800 dp window confirms the remaining actions stay inline with full touch targets.
+**Proof.** `PlayerPipAvailabilityTest` (1) on a phone without PiP; `PlayerWideTopBarTest` (2) on an 800 dp window confirms the remaining actions stay inline with full touch targets; `DeviceCapabilitiesTest` (3) covers feature present, feature absent and an API below 26; `MergedManifestInvariantsTest` (19) pins the optional declaration, rejects a required one, and rejects camera/telephony/location/microphone/Bluetooth/NFC/TV/Auto features or categories.
 
 ---
 
@@ -391,19 +398,39 @@ Severity here is product severity, not the previous report's P0 scale: **P1** = 
 
 ---
 
+### F-21 - The quick speed sheet reverted to an eight-row list, and the forced-dark rule had no pixel proof [P2]
+
+**Found.** F-06 replaced the two-row grid in the advanced sheet and the five-chip row in Settings, but the sheet opened by the player's speed chip still rendered a `LazyColumn` of eight rows. The two surfaces therefore looked like different products again, and the quick sheet grew taller than a phone in landscape.
+
+The rule that keeps playback dark also lived inline in `MainNavigation`. Structural tests could prove `pipSupported`, labels and semantics, but not that the Light palette never reaches the player's **separate sheet windows**: a sheet is its own Compose root, and a missing visual assertion would only be noticed by a human opening it on a Light phone.
+
+**Why it mattered.** The speed chip is the shortest path to changing speed during playback, so its sheet is the one users see most. A regression in the route override is worse: every player menu would turn near-white while the video frame stayed black, which is the exact defect F-01 set out to prevent.
+
+**Fix (this round).**
+- The quick sheet now renders the same `SpeedRail` as Settings and the advanced sheet; the eight-row `LazyColumn`, its `items` import and its bespoke selected-row layout are gone. Selecting a speed still closes the sheet through the existing view-model contract.
+- `themeModeForRoute(isPlayerRouteActive, appThemeMode)` is a pure function in `Theme.kt`, used by `MainNavigation`. It is the only place that decides the player is dark, and it is unit-tested for every app mode.
+- A new `ComposePixels` helper captures a Compose window synchronously (`ViewRootForTest.view.draw(Canvas(bitmap))`) under Robolectric `NATIVE` graphics. `captureToImage()` remains forbidden: it waits for a frame callback Robolectric never delivers and times out.
+- Four coarse pixel guards now assert flat regions only, never glyphs or golden files: the scrolled Settings bar, the selection bar, the guide footer, and the quick speed sheet under a Light app theme.
+
+**Proof.** `ThemeRouteTest` (2) pins the resolver for all three app modes and the non-player route. `PlayerSheetThemePixelTest` (1) renders the sheet through the resolver while the app is Light and asserts the fixed **dark** `SurfaceElevated2` palette; flipping the resolver to Light was verified to fail with light pixels (`0.988, 0.988, 0.992`) instead of the dark token, so the guard is not comparing the pixels to themselves. `PlayerSpeedRailTest` (4) covers both sheets, including that the quick sheet no longer contains a "Normal (1.0x)" row. `SettingsTopBarPixelTest` (2), `SelectionBarPixelTest` (2) and `GuideFooterPixelTest` (3) pin the other three surfaces in Light and Dark, including 200% font.
+
+---
+
 ## 3. Verification
 
 ### 3.1 Gate
 
-After the data-integrity round:
+After the visual/capability round:
 
 ```
-531 tests / 82 suites / 0 failures / 0 skipped
+556 tests / 88 suites / 0 failures / 0 skipped
 lintDebug: 0 errors
 assembleRelease + verifyReleaseApk: clean
 ```
 
-The test counts were read from `app/build/test-results/testDebugUnitTest/*.xml`, not from a cached console line. The gate was run after the final code change; only documentation and curated evidence changed afterwards. The previous round ended at **523 / 82**; this round adds eight tests: two in `ApturaMediaFileManagerTest`/`MediaRepositoryTest`, four in `MediaFileTransferTest`, one in `MediaLibraryScreenUiTest` and one in `MediaLibraryViewModelTest` (one existing test was updated in place).
+The test counts were read from `app/build/test-results/testDebugUnitTest/*.xml`, not from a cached console line. The gate was run after the final code change; only documentation changed afterwards. The data-integrity round ended at **531 / 82**; this round adds **25 tests in six new suites plus three extended ones**: 2 Settings top-bar pixels, 2 selection-bar pixels, 3 guide-footer pixels, 1 quick-sheet theme pixel, 2 route-resolver tests, 3 device-capability tests, 7 merged-manifest feature/category tests, 2 additional speed-rail cases and 3 additional storage-era cases.
+
+The pixel tests are deliberately narrow. They capture the window synchronously and assert a flat fill region of one to a few pixels, away from text, rounded corners and hairlines. They catch a surface that vanishes, turns translucent or switches palette without freezing a screenshot that every font update would break.
 
 ### 3.2 Live checks
 
@@ -436,6 +463,7 @@ All paths are relative to this folder.
 - **Player `SurfaceView` tiling.** The emulator composites the video layer as repeated tiles under SwiftShader and under the host GPU. The tiling is in the capture, not in the decoded file: pixel checks of flat regions are single-color, and the same fixture decodes cleanly outside the player. Evidence 05 is therefore used only for the dark player chrome and the dark letterbox, never to judge video output. The dark-menu claim is additionally supported by evidence 06 and by the forced-dark route code.
 - **Emulator render ghosting.** One capture pass showed faint retained frames after repeated screencaps. A reboot cleared it; the curated evidence was recaptured. Flat regions in the final PNGs were checked numerically (one unique color) before use.
 - **Robolectric vs. hardware.** The responsive tests run at fixed qualifiers (for example `w900dp-h1100dp-xhdpi` and `w1200dp-h900dp-xhdpi`). They prove layout decisions, not real GPU performance.
+- **Pixel guards are not screenshots.** They draw the Compose view into a bitmap under Robolectric and assert flat fill regions, so they prove opacity and palette, not anti-aliasing, shadows or the `SurfaceView` video layer. A deliberate font or spacing change does not fail them; a translucent bar, a missing surface or a light palette in the player does.
 - **No physical device.** Codec/HDR/thermal/TalkBack conclusions are limited to what the emulator and the code can prove.
 
 ---
@@ -462,7 +490,7 @@ All paths are relative to this folder.
 
 ### 4.4 PiP-unsupported UI is test-only
 
-**Why it is open.** The emulator supports PiP, so the hidden-control state cannot be photographed. `PlayerPipAvailabilityTest` and `PlayerWideTopBarTest` cover it.
+**Why it is open.** The emulator supports PiP, so the hidden-control state cannot be photographed. The logic is now centralized in `DeviceCapabilities`, declared optional in the manifest and covered by `PlayerPipAvailabilityTest`, `PlayerWideTopBarTest` and `DeviceCapabilitiesTest`, but no device screenshot exists.
 
 **Next step.** Verify on a device or emulator image without `FEATURE_PICTURE_IN_PICTURE`; capture the top bar and overflow.
 
@@ -547,16 +575,23 @@ The gate now includes, among others:
 | `ApturaThemeTest` | 3 | Palette application, accent swap, reset |
 | `DeviceCodecSupportTest` | 3 | Labels, safe report, audio-only policy |
 | `SettingsTopBarTest` | 2 | Opaque bar, 56 dp coverage |
+| `SettingsTopBarPixelTest` | 2 | Scrolled bar is an opaque `SurfaceBase` strip in Light and Dark |
+| `SelectionBarPixelTest` | 2 | Selection bar is an opaque `SurfaceElevated1` surface in Light and Dark |
+| `GuideFooterPixelTest` | 3 | Footer strip opacity in Light/Dark, last row clears the footer, 200% fit |
+| `PlayerSheetThemePixelTest` | 1 | Quick speed sheet stays on the dark palette under a Light app theme |
+| `ThemeRouteTest` | 2 | Player route is dark for every app mode; other routes keep the chosen mode |
+| `DeviceCapabilitiesTest` | 3 | PiP present, absent, and below API 26 |
+| `MergedManifestInvariantsTest` | 19 | Permissions, exported components, features/categories, optional PiP |
 | `LibrarySidebarTest` | 2 | Wide index, 68 x 48 chip, 200% fallback |
-| `MediaStorageActionsTest` | 2 | Trash only for MediaStore + API 30+ |
-| `PlayerSpeedRailTest` | 2 | Same ramp in the advanced sheet; chosen speed reaches the player |
+| `MediaStorageActionsTest` | 5 | Trash only for MediaStore on API 29/30/35; mixed-provider batches refused |
+| `PlayerSpeedRailTest` | 4 | Same ramp in both player sheets; chosen speed reaches the player |
 | `PlayerWideTopBarTest` | 2 | Wide bar actions stay inline; PiP omitted when absent |
 | `PlaybackSpeedOptionsTest` | 2 | Shared list and labels |
 | `MediaFileTransferTest` | 5 | Bytes copied, progress, space shortfall, no-quota fallback, cancellation cleanup |
 | `PlayerPipAvailabilityTest` | 1 | No PiP control without the feature |
 | `LibraryTouchTargetsTest` | 1 | 48 dp targets |
 
-That is **112 tests across the 24 suites most relevant to this round**; the full gate is **531 / 82**.
+That is **149 tests across the 31 suites most relevant to this round**; the full gate is **556 / 88**.
 
 ### 6.3 Layout tests at the sizes that break layouts
 
@@ -564,6 +599,7 @@ That is **112 tests across the 24 suites most relevant to this round**; the full
 - `w1200dp-h900dp-xhdpi` for the 680 dp centered selection bar.
 - `w800dp-h600dp-xhdpi` for the wide player top bar.
 - Phone qualifiers for the PiP-absent overflow.
+- `w400dp-h800dp-xhdpi` with `GraphicsMode.NATIVE` for the coarse pixel guards, including the player's separate sheet window.
 - 200% font in both Robolectric and the emulator.
 
 A layout that only works at the reviewer's window is no longer accepted.
@@ -592,7 +628,19 @@ A layout that only works at the reviewer's window is no longer accepted.
 ### 6.6 Documentation
 
 - `DESIGN.md` now records the 248/88 dp sidebar, the 600/700 dp breakpoints, the 150% font fallback, the 68 x 48 chip, the 680 dp action bar, the shared speed rail, the player-dark rule, and the file-action contract, including URI remapping, rename-before-scan ordering, transfer progress/cancel and the missing-item rule.
-- `.agents/MEMORY.md` Part 74 records the first audit round; Part 75 records this data-integrity round's decisions, tests and remaining work.
+- `.agents/MEMORY.md` Part 74 records the first audit round; Part 75 records the data-integrity round; Part 76 records the visual/capability round.
+
+### 6.7 Device capability matrix
+
+The merged release manifest is now parsed for `<uses-feature>` and for the intent categories declared by every component, not only for permissions and components:
+
+- `android.software.picture_in_picture` must be present with `required="false"`; a required declaration fails because it would filter out devices that cannot float a window.
+- The activity must also declare `android:supportsPictureInPicture="true"`. One without the other fails: the flag alone hides the store contract, and the feature alone advertises a capability no activity implements.
+- Any camera, telephony, location, microphone, Bluetooth or NFC feature prefix fails, even when it is optional. R1 is a local video player; a feature declaration is a capability claim.
+- TV, Automotive, Wear and Leanback declarations fail; R1 targets phones and tablets only (DEC-005).
+- Only `DEFAULT`, `LAUNCHER` and `BROWSABLE` intent categories are approved, so a library cannot quietly add a TV launcher or car entry point.
+- `DeviceCapabilities.supportsPictureInPicture` is the single runtime check used by the activity and tested for present, absent and sub-API-26 devices.
+- Storage-era behavior is pinned at API 29 (no system trash), API 30 (trash available) and API 35 (trash stays MediaStore-only; mixed-provider batches are refused).
 
 ---
 
@@ -600,10 +648,10 @@ A layout that only works at the reviewer's window is no longer accepted.
 
 These are not one-time fixes; they are the next layer of process.
 
-1. **Golden/screenshot tests** for the library and Settings at phone/tablet, Light/Dark, 100/200% font, including the scrolled top bar, the selection bar and the guide footer. This is the only reliable way to catch "transparent bar" and "badge one letter per line" without a human zooming in.
+1. **Coarse pixel guards are now in place** for the scrolled Settings bar, the selection bar, the guide footer and the player's quick sheet under a Light app theme. They deliberately assert flat regions, not glyphs or golden files. The remaining step is a hardware-captured screenshot matrix for typography, illustrations and the player's video layer, where a golden image is the only honest evidence.
 2. **A real `DocumentsProvider` instrumented test** that renames a document, changes its document ID, and proves the library row, saved progress and bookmarks follow the new URI. The repository remap and the provider-allocated URI path are unit-tested with a plain `ContentProvider`; a real provider's document-id change is still unverified.
 3. **A process-durable transfer** (foreground service or WorkManager) with the same progress, cancellation, free-space and partial-cleanup contract, so rotation, navigation or process death cannot stop a long copy. Do not duplicate `MediaFileTransfer`'s byte loop.
-4. **A capability matrix in CI**: no PiP, no camera, no telephony, TV/Auto, API 29/30/35. `hasSystemFeature` branches need a test for the absent case, not only the happy path.
+4. **The capability matrix is now enforced in every gate**: the merged manifest's features and categories are allow-listed, PiP is optional in both the store declaration and the activity flag, `DeviceCapabilities` has present/absent/sub-API tests, and storage-era behavior is pinned at API 29/30/35. The remaining step is to run the same matrix on a device farm, including a real PiP-absent image.
 5. **Release-variant instrumented E2E** on a device farm, or an explicit signed release smoke checklist in CI. The current manual release smoke is honest but not scalable.
 6. **A physical-device lab pass** for codecs, HDR, thermal, Bluetooth and TalkBack. The emulator is a layout and logic tool, not a media-certification tool.
 7. **A design-review checklist** applied to every new screen: empty, loading, error, disabled, 200% font, narrow width, wide width, Light, Dark, scrolled, keyboard open, navigation bar inset, and a destructive action with a partial failure.
@@ -614,7 +662,8 @@ These are not one-time fixes; they are the next layer of process.
 ## 8. What is genuinely good and should be kept
 
 - **The privacy posture is real.** No INTERNET permission, no telemetry, no accounts, no `MANAGE_EXTERNAL_STORAGE`; the settings screen proves it in plain language.
-- **The player stays dark.** The route-level override and the literal black root are the right architecture; the menus inherit the dark palette.
+- **The player stays dark.** The route-level override and the literal black root are the right architecture; the menus inherit the dark palette. The rule is now a tested pure resolver, and the quick sheet's pixels prove a Light app theme cannot leak into playback.
+- **The visual guards are honest.** They draw the real Compose window, assert a flat fill rather than a reference image, and fail on the defects semantics cannot see. They will not break on a font update, and they do not pretend to test the video surface.
 - **The single Media3 engine with platform decoders and an audio-only FFmpeg extension** is the correct store-build trade-off. The rejection of NextLib, libVLC and a custom video FFmpeg build is documented and upheld.
 - **The copy-before-delete move flow** is the right data-safety default, and the batch result accounting is honest.
 - **The test suite is now behavioral in the places that matter**: selection/Back, 680 dp centering, chip bounds, extension preservation, trash eligibility, speed reachability, guide versioning.

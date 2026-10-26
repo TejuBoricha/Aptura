@@ -23,4 +23,30 @@ class MediaStorageActionsTest {
     fun systemTrashIsNotOfferedOnAndroid10() {
         assertFalse(canMoveToSystemTrash(listOf("content://media/external/video/media/1")))
     }
+
+    @Test
+    @Config(sdk = [30])
+    fun systemTrashIsOfferedFromAndroid11() {
+        assertTrue(canMoveToSystemTrash(listOf("content://media/external/video/media/1")))
+    }
+
+    @Test
+    @Config(sdk = [35])
+    fun systemTrashStaysMediaStoreOnlyOnAndroid15() {
+        assertTrue(canMoveToSystemTrash(listOf("content://media/external/video/media/1")))
+        assertFalse(canMoveToSystemTrash(listOf("content://com.example.documents/document/1")))
+    }
+
+    @Test
+    @Config(sdk = [35])
+    fun aBatchSpanningMediaStoreAndAnotherProvider_cannotUseTheSystemTrash() {
+        assertFalse(
+            canMoveToSystemTrash(
+                listOf(
+                    "content://media/external/video/media/1",
+                    "content://com.example.documents/document/1"
+                )
+            )
+        )
+    }
 }

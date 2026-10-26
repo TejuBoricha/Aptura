@@ -2,7 +2,6 @@ package org.aptura.player
 
 import android.app.PictureInPictureParams
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
@@ -20,6 +19,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.VideoSize
 import kotlinx.coroutines.launch
+import org.aptura.player.core.platform.DeviceCapabilities
 import org.aptura.player.data.playback.PlayerManager
 import org.aptura.player.data.settings.ApturaSettingsRepository
 import org.aptura.player.ui.player.PipSupport
@@ -138,8 +138,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun supportsPictureInPicture(): Boolean =
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
-            packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+        DeviceCapabilities.supportsPictureInPicture(packageManager)
 
     /** True only when the user is on the Player screen and actively playing video (not in Audio-Only mode). */
     private fun isPlayingVideo(): Boolean {

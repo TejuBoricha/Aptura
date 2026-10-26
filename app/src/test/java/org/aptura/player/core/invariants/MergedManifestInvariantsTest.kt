@@ -45,10 +45,27 @@ class MergedManifestInvariantsTest {
         assertEquals(ManifestInvariants.approvedExportedComponents.keys, exported)
     }
 
+    @Test
+    fun theShippedApp_advertisesPictureInPictureAsOptional() {
+        val pip = shipped.features.single { it.name == ManifestInvariants.PIP_FEATURE }
+
+        assertTrue("PiP must stay optional so devices without it can install Aptura", !pip.required)
+        assertTrue(
+            "MainActivity must enable PiP at runtime",
+            shipped.components.any { it.name == "org.aptura.player.MainActivity" && it.supportsPictureInPicture }
+        )
+    }
+
+    @Test
+    fun theShippedApp_advertisesOnlyPhoneAndTabletIntentCategories() {
+        assertEquals(ManifestInvariants.approvedIntentCategories, shipped.intentCategories.toSet())
+    }
+
     // ---- fixtures: each rule must fire on a real violation ---------------------------------------------------------
 
     private fun manifest(
         permissions: String = "",
+        features: String = """<uses-feature android:name="android.software.picture_in_picture" android:required="false" />""",
         application: String = "android:allowBackup=\"false\"",
         components: String = ""
     ) = MergedManifest.parse(
@@ -59,8 +76,12 @@ class MergedManifestInvariantsTest {
             <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
             <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
             $permissions
+            $features
             <application $application>
-                <activity android:name="org.aptura.player.MainActivity" android:exported="true" />
+                <activity
+                    android:name="org.aptura.player.MainActivity"
+                    android:exported="true"
+                    android:supportsPictureInPicture="true" />
                 $components
             </application>
         </manifest>
@@ -144,5 +165,64 @@ class MergedManifestInvariantsTest {
         assertTrue(problems.toString(), problems.any { it.contains("allowBackup") })
         assertTrue(problems.toString(), problems.any { it.contains("debuggable") })
         assertTrue(problems.toString(), problems.any { it.contains("usesCleartextTraffic") })
+    }
+
+    @Test
+    fun fixture_aRequiredPictureInPictureFeature_isCaught() {
+        val problems = ManifestInvariants.violations(
+            manifest(features = """<uses-feature android:name="android.software.picture_in_picture" android:required="true" />""")
+        )
+
+        assertTrue(problems.toString(), problems.any { it.contains("required=\"false\"") })
+    }
+
+    @Test
+    fun fixture_aCameraFeature_isForbiddenEvenWhenOptional() {
+        val problems = ManifestInvariants.violations(
+            manifest(features = """<uses-feature android:name="android.hardware.camera.any" android:required="false" />""")
+        )
+
+        assertTrue(problems.toString(), problems.any { it.contains("forbidden feature android.hardware.camera.any") })
+    }
+
+    @Test
+    fun fixture_aLeanbackLauncherCategory_isCaught() {
+        val problems = ManifestInvariants.violations(
+            manifest(
+                components = """
+                    <activity android:name="com.example.Tv">
+                        <intent-filter>
+                            <action android:name="android.intent.action.MAIN" />
+                            <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+                        </intent-filter>
+                    </activity>
+                """.trimIndent()
+            )
+        )
+
+        assertTrue(problems.toString(), problems.any { it.contains("android.intent.category.LEANBACK_LAUNCHER") })
+    }
+
+    @Test
+    fun fixture_anActivityThatSupportsPipWithoutTheOptionalFeature_isCaught() {
+        val problems = ManifestInvariants.violations(manifest(features = ""))
+
+        assertTrue(problems.toString(), problems.any { it.contains("does not declare android.software.picture_in_picture") })
+    }
+
+    @Test
+    fun fixture_thePipFeatureWithoutAnySupportingActivity_isCaught() {
+        val xml = """
+            <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="org.aptura.player">
+                <uses-feature android:name="android.software.picture_in_picture" android:required="false" />
+                <application android:allowBackup="false">
+                    <activity android:name="org.aptura.player.MainActivity" android:exported="true" />
+                </application>
+            </manifest>
+        """.trimIndent()
+
+        val problems = ManifestInvariants.violations(MergedManifest.parse(xml))
+
+        assertTrue(problems.toString(), problems.any { it.contains("no activity sets android:supportsPictureInPicture") })
     }
 }

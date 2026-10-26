@@ -54,8 +54,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.WindowInsets
@@ -1862,44 +1860,23 @@ fun PlayerScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .windowInsetsPadding(WindowInsets.navigationBars)
+                        .padding(horizontal = 24.dp)
                         .padding(bottom = 24.dp)
                 ) {
                     Text(
                         text = "Playback Speed",
                         style = ApturaTypography.titleMedium,
                         color = ApturaColors.TextHighEmphasis,
-                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
+                        modifier = Modifier.padding(vertical = 12.dp)
                     )
-                    LazyColumn {
-                        items(
-                            items = PlaybackSpeedOptions.all,
-                            key = { it },
-                            contentType = { "playback_speed_option" }
-                        ) { speed ->
-                            val isSelected = uiState.playbackSpeed == speed
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { onSpeedSelected(speed) }
-                                    .padding(horizontal = 24.dp, vertical = 14.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = if (speed == 1.0f) "Normal (1.0x)" else PlaybackSpeedOptions.label(speed),
-                                    style = ApturaTypography.bodyMedium.copy(fontFeatureSettings = "tnum"),
-                                    color = if (isSelected) ApturaColors.AccentPrimary else ApturaColors.TextHighEmphasis
-                                )
-                                if (isSelected) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Check,
-                                        contentDescription = "Selected",
-                                        tint = ApturaColors.AccentPrimary
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    // The same single ramp as Settings and the advanced sheet. The old two-row list of cards made a
+                    // small choice look like a settings table and pushed the sheet taller than the phone.
+                    SpeedRail(
+                        speeds = PlaybackSpeedOptions.all,
+                        selectedSpeed = uiState.playbackSpeed,
+                        onSelect = onSpeedSelected,
+                        label = "Playback Speed"
+                    )
                 }
             }
         }

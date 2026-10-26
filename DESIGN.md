@@ -201,6 +201,14 @@ val ApturaTypography = Typography(
 - **Large text:** the bubble is measured from the current font, not fixed; it grows instead of clipping at 200% type.
 - **Player sheets:** apply `WindowInsets.navigationBars` and `imePadding()` before `verticalScroll`, so the last row is never behind the system bar or keyboard. Player sheets use the dark palette even when the app is Light.
 
+### 5.5 Device Capability Contract
+
+- **R1 form factors:** phones and tablets only (DEC-005). No TV, Automotive, Wear or desktop launcher entries; the merged-manifest invariants reject Leanback/Auto categories and their feature prefixes.
+- **Picture-in-picture is optional:** declare `android.software.picture_in_picture` with `required="false"` and `android:supportsPictureInPicture="true"` on the player activity. One without the other is a bug: the first without the second advertises a capability nothing implements, the second without the first hides the app from devices that cannot float a window. The action is hidden whenever `DeviceCapabilities.supportsPictureInPicture` is false.
+- **No hardware claims:** camera, telephony, location, microphone, Bluetooth and NFC feature declarations are forbidden, even as optional. A feature declaration is a store promise, not a comment.
+- **Runtime checks live in `DeviceCapabilities`:** a screen must not call `hasSystemFeature` for a product-level capability on its own, or two surfaces can disagree about the same device.
+- **Storage eras are explicit:** system trash is offered only for MediaStore URIs on API 30+, never on API 29, and never for a batch that mixes MediaStore with another provider.
+
 ---
 
 ## 6. Component Style Guide (Jetpack Compose)

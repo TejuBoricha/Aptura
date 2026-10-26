@@ -76,6 +76,7 @@ import org.aptura.player.ui.settings.SettingsScreen
 import org.aptura.player.theme.AccentColor
 import org.aptura.player.theme.ApturaTheme
 import org.aptura.player.theme.ThemeMode
+import org.aptura.player.theme.themeModeForRoute
 
 /**
  * Single back-navigation policy used by the system Back gesture/button *and* the top-bar arrow.
@@ -165,7 +166,7 @@ fun MainNavigation(
     ApturaTheme(
         // The player is always dark: it is a cinema, not a settings panel, and a bright control surface would
         // compete with the picture.
-        themeMode = if (isPlayerRouteActive) ThemeMode.DARK else themeSettings?.themeMode ?: ThemeMode.SYSTEM,
+        themeMode = themeModeForRoute(isPlayerRouteActive, themeSettings?.themeMode ?: ThemeMode.SYSTEM),
         accentColor = themeSettings?.accentColor ?: AccentColor.CYAN
     ) {
         Surface(
