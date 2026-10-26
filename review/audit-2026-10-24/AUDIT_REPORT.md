@@ -1,11 +1,11 @@
 # Aptura - Follow-up Audit and Remediation
 
-**Snapshot:** `main` @ `54dd65c` (2026-10-26)  
+**Snapshot:** `main` @ `8ad9ebb` (2026-10-26)
 **Baseline:** `review/audit-2026-10-23/AUDIT_REPORT.md` @ `588cc3a`  
 **Delta for the first round:** 56 files, +5,430 / -799 across `14f26d1^..90ce6b9`  
 **Delta for the data-integrity round:** 18 files, +1,389 / -402 across `48f6b43..65e54be`  
 **Delta for the visual/capability round:** includes the reusable pixel helper, four coarse pixel guards, the route-theme resolver and the manifest feature/category matrix  
-**Quality gate after the final code change:** **556 tests / 88 suites, 0 failures, 0 skipped**; lint 0 errors; `assembleRelease` + `verifyReleaseApk` clean  
+**Quality gate after the final code change:** **557 tests / 88 suites, 0 failures, 0 skipped**; lint 0 errors; `assembleRelease` + `verifyReleaseApk` clean
 **Runtime evidence:** `review/audit-2026-10-24/evidence/` (8 curated captures + UI XML); new visual guards are Robolectric pixel checks, not device screenshots
 
 > This round was not a second hunt for the P0 playback defects fixed in the previous audit. It targeted the layer underneath those fixes: **features that were absent, controls that looked wired but were not, and UI that only worked at the reviewer's window size, font scale and theme.** The report records what was found, what changed, what is still open, why the earlier passes missed this class of defect, and what now prevents it from coming back.
@@ -29,7 +29,7 @@ The most important outcome is not any single screen. It is that the app now has 
 - one manifest capability matrix so the store listing and the runtime feature checks describe the same device set;
 - one synchronous pixel-capture helper whose guards test flat surfaces, not fonts or golden files.
 
-No known P0 defect remains in the reviewed scope. The three data-integrity caveats from the first pass are closed: SAF rename no longer orphans the row, large transfers have progress/cancellation/free-space preflight, and missing items have an explicit per-item removal. The remaining risk is concentrated in **physical-device verification** and **process-durable long transfers**, not in the main journeys.
+No known P0 defect remains in the reviewed scope. The three data-integrity caveats from the first pass are closed: SAF rename no longer orphans the row, large transfers have progress/cancellation/free-space preflight plus process-durable resumption, and missing items have an explicit per-item removal. The remaining risk is concentrated in **physical-device verification** and **live large-scale SAF/process-death validation**, not in the main journeys.
 
 | Dimension | After this round | One line |
 |---|---|---|
@@ -37,7 +37,7 @@ No known P0 defect remains in the reviewed scope. The three data-integrity cavea
 | UX consistency | **B+** | Speed, theme, file actions and language labels no longer disagree across screens. |
 | Responsive / adaptive | **A-** | The library is a real tablet index, not a stretched phone; large text is a first-class state. |
 | Accessibility | **B** | Touch targets and slider semantics are tested; TalkBack on hardware is still unverified. |
-| Data / file safety | **A-** | Copy-before-delete, URI remap for SAF rename, resumable-safe cancellation and explicit missing-item removal; transfers are not yet process-durable. |
+| Data / file safety | **A-** | Copy-before-delete, URI remap for SAF rename, process-durable cancellation/resumption and explicit missing-item removal. |
 | Test / QA | **B+** | Strong Robolectric coverage, coarse pixel guards and a manifest capability matrix; no release-variant instrumented E2E. |
 | Evidence honesty | **B** | Library/Settings captures are clean; the player capture limitation is documented rather than hidden. |
 
@@ -73,7 +73,7 @@ No known P0 defect remains in the reviewed scope. The three data-integrity cavea
 - Real-device codec behavior, HDR, thermal throttling, battery cost, Bluetooth A/V sync and TalkBack.
 - PiP behavior on a device that does **not** support PiP; the emulator supports it, so the hidden-control state is covered by tests, not a screenshot.
 - Release-variant instrumented E2E under AGP 9.0.1; release verification remains a manual smoke test.
-- Large SAF copies at multi-gigabyte scale, removable SD-card removal during a transfer, and process death during a copy.
+- Large SAF copies at multi-gigabyte scale, removable SD-card removal during a transfer, and process-death recovery on physical devices.
 - A clean screenshot of the player's `SurfaceView` layer. The emulator tiles that layer under both SwiftShader and the host GPU; see 3.4.
 
 ---
@@ -226,7 +226,7 @@ Severity here is product severity, not the previous report's P0 scale: **P1** = 
 - **Clipboard:** Copy/Cut stores URIs; Paste copies or moves into the chosen folder. Successfully transferred entries leave the clipboard; failed entries stay available for retry.
 - **Failure state:** failed deletes stay selected so the user can retry; successful deletes clear the selection.
 
-**Proof.** `MediaLibraryScreenUiTest` (16) includes the explicit Select entry, the 680 dp centered bar, single and bulk delete copy, bulk move copy, and clipboard controls. `MediaFileTransferTest` (1) proves bytes are copied and the source is retained. `ApturaMediaFileManagerTest` (4) covers extension preservation, an explicit extension, a year in the title, and a trailing dot. Live rename proof: `AuditClip` -> `AuditClipRenamed`, with MediaStore `_display_name=AuditClipRenamed.mp4` and `_data=.../AuditClipRenamed.mp4`; the fixture was restored to `AuditClip.mp4` afterwards.
+**Proof.** `MediaLibraryScreenUiTest` (16) includes the explicit Select entry, the 680 dp centered bar, single and bulk delete copy, bulk move copy, and clipboard controls. `MediaFileTransferTest` (6) proves bytes are copied, the source is retained, progress reaches 100%, space shortfalls are reported, cancellation cleans up, and resumed sources are not created again. `ApturaMediaFileManagerTest` (4) covers extension preservation, an explicit extension, a year in the title, and a trailing dot. Live rename proof: `AuditClip` -> `AuditClipRenamed`, with MediaStore `_display_name=AuditClipRenamed.mp4` and `_data=.../AuditClipRenamed.mp4`; the fixture was restored to `AuditClip.mp4` afterwards.
 
 ---
 
@@ -378,8 +378,9 @@ Severity here is product severity, not the previous report's P0 scale: **P1** = 
 - `measureSpace` preflights the destination before writing. Free space comes from the provider's **root** (`Root.COLUMN_AVAILABLE_BYTES`), matched to the tree document id by exact or `rootId:`/`rootId/` prefix. A provider that reports no quota returns `null` and the copy is attempted, with a real write failure reported instead of a false refusal. A malformed tree returns zero available bytes.
 - The library now shows a **TransferProgressDialog**: verb + count, current file, byte progress, real percentage, and a **Cancel** button that becomes "Cancelling…". It cannot be dismissed by tapping outside. A shortfall produces a **Not enough space** dialog naming both required and available sizes and confirming nothing was copied.
 - A cancellation result names how many files were copied, states that the unfinished file was removed, and states that no originals were deleted (or that originals are unchanged for a copy).
+- `MediaTransferWorker` and `MediaTransferJournal` now move that same copy contract outside the composition. WorkManager restores one unique job after process death; the journal commits the in-progress destination before writing and each completed source after writing, so a restored run removes only the partial document and skips completed sources. The selected SAF tree retains read/write permission for the worker, and the journal stays until move deletion consent completes.
 
-**Proof.** `MediaFileTransferTest` (5) covers bytes copied with the source retained, byte progress reaching 100%, a shortfall before any write, a provider with no quota, and a mid-copy cancellation that deletes the partial destination and leaves the source byte-identical. The UI wiring is compile-checked and the result/space copy is exercised by the same state machine; a real multi-gigabyte provider transfer remains physical-device work.
+**Proof.** `MediaFileTransferTest` (6) covers bytes copied with the source retained, byte progress reaching 100%, a shortfall before any write, a provider with no quota, a mid-copy cancellation that deletes the partial destination and leaves the source byte-identical, and resumed-source skipping. The full gate is green; a connected-device kill during a multi-gigabyte provider transfer remains physical-device work.
 
 ---
 
@@ -423,12 +424,12 @@ The rule that keeps playback dark also lived inline in `MainNavigation`. Structu
 After the visual/capability round:
 
 ```
-556 tests / 88 suites / 0 failures / 0 skipped
+557 tests / 88 suites / 0 failures / 0 skipped
 lintDebug: 0 errors
 assembleRelease + verifyReleaseApk: clean
 ```
 
-The test counts were read from `app/build/test-results/testDebugUnitTest/*.xml`, not from a cached console line. The gate was run after the final code change; only documentation changed afterwards. The data-integrity round ended at **531 / 82**; this round adds **25 tests in six new suites plus three extended ones**: 2 Settings top-bar pixels, 2 selection-bar pixels, 3 guide-footer pixels, 1 quick-sheet theme pixel, 2 route-resolver tests, 3 device-capability tests, 7 merged-manifest feature/category tests, 2 additional speed-rail cases and 3 additional storage-era cases.
+The test counts were read from `app/build/test-results/testDebugUnitTest/*.xml`, not from a cached console line. The data-integrity round ended at **531 / 82**; the visual/capability round added **25 tests**, and the durable-transfer change adds one resumed-copy case in `MediaFileTransferTest`.
 
 The pixel tests are deliberately narrow. They capture the window synchronously and assert a flat fill region of one to a few pixels, away from text, rounded corners and hairlines. They catch a surface that vanishes, turns translucent or switches palette without freezing a screenshot that every font update would break.
 
@@ -476,11 +477,13 @@ All paths are relative to this folder.
 
 **Next step.** Run the same evidence protocol on at least one mid-range and one flagship phone: H.264/HEVC/AV1/VP9, HDR10, 4K/60, 10-bit, AC3/EAC3/DTS/TrueHD, Bluetooth earbuds with a lip-sync clip, TalkBack through library -> player -> sheets, and a 30-minute thermal soak.
 
-### 4.2 Transfers do not survive process death or leaving the library
+### 4.2 Process-durable transfers [closed by `8ad9ebb`]
 
-**Why it is open.** Progress, cancellation and the preflight now exist, but they live in the library composition (`rememberCoroutineScope` plus `remember` state). A rotation, Back to another route or process death cancels the copy: the partial destination is removed, the originals are kept, and no bytes are lost, but the transfer does not resume and there is no completion notification. This is safe, not durable.
+**Finding.** Progress, cancellation and preflight previously lived in the library composition (`rememberCoroutineScope` plus `remember` state). Leaving the screen or process death cancelled the copy instead of resuming it.
 
-**Next step.** Move the transfer into a foreground service or WorkManager job with the same `MediaFileTransfer` contract: byte progress, cooperative cancellation, free-space preflight, partial-destination cleanup and copy-before-delete. The notification should expose progress and Cancel. Do not add a second copy implementation.
+**Fix (`8ad9ebb`).** `MediaTransferWorker` runs the existing `MediaFileTransfer` byte loop through a unique WorkManager request. `MediaTransferJournal` uses synchronous SharedPreferences commits to record the stable job, completed source URIs and the in-progress destination document; a restored worker removes a truncated document and resumes only the remaining sources. The library observes WorkManager progress, rehydrates after process death, retains the journal through move-deletion consent, and persists read/write SAF grants when the destination is selected. Cancellation is journaled before WorkManager cancellation, and a copy-completion race cannot turn a late Cancel into source deletion.
+
+**Proof.** `MediaFileTransferTest` (6) covers bytes, progress, space shortfall, no-quota fallback, cancellation cleanup and resumed-source skipping. The full gate passes. A connected-device kill during a multi-gigabyte SAF copy remains a physical validation item.
 
 ### 4.3 Release-variant instrumented E2E is still shelved
 
@@ -593,11 +596,11 @@ The gate now includes, among others:
 | `PlayerSpeedRailTest` | 4 | Same ramp in both player sheets; chosen speed reaches the player |
 | `PlayerWideTopBarTest` | 2 | Wide bar actions stay inline; PiP omitted when absent |
 | `PlaybackSpeedOptionsTest` | 2 | Shared list and labels |
-| `MediaFileTransferTest` | 5 | Bytes copied, progress, space shortfall, no-quota fallback, cancellation cleanup |
+| `MediaFileTransferTest` | 6 | Bytes copied, progress, space shortfall, no-quota fallback, cancellation cleanup, resumed-source skipping |
 | `PlayerPipAvailabilityTest` | 1 | No PiP control without the feature |
 | `LibraryTouchTargetsTest` | 1 | 48 dp targets |
 
-That is **149 tests across the 31 suites most relevant to this round**; the full gate is **556 / 88**. Outside the unit gate, `DocumentsProviderRenameTest` (2) runs on a connected API 35 emulator against the debug-only provider; instrumented tests are not part of either count.
+That is **150 tests across the 31 suites most relevant to this round**; the full gate is **557 / 88**. Outside the unit gate, `DocumentsProviderRenameTest` (2) runs on a connected API 35 emulator against the debug-only provider; instrumented tests are not part of either count.
 
 ### 6.3 Layout tests at the sizes that break layouts
 
@@ -622,6 +625,7 @@ A layout that only works at the reviewer's window is no longer accepted.
 8. Preflight destination space when the provider reports a quota; if it does not, attempt the copy and report the write failure honestly.
 9. Cancellation stops between chunks, removes only the partial destination, keeps every original, and keeps clipboard entries for retry.
 10. A missing file gets one honest action, Remove from library, with explicit progress/bookmark consequences. Do not auto-purge a row that a disconnected drive may bring back.
+11. A transfer journal is written before the first byte, completed sources are recorded synchronously, and WorkManager resumes the same job after process death without duplicating completed copies.
 
 ### 6.5 Evidence protocol
 
@@ -633,7 +637,7 @@ A layout that only works at the reviewer's window is no longer accepted.
 
 ### 6.6 Documentation
 
-- `DESIGN.md` now records the 248/88 dp sidebar, the 600/700 dp breakpoints, the 150% font fallback, the 68 x 48 chip, the 680 dp action bar, the shared speed rail, the player-dark rule, and the file-action contract, including URI remapping, rename-before-scan ordering, transfer progress/cancel and the missing-item rule.
+- `DESIGN.md` now records the 248/88 dp sidebar, the 600/700 dp breakpoints, the 150% font fallback, the 68 x 48 chip, the 680 dp action bar, the shared speed rail, the player-dark rule, and the file-action contract, including URI remapping, rename-before-scan ordering, transfer progress/cancel/resumption and the missing-item rule.
 - `.agents/MEMORY.md` Part 74 records the first audit round; Part 75 records the data-integrity round; Part 76 records the visual/capability round; Part 77 records the real `DocumentsProvider` rename proof.
 
 ### 6.7 Device capability matrix
@@ -656,7 +660,7 @@ These are not one-time fixes; they are the next layer of process.
 
 1. **Coarse pixel guards are now in place** for the scrolled Settings bar, the selection bar, the guide footer and the player's quick sheet under a Light app theme. They deliberately assert flat regions, not glyphs or golden files. The remaining step is a hardware-captured screenshot matrix for typography, illustrations and the player's video layer, where a golden image is the only honest evidence.
 2. **The real `DocumentsProvider` path is now proven.** `DocumentsProviderRenameTest` (2, instrumented, API 35) renames through Android's `DocumentsContract` against a debug-only provider that allocates a new document ID; it asserts the new URI is returned, the old ID stops resolving and the extension rule still holds. `MediaRepositoryTest` proves the row, saved progress and bookmarks follow that URI. The remaining step is to run the instrumented test in CI on a connected emulator, not only locally.
-3. **A process-durable transfer** (foreground service or WorkManager) with the same progress, cancellation, free-space and partial-cleanup contract, so rotation, navigation or process death cannot stop a long copy. Do not duplicate `MediaFileTransfer`'s byte loop.
+3. **Exercise the durable transfer on physical storage.** The WorkManager/journal path is now in place and reuses `MediaFileTransfer`; the remaining step is a connected process-kill test during a large SAF copy, including a provider that refuses partial-document deletion.
 4. **The capability matrix is now enforced in every gate**: the merged manifest's features and categories are allow-listed, PiP is optional in both the store declaration and the activity flag, `DeviceCapabilities` has present/absent/sub-API tests, and storage-era behavior is pinned at API 29/30/35. The remaining step is to run the same matrix on a device farm, including a real PiP-absent image.
 5. **Release-variant instrumented E2E** on a device farm, or an explicit signed release smoke checklist in CI. The current manual release smoke is honest but not scalable.
 6. **A physical-device lab pass** for codecs, HDR, thermal, Bluetooth and TalkBack. The emulator is a layout and logic tool, not a media-certification tool.
@@ -690,8 +694,9 @@ These are not one-time fixes; they are the next layer of process.
 | `90c0b61` | Polish library and playback settings | Continue Watching, reset defaults, sheet insets, sidebar controls |
 | `90ce6b9` | Complete library file actions and compact sidebar polish | Explicit Select, batch bar, rename, SAF move, trash, clipboard, swipe, compact HUD, 68 x 48 chip |
 | `65e54be` | Make SAF rename, missing-item removal, and transfers safe | Provider-allocated rename URI with row/bookmark remap, per-item missing-file removal, byte progress/cancel/free-space transfer pipeline |
+| `8ad9ebb` | Make media transfers process durable | WorkManager transfer worker, synchronous journal, resumable completed-source tracking, persisted destination grants, race-safe cancellation |
 
-**Diff:** 56 files, +5,430 / -799 across `14f26d1^..90ce6b9`; 18 files, +1,389 / -402 across `48f6b43..65e54be`.
+**Diff:** 56 files, +5,430 / -799 across `14f26d1^..90ce6b9`; 18 files, +1,389 / -402 across `48f6b43..65e54be`; 6 files, +739 / -154 in `8ad9ebb`.
 
 ---
 
