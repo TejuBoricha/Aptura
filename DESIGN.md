@@ -139,12 +139,26 @@ val ApturaTypography = Typography(
 - **Base Spacing Grid:** Multiples of `4.dp` / `8.dp` (`4.dp`, `8.dp`, `12.dp`, `16.dp`, `24.dp`, `32.dp`, `48.dp`).
 - **Minimum Touch Target:** `48.dp x 48.dp` for every interactive control (buttons, icons, chips, slider thumbs).
 - **Responsive Width Breakpoints:**
-  - **Compact (<600dp, Phones portrait):** Single-column media list or 2-column card grid. Navigation bar at bottom.
-  - **Medium (600–839dp, Foldables / Small Tablets):** 3-column media grid. Navigation rail or persistent bar.
-  - **Expanded (≥840dp, Tablets / Desktops):** Two-pane layout (Folder navigation rail on left, media browser on right; 360dp fixed master pane, flexible detail).
+  - **Compact (<600dp, Phones portrait):** Single-column media list or 2-column card grid. No persistent sidebar; folder chips and the bottom navigation stay in the content column.
+  - **Medium (600–699dp, Foldables / Small Tablets):** **88dp compact rail** with Videos, Open, Refresh and Settings, plus the film count. Expand is not offered because 248dp would leave too little grid; folder chips remain in the content top edge.
+  - **Expanded (≥700dp, Tablets / Desktops):** **248dp collection index** with the library pulse (films, runtime, footprint), All videos, folder rows with counts, Add folder, Open a file, Rescan, Settings and the offline promise. It collapses to the 88dp rail on demand; the choice is remembered for the session.
+- **Large-text fallback:** At `fontScale >= 1.5`, force the 88dp icon rail at every width. The rail hides labels and keeps the icons' `contentDescription` as the accessible names. This is a layout decision, not a truncation: folder names must never be squeezed into unreadable fragments.
+- **Sidebar motion:** Expand/collapse animates over 220ms with size, fade and a small horizontal slide. The compact header is one **68 x 48dp** chip that combines the aperture mark and the chevron; do not separate the mark and the arrow into a stack. Every sidebar control keeps a 48dp target.
+- **Library selection bar:** Cap the selection action bar at **680dp** and center it under the search row at any width; do not let it stretch edge to edge on a tablet. It shows the count, Select all/Clear, Move, Share and the overflow; Back clears selection before leaving the library. Failed deletes stay selected.
+- **Folder swipe:** A horizontal drag of at least **64dp** on the video grid moves to the next/previous folder. Disable the gesture while a selection is active.
 - **System Gesture Zones:**
   - Honor `WindowInsets.systemGestures`.
   - Scrub bar thumb excludes bottom edge via `setSystemGestureExclusionRects` during immersive video playback.
+
+### 4.1 Library File Action Contract
+
+- **Selection:** Provide an explicit **Select** entry in every card overflow as well as long-press. Selection is a mode: Back clears it before navigating; a failed delete stays selected for retry; a successful delete clears the affected items.
+- **Batch bar:** Count, Select all/Clear, Move, Share and overflow. Rename appears only for a single item. The bar is capped at 680dp and centered under the search row.
+- **Rename:** Rename the file, not only the library row. Preserve the real extension when the user enters a title without one; prefer the current file's extension, then the MIME type. A dot is only an extension when the suffix looks like one.
+- **Move:** Copy into the chosen SAF folder first and keep the source. Delete the originals only after the copy succeeds and Android grants deletion. On copy failure, retain and name the originals; on partial deletion, report both counts.
+- **Delete / trash:** Offer **Move to trash** only for MediaStore URIs on API 30+ where the system trash exists. Otherwise offer permanent deletion with explicit "cannot be undone" copy. The dialog names a single video or states the batch count.
+- **Clipboard:** Copy/Cut stores URIs. Paste consumes entries that transferred successfully and keeps failures for retry. Clear clipboard is always available.
+- **Folders:** A 64dp horizontal swipe moves between folders; disable it while selecting.
 
 ---
 
@@ -163,15 +177,26 @@ val ApturaTypography = Typography(
 - **Auto-Hide Timeout:** **5 seconds** (`5000ms`, aligned with Media3 `DEFAULT_SHOW_TIMEOUT_MS`).
 - **Enter Animation:** `fadeIn(animationSpec = tween(150))`.
 - **Exit Animation:** `fadeOut(animationSpec = tween(250))`.
-- **Double-Tap Seek Overlays:**
-  - Left double-tap: Circular pulse icon with `-10s` indicator.
-  - Right double-tap: Circular pulse icon with `+10s` indicator.
-  - Multi-tap accumulation: Subsequent taps accumulate `20s`, `30s`, `40s`.
+- **Double-Tap Seek Overlay:**
+  - Geometry: **132 x 68dp** rounded card (18dp radius), not a full-height edge scrim.
+  - Left double-tap: 42dp accent disc with a backward arrow, accumulated `-10s`, label **Back**.
+  - Right double-tap: 42dp accent disc with a forward arrow, accumulated `+10s`, label **Ahead**.
+  - Multi-tap accumulation: Subsequent taps accumulate `20s`, `30s`, `40s`; the overlay stays compact so the picture remains visible.
+  - Force LTR arrow direction so a mirrored layout cannot reverse "forward"; expose the direction and accumulated delta semantically.
 
 ### 5.3 Swipe Gestures (Full-screen Video)
 - **Left Vertical Swipe:** Brightness adjustment (0% to 100% overlay pill).
 - **Right Vertical Swipe:** Media volume adjustment (0% to 100% overlay pill; hardware volume sync).
 - **Horizontal Swipe:** High-precision scrub with fine-grained time delta indicator (`+0:15`, `-1:02`).
+
+### 5.4 Playback Speed Rail (Settings and Player)
+
+- **One source of truth:** `PlaybackSpeedOptions.all` = `0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0`. Settings, the player speed chip sheet and the advanced sheet import it; never retype the list.
+- **One control:** a single horizontal rail, not a grid of cards. A live value bubble rides the finger; ticks rise from slower to faster; the ends name the range; the needle springs to the nearest detent on release.
+- **Interaction:** tap anywhere to select the nearest detent; drag for continuous selection; haptic feedback when crossing a detent.
+- **Accessibility:** the whole rail is one slider: `contentDescription` names the range, `stateDescription` names the value, `progressBarRangeInfo` exposes the steps, and `setProgress` changes it with TalkBack.
+- **Large text:** the bubble is measured from the current font, not fixed; it grows instead of clipping at 200% type.
+- **Player sheets:** apply `WindowInsets.navigationBars` and `imePadding()` before `verticalScroll`, so the last row is never behind the system bar or keyboard. Player sheets use the dark palette even when the app is Light.
 
 ---
 
@@ -203,14 +228,19 @@ val ApturaTypography = Typography(
 
 ### ❌ NEVER DO:
 1. **Never use saturated purple or pink gradients** as card or background fills.
-2. **Never hardcode white backgrounds** (`#FFFFFF`) or bright gray panels. All surfaces belong to the `Surface*` dark scale.
+2. **Never hardcode white or black backgrounds.** Use the active `Surface*` tokens. In Light mode `SurfacePureBlack` is white by design (thumbnails, selected-chip labels); in the player it is true black. A literal `Color.White` or `Color.Black` outside the player root is a bug.
 3. **Never render text directly over video** without an alpha-controlled scrim (`SurfaceScrim`).
-4. **Never create touch targets smaller than 48dp** on mobile screens.
+4. **Never create touch targets smaller than 48dp** on mobile screens. The compact sidebar chip is 68 x 48dp, not 34 x 48dp.
 5. **Never drop frame rates** for animations — use Compose `Animatable` or `animateFloatAsState` with hardware-accelerated transforms (`graphicsLayer`).
 6. **Never use generic standard Android dialogs** with default light themes; always theme dialogs with `SurfaceElevated2` and `ApturaTypography`.
+7. **Never ship a control that is not wired.** No fake success, no placeholder toast, no "Picture in Picture" entry on a device without the feature, no speed value that only one surface can set.
+8. **Never show light player chrome when the app is Light.** The player and every sheet it opens use the dark palette, including the speed, subtitle, audio, queue and advanced sheets.
 
 ### ✅ ALWAYS DO:
 1. **Always use tabular digits (`tnum`)** for timecodes, durations, bitrates, and counters to prevent UI jitter.
-2. **Always respect edge-to-edge window insets** (`WindowInsets.safeDrawing`, `displayCutout`, `statusBars`, `navigationBars`).
+2. **Always respect edge-to-edge window insets** (`WindowInsets.safeDrawing`, `displayCutout`, `statusBars`, `navigationBars`). Apply insets before `verticalScroll`, not after.
 3. **Always provide haptic feedback** (`LocalHapticFeedback.current.performHapticFeedback(HapticFeedbackType.TextHandleMove)`) when crossing seek markers or scrubbing.
 4. **Always ensure WCAG 2.2 AA (minimum 4.5:1) contrast** for all informative labels and icons.
+5. **Always test 200% font, 600/699dp, 700dp and the scrolled top bar.** A layout that only works at the reviewer's window is not finished.
+6. **Always copy first, then delete.** A move is a successful copy followed by a consented deletion; a failed copy leaves the original untouched and names it.
+7. **Always preserve the real file extension on rename.** The visible title may omit it; the file on disk may not.
