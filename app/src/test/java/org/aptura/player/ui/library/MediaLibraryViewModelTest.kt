@@ -49,9 +49,14 @@ class MediaLibraryViewModelTest {
             videosFlow.value = videosFlow.value.filter { !it.uri.startsWith(uriPrefix) }
         }
 
-        override suspend fun renameVideo(uri: String, newName: String) {
+        override suspend fun renameVideo(
+            uri: String,
+            newName: String,
+            newUri: String?,
+            newDisplayName: String?
+        ) {
             videosFlow.value = videosFlow.value.map {
-                if (it.uri == uri) it.copy(title = newName) else it
+                if (it.uri == uri) it.copy(uri = newUri ?: it.uri, title = newName) else it
             }
         }
 
@@ -425,6 +430,18 @@ class MediaLibraryViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertEquals("Inception Remastered", repo.videosFlow.value.first().title)
+    }
+
+    @Test
+    fun removeMissingVideo_deletesTheIndexRow() = runTest(testDispatcher) {
+        val repo = FakeMediaRepository()
+        repo.videosFlow.value = listOf(item1.copy(isMissing = true), item2)
+        val viewModel = MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 0L)
+
+        viewModel.removeMissingVideo(item1.uri)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf(item2.uri), repo.videosFlow.value.map { it.uri })
     }
 
     // ---- natural sort, automatic folder order, Continue Watching (audit P1-14) ------------------------------------

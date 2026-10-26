@@ -1,9 +1,9 @@
 # Aptura - Follow-up Audit and Remediation
 
-**Snapshot:** `main` @ `90ce6b9` (2026-10-26)  
+**Snapshot:** `main` @ data-integrity round (2026-10-26)  
 **Baseline:** `review/audit-2026-10-23/AUDIT_REPORT.md` @ `588cc3a`  
-**Delta for this round:** 56 files, +5,430 / -799 across `14f26d1^..90ce6b9`  
-**Quality gate after the final code change:** **523 tests / 82 suites, 0 failures, 0 skipped**; lint 0 errors; `assembleRelease` + `verifyReleaseApk` clean  
+**Delta for the first round:** 56 files, +5,430 / -799 across `14f26d1^..90ce6b9`; this report also records the follow-up data-integrity round  
+**Quality gate after the final code change:** **531 tests / 82 suites, 0 failures, 0 skipped**; lint 0 errors; `assembleRelease` + `verifyReleaseApk` clean  
 **Runtime evidence:** `review/audit-2026-10-24/evidence/` (8 curated captures + UI XML)
 
 > This round was not a second hunt for the P0 playback defects fixed in the previous audit. It targeted the layer underneath those fixes: **features that were absent, controls that looked wired but were not, and UI that only worked at the reviewer's window size, font scale and theme.** The report records what was found, what changed, what is still open, why the earlier passes missed this class of defect, and what now prevents it from coming back.
@@ -20,9 +20,11 @@ The most important outcome is not any single screen. It is that the app now has 
 - one appearance model shared by the library, Settings, the guide and system bars, with the player deliberately outside it;
 - one tablet index that owns collection navigation instead of duplicating it in chips;
 - one file-action pipeline that copies first, deletes only after consent, and reports retained originals;
+- one rename contract that returns the file's new URI and moves the row, its saved position and its bookmarks with it;
+- one transfer job that reports real byte progress, checks space before writing, and cancels without touching the originals;
 - one language-label mapper so raw container codes stop leaking into the UI.
 
-No known P0 defect remains in the reviewed scope. The remaining risk is concentrated in **physical-device verification** and **edge cases whose failure mode is an unavailable URI or a long-running copy**, not in the main journeys.
+No known P0 defect remains in the reviewed scope. The three data-integrity caveats from the first pass are closed: SAF rename no longer orphans the row, large transfers have progress/cancellation/free-space preflight, and missing items have an explicit per-item removal. The remaining risk is concentrated in **physical-device verification** and **process-durable long transfers**, not in the main journeys.
 
 | Dimension | After this round | One line |
 |---|---|---|
@@ -30,7 +32,7 @@ No known P0 defect remains in the reviewed scope. The remaining risk is concentr
 | UX consistency | **B+** | Speed, theme, file actions and language labels no longer disagree across screens. |
 | Responsive / adaptive | **A-** | The library is a real tablet index, not a stretched phone; large text is a first-class state. |
 | Accessibility | **B** | Touch targets and slider semantics are tested; TalkBack on hardware is still unverified. |
-| Data / file safety | **B+** | Copy-before-delete and honest batch results; SAF URI remapping remains open. |
+| Data / file safety | **A-** | Copy-before-delete, URI remap for SAF rename, resumable-safe cancellation and explicit missing-item removal; transfers are not yet process-durable. |
 | Test / QA | **B** | Strong Robolectric coverage and live checks; no release-variant instrumented E2E. |
 | Evidence honesty | **B** | Library/Settings captures are clean; the player capture limitation is documented rather than hidden. |
 
@@ -343,19 +345,64 @@ Severity here is product severity, not the previous report's P0 scale: **P1** = 
 
 ---
 
+### F-18 - A SAF rename orphaned the library row, its progress and its bookmarks [P1]
+
+**Found (carried from section 4.2 of the first pass).** `DocumentsContract.renameDocument` returns a **new** document URI, but `ApturaMediaFileManager.renameMediaFile` returned only `Boolean`. The caller updated the visible title and kept the old URI. The next scan could then see the old row as missing and the renamed document as a brand-new video, splitting saved progress and bookmarks.
+
+**Fix.**
+- `renameMediaFile` now returns `MediaRenameResult`: `Renamed(uri, displayName)`, `PermissionRequired(intentSender)` or `Failed`. The callback is gone, so callers cannot accidentally treat "needs consent" as success.
+- Both library rename surfaces (card overflow and details sheet, including the details route in `Navigation.kt`) pass the provider-allocated URI back through `MediaLibraryViewModel.renameVideo(uri, title, newUri, displayName)`.
+- `MediaItemDao.renameAndRemapUri` moves `media_items.uri`, `displayName`, `title` and `customTitle` in one UPDATE, so the row id, playback position and per-video preferences stay attached to the same record.
+- `MediaRepositoryImpl` also remaps `bookmarks.mediaUri` when the URI changes. A title-only update still uses `updateCustomTitle`, so it cannot overwrite the real file name or its extension.
+- The extension rule is unchanged: prefer the current file's extension, then the MIME type; `Dr. Strangelove` is a title, not a suffix.
+
+**Proof.** `ApturaMediaFileManagerTest` (5) drives the four extension cases through `DocumentsContract.renameDocument` against a registered `ContentProvider`, asserting that the provider receives the requested name and that its **new** document URI is returned; `renamingALocalFileReturnsTheNewUri` covers the file path. `MediaRepositoryTest` (9) includes `renameVideo_withANewSafUri_movesTheRowAndBookmarks_andKeepsProgress`, which seeds 42 s of progress, renames `Clip.mp4` to `Holiday.mp4` under a new SAF URI, and asserts the old URI is gone, the progress survives and the bookmark follows. A real `DocumentsProvider` instrumented test remains a future step (section 7).
+
+---
+
+### F-19 - A large copy or move looked frozen and could not be stopped [P1]
+
+**Found (carried from section 4.3 of the first pass).** `MediaFileTransfer.copyIntoTree` copied in a loop with no progress callback and no cooperative cancellation. A multi-gigabyte move had no visible state between "start" and the final dialog.
+
+**Fix.**
+- `copyIntoTree` is now `suspend` and copies in 64 KiB chunks. It reports `MediaTransferProgress(completedFiles, totalFiles, copiedBytes, totalBytes, currentName)` at most every 200 ms, with forced first, per-file and final updates; `fraction` uses bytes, then file count when a provider hides sizes.
+- Cancellation is cooperative (`ensureActive` plus a `yield` per chunk). A cancelled copy deletes only the in-progress destination document; completed copies stay, every original stays, and clipboard entries are retained for retry. Copy-before-delete is unchanged: deletion starts only after the whole copy phase completes.
+- `measureSpace` preflights the destination before writing. Free space comes from the provider's **root** (`Root.COLUMN_AVAILABLE_BYTES`), matched to the tree document id by exact or `rootId:`/`rootId/` prefix. A provider that reports no quota returns `null` and the copy is attempted, with a real write failure reported instead of a false refusal. A malformed tree returns zero available bytes.
+- The library now shows a **TransferProgressDialog**: verb + count, current file, byte progress, real percentage, and a **Cancel** button that becomes "Cancelling…". It cannot be dismissed by tapping outside. A shortfall produces a **Not enough space** dialog naming both required and available sizes and confirming nothing was copied.
+- A cancellation result names how many files were copied, states that the unfinished file was removed, and states that no originals were deleted (or that originals are unchanged for a copy).
+
+**Proof.** `MediaFileTransferTest` (5) covers bytes copied with the source retained, byte progress reaching 100%, a shortfall before any write, a provider with no quota, and a mid-copy cancellation that deletes the partial destination and leaves the source byte-identical. The UI wiring is compile-checked and the result/space copy is exercised by the same state machine; a real multi-gigabyte provider transfer remains physical-device work.
+
+---
+
+### F-20 - Missing videos were badged but not removable per item [P2]
+
+**Found (carried from section 4.4 of the first pass).** A file deleted outside Aptura could remain as a **Missing** card when it carried saved progress. Settings had a bulk **Remove all**, and the card was badged, but there was no per-item action. Offering Play, Rename, Share or Delete on a file that no longer exists produces failures with no useful outcome.
+
+**Fix.**
+- A missing card's overflow now contains **Video Details** and one destructive action, **Remove from library**. Play Next, Add to Queue, Select, Move, Share, Hide and Delete are not offered.
+- The details sheet replaces the entire action area with a `MissingVideoNotice` that explains the file may have moved, been deleted or be on a disconnected drive, and offers **Remove from library**.
+- `RemoveMissingVideoDialog` is explicit: nothing on disk will be deleted because the file is already unavailable; the saved position and bookmarks **will** be removed; if the file returns it is added as a new video.
+- `MediaLibraryViewModel.removeMissingVideo` deletes the index row (and its progress/bookmarks) through `removeVideoFromLibrary`; it never touches storage. The Settings bulk action remains for cleanup.
+- This is deliberately not automatic: a temporarily disconnected drive must not silently erase progress.
+
+**Proof.** `MediaLibraryScreenUiTest` (17) includes `missingCardOffersOnlyRemove_andConfirmsBeforeDeletingTheRow`, which asserts the absent actions, the confirmation copy and the callback URI. `MediaLibraryViewModelTest` (21) includes `removeMissingVideo_deletesTheIndexRow`.
+
+---
+
 ## 3. Verification
 
 ### 3.1 Gate
 
-After the final code change (`90ce6b9`):
+After the data-integrity round:
 
 ```
-523 tests / 82 suites / 0 failures / 0 skipped
+531 tests / 82 suites / 0 failures / 0 skipped
 lintDebug: 0 errors
 assembleRelease + verifyReleaseApk: clean
 ```
 
-The test counts were read from `app/build/test-results/testDebugUnitTest/*.xml`, not from a cached console line. The gate was run after the final code change; only documentation and curated evidence changed afterwards.
+The test counts were read from `app/build/test-results/testDebugUnitTest/*.xml`, not from a cached console line. The gate was run after the final code change; only documentation and curated evidence changed afterwards. The previous round ended at **523 / 82**; this round adds eight tests: two in `ApturaMediaFileManagerTest`/`MediaRepositoryTest`, four in `MediaFileTransferTest`, one in `MediaLibraryScreenUiTest` and one in `MediaLibraryViewModelTest` (one existing test was updated in place).
 
 ### 3.2 Live checks
 
@@ -400,37 +447,25 @@ All paths are relative to this folder.
 
 **Next step.** Run the same evidence protocol on at least one mid-range and one flagship phone: H.264/HEVC/AV1/VP9, HDR10, 4K/60, 10-bit, AC3/EAC3/DTS/TrueHD, Bluetooth earbuds with a lip-sync clip, TalkBack through library -> player -> sheets, and a 30-minute thermal soak.
 
-### 4.2 SAF rename can orphan the database URI
+### 4.2 Transfers do not survive process death or leaving the library
 
-**Why it is open.** `DocumentsContract.renameDocument` returns a **new** URI, but `ApturaMediaFileManager.renameMediaFile` returns only `Boolean`; the caller updates the library title but keeps the old URI. The next scan can see the old URI as missing and the renamed document as a new item. The live MediaStore path is unaffected because the URI stays stable.
+**Why it is open.** Progress, cancellation and the preflight now exist, but they live in the library composition (`rememberCoroutineScope` plus `remember` state). A rotation, Back to another route or process death cancels the copy: the partial destination is removed, the originals are kept, and no bytes are lost, but the transfer does not resume and there is no completion notification. This is safe, not durable.
 
-**Next step.** Return the renamed URI (or a small result type), update the repository row and saved progress in one transaction, and add a test with a real `DocumentsProvider` that changes the document ID. Until then, document-provider renames should be treated as "re-scan required" in the copy or an explicit caveat.
+**Next step.** Move the transfer into a foreground service or WorkManager job with the same `MediaFileTransfer` contract: byte progress, cooperative cancellation, free-space preflight, partial-destination cleanup and copy-before-delete. The notification should expose progress and Cancel. Do not add a second copy implementation.
 
-### 4.3 Large copy/move has no progress or cancellation
-
-**Why it is open.** `MediaFileTransfer` copies in a loop with no progress callback and no cooperative cancellation. A multi-gigabyte move can look frozen; the UI only sees the final result.
-
-**Next step.** Move the transfer into a foreground/WorkManager job with progress, a cancel action, free-space preflight, and a cleanup policy for partial destinations. Keep copy-before-delete.
-
-### 4.4 Missing items are badged but not removable per item
-
-**Why it is open.** A file deleted outside Aptura can remain as a **Missing** card when it carries saved progress. Settings has a bulk **Remove all** action, and the card is badged, but there is no per-card "Remove from library" action, and a scan does not auto-purge progress-bearing rows. This was observed during evidence cleanup with a screen recording deleted outside the app (`ev2d`); it was hidden for the final capture.
-
-**Next step.** Add a per-card remove action and a "keep progress if the file returns" explanation. Do not silently delete progress.
-
-### 4.5 Release-variant instrumented E2E is still shelved
+### 4.3 Release-variant instrumented E2E is still shelved
 
 **Why it is open.** AGP 9.0.1 does not create `connectedReleaseAndroidTest` from `testBuildType` alone; the opt-in `androidComponents.beforeVariants` work is documented but not enabled. Release verification is currently a manual smoke test.
 
 **Next step.** Enable the device-test variant in a dedicated CI job, or accept debug-only instrumentation and keep the manual release smoke checklist.
 
-### 4.6 PiP-unsupported UI is test-only
+### 4.4 PiP-unsupported UI is test-only
 
 **Why it is open.** The emulator supports PiP, so the hidden-control state cannot be photographed. `PlayerPipAvailabilityTest` and `PlayerWideTopBarTest` cover it.
 
 **Next step.** Verify on a device or emulator image without `FEATURE_PICTURE_IN_PICTURE`; capture the top bar and overflow.
 
-### 4.7 Player capture remains unreliable on this emulator
+### 4.5 Player capture remains unreliable on this emulator
 
 **Why it is open.** The `SurfaceView` tiling affects both renderers. This is a capture limitation, not an app defect, but it means the player's video output cannot be used as visual evidence here.
 
@@ -495,7 +530,7 @@ The gate now includes, among others:
 
 | Suite | Tests | Pins |
 |---|---:|---|
-| `MediaLibraryScreenUiTest` | 16 | Select entry, selection/Back, batch delete/move copy, 680 dp centered bar, swipe and selection no-op |
+| `MediaLibraryScreenUiTest` | 17 | Select entry, selection/Back, batch delete/move copy, 680 dp centered bar, swipe, missing-card removal |
 | `OnboardingScreenUiTest` | 10 | Skip, paging, content, footer clearance, last-page behavior, guide-seen once |
 | `SettingsSpeedOptionsTest` | 6 | Every speed, half speed, far-right 2.0x, stored default, unknown snap, scroll reachability |
 | `MediaLanguageLabelsTest` | 6 | ISO/BCP-47 names, `und` suppression, unknown code, casing |
@@ -504,7 +539,8 @@ The gate now includes, among others:
 | `SpeedRailMathTest` | 5 | Even fractions, index round trip, snapping, single speed, stored detent |
 | `StartDestinationGateTest` | 6 | First run, update replay, same version, legacy 0 |
 | `ApturaSettingsRepositoryTest` | 5 | Appearance/guide defaults and persistence |
-| `ApturaMediaFileManagerTest` | 4 | Extension preservation and dot edge cases |
+| `ApturaMediaFileManagerTest` | 5 | Extension preservation, dot edge cases, renamed-file URI |
+| `MediaRepositoryTest` | 9 | URI remap moves the row and bookmarks while progress survives |
 | `SettingsChipContrastTest` | 4 | Selected/unselected contrast, radio semantics, no baked-in colors |
 | `SettingsAppearanceTest` | 3 | Theme choice, accent choice, selected accent announcement |
 | `ApturaThemeTest` | 3 | Palette application, accent swap, reset |
@@ -515,11 +551,11 @@ The gate now includes, among others:
 | `PlayerSpeedRailTest` | 2 | Same ramp in the advanced sheet; chosen speed reaches the player |
 | `PlayerWideTopBarTest` | 2 | Wide bar actions stay inline; PiP omitted when absent |
 | `PlaybackSpeedOptionsTest` | 2 | Shared list and labels |
-| `MediaFileTransferTest` | 1 | Bytes copied, source retained |
+| `MediaFileTransferTest` | 5 | Bytes copied, progress, space shortfall, no-quota fallback, cancellation cleanup |
 | `PlayerPipAvailabilityTest` | 1 | No PiP control without the feature |
 | `LibraryTouchTargetsTest` | 1 | 48 dp targets |
 
-That is **97 tests across the 23 suites most relevant to this round**; the full gate is **523 / 82**.
+That is **112 tests across the 24 suites most relevant to this round**; the full gate is **531 / 82**.
 
 ### 6.3 Layout tests at the sizes that break layouts
 
@@ -538,7 +574,11 @@ A layout that only works at the reviewer's window is no longer accepted.
 3. If deletion is partial, report both counts; never claim a clean move.
 4. Offer system trash only where it can work (MediaStore, API 30+).
 5. Keep failed items selected for retry.
-6. Preserve the file extension on rename; do not trust the visible title.
+6. Persist the provider-allocated URI after a SAF rename, move the row and bookmarks to it, and keep the saved position on the same row.
+7. Preserve the file extension on rename; do not trust the visible title.
+8. Preflight destination space when the provider reports a quota; if it does not, attempt the copy and report the write failure honestly.
+9. Cancellation stops between chunks, removes only the partial destination, keeps every original, and keeps clipboard entries for retry.
+10. A missing file gets one honest action, Remove from library, with explicit progress/bookmark consequences. Do not auto-purge a row that a disconnected drive may bring back.
 
 ### 6.5 Evidence protocol
 
@@ -550,8 +590,8 @@ A layout that only works at the reviewer's window is no longer accepted.
 
 ### 6.6 Documentation
 
-- `DESIGN.md` now records the 248/88 dp sidebar, the 600/700 dp breakpoints, the 150% font fallback, the 68 x 48 chip, the 680 dp action bar, the shared speed rail, the player-dark rule, and the file-action contract.
-- `.agents/MEMORY.md` Part 74 records the commits, decisions, tests, evidence and remaining work.
+- `DESIGN.md` now records the 248/88 dp sidebar, the 600/700 dp breakpoints, the 150% font fallback, the 68 x 48 chip, the 680 dp action bar, the shared speed rail, the player-dark rule, and the file-action contract, including URI remapping, rename-before-scan ordering, transfer progress/cancel and the missing-item rule.
+- `.agents/MEMORY.md` Part 74 records the first audit round; Part 75 records this data-integrity round's decisions, tests and remaining work.
 
 ---
 
@@ -560,8 +600,8 @@ A layout that only works at the reviewer's window is no longer accepted.
 These are not one-time fixes; they are the next layer of process.
 
 1. **Golden/screenshot tests** for the library and Settings at phone/tablet, Light/Dark, 100/200% font, including the scrolled top bar, the selection bar and the guide footer. This is the only reliable way to catch "transparent bar" and "badge one letter per line" without a human zooming in.
-2. **A real SAF provider test** that renames a document, changes its document ID, and proves the library row and saved progress follow the new URI. This closes 4.2.
-3. **A file-transfer job with progress and cancellation**, plus a free-space preflight and partial-destination cleanup. This closes 4.3.
+2. **A real `DocumentsProvider` instrumented test** that renames a document, changes its document ID, and proves the library row, saved progress and bookmarks follow the new URI. The repository remap and the provider-allocated URI path are unit-tested with a plain `ContentProvider`; a real provider's document-id change is still unverified.
+3. **A process-durable transfer** (foreground service or WorkManager) with the same progress, cancellation, free-space and partial-cleanup contract, so rotation, navigation or process death cannot stop a long copy. Do not duplicate `MediaFileTransfer`'s byte loop.
 4. **A capability matrix in CI**: no PiP, no camera, no telephony, TV/Auto, API 29/30/35. `hasSystemFeature` branches need a test for the absent case, not only the happy path.
 5. **Release-variant instrumented E2E** on a device farm, or an explicit signed release smoke checklist in CI. The current manual release smoke is honest but not scalable.
 6. **A physical-device lab pass** for codecs, HDR, thermal, Bluetooth and TalkBack. The emulator is a layout and logic tool, not a media-certification tool.
@@ -604,7 +644,7 @@ These are not one-time fixes; they are the next layer of process.
 - Final state: Light theme, expanded sidebar, no selection, two fixture videos (`AuditClip.mp4`, `Episode01.mkv`).
 - Capture method: `adb shell screenrecord --time-limit 2`, pull, `ffmpeg -frames:v 1`, then `uiautomator dump` for the XML companion.
 - Pixel checks: flat light regions resolve to a single RGB value (`242,244,244` in the Settings header sample); player letterbox/control samples are dark (`10,11,14` and `15,12,38`).
-- The screen-recording files were removed from the device after extraction so they would not be indexed as library videos. A stale `ev2d` row from an earlier recording was hidden for the final capture; see 4.4.
+- The screen-recording files were removed from the device after extraction so they would not be indexed as library videos. A stale `ev2d` row from an earlier recording was hidden for the final capture; that gap is now closed by the per-card **Remove from library** action (F-20).
 
 ---
 
@@ -651,3 +691,26 @@ These are not one-time fixes; they are the next layer of process.
 3. Open the player -> Speed; confirm the same rail and the same eight values.
 4. Open the advanced sheet; confirm the same rail again.
 5. Set 200% font; confirm the bubble grows and no value is clipped.
+
+### C.6 Transfer progress, cancellation and free space
+
+1. Select two large videos -> Move -> choose a SAF folder.
+2. Confirm the progress dialog names the current file, shows a percentage and byte counts, and offers **Cancel**.
+3. Tap **Cancel** mid-copy; confirm **Transfer cancelled**, the unfinished destination file is gone, every original is still in the library, and the clipboard still holds the items.
+4. Choose a destination with less free space than the selected total; confirm **Not enough space** names both figures and that nothing was copied.
+5. Complete a move; confirm originals are deleted only after the copy phase and the result names any retained originals.
+
+### C.7 Missing video removal
+
+1. Delete a library file outside Aptura (for example `adb shell rm`), then Rescan.
+2. Confirm the card shows **Missing**.
+3. Open its overflow; confirm only **Video Details** and **Remove from library** are offered.
+4. Open the details sheet; confirm the `File unavailable` notice replaces Play, Queue, Rename, Share, Open, Hide and Delete.
+5. Confirm **Remove** states that the file is already gone, that progress and bookmarks are removed, and that a returning file is added as new. Confirm the row disappears.
+
+### C.8 SAF rename keeps the row
+
+1. Add a folder through Android's document picker.
+2. Rename a video inside it and note its saved position and a bookmark.
+3. Confirm the card keeps that position and bookmark, and that a Rescan does not create a duplicate card for the renamed file.
+4. The MediaStore path keeps the same URI; the SAF path must use the provider-allocated URI returned by `renameDocument`.

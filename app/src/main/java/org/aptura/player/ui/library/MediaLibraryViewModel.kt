@@ -211,9 +211,24 @@ class MediaLibraryViewModel(
         }
     }
 
-    fun renameVideo(uri: String, newName: String) {
+    fun renameVideo(
+        uri: String,
+        newName: String,
+        newUri: String? = null,
+        newDisplayName: String? = null
+    ) {
         viewModelScope.launch(dispatcher + errorHandler) {
-            mediaRepository.renameVideo(uri, newName)
+            mediaRepository.renameVideo(uri, newName, newUri, newDisplayName)
+        }
+    }
+
+    /**
+     * Removes a missing item from the index. Unlike [hideVideo], this deletes the row (and its saved
+     * progress/bookmarks) because the file is already gone; it does not touch any file on disk.
+     */
+    fun removeMissingVideo(uri: String) {
+        viewModelScope.launch(dispatcher + errorHandler) {
+            mediaRepository.removeVideoFromLibrary(uri)
         }
     }
 

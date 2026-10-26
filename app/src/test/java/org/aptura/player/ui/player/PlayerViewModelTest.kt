@@ -309,8 +309,16 @@ class PlayerViewModelTest {
             keys.forEach { items.remove(it) }
         }
 
-        override suspend fun renameVideo(uri: String, newName: String) {
-            items[uri]?.let { items[uri] = it.copy(title = newName) }
+        override suspend fun renameVideo(
+            uri: String,
+            newName: String,
+            newUri: String?,
+            newDisplayName: String?
+        ) {
+            items[uri]?.let {
+                items.remove(uri)
+                items[newUri ?: uri] = it.copy(title = newName)
+            }
         }
 
         override suspend fun hideVideo(uri: String) {}

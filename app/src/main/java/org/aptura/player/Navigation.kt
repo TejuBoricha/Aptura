@@ -51,6 +51,7 @@ import org.aptura.player.data.playback.PlayerManager
 import org.aptura.player.data.repository.MediaRepositoryImpl
 import org.aptura.player.core.media.ThumbnailRepository
 import org.aptura.player.core.media.ApturaMediaFileManager
+import org.aptura.player.core.media.MediaRenameResult
 import org.aptura.player.data.scanner.MediaScanScheduler
 import org.aptura.player.data.settings.ApturaSettings
 import org.aptura.player.data.settings.ApturaSettingsRepository
@@ -58,6 +59,7 @@ import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.domain.repository.LibraryStatistics
 import org.aptura.player.ui.library.DeleteFromDeviceDialog
 import org.aptura.player.ui.library.HideFromLibraryDialog
+import org.aptura.player.ui.library.RemoveMissingVideoDialog
 import org.aptura.player.ui.library.MediaDetailsContent
 import org.aptura.player.ui.library.MediaLibraryScreen
 import org.aptura.player.ui.library.MediaLibraryUiState
@@ -419,6 +421,7 @@ private fun AppNavHost(
                     onVideoDeleted = libraryViewModel::onVideoDeleted,
                     onResetProgress = libraryViewModel::resetVideoProgress,
                     onRenameVideo = libraryViewModel::renameVideo,
+                    onRemoveMissingVideo = libraryViewModel::removeMissingVideo,
                     onAddFolderClick = { folderPickerLauncher.launch(null) },
                     onPlayNext = { videoItem ->
                         playerViewModel.playNext(videoItem)
@@ -448,6 +451,7 @@ private fun AppNavHost(
                 var itemToRename by remember { mutableStateOf<DomainMediaItem?>(null) }
                 var itemToDelete by remember { mutableStateOf<DomainMediaItem?>(null) }
                 var itemToHide by remember { mutableStateOf<DomainMediaItem?>(null) }
+                var itemToRemoveMissing by remember { mutableStateOf<DomainMediaItem?>(null) }
                 var pendingRenameUri by remember { mutableStateOf<String?>(null) }
                 var pendingRenameTitle by remember { mutableStateOf<String?>(null) }
                 val renameLauncher = rememberLauncherForActivityResult(
@@ -456,16 +460,27 @@ private fun AppNavHost(
                     val uri = pendingRenameUri
                     val title = pendingRenameTitle
                     if (result.resultCode == Activity.RESULT_OK && uri != null && title != null) {
-                        val renamed = ApturaMediaFileManager.renameMediaFile(
-                            context = context,
-                            uri = Uri.parse(uri),
-                            newNameWithExt = title
-                        )
-                        if (renamed) {
-                            libraryViewModel.renameVideo(uri, title)
-                            Toast.makeText(context, "Renamed to \"$title\"", Toast.LENGTH_SHORT).show()
-                        } else {
-                            Toast.makeText(context, "Android did not allow the rename.", Toast.LENGTH_LONG).show()
+                        when (
+                            val outcome = ApturaMediaFileManager.renameMediaFile(
+                                context = context,
+                                uri = Uri.parse(uri),
+                                newNameWithExt = title
+                            )
+                        ) {
+                            is MediaRenameResult.Renamed -> {
+                                libraryViewModel.renameVideo(
+                                    uri = uri,
+                                    newName = title,
+                                    newUri = outcome.uri.toString(),
+                                    newDisplayName = outcome.displayName
+                                )
+                                Toast.makeText(context, "Renamed to \"$title\"", Toast.LENGTH_SHORT).show()
+                            }
+
+                            is MediaRenameResult.PermissionRequired,
+                            MediaRenameResult.Failed -> {
+                                Toast.makeText(context, "Android did not allow the rename.", Toast.LENGTH_LONG).show()
+                            }
                         }
                     } else if (result.resultCode != Activity.RESULT_OK) {
                         Toast.makeText(context, "Rename cancelled. The file name was not changed.", Toast.LENGTH_SHORT).show()
@@ -529,6 +544,9 @@ private fun AppNavHost(
                     onDeleteClick = {
                         itemToDelete = item
                     },
+                    onRemoveMissingClick = {
+                        itemToRemoveMissing = item
+                    },
                     onPlayNextClick = {
                         playerViewModel.playNext(item)
                         android.widget.Toast.makeText(context, "Will play next: ${item.title}", android.widget.Toast.LENGTH_SHORT).show()
@@ -547,23 +565,34 @@ private fun AppNavHost(
                     RenameVideoDialog(
                         itemTitle = target.title,
                         onConfirm = { newName ->
-                            var waitingForConsent = false
-                            val renamed = ApturaMediaFileManager.renameMediaFile(
-                                context = context,
-                                uri = Uri.parse(target.uri),
-                                newNameWithExt = newName,
-                                onNeedsWritePermission = { sender ->
-                                    waitingForConsent = true
+                            when (
+                                val outcome = ApturaMediaFileManager.renameMediaFile(
+                                    context = context,
+                                    uri = Uri.parse(target.uri),
+                                    newNameWithExt = newName
+                                )
+                            ) {
+                                is MediaRenameResult.Renamed -> {
+                                    libraryViewModel.renameVideo(
+                                        uri = target.uri,
+                                        newName = newName,
+                                        newUri = outcome.uri.toString(),
+                                        newDisplayName = outcome.displayName
+                                    )
+                                    Toast.makeText(context, "Renamed to \"$newName\"", Toast.LENGTH_SHORT).show()
+                                }
+
+                                is MediaRenameResult.PermissionRequired -> {
                                     pendingRenameUri = target.uri
                                     pendingRenameTitle = newName
-                                    renameLauncher.launch(IntentSenderRequest.Builder(sender).build())
+                                    renameLauncher.launch(
+                                        IntentSenderRequest.Builder(outcome.intentSender).build()
+                                    )
                                 }
-                            )
-                            if (!waitingForConsent && renamed) {
-                                libraryViewModel.renameVideo(target.uri, newName)
-                                Toast.makeText(context, "Renamed to \"$newName\"", Toast.LENGTH_SHORT).show()
-                            } else if (!waitingForConsent) {
-                                Toast.makeText(context, "Could not rename this video file.", Toast.LENGTH_LONG).show()
+
+                                MediaRenameResult.Failed -> {
+                                    Toast.makeText(context, "Could not rename this video file.", Toast.LENGTH_LONG).show()
+                                }
                             }
                             itemToRename = null
                         },
@@ -580,6 +609,18 @@ private fun AppNavHost(
                             backStack.removeLastOrNull()
                         },
                         onDismiss = { itemToHide = null }
+                    )
+                }
+
+                itemToRemoveMissing?.let { target ->
+                    RemoveMissingVideoDialog(
+                        itemTitle = target.title,
+                        onConfirm = {
+                            libraryViewModel.removeMissingVideo(target.uri)
+                            itemToRemoveMissing = null
+                            backStack.removeLastOrNull()
+                        },
+                        onDismiss = { itemToRemoveMissing = null }
                     )
                 }
 

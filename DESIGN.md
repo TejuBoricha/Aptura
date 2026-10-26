@@ -154,9 +154,12 @@ val ApturaTypography = Typography(
 
 - **Selection:** Provide an explicit **Select** entry in every card overflow as well as long-press. Selection is a mode: Back clears it before navigating; a failed delete stays selected for retry; a successful delete clears the affected items.
 - **Batch bar:** Count, Select all/Clear, Move, Share and overflow. Rename appears only for a single item. The bar is capped at 680dp and centered under the search row.
-- **Rename:** Rename the file, not only the library row. Preserve the real extension when the user enters a title without one; prefer the current file's extension, then the MIME type. A dot is only an extension when the suffix looks like one.
+- **Rename:** Rename the file, not only the library row. Preserve the real extension when the user enters a title without one; prefer the current file's extension, then the MIME type. A dot is only an extension when the suffix looks like one. `DocumentsContract.renameDocument` allocates a **new** URI: persist it on the row and remap the bookmarks in the same operation, so the saved position and per-video settings stay attached and the next scan does not split the item into "missing" plus "new". A title-only update must not overwrite `displayName`.
 - **Move:** Copy into the chosen SAF folder first and keep the source. Delete the originals only after the copy succeeds and Android grants deletion. On copy failure, retain and name the originals; on partial deletion, report both counts.
+- **Transfer progress:** A transfer is a named job, not a spinner. Show the current file, real byte progress (fall back to file count when sizes are hidden), a percentage and a **Cancel** action. Block tap-outside dismissal. Cancellation stops between chunks, removes only the partial destination, keeps every original and keeps clipboard entries for retry.
+- **Free space:** Ask the destination's provider root for `COLUMN_AVAILABLE_BYTES` and match it to the chosen tree by root id. If the provider reports no quota, attempt the copy and report the real write failure; if it reports a shortfall, refuse before writing and name both required and available sizes.
 - **Delete / trash:** Offer **Move to trash** only for MediaStore URIs on API 30+ where the system trash exists. Otherwise offer permanent deletion with explicit "cannot be undone" copy. The dialog names a single video or states the batch count.
+- **Missing files:** A missing card exposes only **Video Details** and **Remove from library**; every action that needs bytes is hidden, not left to fail. The removal dialog states that nothing on disk is deleted, that saved position and bookmarks are removed, and that a returning file is added as new. Never auto-purge a missing row that a disconnected drive may bring back.
 - **Clipboard:** Copy/Cut stores URIs. Paste consumes entries that transferred successfully and keeps failures for retry. Clear clipboard is always available.
 - **Folders:** A 64dp horizontal swipe moves between folders; disable it while selecting.
 
@@ -244,3 +247,6 @@ val ApturaTypography = Typography(
 5. **Always test 200% font, 600/699dp, 700dp and the scrolled top bar.** A layout that only works at the reviewer's window is not finished.
 6. **Always copy first, then delete.** A move is a successful copy followed by a consented deletion; a failed copy leaves the original untouched and names it.
 7. **Always preserve the real file extension on rename.** The visible title may omit it; the file on disk may not.
+8. **Always persist the URI a provider returns from a rename.** Move the row, saved position and bookmarks with it; a stable MediaStore URI is the exception, not the rule.
+9. **Always make a long transfer observable and cancellable.** Real byte progress, a named file, a working Cancel, no tap-outside dismissal, and no originals deleted mid-copy.
+10. **Always show the consequence before removing a missing item.** No disk file is deleted; progress and bookmarks are; the row returns as a new video if the file comes back.

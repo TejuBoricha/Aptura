@@ -3,6 +3,7 @@ package org.aptura.player.data.repository
 import app.cash.turbine.test
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -92,6 +93,26 @@ class MediaRepositoryTest {
 
         override suspend fun updateCustomTitle(uri: String, customTitle: String?) {
             items.value = items.value.map { if (it.uri == uri) it.copy(customTitle = customTitle) else it }
+        }
+
+        override suspend fun renameAndRemapUri(
+            oldUri: String,
+            newUri: String,
+            newDisplayName: String,
+            newTitle: String
+        ) {
+            items.value = items.value.map {
+                if (it.uri == oldUri) {
+                    it.copy(
+                        uri = newUri,
+                        displayName = newDisplayName,
+                        title = newTitle,
+                        customTitle = newTitle
+                    )
+                } else {
+                    it
+                }
+            }
         }
 
         override suspend fun hideByUri(uri: String) {
@@ -444,6 +465,45 @@ class MediaRepositoryTest {
         val updated = repo.getVideoByUri("content://media/1")
         assertNotNull(updated)
         assertEquals("New Cinematic Title", updated?.title)
+    }
+
+    @Test
+    fun renameVideo_withANewSafUri_movesTheRowAndBookmarks_andKeepsProgress() = runTest(testDispatcher) {
+        val fakeMediaDao = FakeMediaItemDao()
+        val fakeBookmarkDao = FakeBookmarkDao()
+        val repo = MediaRepositoryImpl(fakeMediaDao, fakeBookmarkDao, testDispatcher)
+
+        val oldUri =
+            "content://com.android.externalstorage.documents/document/primary%3AMovies%2FClip.mp4"
+        val newUri =
+            "content://com.android.externalstorage.documents/document/primary%3AMovies%2FHoliday.mp4"
+        fakeMediaDao.insertOrUpdate(
+            MediaItemEntity(
+                id = 1L,
+                mediaStoreId = 0L,
+                uri = oldUri,
+                title = "Clip",
+                displayName = "Clip.mp4",
+                durationMs = 60_000L,
+                sizeBytes = 1024L,
+                mimeType = "video/mp4",
+                playbackPositionMs = 42_000L,
+                folderPath = "Movies"
+            )
+        )
+        repo.addBookmark(oldUri, 5_000L, "Opening")
+
+        repo.renameVideo(oldUri, "Holiday", newUri, "Holiday.mp4")
+
+        val moved = repo.getVideoByUri(newUri)
+        assertNotNull(moved)
+        assertEquals("Holiday", moved?.title)
+        assertEquals(42_000L, moved?.playbackPositionMs)
+        assertNull(repo.getVideoByUri(oldUri))
+
+        val bookmarks = repo.getBookmarks(newUri).first()
+        assertEquals(1, bookmarks.size)
+        assertEquals("Opening", bookmarks.single().note)
     }
 
     @Test

@@ -83,10 +83,27 @@ class MediaRepositoryImpl(
         return mediaItemDao.getHiddenCount().flowOn(ioDispatcher)
     }
 
-    override suspend fun renameVideo(uri: String, newName: String): Unit = withContext(ioDispatcher) {
+    override suspend fun renameVideo(
+        uri: String,
+        newName: String,
+        newUri: String?,
+        newDisplayName: String?
+    ): Unit = withContext(ioDispatcher) {
         val clean = newName.trim()
-        if (clean.isNotBlank()) {
+        if (clean.isBlank()) return@withContext
+
+        val targetUri = newUri?.takeIf { it.isNotBlank() && it != uri } ?: uri
+        val displayName = newDisplayName?.trim()?.takeIf { it.isNotBlank() }
+        if (targetUri == uri && displayName == null) {
+            // A title-only update must not replace the real file name (and its extension) in the index.
             mediaItemDao.updateCustomTitle(uri, clean)
+            return@withContext
+        }
+
+        mediaItemDao.renameAndRemapUri(uri, targetUri, displayName ?: clean, clean)
+        if (targetUri != uri) {
+            // Bookmarks use the media URI as their foreign key; a SAF rename would otherwise orphan them.
+            bookmarkDao?.remapMediaUri(uri, targetUri)
         }
     }
 

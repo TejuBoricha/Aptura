@@ -61,6 +61,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import org.aptura.player.core.media.ApturaMediaFileManager
+import org.aptura.player.core.media.MediaRenameResult
 import androidx.compose.material.icons.filled.FolderOff
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
@@ -114,7 +115,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
+import kotlin.math.roundToInt
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import coil3.compose.AsyncImage
@@ -123,6 +128,7 @@ import coil3.video.videoFrameMillis
 import java.io.File
 import org.aptura.player.core.media.ThumbnailRepository
 import org.aptura.player.core.media.MediaFileTransfer
+import org.aptura.player.core.media.MediaTransferProgress
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
@@ -136,6 +142,7 @@ internal sealed interface LibraryActiveModal {
     data class Rename(val item: DomainMediaItem) : LibraryActiveModal
     data class Hide(val item: DomainMediaItem) : LibraryActiveModal
     data class Delete(val item: DomainMediaItem) : LibraryActiveModal
+    data class RemoveMissing(val item: DomainMediaItem) : LibraryActiveModal
     data class MoreFileActions(val item: DomainMediaItem) : LibraryActiveModal
     data class DeleteSelection(val items: List<DomainMediaItem>) : LibraryActiveModal
     data class HideSelection(val items: List<DomainMediaItem>) : LibraryActiveModal
@@ -164,7 +171,8 @@ fun MediaLibraryScreen(
     onRequestPermission: () -> Unit = {},
     onRemoveVideo: (String) -> Unit = {},
     onResetProgress: (String) -> Unit = {},
-    onRenameVideo: (String, String) -> Unit = { _, _ -> },
+    onRenameVideo: (String, String, String?, String?) -> Unit = { _, _, _, _ -> },
+    onRemoveMissingVideo: (String) -> Unit = {},
     onShowDetails: ((DomainMediaItem) -> Unit)? = null,
     onAddFolderClick: () -> Unit = {},
     onPlayNext: (DomainMediaItem) -> Unit = {},
@@ -226,6 +234,7 @@ fun MediaLibraryScreen(
                         onRemoveVideo = onRemoveVideo,
                         onResetProgress = onResetProgress,
                         onRenameVideo = onRenameVideo,
+                        onRemoveMissingVideo = onRemoveMissingVideo,
                         onShowDetails = onShowDetails,
                         onAddFolderClick = onAddFolderClick,
                         onPlayNext = onPlayNext,
@@ -257,7 +266,8 @@ private fun MediaLibraryContentView(
     onRequestPermission: () -> Unit,
     onRemoveVideo: (String) -> Unit,
     onResetProgress: (String) -> Unit,
-    onRenameVideo: (String, String) -> Unit = { _, _ -> },
+    onRenameVideo: (String, String, String?, String?) -> Unit = { _, _, _, _ -> },
+    onRemoveMissingVideo: (String) -> Unit = {},
     onShowDetails: ((DomainMediaItem) -> Unit)? = null,
     onAddFolderClick: () -> Unit = {},
     onPlayNext: (DomainMediaItem) -> Unit = {},
@@ -287,6 +297,10 @@ private fun MediaLibraryContentView(
     var transferIsMove by remember { mutableStateOf(false) }
     var transferFromClipboard by remember { mutableStateOf(false) }
     var transferResult by remember { mutableStateOf<TransferResultMessage?>(null) }
+    var transferProgress by remember { mutableStateOf<MediaTransferProgress?>(null) }
+    var transferProgressIsMove by remember { mutableStateOf(false) }
+    var transferCancelling by remember { mutableStateOf(false) }
+    var transferJob by remember { mutableStateOf<Job?>(null) }
     var itemPendingRenameUri by remember { mutableStateOf<String?>(null) }
     var itemPendingRenameNewName by remember { mutableStateOf<String?>(null) }
     val deleteFlow = rememberMediaDeleteFlow(onDeleted = { uri ->
@@ -333,58 +347,130 @@ private fun MediaLibraryContentView(
         if (destination == null) {
             Toast.makeText(context, "Folder selection cancelled. Source files were kept.", Toast.LENGTH_SHORT).show()
         } else if (sources.isNotEmpty()) {
-            coroutineScope.launch {
-                val result = withContext(Dispatchers.IO) {
-                    MediaFileTransfer.copyIntoTree(context, sources, destination)
-                }
-                if (shouldMove && result.copiedUris.isNotEmpty()) {
-                    deleteFlow.deleteAll(result.copiedUris) { deletion ->
-                        val retainedCount = deletion.failedCount + result.failedUris.size
+            // The picker is modal and the progress dialog blocks the screen, so no transfer can already be running.
+            transferProgressIsMove = shouldMove
+            transferCancelling = false
+            transferProgress = MediaTransferProgress(
+                completedFiles = 0,
+                totalFiles = sources.size,
+                copiedBytes = 0L,
+                totalBytes = 0L,
+                currentName = ""
+            )
+            transferJob = coroutineScope.launch {
+                var lastProgress = MediaTransferProgress(0, sources.size, 0L, 0L, "")
+                try {
+                    // Ask the destination before writing a byte. A provider that reports no quota is allowed to try.
+                    val space = withContext(Dispatchers.IO) {
+                        MediaFileTransfer.measureSpace(context, sources, destination)
+                    }
+                    if (!space.hasEnoughSpace) {
+                        transferResult = TransferResultMessage(
+                            title = "Not enough space",
+                            message = buildString {
+                                append("The selected folder has ${MediaFormatters.formatFileSize(space.availableBytes ?: 0L)} available. ")
+                                append(
+                                    if (sources.size == 1) {
+                                        "This video needs ${MediaFormatters.formatFileSize(space.requiredBytes)}."
+                                    } else {
+                                        "These videos need ${MediaFormatters.formatFileSize(space.requiredBytes)} in total."
+                                    }
+                                )
+                                append("\n\nNothing was copied. Choose a different folder, or free up space and try again.")
+                            }
+                        )
+                        return@launch
+                    }
+
+                    transferProgress = MediaTransferProgress(
+                        completedFiles = 0,
+                        totalFiles = sources.size,
+                        copiedBytes = 0L,
+                        totalBytes = space.requiredBytes,
+                        currentName = ""
+                    )
+                    val result = withContext(Dispatchers.IO) {
+                        MediaFileTransfer.copyIntoTree(context, sources, destination) { progress ->
+                            lastProgress = progress
+                            transferProgress = progress
+                        }
+                    }
+                    // The copy phase is over, so the progress dialog gives way to the consent dialog for a move.
+                    transferProgress = null
+
+                    if (shouldMove && result.copiedUris.isNotEmpty()) {
+                        deleteFlow.deleteAll(result.copiedUris) { deletion ->
+                            val retainedCount = deletion.failedCount + result.failedUris.size
+                            selectedUris = emptySet()
+                            forgetTransferredClipboard(deletion.deletedUris)
+                            onRefresh()
+                            transferResult = TransferResultMessage(
+                                title = when {
+                                    deletion.deletedCount == 0 -> "Move not completed"
+                                    retainedCount == 0 -> "Move complete"
+                                    else -> "Move partially complete"
+                                },
+                                message = buildString {
+                                    append("${deletion.deletedCount} of ${sources.size} videos moved to the selected folder.")
+                                    if (deletion.failedCount > 0) {
+                                        append("\nOriginals still in the library: ${describeVideoUris(deletion.failedUris, sourceNames)}.")
+                                    }
+                                    if (result.failedUris.isNotEmpty()) {
+                                        append("\nNot copied (originals kept): ${describeVideoUris(result.failedUris, sourceNames)}.")
+                                    }
+                                }
+                            )
+                        }
+                    } else if (shouldMove) {
                         selectedUris = emptySet()
-                        forgetTransferredClipboard(deletion.deletedUris)
-                        onRefresh()
+                        transferResult = TransferResultMessage(
+                            title = "Move not completed",
+                            message = "No originals were deleted. These videos could not be copied and remain in the library: ${describeVideoUris(result.failedUris, sourceNames)}."
+                        )
+                    } else {
+                        selectedUris = emptySet()
+                        if (result.copied > 0) {
+                            forgetTransferredClipboard(result.copiedUris)
+                            onRefresh()
+                        }
                         transferResult = TransferResultMessage(
                             title = when {
-                                deletion.deletedCount == 0 -> "Move not completed"
-                                retainedCount == 0 -> "Move complete"
-                                else -> "Move partially complete"
+                                result.copied == 0 -> "Copy not completed"
+                                result.failedUris.isEmpty() -> "Copy complete"
+                                else -> "Copy partially complete"
                             },
                             message = buildString {
-                                append("${deletion.deletedCount} of ${sources.size} videos moved to the selected folder.")
-                                if (deletion.failedCount > 0) {
-                                    append("\nOriginals still in the library: ${describeVideoUris(deletion.failedUris, sourceNames)}.")
-                                }
+                                append("${result.copied} ${if (result.copied == 1) "video copied" else "videos copied"} to the selected folder.")
                                 if (result.failedUris.isNotEmpty()) {
                                     append("\nNot copied (originals kept): ${describeVideoUris(result.failedUris, sourceNames)}.")
                                 }
                             }
                         )
                     }
-                } else if (shouldMove) {
+                } catch (_: CancellationException) {
+                    // Cancelling never deletes originals. Completed copies stay in the destination; the partial
+                    // destination file was already removed by MediaFileTransfer.
+                    val copiedCount = lastProgress.completedFiles
                     selectedUris = emptySet()
+                    if (copiedCount > 0) onRefresh()
                     transferResult = TransferResultMessage(
-                        title = "Move not completed",
-                        message = "No originals were deleted. These videos could not be copied and remain in the library: ${describeVideoUris(result.failedUris, sourceNames)}."
-                    )
-                } else {
-                    selectedUris = emptySet()
-                    if (result.copied > 0) {
-                        forgetTransferredClipboard(result.copiedUris)
-                        onRefresh()
-                    }
-                    transferResult = TransferResultMessage(
-                        title = when {
-                            result.copied == 0 -> "Copy not completed"
-                            result.failedUris.isEmpty() -> "Copy complete"
-                            else -> "Copy partially complete"
-                        },
+                        title = "Transfer cancelled",
                         message = buildString {
-                            append("${result.copied} ${if (result.copied == 1) "video copied" else "videos copied"} to the selected folder.")
-                            if (result.failedUris.isNotEmpty()) {
-                                append("\nNot copied (originals kept): ${describeVideoUris(result.failedUris, sourceNames)}.")
+                            append("$copiedCount of ${sources.size} ${if (sources.size == 1) "video was" else "videos were"} copied before cancellation. The unfinished file was removed.")
+                            if (shouldMove) {
+                                append(" No originals were deleted.")
+                            } else {
+                                append(" Your original files are unchanged.")
+                            }
+                            if (fromClipboard && copiedCount < sources.size) {
+                                append(" The clipboard still holds every item.")
                             }
                         }
                     )
+                } finally {
+                    transferProgress = null
+                    transferCancelling = false
+                    transferJob = null
                 }
             }
         }
@@ -397,16 +483,22 @@ private fun MediaLibraryContentView(
             val uri = itemPendingRenameUri
             val title = itemPendingRenameNewName
             if (uri != null && title != null) {
-                val renamed = ApturaMediaFileManager.renameMediaFile(
-                    context = context,
-                    uri = Uri.parse(uri),
-                    newNameWithExt = title
-                )
-                if (renamed) {
-                    onRenameVideo(uri, title)
-                    Toast.makeText(context, "Renamed to \"$title\"", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(context, "Android did not allow the rename.", Toast.LENGTH_LONG).show()
+                when (
+                    val outcome = ApturaMediaFileManager.renameMediaFile(
+                        context = context,
+                        uri = Uri.parse(uri),
+                        newNameWithExt = title
+                    )
+                ) {
+                    is MediaRenameResult.Renamed -> {
+                        onRenameVideo(uri, title, outcome.uri.toString(), outcome.displayName)
+                        Toast.makeText(context, "Renamed to \"$title\"", Toast.LENGTH_SHORT).show()
+                    }
+
+                    is MediaRenameResult.PermissionRequired,
+                    MediaRenameResult.Failed -> {
+                        Toast.makeText(context, "Android did not allow the rename.", Toast.LENGTH_LONG).show()
+                    }
                 }
             }
         } else {
@@ -1043,6 +1135,9 @@ private fun MediaLibraryContentView(
                     onAddToQueueClick = { onAddToQueue(card.rawItem) },
                     onHideClick = { activeModal = LibraryActiveModal.Hide(card.rawItem) },
                     onDeleteClick = { activeModal = LibraryActiveModal.Delete(card.rawItem) },
+                    onRemoveMissingClick = {
+                        activeModal = LibraryActiveModal.RemoveMissing(card.rawItem)
+                    },
                     onMoreFileActionsClick = { activeModal = LibraryActiveModal.MoreFileActions(card.rawItem) },
                     onShareClick = { shareVideos(context, listOf(card.rawItem.uri)) },
                     onMoveClick = {
@@ -1107,6 +1202,9 @@ private fun MediaLibraryContentView(
                     },
                     onDeleteClick = {
                         activeModal = LibraryActiveModal.Delete(item)
+                    },
+                    onRemoveMissingClick = {
+                        activeModal = LibraryActiveModal.RemoveMissing(item)
                     }
                 )
             }
@@ -1157,24 +1255,29 @@ private fun MediaLibraryContentView(
                 RenameVideoDialog(
                     itemTitle = MediaFormatters.cleanTitle(item.title),
                     onConfirm = { newName ->
-                        val uri = Uri.parse(item.uri)
-                        var waitingForConsent = false
-                        val renamed = ApturaMediaFileManager.renameMediaFile(
-                            context = context,
-                            uri = uri,
-                            newNameWithExt = newName,
-                            onNeedsWritePermission = { intentSender ->
-                                waitingForConsent = true
+                        when (
+                            val outcome = ApturaMediaFileManager.renameMediaFile(
+                                context = context,
+                                uri = Uri.parse(item.uri),
+                                newNameWithExt = newName
+                            )
+                        ) {
+                            is MediaRenameResult.Renamed -> {
+                                onRenameVideo(item.uri, newName, outcome.uri.toString(), outcome.displayName)
+                                Toast.makeText(context, "Renamed to \"$newName\"", Toast.LENGTH_SHORT).show()
+                            }
+
+                            is MediaRenameResult.PermissionRequired -> {
                                 itemPendingRenameUri = item.uri
                                 itemPendingRenameNewName = newName
-                                renameLauncher.launch(IntentSenderRequest.Builder(intentSender).build())
+                                renameLauncher.launch(
+                                    IntentSenderRequest.Builder(outcome.intentSender).build()
+                                )
                             }
-                        )
-                        if (!waitingForConsent && renamed) {
-                            onRenameVideo(item.uri, newName)
-                            Toast.makeText(context, "Renamed to \"$newName\"", Toast.LENGTH_SHORT).show()
-                        } else if (!waitingForConsent) {
-                            Toast.makeText(context, "Could not rename this video file.", Toast.LENGTH_LONG).show()
+
+                            MediaRenameResult.Failed -> {
+                                Toast.makeText(context, "Could not rename this video file.", Toast.LENGTH_LONG).show()
+                            }
                         }
                         activeModal = null
                     },
@@ -1204,6 +1307,18 @@ private fun MediaLibraryContentView(
                     itemTitle = MediaFormatters.cleanTitle(item.title),
                     onConfirm = {
                         onRemoveVideo(item.uri)
+                        activeModal = null
+                    },
+                    onDismiss = { activeModal = null }
+                )
+            }
+
+            is LibraryActiveModal.RemoveMissing -> {
+                val item = modal.item
+                RemoveMissingVideoDialog(
+                    itemTitle = MediaFormatters.cleanTitle(item.title),
+                    onConfirm = {
+                        onRemoveMissingVideo(item.uri)
                         activeModal = null
                     },
                     onDismiss = { activeModal = null }
@@ -1292,6 +1407,17 @@ private fun MediaLibraryContentView(
 
             null -> Unit
         }
+        transferProgress?.let { progress ->
+            TransferProgressDialog(
+                progress = progress,
+                isMove = transferProgressIsMove,
+                isCancelling = transferCancelling,
+                onCancel = {
+                    transferCancelling = true
+                    transferJob?.cancel()
+                }
+            )
+        }
         transferResult?.let { result ->
             AlertDialog(
                 onDismissRequest = { transferResult = null },
@@ -1310,6 +1436,92 @@ private fun MediaLibraryContentView(
     }
 }
 
+/**
+ * A transfer is a job, not a spinner: it names the file being written, shows real byte progress and can be
+ * stopped without deleting the originals. The dialog cannot be dismissed by tapping outside; Cancel is the
+ * deliberate way out.
+ */
+@Composable
+private fun TransferProgressDialog(
+    progress: MediaTransferProgress,
+    isMove: Boolean,
+    isCancelling: Boolean,
+    onCancel: () -> Unit
+) {
+    val verb = if (isMove) "Moving" else "Copying"
+    val noun = if (progress.totalFiles == 1) "video" else "videos"
+    val percent = (progress.fraction * 100f).roundToInt()
+    AlertDialog(
+        onDismissRequest = onCancel,
+        properties = DialogProperties(dismissOnClickOutside = false),
+        title = {
+            Text(
+                text = "$verb ${progress.totalFiles} $noun",
+                style = ApturaTypography.headlineSmall,
+                color = ApturaColors.TextHighEmphasis
+            )
+        },
+        text = {
+            Column {
+                Text(
+                    text = progress.currentName.ifBlank { "Preparing…" },
+                    style = ApturaTypography.bodyMedium,
+                    color = ApturaColors.TextHighEmphasis,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                LinearProgressIndicator(
+                    progress = { progress.fraction },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp)),
+                    color = ApturaColors.AccentPrimary,
+                    trackColor = ApturaColors.SurfaceElevated3
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${progress.completedFiles} of ${progress.totalFiles} files",
+                        style = ApturaTypography.bodySmall,
+                        color = ApturaColors.TextMediumEmphasis
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    Text(
+                        text = "$percent%",
+                        style = ApturaTypography.bodySmall,
+                        color = ApturaColors.TextHighEmphasis,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                if (progress.totalBytes > 0L) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "${MediaFormatters.formatFileSize(progress.copiedBytes)} of " +
+                            MediaFormatters.formatFileSize(progress.totalBytes),
+                        style = ApturaTypography.bodySmall,
+                        color = ApturaColors.TextMediumEmphasis
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onCancel, enabled = !isCancelling) {
+                Text(
+                    text = if (isCancelling) "Cancelling…" else "Cancel",
+                    color = if (isCancelling) ApturaColors.TextMediumEmphasis else ApturaColors.StatusError
+                )
+            }
+        },
+        containerColor = ApturaColors.SurfaceElevated2,
+        shape = RoundedCornerShape(16.dp)
+    )
+}
+
 @Composable
 fun VideoGridCard(
     card: VideoCardUiModel,
@@ -1321,6 +1533,7 @@ fun VideoGridCard(
     onAddToQueueClick: (() -> Unit)? = null,
     onHideClick: (() -> Unit)? = null,
     onDeleteClick: (() -> Unit)? = null,
+    onRemoveMissingClick: (() -> Unit)? = null,
     onMoreFileActionsClick: (() -> Unit)? = null,
     onShareClick: (() -> Unit)? = null,
     onMoveClick: (() -> Unit)? = null,
@@ -1498,8 +1711,9 @@ fun VideoGridCard(
                     )
                     if (onMoreClick != null) {
                         val hasContextActions = onPlayNextClick != null || onAddToQueueClick != null ||
-                            onHideClick != null || onDeleteClick != null || onMoreFileActionsClick != null ||
-                            onShareClick != null || onMoveClick != null || onSelectClick != null
+                            onHideClick != null || onDeleteClick != null || onRemoveMissingClick != null ||
+                            onMoreFileActionsClick != null || onShareClick != null || onMoveClick != null ||
+                            onSelectClick != null
                         Box {
                             IconButton(
                                 onClick = {
@@ -1526,24 +1740,6 @@ fun VideoGridCard(
                                     onDismissRequest = { overflowExpanded = false },
                                     containerColor = ApturaColors.SurfaceElevated2
                                 ) {
-                                    if (onPlayNextClick != null) {
-                                        DropdownMenuItem(
-                                            text = { Text("Play Next", style = ApturaTypography.bodyMedium, color = ApturaColors.TextHighEmphasis) },
-                                            onClick = {
-                                                overflowExpanded = false
-                                                onPlayNextClick()
-                                            }
-                                        )
-                                    }
-                                    if (onAddToQueueClick != null) {
-                                        DropdownMenuItem(
-                                            text = { Text("Add to Queue", style = ApturaTypography.bodyMedium, color = ApturaColors.TextHighEmphasis) },
-                                            onClick = {
-                                                overflowExpanded = false
-                                                onAddToQueueClick()
-                                            }
-                                        )
-                                    }
                                     DropdownMenuItem(
                                         text = { Text("Video Details", style = ApturaTypography.bodyMedium, color = ApturaColors.TextHighEmphasis) },
                                         onClick = {
@@ -1551,63 +1747,96 @@ fun VideoGridCard(
                                             onMoreClick()
                                         }
                                     )
-                                    if (onSelectClick != null) {
-                                        DropdownMenuItem(
-                                            text = { Text("Select", style = ApturaTypography.bodyMedium, color = ApturaColors.AccentPrimary) },
-                                            onClick = {
-                                                overflowExpanded = false
-                                                onSelectClick()
-                                            }
-                                        )
-                                    }
-                                    if (onMoveClick != null) {
-                                        HorizontalDivider()
-                                        DropdownMenuItem(
-                                            text = { Text("Move to folder", style = ApturaTypography.bodyMedium, color = ApturaColors.AccentPrimary) },
-                                            onClick = {
-                                                overflowExpanded = false
-                                                onMoveClick()
-                                            }
-                                        )
-                                    }
-                                    if (onShareClick != null) {
-                                        DropdownMenuItem(
-                                            text = { Text("Share", style = ApturaTypography.bodyMedium, color = ApturaColors.TextHighEmphasis) },
-                                            onClick = {
-                                                overflowExpanded = false
-                                                onShareClick()
-                                            }
-                                        )
-                                    }
-                                    if (onMoreFileActionsClick != null) {
-                                        DropdownMenuItem(
-                                            text = { Text("More file actions", style = ApturaTypography.bodyMedium, color = ApturaColors.TextHighEmphasis) },
-                                            onClick = {
-                                                overflowExpanded = false
-                                                onMoreFileActionsClick()
-                                            }
-                                        )
-                                    }
-                                    if (onHideClick != null || onDeleteClick != null) {
-                                        HorizontalDivider()
-                                    }
-                                    if (onHideClick != null) {
-                                        DropdownMenuItem(
-                                            text = { Text("Hide from library", style = ApturaTypography.bodyMedium, color = ApturaColors.TextHighEmphasis) },
-                                            onClick = {
-                                                overflowExpanded = false
-                                                onHideClick()
-                                            }
-                                        )
-                                    }
-                                    if (onDeleteClick != null) {
-                                        DropdownMenuItem(
-                                            text = { Text("Delete video", style = ApturaTypography.bodyMedium, color = ApturaColors.StatusError) },
-                                            onClick = {
-                                                overflowExpanded = false
-                                                onDeleteClick()
-                                            }
-                                        )
+                                    if (card.isMissing) {
+                                        // A missing file cannot play, move, share or be deleted again. The only
+                                        // honest action is to remove its index row (and its saved progress).
+                                        if (onRemoveMissingClick != null) {
+                                            HorizontalDivider()
+                                            DropdownMenuItem(
+                                                text = { Text("Remove from library", style = ApturaTypography.bodyMedium, color = ApturaColors.StatusError) },
+                                                onClick = {
+                                                    overflowExpanded = false
+                                                    onRemoveMissingClick()
+                                                }
+                                            )
+                                        }
+                                    } else {
+                                        if (onPlayNextClick != null) {
+                                            DropdownMenuItem(
+                                                text = { Text("Play Next", style = ApturaTypography.bodyMedium, color = ApturaColors.TextHighEmphasis) },
+                                                onClick = {
+                                                    overflowExpanded = false
+                                                    onPlayNextClick()
+                                                }
+                                            )
+                                        }
+                                        if (onAddToQueueClick != null) {
+                                            DropdownMenuItem(
+                                                text = { Text("Add to Queue", style = ApturaTypography.bodyMedium, color = ApturaColors.TextHighEmphasis) },
+                                                onClick = {
+                                                    overflowExpanded = false
+                                                    onAddToQueueClick()
+                                                }
+                                            )
+                                        }
+                                        if (onSelectClick != null) {
+                                            DropdownMenuItem(
+                                                text = { Text("Select", style = ApturaTypography.bodyMedium, color = ApturaColors.AccentPrimary) },
+                                                onClick = {
+                                                    overflowExpanded = false
+                                                    onSelectClick()
+                                                }
+                                            )
+                                        }
+                                        if (onMoveClick != null) {
+                                            HorizontalDivider()
+                                            DropdownMenuItem(
+                                                text = { Text("Move to folder", style = ApturaTypography.bodyMedium, color = ApturaColors.AccentPrimary) },
+                                                onClick = {
+                                                    overflowExpanded = false
+                                                    onMoveClick()
+                                                }
+                                            )
+                                        }
+                                        if (onShareClick != null) {
+                                            DropdownMenuItem(
+                                                text = { Text("Share", style = ApturaTypography.bodyMedium, color = ApturaColors.TextHighEmphasis) },
+                                                onClick = {
+                                                    overflowExpanded = false
+                                                    onShareClick()
+                                                }
+                                            )
+                                        }
+                                        if (onMoreFileActionsClick != null) {
+                                            DropdownMenuItem(
+                                                text = { Text("More file actions", style = ApturaTypography.bodyMedium, color = ApturaColors.TextHighEmphasis) },
+                                                onClick = {
+                                                    overflowExpanded = false
+                                                    onMoreFileActionsClick()
+                                                }
+                                            )
+                                        }
+                                        if (onHideClick != null || onDeleteClick != null) {
+                                            HorizontalDivider()
+                                        }
+                                        if (onHideClick != null) {
+                                            DropdownMenuItem(
+                                                text = { Text("Hide from library", style = ApturaTypography.bodyMedium, color = ApturaColors.TextHighEmphasis) },
+                                                onClick = {
+                                                    overflowExpanded = false
+                                                    onHideClick()
+                                                }
+                                            )
+                                        }
+                                        if (onDeleteClick != null) {
+                                            DropdownMenuItem(
+                                                text = { Text("Delete video", style = ApturaTypography.bodyMedium, color = ApturaColors.StatusError) },
+                                                onClick = {
+                                                    overflowExpanded = false
+                                                    onDeleteClick()
+                                                }
+                                            )
+                                        }
                                     }
                                 }
                             }

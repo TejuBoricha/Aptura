@@ -372,6 +372,51 @@ class MediaLibraryScreenUiTest {
     }
 
     @Test
+    fun missingCardOffersOnlyRemove_andConfirmsBeforeDeletingTheRow() {
+        val missing = sampleVideos.first().copy(isMissing = true)
+        val missingCard = sampleUiVideos.first().copy(isMissing = true, rawItem = missing)
+        var removedUri: String? = null
+        composeTestRule.setContent {
+            ApturaTheme {
+                MediaLibraryScreen(
+                    uiState = MediaLibraryUiState.Success(
+                        videos = listOf(missingCard),
+                        folders = listOf("Movies"),
+                        selectedFolder = null,
+                        searchQuery = "",
+                        sortOrder = LibrarySortOrder.DATE_ADDED_DESC
+                    ),
+                    onVideoClick = { _, _ -> },
+                    onSearchQueryChanged = {},
+                    onFolderSelected = {},
+                    onSortOrderChanged = {},
+                    onRefresh = {},
+                    onRemoveMissingVideo = { removedUri = it }
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithContentDescription("More actions for Oppenheimer").performClick()
+        // A missing file cannot play, move, share or be deleted again.
+        composeTestRule.onNodeWithText("Play Next").assertDoesNotExist()
+        composeTestRule.onNodeWithText("Select").assertDoesNotExist()
+        composeTestRule.onNodeWithText("Move to folder").assertDoesNotExist()
+        composeTestRule.onNodeWithText("Share").assertDoesNotExist()
+        composeTestRule.onNodeWithText("Hide from library").assertDoesNotExist()
+        composeTestRule.onNodeWithText("Delete video").assertDoesNotExist()
+
+        composeTestRule.onNodeWithText("Remove from library").performClick()
+        composeTestRule.onNodeWithText("Remove missing video?").assertIsDisplayed()
+        composeTestRule.onNodeWithText(
+            "The file is already unavailable, so nothing on disk will be deleted.",
+            substring = true
+        ).assertIsDisplayed()
+        composeTestRule.onNodeWithText("Remove").performClick()
+
+        assertEquals(missing.uri, removedUri)
+    }
+
+    @Test
     fun contextMenuCopyExposesPasteAndClearClipboardControls() {
         composeTestRule.setContent {
             ApturaTheme {

@@ -12,6 +12,24 @@ import android.provider.OpenableColumns
 import java.io.File
 
 /**
+ * The outcome of a rename request.
+ *
+ * A rename is not a boolean: MediaStore keeps the same URI, a SAF document provider allocates a new one, and
+ * a direct file rename changes the path. Callers must persist the URI the file now has, otherwise the next scan
+ * sees the old row as missing and the renamed document as a new video (audit 2026-10-24, section 4.2).
+ */
+sealed interface MediaRenameResult {
+    /** The file was renamed. [uri] is the identifier to use from now on. */
+    data class Renamed(val uri: Uri, val displayName: String) : MediaRenameResult
+
+    /** Android needs the user to grant write access before the rename can proceed. */
+    data class PermissionRequired(val intentSender: IntentSender) : MediaRenameResult
+
+    /** The provider refused, the document disappeared, or the file system rejected the name. */
+    data object Failed : MediaRenameResult
+}
+
+/**
  * Resilient file operations manager for video renaming and storage manipulation.
  * Handles Scoped Storage on Android 10+ (API 29) and Android 11+ (API 30+),
  * SAF documents, and direct storage files.
@@ -21,17 +39,18 @@ object ApturaMediaFileManager {
     fun renameMediaFile(
         context: Context,
         uri: Uri,
-        newNameWithExt: String,
-        onNeedsWritePermission: ((IntentSender) -> Unit)? = null
-    ): Boolean {
+        newNameWithExt: String
+    ): MediaRenameResult {
         val requestedName = newNameWithExt.trim().trimEnd('.')
-        if (requestedName.isBlank()) return false
+        if (requestedName.isBlank()) return MediaRenameResult.Failed
         // Callers only know the library title, which often has no extension. Keep the real file extension so a
         // rename does not turn "Holiday.mp4" into an extension-less file that Android can no longer play.
         val cleanName = withPreservedExtension(context, uri, requestedName)
 
-        // 1. MediaStore content URI update
-        if (uri.authority == MediaStore.AUTHORITY || uri.scheme == "content") {
+        // 1. MediaStore content URI update. The URI is stable, so no remap is needed. A SAF document URI must
+        //    go to renameDocument instead: a provider that happens to implement update() may accept the values
+        //    without renaming the file, and returning a stable URI would then be a false success.
+        if (uri.authority == MediaStore.AUTHORITY) {
             try {
                 val values = ContentValues().apply {
                     put(MediaStore.MediaColumns.DISPLAY_NAME, cleanName)
@@ -40,31 +59,22 @@ object ApturaMediaFileManager {
                 }
                 val count = context.contentResolver.update(uri, values, null, null)
                 if (count > 0) {
-                    return true
+                    return MediaRenameResult.Renamed(uri, cleanName)
                 }
             } catch (e: SecurityException) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && e is RecoverableSecurityException) {
-                    onNeedsWritePermission?.invoke(e.userAction.actionIntent.intentSender)
-                    return false
-                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    try {
-                        val pi = MediaStore.createWriteRequest(context.contentResolver, listOf(uri))
-                        onNeedsWritePermission?.invoke(pi.intentSender)
-                        return false
-                    } catch (_: Throwable) {
-                        // ignore and fall through
-                    }
-                }
+                permissionIntent(context, uri, e)?.let { return MediaRenameResult.PermissionRequired(it) }
             } catch (_: Throwable) {
                 // fall through to SAF or file
             }
         }
 
-        // 2. DocumentsContract / Storage Access Framework (SAF)
-        if (DocumentsContract.isDocumentUri(context, uri)) {
+        // 2. DocumentsContract / Storage Access Framework (SAF). renameDocument returns the NEW document URI.
+        //    Attempt it for any non-MediaStore content URI: the provider call itself is the authority check, and
+        //    it keeps the path testable with a plain ContentProvider instead of a full DocumentsProvider shell.
+        if (uri.scheme == "content" && uri.authority != MediaStore.AUTHORITY) {
             try {
                 val renamedUri = DocumentsContract.renameDocument(context.contentResolver, uri, cleanName)
-                if (renamedUri != null) return true
+                if (renamedUri != null) return MediaRenameResult.Renamed(renamedUri, cleanName)
             } catch (_: Throwable) {
                 // fall through
             }
@@ -73,15 +83,31 @@ object ApturaMediaFileManager {
         // 3. Direct File path (file:// or local internal storage)
         if (uri.scheme == "file") {
             try {
-                val currentFile = File(uri.path ?: return false)
+                val currentFile = File(uri.path ?: return MediaRenameResult.Failed)
                 val targetFile = File(currentFile.parentFile, cleanName)
-                return currentFile.renameTo(targetFile)
+                if (currentFile.renameTo(targetFile)) {
+                    return MediaRenameResult.Renamed(Uri.fromFile(targetFile), cleanName)
+                }
             } catch (_: Throwable) {
-                return false
+                return MediaRenameResult.Failed
             }
         }
 
-        return false
+        return MediaRenameResult.Failed
+    }
+
+    private fun permissionIntent(context: Context, uri: Uri, error: SecurityException): IntentSender? {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && error is RecoverableSecurityException) {
+            return error.userAction.actionIntent.intentSender
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            return try {
+                MediaStore.createWriteRequest(context.contentResolver, listOf(uri)).intentSender
+            } catch (_: Throwable) {
+                null
+            }
+        }
+        return null
     }
 
     private fun withPreservedExtension(context: Context, uri: Uri, requestedName: String): String {

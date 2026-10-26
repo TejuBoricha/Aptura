@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.FolderOff
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlayCircleOutline
@@ -92,6 +93,7 @@ fun MediaDetailsContent(
     onRenameClick: () -> Unit = {},
     onHideClick: () -> Unit = {},
     onDeleteClick: () -> Unit = {},
+    onRemoveMissingClick: () -> Unit = {},
     onPlayNextClick: () -> Unit = {},
     onAddToQueueClick: () -> Unit = {},
     showCloseButton: Boolean = true,
@@ -190,16 +192,18 @@ fun MediaDetailsContent(
                         style = ApturaTypography.labelSmall,
                         color = ApturaColors.TextMediumEmphasis
                     )
-                    IconButton(
-                        onClick = onRenameClick,
-                        modifier = Modifier.size(48.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = "Rename Video",
-                            tint = ApturaColors.AccentPrimary,
-                            modifier = Modifier.size(18.dp)
-                        )
+                    if (!item.isMissing) {
+                        IconButton(
+                            onClick = onRenameClick,
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Rename Video",
+                                tint = ApturaColors.AccentPrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
                 Spacer(modifier = Modifier.height(2.dp))
@@ -400,155 +404,159 @@ fun MediaDetailsContent(
         HorizontalDivider(color = ApturaColors.SurfaceElevated2)
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Action Buttons: Primary Play & Audio-Only
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Button(
-                onClick = onPlayClick,
-                modifier = Modifier.weight(1.3f),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = ApturaColors.AccentPrimary,
-                    contentColor = ApturaColors.SurfacePureBlack
-                )
+        if (item.isMissing) {
+            MissingVideoNotice(onRemoveMissingClick = onRemoveMissingClick)
+        } else {
+            // Action Buttons: Primary Play & Audio-Only
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Icon(imageVector = Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(text = "Play", style = ApturaTypography.labelLarge, fontWeight = FontWeight.Bold)
+                Button(
+                    onClick = onPlayClick,
+                    modifier = Modifier.weight(1.3f),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = ApturaColors.AccentPrimary,
+                        contentColor = ApturaColors.SurfacePureBlack
+                    )
+                ) {
+                    Icon(imageVector = Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(text = "Play", style = ApturaTypography.labelLarge, fontWeight = FontWeight.Bold)
+                }
+
+                OutlinedButton(
+                    onClick = onPlayAudioOnlyClick,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = ApturaColors.TextHighEmphasis
+                    ),
+                    border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3)
+                ) {
+                    Icon(imageVector = Icons.Default.Headphones, contentDescription = null, modifier = Modifier.size(18.dp), tint = ApturaColors.AccentPrimary)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(text = "Audio Only", style = ApturaTypography.labelMedium)
+                }
             }
 
-            OutlinedButton(
-                onClick = onPlayAudioOnlyClick,
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = ApturaColors.TextHighEmphasis
-                ),
-                border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3)
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Queue Actions Row: Play Next & Add to Queue (FR-CTRL-017, SCR-009)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Icon(imageVector = Icons.Default.Headphones, contentDescription = null, modifier = Modifier.size(18.dp), tint = ApturaColors.AccentPrimary)
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(text = "Audio Only", style = ApturaTypography.labelMedium)
-            }
-        }
+                OutlinedButton(
+                    onClick = onPlayNextClick,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = ApturaColors.TextHighEmphasis),
+                    border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3),
+                    contentPadding = PaddingValues(vertical = 10.dp)
+                ) {
+                    Icon(imageVector = Icons.Default.FastForward, contentDescription = null, modifier = Modifier.size(16.dp), tint = ApturaColors.AccentPrimary)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(text = "Play Next", style = ApturaTypography.labelMedium)
+                }
 
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // Queue Actions Row: Play Next & Add to Queue (FR-CTRL-017, SCR-009)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            OutlinedButton(
-                onClick = onPlayNextClick,
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = ApturaColors.TextHighEmphasis),
-                border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3),
-                contentPadding = PaddingValues(vertical = 10.dp)
-            ) {
-                Icon(imageVector = Icons.Default.FastForward, contentDescription = null, modifier = Modifier.size(16.dp), tint = ApturaColors.AccentPrimary)
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(text = "Play Next", style = ApturaTypography.labelMedium)
-            }
-
-            OutlinedButton(
-                onClick = onAddToQueueClick,
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = ApturaColors.TextHighEmphasis),
-                border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3),
-                contentPadding = PaddingValues(vertical = 10.dp)
-            ) {
-                Icon(imageVector = Icons.AutoMirrored.Filled.QueueMusic, contentDescription = null, modifier = Modifier.size(16.dp), tint = ApturaColors.AccentSecondary)
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(text = "Add to Queue", style = ApturaTypography.labelMedium)
-            }
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // Utility Row: Rename, Share, Open With
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedButton(
-                onClick = onRenameClick,
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = ApturaColors.TextHighEmphasis),
-                border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3),
-                contentPadding = PaddingValues(vertical = 10.dp)
-            ) {
-                Icon(imageVector = Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp), tint = ApturaColors.TextMediumEmphasis)
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(text = "Rename", style = ApturaTypography.labelMedium)
+                OutlinedButton(
+                    onClick = onAddToQueueClick,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = ApturaColors.TextHighEmphasis),
+                    border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3),
+                    contentPadding = PaddingValues(vertical = 10.dp)
+                ) {
+                    Icon(imageVector = Icons.AutoMirrored.Filled.QueueMusic, contentDescription = null, modifier = Modifier.size(16.dp), tint = ApturaColors.AccentSecondary)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(text = "Add to Queue", style = ApturaTypography.labelMedium)
+                }
             }
 
-            OutlinedButton(
-                onClick = onShareClick,
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = ApturaColors.TextHighEmphasis),
-                border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3),
-                contentPadding = PaddingValues(vertical = 10.dp)
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Utility Row: Rename, Share, Open With
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(imageVector = Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp), tint = ApturaColors.TextMediumEmphasis)
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(text = "Share", style = ApturaTypography.labelMedium)
+                OutlinedButton(
+                    onClick = onRenameClick,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = ApturaColors.TextHighEmphasis),
+                    border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3),
+                    contentPadding = PaddingValues(vertical = 10.dp)
+                ) {
+                    Icon(imageVector = Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp), tint = ApturaColors.TextMediumEmphasis)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(text = "Rename", style = ApturaTypography.labelMedium)
+                }
+
+                OutlinedButton(
+                    onClick = onShareClick,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = ApturaColors.TextHighEmphasis),
+                    border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3),
+                    contentPadding = PaddingValues(vertical = 10.dp)
+                ) {
+                    Icon(imageVector = Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp), tint = ApturaColors.TextMediumEmphasis)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(text = "Share", style = ApturaTypography.labelMedium)
+                }
+
+                OutlinedButton(
+                    onClick = onOpenWithClick,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = ApturaColors.TextHighEmphasis),
+                    border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3),
+                    contentPadding = PaddingValues(vertical = 10.dp)
+                ) {
+                    Icon(imageVector = Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp), tint = ApturaColors.TextMediumEmphasis)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(text = "Open With", style = ApturaTypography.labelMedium)
+                }
             }
 
-            OutlinedButton(
-                onClick = onOpenWithClick,
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = ApturaColors.TextHighEmphasis),
-                border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3),
-                contentPadding = PaddingValues(vertical = 10.dp)
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Quarantined Destructive Actions (Hide, Delete) - P2-03
+            HorizontalDivider(color = ApturaColors.BorderSubtle)
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Icon(imageVector = Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp), tint = ApturaColors.TextMediumEmphasis)
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(text = "Open With", style = ApturaTypography.labelMedium)
-            }
-        }
+                OutlinedButton(
+                    onClick = onHideClick,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = ApturaColors.TextMediumEmphasis),
+                    border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3),
+                    contentPadding = PaddingValues(vertical = 10.dp)
+                ) {
+                    Icon(imageVector = Icons.Default.VisibilityOff, contentDescription = null, modifier = Modifier.size(16.dp), tint = ApturaColors.TextMediumEmphasis)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(text = "Hide from Library", style = ApturaTypography.labelMedium)
+                }
 
-        Spacer(modifier = Modifier.height(14.dp))
-
-        // Quarantined Destructive Actions (Hide, Delete) - P2-03
-        HorizontalDivider(color = ApturaColors.BorderSubtle)
-        Spacer(modifier = Modifier.height(10.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            OutlinedButton(
-                onClick = onHideClick,
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = ApturaColors.TextMediumEmphasis),
-                border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3),
-                contentPadding = PaddingValues(vertical = 10.dp)
-            ) {
-                Icon(imageVector = Icons.Default.VisibilityOff, contentDescription = null, modifier = Modifier.size(16.dp), tint = ApturaColors.TextMediumEmphasis)
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(text = "Hide from Library", style = ApturaTypography.labelMedium)
-            }
-
-            OutlinedButton(
-                onClick = onDeleteClick,
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = ApturaColors.StatusError),
-                border = BorderStroke(1.dp, ApturaColors.StatusError.copy(alpha = 0.5f)),
-                contentPadding = PaddingValues(vertical = 10.dp)
-            ) {
-                Icon(imageVector = Icons.Default.DeleteOutline, contentDescription = null, modifier = Modifier.size(16.dp), tint = ApturaColors.StatusError)
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(text = "Delete", style = ApturaTypography.labelMedium, color = ApturaColors.StatusError)
+                OutlinedButton(
+                    onClick = onDeleteClick,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = ApturaColors.StatusError),
+                    border = BorderStroke(1.dp, ApturaColors.StatusError.copy(alpha = 0.5f)),
+                    contentPadding = PaddingValues(vertical = 10.dp)
+                ) {
+                    Icon(imageVector = Icons.Default.DeleteOutline, contentDescription = null, modifier = Modifier.size(16.dp), tint = ApturaColors.StatusError)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(text = "Delete", style = ApturaTypography.labelMedium, color = ApturaColors.StatusError)
+                }
             }
         }
     }
@@ -572,6 +580,7 @@ fun MediaDetailsSheet(
     onRenameClick: () -> Unit = {},
     onHideClick: () -> Unit = {},
     onDeleteClick: () -> Unit = {},
+    onRemoveMissingClick: () -> Unit = {},
     onPlayNextClick: () -> Unit = {},
     onAddToQueueClick: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -613,6 +622,10 @@ fun MediaDetailsSheet(
                 onDismiss()
                 onDeleteClick()
             },
+            onRemoveMissingClick = {
+                onDismiss()
+                onRemoveMissingClick()
+            },
             onPlayNextClick = {
                 onDismiss()
                 onPlayNextClick()
@@ -624,6 +637,62 @@ fun MediaDetailsSheet(
             showCloseButton = false,
             modifier = Modifier.padding(bottom = 24.dp)
         )
+    }
+}
+
+/**
+ * A missing item is not a broken item: the file is gone, so every action that needs bytes is replaced by
+ * the one action that makes sense. This keeps Play, Rename, Share and Delete from failing silently.
+ */
+@Composable
+private fun MissingVideoNotice(onRemoveMissingClick: () -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = ApturaColors.SurfaceElevated2,
+        border = BorderStroke(1.dp, ApturaColors.StatusError.copy(alpha = 0.4f))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.FolderOff,
+                    contentDescription = null,
+                    tint = ApturaColors.StatusError,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "File unavailable",
+                    style = ApturaTypography.titleSmall,
+                    color = ApturaColors.TextHighEmphasis,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "It may have been moved, deleted, or stored on a disconnected drive. Playback, rename, move and share are disabled until the file returns.",
+                style = ApturaTypography.bodySmall,
+                color = ApturaColors.TextMediumEmphasis
+            )
+            Spacer(modifier = Modifier.height(14.dp))
+            Button(
+                onClick = onRemoveMissingClick,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = ApturaColors.StatusError,
+                    contentColor = ApturaColors.TextOnScrim
+                )
+            ) {
+                Icon(
+                    imageVector = Icons.Default.DeleteOutline,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = "Remove from library", style = ApturaTypography.labelLarge)
+            }
+        }
     }
 }
 
@@ -868,6 +937,53 @@ fun RemoveFromLibraryDialog(
         itemTitle = itemTitle,
         onConfirm = onConfirm,
         onDismiss = onDismiss
+    )
+}
+
+/**
+ * Removes an already-missing item from the index. Unlike Hide, this deletes the saved position and
+ * bookmarks; unlike Delete, it does not touch (or fail on) a file that is no longer there.
+ */
+@Composable
+fun RemoveMissingVideoDialog(
+    itemTitle: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Remove missing video?",
+                style = ApturaTypography.headlineSmall,
+                color = ApturaColors.TextHighEmphasis
+            )
+        },
+        text = {
+            Text(
+                text = "Remove \"$itemTitle\" from your library?\n\nThe file is already unavailable, so nothing on disk will be deleted. Its saved playback position and bookmarks will be removed. If the file comes back later, it will be added as a new video.",
+                style = ApturaTypography.bodyMedium,
+                color = ApturaColors.TextMediumEmphasis
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = ApturaColors.StatusError,
+                    contentColor = ApturaColors.TextOnScrim
+                )
+            ) {
+                Text("Remove")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = ApturaColors.TextMediumEmphasis)
+            }
+        },
+        containerColor = ApturaColors.SurfaceElevated2,
+        shape = RoundedCornerShape(16.dp)
     )
 }
 

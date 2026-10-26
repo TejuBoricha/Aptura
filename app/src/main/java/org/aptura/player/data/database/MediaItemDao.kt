@@ -60,6 +60,22 @@ interface MediaItemDao {
     @Query("UPDATE media_items SET customTitle = :customTitle WHERE uri = :uri")
     suspend fun updateCustomTitle(uri: String, customTitle: String?)
 
+    /**
+     * Persists a rename, including the case where a SAF provider allocated a new document URI. Keeping the
+     * progress, per-video settings and bookmarks attached depends on this row continuing to exist under the
+     * new URI (audit 2026-10-24, section 4.2).
+     */
+    @Query(
+        "UPDATE media_items SET uri = :newUri, displayName = :newDisplayName, " +
+            "title = :newTitle, customTitle = :newTitle WHERE uri = :oldUri"
+    )
+    suspend fun renameAndRemapUri(
+        oldUri: String,
+        newUri: String,
+        newDisplayName: String,
+        newTitle: String
+    )
+
     @Query("UPDATE media_items SET isHidden = 1 WHERE uri = :uri")
     suspend fun hideByUri(uri: String)
 

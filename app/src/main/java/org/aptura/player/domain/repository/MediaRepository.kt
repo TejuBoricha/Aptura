@@ -59,8 +59,16 @@ interface MediaRepository {
 
     /**
      * Renames a video in the media library index and local database (FR-LIB-013).
+     *
+     * [newUri] is set only when the storage provider changed the document identifier (SAF). The row and
+     * its bookmarks are moved to the new URI so saved progress survives the rename.
      */
-    suspend fun renameVideo(uri: String, newName: String)
+    suspend fun renameVideo(
+        uri: String,
+        newName: String,
+        newUri: String? = null,
+        newDisplayName: String? = null
+    )
 
     /**
      * Computes high-level library statistics for SCR-014 (total videos, duration, and disk footprint).
