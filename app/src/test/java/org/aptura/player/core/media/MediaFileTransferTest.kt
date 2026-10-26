@@ -158,6 +158,27 @@ class MediaFileTransferTest {
     }
 
     @Test
+    fun resumedCopy_skipsCompletedSourceWithoutCreatingAnotherDestination() = runBlocking {
+        val first = temporaryFolder.newFile("first.mp4").also { it.writeBytes(byteArrayOf(1, 2, 3)) }
+        val second = temporaryFolder.newFile("second.mp4").also { it.writeBytes(byteArrayOf(4, 5, 6)) }
+        val firstUri = Uri.fromFile(first).toString()
+        val secondUri = Uri.fromFile(second).toString()
+        val createdSources = mutableListOf<String>()
+
+        val result = MediaFileTransfer.copyIntoTree(
+            context,
+            listOf(firstUri, secondUri),
+            Uri.parse("content://org.aptura.test.documents/tree/root"),
+            skipCopied = setOf(firstUri),
+            onDocumentCreated = { source, _ -> createdSources += source }
+        )
+
+        assertEquals(listOf(firstUri, secondUri), result.copiedUris)
+        assertEquals(listOf(secondUri), createdSources)
+        assertArrayEquals(second.readBytes(), destinationFile.readBytes())
+    }
+
+    @Test
     fun measureSpace_reportsShortfallBeforeAnyBytesAreCopied() {
         val source = temporaryFolder.newFile("space.mp4")
         source.writeBytes(ByteArray(6))

@@ -60,7 +60,10 @@ object MediaFileTransfer {
         context: Context,
         sourceUris: List<String>,
         treeUri: Uri,
-        onProgress: (MediaTransferProgress) -> Unit = {}
+        skipCopied: Set<String> = emptySet(),
+        onDocumentCreated: suspend (sourceUri: String, destinationUri: Uri) -> Unit = { _, _ -> },
+        onSourceCopied: suspend (sourceUri: String, destinationUri: Uri) -> Unit = { _, _ -> },
+        onProgress: suspend (MediaTransferProgress) -> Unit = {}
     ): MediaTransferResult {
         val resolver = context.contentResolver
         val destinationId = try {
@@ -70,30 +73,45 @@ object MediaFileTransfer {
         }
         val destination = DocumentsContract.buildDocumentUriUsingTree(treeUri, destinationId)
         val sources = sourceUris.distinct()
-        val totalBytes = sources.sumOf { sourceSize(resolver, Uri.parse(it)) }
-        val copied = mutableListOf<String>()
+        val sizes = sources.associateWith { sourceSize(resolver, Uri.parse(it)) }
+        val totalBytes = sizes.values.sum()
+        // A resumed job already has these at the destination. They count as copied so the caller can report and
+        // (for a move) delete exactly the files that now exist, but they are never written a second time.
+        val copied = sources.filter { it in skipCopied }.toMutableList()
         val failed = mutableListOf<String>()
-        var copiedBytes = 0L
-        var completed = 0
+        var copiedBytes = copied.sumOf { sizes[it] ?: 0L }
+        var completed = copied.size
         var lastReportAt = 0L
 
-        fun report(currentName: String, force: Boolean = false) {
+        suspend fun notify(block: suspend () -> Unit) {
+            try {
+                block()
+            } catch (cancel: CancellationException) {
+                throw cancel
+            } catch (_: Exception) {
+                // Persistence/progress reporting is best-effort; it must never turn a completed copy into a failure.
+            }
+        }
+
+        suspend fun report(currentName: String, force: Boolean = false) {
             val now = SystemClock.elapsedRealtime()
             if (!force && now - lastReportAt < PROGRESS_INTERVAL_MS) return
             lastReportAt = now
-            onProgress(
-                MediaTransferProgress(
-                    completedFiles = completed,
-                    totalFiles = sources.size,
-                    copiedBytes = copiedBytes,
-                    totalBytes = totalBytes,
-                    currentName = currentName
+            notify {
+                onProgress(
+                    MediaTransferProgress(
+                        completedFiles = completed,
+                        totalFiles = sources.size,
+                        copiedBytes = copiedBytes,
+                        totalBytes = totalBytes,
+                        currentName = currentName
+                    )
                 )
-            )
+            }
         }
 
         report(currentName = "", force = true)
-        for (sourceString in sources) {
+        for (sourceString in sources.filterNot { it in skipCopied }) {
             coroutineContext.ensureActive()
             val source = Uri.parse(sourceString)
             var created: Uri? = null
@@ -112,12 +130,15 @@ object MediaFileTransfer {
                 }
                 val name = displayName(resolver, source)
                 val mimeType = resolver.getType(source) ?: mimeTypeFromName(name)
-                created = DocumentsContract.createDocument(resolver, destination, mimeType, name)
+                val createdUri = DocumentsContract.createDocument(resolver, destination, mimeType, name)
                     ?: throw IOException("The selected folder refused to create a file.")
+                created = createdUri
+                // Journal the destination before writing, so a process death can remove a truncated document.
+                notify { onDocumentCreated(sourceString, createdUri) }
                 val input = resolver.openInputStream(source)
                     ?: throw IOException("The source video could not be opened.")
                 input.use { sourceStream ->
-                    val output = resolver.openOutputStream(created, "w")
+                    val output = resolver.openOutputStream(createdUri, "w")
                         ?: throw IOException("The selected folder could not be written.")
                     output.use { targetStream ->
                         val buffer = ByteArray(COPY_BUFFER_BYTES)
@@ -135,6 +156,7 @@ object MediaFileTransfer {
                 }
                 copied += sourceString
                 completed++
+                notify { onSourceCopied(sourceString, createdUri) }
                 report(name, force = true)
             } catch (cancel: CancellationException) {
                 created?.let { deleteQuietly(resolver, it) }
@@ -147,6 +169,11 @@ object MediaFileTransfer {
             }
         }
         return MediaTransferResult(copied, failed)
+    }
+
+    /** Removes a document that a previous process created but did not finish writing. */
+    fun deletePartial(context: Context, uri: Uri) {
+        deleteQuietly(context.contentResolver, uri)
     }
 
     /** Sum of the readable source sizes and the destination's advertised free space, if it reports one. */

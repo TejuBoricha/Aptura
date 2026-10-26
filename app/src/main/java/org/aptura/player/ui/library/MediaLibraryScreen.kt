@@ -116,19 +116,23 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
+import androidx.work.WorkInfo
 import kotlin.math.roundToInt
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.video.videoFrameMillis
 import java.io.File
+import java.util.UUID
 import org.aptura.player.core.media.ThumbnailRepository
-import org.aptura.player.core.media.MediaFileTransfer
 import org.aptura.player.core.media.MediaTransferProgress
+import org.aptura.player.data.transfer.MediaTransferFailure
+import org.aptura.player.data.transfer.MediaTransferJob
+import org.aptura.player.data.transfer.MediaTransferJournal
+import org.aptura.player.data.transfer.MediaTransferScheduler
+import org.aptura.player.data.transfer.MediaTransferWorker
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
@@ -297,10 +301,10 @@ private fun MediaLibraryContentView(
     var transferIsMove by remember { mutableStateOf(false) }
     var transferFromClipboard by remember { mutableStateOf(false) }
     var transferResult by remember { mutableStateOf<TransferResultMessage?>(null) }
-    var transferProgress by remember { mutableStateOf<MediaTransferProgress?>(null) }
-    var transferProgressIsMove by remember { mutableStateOf(false) }
+    var transferJob by remember { mutableStateOf<MediaTransferJob?>(null) }
+    var transferWorkInfo by remember { mutableStateOf<WorkInfo?>(null) }
     var transferCancelling by remember { mutableStateOf(false) }
-    var transferJob by remember { mutableStateOf<Job?>(null) }
+    var handledTransferId by remember { mutableStateOf<String?>(null) }
     var itemPendingRenameUri by remember { mutableStateOf<String?>(null) }
     var itemPendingRenameNewName by remember { mutableStateOf<String?>(null) }
     val deleteFlow = rememberMediaDeleteFlow(onDeleted = { uri ->
@@ -327,150 +331,279 @@ private fun MediaLibraryContentView(
         selectedUris = emptySet()
     }
 
+    fun forgetTransferredClipboard(uris: List<String>, fromClipboard: Boolean) {
+        if (!fromClipboard || uris.isEmpty()) return
+        clipboardUris = clipboardUris - uris.toSet()
+        if (clipboardUris.isEmpty()) clipboardIsCut = false
+    }
+
+    fun clearTransferJournal(jobId: String) {
+        coroutineScope.launch(Dispatchers.IO) {
+            MediaTransferJournal.clearIf(context, jobId)
+        }
+        if (transferJob?.id == jobId) {
+            transferJob = null
+            transferWorkInfo = null
+            transferCancelling = false
+        }
+    }
+
+    fun finishCancelledTransfer(job: MediaTransferJob) {
+        val copied = job.copiedUris.size
+        selectedUris = emptySet()
+        if (copied > 0) onRefresh()
+        transferResult = TransferResultMessage(
+            title = "Transfer cancelled",
+            message = buildString {
+                append(
+                    "$copied of ${job.totalFiles} ${if (job.totalFiles == 1) "video was" else "videos were"} " +
+                        "copied before cancellation. "
+                )
+                if (copied < job.totalFiles) {
+                    append("The unfinished file was removed. ")
+                } else {
+                    append("Every video was copied before cancellation. ")
+                }
+                if (job.isMove) {
+                    append("No originals were deleted.")
+                } else {
+                    append("Your original files are unchanged.")
+                }
+                if (job.fromClipboard && copied < job.totalFiles) {
+                    append(" The clipboard still holds every item.")
+                }
+            }
+        )
+        clearTransferJournal(job.id)
+    }
+
+    fun finishFailedTransfer(job: MediaTransferJob) {
+        selectedUris = emptySet()
+        if (job.copiedUris.isNotEmpty()) onRefresh()
+        transferResult = when (job.failure) {
+            MediaTransferFailure.NOT_ENOUGH_SPACE -> {
+                val required = job.requiredBytes ?: 0L
+                val available = job.availableBytes ?: 0L
+                val remaining = job.remainingUris.size
+                TransferResultMessage(
+                    title = "Not enough space",
+                    message = buildString {
+                        append("The selected folder has ${MediaFormatters.formatFileSize(available)} available. ")
+                        if (job.copiedUris.isEmpty()) {
+                            append(if (job.totalFiles == 1) "This video needs " else "These videos need ")
+                            append("${MediaFormatters.formatFileSize(required)} in total.")
+                            append("\n\nNothing was copied.")
+                        } else {
+                            append("${job.copiedUris.size} of ${job.totalFiles} videos were already copied. ")
+                            append("The remaining $remaining ${if (remaining == 1) "video needs" else "videos need"} ")
+                            append("${MediaFormatters.formatFileSize(required)} in total.")
+                            append("\n\nNothing else was copied.")
+                            if (job.isMove) append(" No originals were deleted.")
+                        }
+                        append(" Choose a different folder, or free up space and try again.")
+                    }
+                )
+            }
+
+            else -> TransferResultMessage(
+                title = if (job.isMove) "Move not completed" else "Copy not completed",
+                message = buildString {
+                    append("The transfer could not be completed. ")
+                    if (job.copiedUris.isNotEmpty()) {
+                        append("${job.copiedUris.size} of ${job.totalFiles} videos were copied. ")
+                    } else {
+                        append("Nothing was copied. ")
+                    }
+                    if (job.isMove) {
+                        append("No originals were deleted.")
+                    } else {
+                        append("Your original files are unchanged.")
+                    }
+                }
+            )
+        }
+        clearTransferJournal(job.id)
+    }
+
+    fun finishTransfer(job: MediaTransferJob) {
+        if (job.failure != null) {
+            finishFailedTransfer(job)
+            return
+        }
+        val titles = state.videos.associate { it.uri to it.title }
+        if (job.isMove && job.copiedUris.isNotEmpty()) {
+            // Copy-before-delete is unchanged. The journal stays until Android confirms the deletion, so a process
+            // death at the consent dialog re-prompts on the next launch instead of silently leaving duplicates.
+            deleteFlow.deleteAll(job.copiedUris) { deletion ->
+                val retainedCount = deletion.failedCount + job.failedUris.size
+                selectedUris = emptySet()
+                forgetTransferredClipboard(deletion.deletedUris, job.fromClipboard)
+                onRefresh()
+                transferResult = TransferResultMessage(
+                    title = when {
+                        deletion.deletedCount == 0 -> "Move not completed"
+                        retainedCount == 0 -> "Move complete"
+                        else -> "Move partially complete"
+                    },
+                    message = buildString {
+                        append("${deletion.deletedCount} of ${job.totalFiles} videos moved to the selected folder.")
+                        if (deletion.failedCount > 0) {
+                            append("\nOriginals still in the library: ${describeVideoUris(deletion.failedUris, titles)}.")
+                        }
+                        if (job.failedUris.isNotEmpty()) {
+                            append("\nNot copied (originals kept): ${describeVideoUris(job.failedUris, titles)}.")
+                        }
+                    }
+                )
+                clearTransferJournal(job.id)
+            }
+            return
+        }
+
+        selectedUris = emptySet()
+        if (job.copiedUris.isNotEmpty()) {
+            forgetTransferredClipboard(job.copiedUris, job.fromClipboard)
+            onRefresh()
+        }
+        transferResult = if (job.isMove) {
+            TransferResultMessage(
+                title = "Move not completed",
+                message = "No originals were deleted. These videos could not be copied and remain in the library: " +
+                    "${describeVideoUris(job.failedUris, titles)}."
+            )
+        } else {
+            TransferResultMessage(
+                title = when {
+                    job.copiedUris.isEmpty() -> "Copy not completed"
+                    job.failedUris.isEmpty() -> "Copy complete"
+                    else -> "Copy partially complete"
+                },
+                message = buildString {
+                    append(
+                        "${job.copiedUris.size} " +
+                            "${if (job.copiedUris.size == 1) "video copied" else "videos copied"} to the selected folder."
+                    )
+                    if (job.failedUris.isNotEmpty()) {
+                        append("\nNot copied (originals kept): ${describeVideoUris(job.failedUris, titles)}.")
+                    }
+                }
+            )
+        }
+        clearTransferJournal(job.id)
+    }
+
+    LaunchedEffect(Unit) {
+        transferJob = withContext(Dispatchers.IO) { MediaTransferJournal.read(context) }
+    }
+
+    LaunchedEffect(transferJob?.id) {
+        val jobId = transferJob?.id ?: return@LaunchedEffect
+        MediaTransferScheduler.observe(context, jobId).collect { infos ->
+            val info = MediaTransferScheduler.pickActive(infos)
+            transferWorkInfo = info
+            val latest = withContext(Dispatchers.IO) { MediaTransferJournal.read(context) }
+            if (latest == null) {
+                if (transferJob?.id == jobId) transferJob = null
+                return@collect
+            }
+            if (latest.id != jobId) {
+                transferJob = latest
+                return@collect
+            }
+            transferJob = latest
+            if (handledTransferId == latest.id) return@collect
+
+            val active = MediaTransferScheduler.isActive(info)
+            val terminal = infos.map { it.state }.filter(MediaTransferScheduler::isTerminal)
+            when {
+                latest.cancelled -> {
+                    if (!active) {
+                        handledTransferId = latest.id
+                        finishCancelledTransfer(latest)
+                    }
+                }
+
+                latest.copyFinished -> {
+                    handledTransferId = latest.id
+                    finishTransfer(latest)
+                }
+
+                latest.failure != null && !active -> {
+                    handledTransferId = latest.id
+                    finishFailedTransfer(latest.copy(copyFinished = true))
+                }
+
+                active -> Unit
+
+                terminal.isEmpty() || terminal.all { it == WorkInfo.State.CANCELLED } -> {
+                    // No live work and no recorded failure: WorkManager preempted the run (for example its
+                    // ten-minute window) or pruned it. Continue from the journal instead of starting over.
+                    MediaTransferScheduler.resume(context, jobId)
+                }
+
+                else -> {
+                    // The worker reached a terminal state without journaling a result. Never claim a transfer the
+                    // journal cannot name.
+                    handledTransferId = latest.id
+                    finishFailedTransfer(
+                        latest.copy(failure = latest.failure ?: MediaTransferFailure.UNKNOWN, copyFinished = true)
+                    )
+                }
+            }
+        }
+    }
+
     val folderPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { destination ->
         val sources = transferUris.distinct()
-        val sourceNames = state.videos.associate { it.uri to it.title }
         val shouldMove = transferIsMove
         val fromClipboard = transferFromClipboard
         transferUris = emptyList()
         transferIsMove = false
         transferFromClipboard = false
 
-        fun forgetTransferredClipboard(uris: List<String>) {
-            if (!fromClipboard || uris.isEmpty()) return
-            clipboardUris = clipboardUris - uris.toSet()
-            if (clipboardUris.isEmpty()) clipboardIsCut = false
-        }
-
         if (destination == null) {
             Toast.makeText(context, "Folder selection cancelled. Source files were kept.", Toast.LENGTH_SHORT).show()
         } else if (sources.isNotEmpty()) {
-            // The picker is modal and the progress dialog blocks the screen, so no transfer can already be running.
-            transferProgressIsMove = shouldMove
-            transferCancelling = false
-            transferProgress = MediaTransferProgress(
-                completedFiles = 0,
-                totalFiles = sources.size,
-                copiedBytes = 0L,
-                totalBytes = 0L,
-                currentName = ""
+            try {
+                // The worker may outlive this screen and even this process. Keep both grants so it can still write
+                // to the chosen provider after WorkManager restores the journal.
+                context.contentResolver.takePersistableUriPermission(
+                    destination,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+            } catch (_: SecurityException) {
+                // Some providers do not offer persistable grants. The current copy can still proceed; a provider
+                // failure after process death is reported as a failed transfer rather than deleting originals.
+            }
+            val job = MediaTransferJob(
+                id = UUID.randomUUID().toString(),
+                sources = sources,
+                destination = destination.toString(),
+                isMove = shouldMove,
+                fromClipboard = fromClipboard
             )
-            transferJob = coroutineScope.launch {
-                var lastProgress = MediaTransferProgress(0, sources.size, 0L, 0L, "")
-                try {
-                    // Ask the destination before writing a byte. A provider that reports no quota is allowed to try.
-                    val space = withContext(Dispatchers.IO) {
-                        MediaFileTransfer.measureSpace(context, sources, destination)
+            transferCancelling = false
+            coroutineScope.launch {
+                when (MediaTransferScheduler.start(context, job)) {
+                    MediaTransferScheduler.StartResult.Started -> transferJob = job
+                    MediaTransferScheduler.StartResult.AlreadyRunning -> {
+                        transferJob = withContext(Dispatchers.IO) { MediaTransferJournal.read(context) }
+                        Toast.makeText(
+                            context,
+                            "Another transfer is already running. Wait for it to finish.",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
-                    if (!space.hasEnoughSpace) {
-                        transferResult = TransferResultMessage(
-                            title = "Not enough space",
-                            message = buildString {
-                                append("The selected folder has ${MediaFormatters.formatFileSize(space.availableBytes ?: 0L)} available. ")
-                                append(
-                                    if (sources.size == 1) {
-                                        "This video needs ${MediaFormatters.formatFileSize(space.requiredBytes)}."
-                                    } else {
-                                        "These videos need ${MediaFormatters.formatFileSize(space.requiredBytes)} in total."
-                                    }
-                                )
-                                append("\n\nNothing was copied. Choose a different folder, or free up space and try again.")
-                            }
-                        )
-                        return@launch
+                    MediaTransferScheduler.StartResult.Unfinished -> {
+                        transferJob = withContext(Dispatchers.IO) { MediaTransferJournal.read(context) }
+                        Toast.makeText(
+                            context,
+                            "Finish or cancel the previous transfer before starting another.",
+                            Toast.LENGTH_LONG
+                        ).show()
                     }
-
-                    transferProgress = MediaTransferProgress(
-                        completedFiles = 0,
-                        totalFiles = sources.size,
-                        copiedBytes = 0L,
-                        totalBytes = space.requiredBytes,
-                        currentName = ""
-                    )
-                    val result = withContext(Dispatchers.IO) {
-                        MediaFileTransfer.copyIntoTree(context, sources, destination) { progress ->
-                            lastProgress = progress
-                            transferProgress = progress
-                        }
-                    }
-                    // The copy phase is over, so the progress dialog gives way to the consent dialog for a move.
-                    transferProgress = null
-
-                    if (shouldMove && result.copiedUris.isNotEmpty()) {
-                        deleteFlow.deleteAll(result.copiedUris) { deletion ->
-                            val retainedCount = deletion.failedCount + result.failedUris.size
-                            selectedUris = emptySet()
-                            forgetTransferredClipboard(deletion.deletedUris)
-                            onRefresh()
-                            transferResult = TransferResultMessage(
-                                title = when {
-                                    deletion.deletedCount == 0 -> "Move not completed"
-                                    retainedCount == 0 -> "Move complete"
-                                    else -> "Move partially complete"
-                                },
-                                message = buildString {
-                                    append("${deletion.deletedCount} of ${sources.size} videos moved to the selected folder.")
-                                    if (deletion.failedCount > 0) {
-                                        append("\nOriginals still in the library: ${describeVideoUris(deletion.failedUris, sourceNames)}.")
-                                    }
-                                    if (result.failedUris.isNotEmpty()) {
-                                        append("\nNot copied (originals kept): ${describeVideoUris(result.failedUris, sourceNames)}.")
-                                    }
-                                }
-                            )
-                        }
-                    } else if (shouldMove) {
-                        selectedUris = emptySet()
-                        transferResult = TransferResultMessage(
-                            title = "Move not completed",
-                            message = "No originals were deleted. These videos could not be copied and remain in the library: ${describeVideoUris(result.failedUris, sourceNames)}."
-                        )
-                    } else {
-                        selectedUris = emptySet()
-                        if (result.copied > 0) {
-                            forgetTransferredClipboard(result.copiedUris)
-                            onRefresh()
-                        }
-                        transferResult = TransferResultMessage(
-                            title = when {
-                                result.copied == 0 -> "Copy not completed"
-                                result.failedUris.isEmpty() -> "Copy complete"
-                                else -> "Copy partially complete"
-                            },
-                            message = buildString {
-                                append("${result.copied} ${if (result.copied == 1) "video copied" else "videos copied"} to the selected folder.")
-                                if (result.failedUris.isNotEmpty()) {
-                                    append("\nNot copied (originals kept): ${describeVideoUris(result.failedUris, sourceNames)}.")
-                                }
-                            }
-                        )
-                    }
-                } catch (_: CancellationException) {
-                    // Cancelling never deletes originals. Completed copies stay in the destination; the partial
-                    // destination file was already removed by MediaFileTransfer.
-                    val copiedCount = lastProgress.completedFiles
-                    selectedUris = emptySet()
-                    if (copiedCount > 0) onRefresh()
-                    transferResult = TransferResultMessage(
-                        title = "Transfer cancelled",
-                        message = buildString {
-                            append("$copiedCount of ${sources.size} ${if (sources.size == 1) "video was" else "videos were"} copied before cancellation. The unfinished file was removed.")
-                            if (shouldMove) {
-                                append(" No originals were deleted.")
-                            } else {
-                                append(" Your original files are unchanged.")
-                            }
-                            if (fromClipboard && copiedCount < sources.size) {
-                                append(" The clipboard still holds every item.")
-                            }
-                        }
-                    )
-                } finally {
-                    transferProgress = null
-                    transferCancelling = false
-                    transferJob = null
                 }
             }
         }
@@ -1407,14 +1540,22 @@ private fun MediaLibraryContentView(
 
             null -> Unit
         }
-        transferProgress?.let { progress ->
+        transferJob?.takeUnless { it.copyFinished }?.let { job ->
+            val progress = transferWorkInfo?.progress?.let(MediaTransferWorker::progressFrom)
+                ?: MediaTransferProgress(
+                    completedFiles = job.copiedUris.size,
+                    totalFiles = job.totalFiles,
+                    copiedBytes = 0L,
+                    totalBytes = 0L,
+                    currentName = job.inProgressSource?.substringAfterLast('/').orEmpty()
+                )
             TransferProgressDialog(
                 progress = progress,
-                isMove = transferProgressIsMove,
+                isMove = job.isMove,
                 isCancelling = transferCancelling,
                 onCancel = {
                     transferCancelling = true
-                    transferJob?.cancel()
+                    MediaTransferScheduler.cancel(context, job.id)
                 }
             )
         }
