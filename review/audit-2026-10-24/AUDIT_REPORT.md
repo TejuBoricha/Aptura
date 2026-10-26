@@ -1,6 +1,6 @@
 # Aptura - Follow-up Audit and Remediation
 
-**Snapshot:** `main` @ `f5b566d` (2026-10-26)  
+**Snapshot:** `main` @ `54dd65c` (2026-10-26)  
 **Baseline:** `review/audit-2026-10-23/AUDIT_REPORT.md` @ `588cc3a`  
 **Delta for the first round:** 56 files, +5,430 / -799 across `14f26d1^..90ce6b9`  
 **Delta for the data-integrity round:** 18 files, +1,389 / -402 across `48f6b43..65e54be`  
