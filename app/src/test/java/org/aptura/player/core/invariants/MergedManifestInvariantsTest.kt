@@ -61,7 +61,38 @@ class MergedManifestInvariantsTest {
         assertEquals(ManifestInvariants.approvedIntentCategories, shipped.intentCategories.toSet())
     }
 
+    @Test
+    fun theShippedManifest_doesNotShipTheDebugDocumentsProvider() {
+        val authorities = shipped.components.flatMap { it.authorities }
+
+        assertTrue(
+            "The debug-only DocumentsProvider authority leaked into the release manifest: $authorities",
+            "org.aptura.player.test.documents" !in authorities
+        )
+        assertTrue(
+            "The debug-only provider class leaked into the release manifest",
+            shipped.components.none { it.name.endsWith("RenamingDocumentsProvider") }
+        )
+    }
+
     // ---- fixtures: each rule must fire on a real violation ---------------------------------------------------------
+
+    @Test
+    fun fixture_providerAuthoritiesAreParsedWithTheirSemicolonSeparator() {
+        val parsed = manifest(
+            components = """
+                <provider
+                    android:name="com.example.DebugProvider"
+                    android:authorities="com.example.one; com.example.two"
+                    android:exported="false" />
+            """.trimIndent()
+        )
+
+        assertEquals(
+            listOf("com.example.one", "com.example.two"),
+            parsed.components.single { it.name == "com.example.DebugProvider" }.authorities
+        )
+    }
 
     private fun manifest(
         permissions: String = "",

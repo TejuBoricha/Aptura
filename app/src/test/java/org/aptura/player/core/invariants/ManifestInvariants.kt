@@ -31,7 +31,9 @@ class MergedManifest(
         val name: String,
         val exported: Boolean,
         val permission: String?,
-        val supportsPictureInPicture: Boolean = false
+        val supportsPictureInPicture: Boolean = false,
+        /** Provider authorities only; empty for every other component kind. */
+        val authorities: List<String> = emptyList()
     )
 
     companion object {
@@ -67,7 +69,12 @@ class MergedManifest(
                         // (providers never are by default).
                         exported = declared?.toBooleanStrictOrNull() ?: (kind != "provider" && element.children("intent-filter").isNotEmpty()),
                         permission = element.android("permission"),
-                        supportsPictureInPicture = element.android("supportsPictureInPicture")?.toBooleanStrictOrNull() ?: false
+                        supportsPictureInPicture = element.android("supportsPictureInPicture")?.toBooleanStrictOrNull() ?: false,
+                        authorities = element.android("authorities")
+                            ?.split(';')
+                            ?.map(String::trim)
+                            ?.filter(String::isNotBlank)
+                            .orEmpty()
                     )
                 }
             }
