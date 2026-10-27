@@ -38,7 +38,7 @@ No known P0 defect remains in the reviewed scope. The three data-integrity cavea
 | Responsive / adaptive | **A-** | The library is a real tablet index, not a stretched phone; large text is a first-class state. |
 | Accessibility | **B** | Touch targets and slider semantics are tested; TalkBack on hardware is still unverified. |
 | Data / file safety | **A-** | Copy-before-delete, URI remap for SAF rename, process-durable cancellation/resumption and explicit missing-item removal. |
-| Test / QA | **B+** | Strong Robolectric coverage, coarse pixel guards and a manifest capability matrix; debug-build instrumented E2E now runs in CI, while release-variant E2E remains manual. |
+| Test / QA | **B+** | Strong Robolectric coverage, coarse pixel guards and a manifest capability matrix; debug-build instrumented E2E runs in CI. Release-variant instrumentation was attempted and rejected because R8 strips test-only stdlib/coroutines members, so release verification is the artifact invariants plus a signed manual smoke pass. |
 | Evidence honesty | **B** | Library/Settings captures are clean; the player capture limitation is documented rather than hidden. |
 
 ---
@@ -72,7 +72,7 @@ No known P0 defect remains in the reviewed scope. The three data-integrity cavea
 
 - Real-device codec behavior, HDR, thermal throttling, battery cost, Bluetooth A/V sync and TalkBack.
 - PiP behavior on a device that does **not** support PiP; the emulator supports it, so the hidden-control state is covered by tests, not a screenshot.
-- Release-variant instrumented E2E under AGP 9.0.1; release verification remains a manual smoke test. Debug-build instrumented E2E now runs in CI.
+- Release instrumentation on the R8-minified app: attempted on 2026-10-27 and rejected because the test APK links against test-only Kotlin/coroutines symbols that the app pass removes. Debug-build instrumented E2E runs in CI; release verification remains `assembleRelease` + `verifyReleaseApk` + a signed manual smoke pass.
 - Large SAF copies at multi-gigabyte scale, removable SD-card removal during a transfer, and process-death recovery on physical devices.
 - A clean screenshot of the player's `SurfaceView` layer. The emulator tiles that layer under both SwiftShader and the host GPU; see 3.4.
 
@@ -506,11 +506,20 @@ All paths are relative to this folder.
 
 **Proof.** `MediaTransferJournalTest` (7), `MediaTransferWorkerTest` (5) and `MediaTransferSchedulerTest` (6) drive the journal, the restored worker and the scheduling guard directly; `MediaFileTransferTest` (6) covers the byte loop, progress, preflight and cancellation cleanup. The full gate passes. A connected-device kill during a multi-gigabyte SAF copy, including a provider that refuses partial-document deletion, remains a physical validation item.
 
-### 4.3 Release-variant instrumented E2E is still shelved
+### 4.3 Release-variant instrumented E2E is rejected
 
-**Why it is open.** AGP 9.0.1 does not create `connectedReleaseAndroidTest` from `testBuildType` alone; the opt-in `androidComponents.beforeVariants` work is documented but not enabled. Release verification is currently a manual smoke test.
+**What was tried (2026-10-27).** Setting `testBuildType` to `release` did create `connectedReleaseAndroidTest`; the test APK compiled, minified and installed, and the runner got past `AndroidJUnitRunner.onCreate`. The exact command was `gradlew -Paptura.testBuildType=release :app:connectedReleaseAndroidTest` on the API 35 tablet emulator. It then failed in sequence:
 
-**Next step.** Enable the device-test variant in a dedicated CI job, or accept debug-only instrumentation and keep the manual release smoke checklist.
+1. `NoClassDefFoundError: kotlin/LazyKt` from `TestDirCalculator`.
+2. `NoSuchFieldError` on `kotlin/time/Duration$Companion` after keeping `kotlin.LazyKt`.
+3. `NoClassDefFoundError: kotlinx/coroutines/JobKt` from Compose's `IdlingResourceRegistry` after keeping `kotlin.time.**`.
+4. `NoSuchMethodError: Job.complete()` after keeping `kotlinx.coroutines.JobKt`.
+
+**Cause.** The app's R8 pass removes or rewrites stdlib and coroutine members that only the test runner uses. The test APK is linked against the app's mapping, so every test-only keep uncovers the next dangling symbol. Keeping the whole stdlib/coroutines surface, or disabling app shrinking, would stop the test from exercising the shipped artifact. Test-APK minification cannot fix it because Kotlin and coroutines classes are provided by the app classloader, not bundled in the test APK.
+
+**Decision.** Do not chase R8 test scaffolding. Debug-build instrumented E2E remains the behavioral check; release verification stays `assembleRelease` + `verifyReleaseApk` + lint plus the signed manual smoke. The attempted build and ProGuard changes were reverted; the debug suite was re-run at 5/5 and the gate at 582/92.
+
+**Next step.** If release instrumentation becomes mandatory, the honest options are a dedicated non-minified `releaseTest` build type (which does not test the shipped artifact) or a device-farm smoke run of the signed release APK. Neither is worth adding today.
 
 ### 4.4 PiP-unsupported UI is test-only
 
@@ -679,7 +688,7 @@ The merged release manifest is now parsed for `<uses-feature>` and for the inten
 
 ### 6.8 Connected-device CI
 
-`.github/workflows/ci.yml` now has a separate `connected` job on an API 35 Pixel Tablet image. It runs all five instrumented tests: the two `DocumentsProviderRenameTest` cases against Android's real `DocumentsContract`, and the three `ApturaAppE2eTest` journeys (launch, rotation, system Back). The JVM gate stays fast and local; the connected job is the protected check for behavior that Robolectric cannot model. Its reports are uploaded even when it fails.
+`.github/workflows/ci.yml` now has a separate `connected` job on an API 35 Pixel Tablet image. It runs all five instrumented tests: the two `DocumentsProviderRenameTest` cases against Android's real `DocumentsContract`, and the three `ApturaAppE2eTest` journeys (launch, rotation, system Back). The JVM gate stays fast and local; the connected job is the protected check for behavior that Robolectric cannot model. Its reports are uploaded even when it fails. The job deliberately targets the debug build: the 2026-10-27 release-variant attempt is recorded in 4.3 and rejected, because a minified test APK cannot reliably link to an R8-optimized app.
 
 ---
 
@@ -691,7 +700,7 @@ These are not one-time fixes; they are the next layer of process.
 2. **The real `DocumentsProvider` path is now proven.** `DocumentsProviderRenameTest` (2, instrumented, API 35) renames through Android's `DocumentsContract` against a debug-only provider that allocates a new document ID; it asserts the new URI is returned, the old ID stops resolving and the extension rule still holds. `MediaRepositoryTest` proves the row, saved progress and bookmarks follow that URI. The connected job in `.github/workflows/ci.yml` now runs this test and the three app journey tests on an API 35 tablet image, so the proof is no longer local-only.
 3. **Exercise the durable transfer on physical storage.** The WorkManager/journal path is now covered at the JVM level by the journal, worker and scheduler suites, including resumed partial cleanup and process-start scheduling. The remaining step is a connected process-kill test during a large SAF copy, including a provider that refuses partial-document deletion and a grant that cannot be persisted.
 4. **The capability matrix is now enforced in every gate**: the merged manifest's features and categories are allow-listed, PiP is optional in both the store declaration and the activity flag, `DeviceCapabilities` has present/absent/sub-API tests, and storage-era behavior is pinned at API 29/30/35. The remaining step is to run the same matrix on a device farm, including a real PiP-absent image.
-5. **Release-variant instrumented E2E** on a device farm, or an explicit signed release smoke checklist in CI. The current manual release smoke is honest but not scalable.
+5. **Release-variant instrumentation is not a goal.** The 2026-10-27 attempt showed R8 removing test-only Kotlin/coroutines members; every keep rule uncovered the next dangling symbol, and broad keeps would stop the test from exercising the shipped artifact. Keep the debug E2E job and add an explicit signed-release smoke checklist in CI if release coverage must grow.
 6. **A physical-device lab pass** for codecs, HDR, thermal, Bluetooth and TalkBack. The emulator is a layout and logic tool, not a media-certification tool.
 7. **A design-review checklist** applied to every new screen: empty, loading, error, disabled, 200% font, narrow width, wide width, Light, Dark, scrolled, keyboard open, navigation bar inset, and a destructive action with a partial failure.
 8. **An audit cadence** that samples the product at the edges, not only the center: the user's cropped sidebar image found in one minute what a full-frame review missed for hours.
