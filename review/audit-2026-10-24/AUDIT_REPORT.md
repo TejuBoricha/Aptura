@@ -38,7 +38,7 @@ No known P0 defect remains in the reviewed scope. The three data-integrity cavea
 | Responsive / adaptive | **A-** | The library is a real tablet index, not a stretched phone; large text is a first-class state. |
 | Accessibility | **B** | Touch targets and slider semantics are tested; TalkBack on hardware is still unverified. |
 | Data / file safety | **A-** | Copy-before-delete, URI remap for SAF rename, process-durable cancellation/resumption and explicit missing-item removal. |
-| Test / QA | **B+** | Strong Robolectric coverage, coarse pixel guards and a manifest capability matrix; no release-variant instrumented E2E. |
+| Test / QA | **B+** | Strong Robolectric coverage, coarse pixel guards and a manifest capability matrix; debug-build instrumented E2E now runs in CI, while release-variant E2E remains manual. |
 | Evidence honesty | **B** | Library/Settings captures are clean; the player capture limitation is documented rather than hidden. |
 
 ---
@@ -72,7 +72,7 @@ No known P0 defect remains in the reviewed scope. The three data-integrity cavea
 
 - Real-device codec behavior, HDR, thermal throttling, battery cost, Bluetooth A/V sync and TalkBack.
 - PiP behavior on a device that does **not** support PiP; the emulator supports it, so the hidden-control state is covered by tests, not a screenshot.
-- Release-variant instrumented E2E under AGP 9.0.1; release verification remains a manual smoke test.
+- Release-variant instrumented E2E under AGP 9.0.1; release verification remains a manual smoke test. Debug-build instrumented E2E now runs in CI.
 - Large SAF copies at multi-gigabyte scale, removable SD-card removal during a transfer, and process-death recovery on physical devices.
 - A clean screenshot of the player's `SurfaceView` layer. The emulator tiles that layer under both SwiftShader and the host GPU; see 3.4.
 
@@ -524,11 +524,11 @@ All paths are relative to this folder.
 
 **Next step.** Capture on hardware, or use a `TextureView`-based debug build for screenshots if pixel evidence of the video layer is required. Do not change the production surface path solely for screenshots.
 
-### 4.6 The instrumented provider proof is outside the commit gate
+### 4.6 The instrumented proof runs in CI, not in the local commit gate
 
-**Why it is open.** `tools/gate.ps1` and CI run JVM/Robolectric tests only. `DocumentsProviderRenameTest` needs a connected device and a debug build, so it is currently a local command rather than a protected check. The debug-only provider is excluded from release and the merged-manifest guard now fails if its authority or class reaches the release manifest, but a regression in the instrumented wiring would not fail the gate.
+**Why it stays separate.** `tools/gate.ps1` remains JVM-only for fast local feedback. `DocumentsProviderRenameTest` needs a real `DocumentsProvider` and `ApturaAppE2eTest` needs a real activity, so `.github/workflows/ci.yml` now runs `:app:connectedDebugAndroidTest` on an API 35 Pixel Tablet image in its own job. The local command is unchanged. The debug-only provider is excluded from release and the merged-manifest guard fails if its authority or class reaches the release manifest.
 
-**Next step.** Add a connected-device job that runs `:app:connectedDebugAndroidTest` on an API 35 emulator. The authority check already fails the unit gate when the debug provider leaks.
+**Remaining risk.** GitHub emulator jobs can be slow or flaky. The separate job means an emulator outage cannot hide a unit, lint or release regression, but a red connected job still has to be investigated rather than ignored.
 
 ---
 
@@ -663,7 +663,7 @@ A layout that only works at the reviewer's window is no longer accepted.
 ### 6.6 Documentation
 
 - `DESIGN.md` now records the 248/88 dp sidebar, the 600/700 dp breakpoints, the 150% font fallback, the 68 x 48 chip, the 680 dp action bar, the shared speed rail, the player-dark rule, and the file-action contract, including URI remapping, rename-before-scan ordering, transfer progress/cancel/resumption and the missing-item rule.
-- `.agents/MEMORY.md` Part 74 records the first audit round; Part 75 records the data-integrity round; Part 76 records the visual/capability round; Part 77 records the real `DocumentsProvider` rename proof.
+- `.agents/MEMORY.md` Part 74 records the first audit round; Part 75 records the data-integrity round; Part 76 records the visual/capability round; Part 77 records the real `DocumentsProvider` rename proof; Part 78 records the process-durable transfer and the move-result contract.
 
 ### 6.7 Device capability matrix
 
@@ -677,6 +677,10 @@ The merged release manifest is now parsed for `<uses-feature>` and for the inten
 - `DeviceCapabilities.supportsPictureInPicture` is the single runtime check used by the activity and tested for present, absent and sub-API-26 devices.
 - Storage-era behavior is pinned at API 29 (no system trash), API 30 (trash available) and API 35 (trash stays MediaStore-only; mixed-provider batches are refused).
 
+### 6.8 Connected-device CI
+
+`.github/workflows/ci.yml` now has a separate `connected` job on an API 35 Pixel Tablet image. It runs all five instrumented tests: the two `DocumentsProviderRenameTest` cases against Android's real `DocumentsContract`, and the three `ApturaAppE2eTest` journeys (launch, rotation, system Back). The JVM gate stays fast and local; the connected job is the protected check for behavior that Robolectric cannot model. Its reports are uploaded even when it fails.
+
 ---
 
 ## 7. Future prevention steps
@@ -684,7 +688,7 @@ The merged release manifest is now parsed for `<uses-feature>` and for the inten
 These are not one-time fixes; they are the next layer of process.
 
 1. **Coarse pixel guards are now in place** for the scrolled Settings bar, the selection bar, the guide footer and the player's quick sheet under a Light app theme. They deliberately assert flat regions, not glyphs or golden files. The remaining step is a hardware-captured screenshot matrix for typography, illustrations and the player's video layer, where a golden image is the only honest evidence.
-2. **The real `DocumentsProvider` path is now proven.** `DocumentsProviderRenameTest` (2, instrumented, API 35) renames through Android's `DocumentsContract` against a debug-only provider that allocates a new document ID; it asserts the new URI is returned, the old ID stops resolving and the extension rule still holds. `MediaRepositoryTest` proves the row, saved progress and bookmarks follow that URI. The remaining step is to run the instrumented test in CI on a connected emulator, not only locally.
+2. **The real `DocumentsProvider` path is now proven.** `DocumentsProviderRenameTest` (2, instrumented, API 35) renames through Android's `DocumentsContract` against a debug-only provider that allocates a new document ID; it asserts the new URI is returned, the old ID stops resolving and the extension rule still holds. `MediaRepositoryTest` proves the row, saved progress and bookmarks follow that URI. The connected job in `.github/workflows/ci.yml` now runs this test and the three app journey tests on an API 35 tablet image, so the proof is no longer local-only.
 3. **Exercise the durable transfer on physical storage.** The WorkManager/journal path is now covered at the JVM level by the journal, worker and scheduler suites, including resumed partial cleanup and process-start scheduling. The remaining step is a connected process-kill test during a large SAF copy, including a provider that refuses partial-document deletion and a grant that cannot be persisted.
 4. **The capability matrix is now enforced in every gate**: the merged manifest's features and categories are allow-listed, PiP is optional in both the store declaration and the activity flag, `DeviceCapabilities` has present/absent/sub-API tests, and storage-era behavior is pinned at API 29/30/35. The remaining step is to run the same matrix on a device farm, including a real PiP-absent image.
 5. **Release-variant instrumented E2E** on a device farm, or an explicit signed release smoke checklist in CI. The current manual release smoke is honest but not scalable.
