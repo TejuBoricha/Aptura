@@ -5,8 +5,8 @@
 **Delta for the first round:** 56 files, +5,430 / -799 across `14f26d1^..90ce6b9`  
 **Delta for the data-integrity round:** 18 files, +1,389 / -402 across `48f6b43..65e54be`  
 **Delta for the visual/capability round:** includes the reusable pixel helper, four coarse pixel guards, the route-theme resolver and the manifest feature/category matrix  
-**Quality gate after the final code change:** **575 tests / 91 suites, 0 failures, 0 skipped**; lint 0 errors; `assembleRelease` + `verifyReleaseApk` clean
-**Runtime evidence:** `review/audit-2026-10-24/evidence/` (8 curated captures + UI XML); new visual guards are Robolectric pixel checks, not device screenshots
+**Quality gate after the final code change:** **582 tests / 92 suites, 0 failures, 0 skipped**; lint 0 errors; `assembleRelease` + `verifyReleaseApk` clean
+**Runtime evidence:** `review/audit-2026-10-24/evidence/` (9 curated captures + UI XML); new visual guards are Robolectric pixel checks, not device screenshots
 
 > This round was not a second hunt for the P0 playback defects fixed in the previous audit. It targeted the layer underneath those fixes: **features that were absent, controls that looked wired but were not, and UI that only worked at the reviewer's window size, font scale and theme.** The report records what was found, what changed, what is still open, why the earlier passes missed this class of defect, and what now prevents it from coming back.
 
@@ -193,7 +193,7 @@ Severity here is product severity, not the previous report's P0 scale: **P1** = 
 - `DeviceCapabilities.supportsPictureInPicture` is the single runtime check (API 26+ **and** the system feature), used by `MainActivity`.
 - The manifest now declares `android.software.picture_in_picture` with `required="false"`, so a device without PiP can install Aptura instead of being filtered out by the store. The manifest invariants require both halves: the optional feature and `android:supportsPictureInPicture="true"` on the activity.
 
-**Proof.** `PlayerPipAvailabilityTest` (1) on a phone without PiP; `PlayerWideTopBarTest` (2) on an 800 dp window confirms the remaining actions stay inline with full touch targets; `DeviceCapabilitiesTest` (3) covers feature present, feature absent and an API below 26; `MergedManifestInvariantsTest` (19) pins the optional declaration, rejects a required one, and rejects camera/telephony/location/microphone/Bluetooth/NFC/TV/Auto features or categories.
+**Proof.** `PlayerPipAvailabilityTest` (1) on a phone without PiP; `PlayerWideTopBarTest` (2) on an 800 dp window confirms the remaining actions stay inline with full touch targets; `DeviceCapabilitiesTest` (3) covers feature present, feature absent and an API below 26; `MergedManifestInvariantsTest` (21) pins the optional declaration, rejects a required one, rejects camera/telephony/location/microphone/Bluetooth/NFC/TV/Auto features or categories, and parses provider authorities before asserting the debug provider is absent.
 
 ---
 
@@ -418,6 +418,23 @@ The rule that keeps playback dark also lived inline in `MainNavigation`. Structu
 
 ---
 
+### F-22 - A denied move deletion hid the copies that already existed [P2]
+
+**Found (while exercising the durable move on the API 35 tablet).** The copy phase succeeded, Android showed its delete-consent dialog, and the reviewer tapped **Deny**. The result dialog said **Move not completed**, **0 of 1 videos moved**, and **Originals still in the library**. The video had in fact been copied to the selected folder; only the deletion was denied. Nothing in the dialog said a copy existed.
+
+**Why it mattered.** A user told that a move did not happen will reasonably retry it. The retry creates a second copy in the destination while the original is still in the library, so one intended move becomes two or three files. The partial-deletion case had the same gap: it reported the deletion count but not which copies remained in both places.
+
+**Why earlier reviews missed it.** The transfer tests asserted bytes, progress, cancellation, free space and the deletion counts. None asserted the **split outcome** of a move: deleted originals versus copies that survive a denial. The manual dialog check only confirmed that a result appeared, not that its sentence matched the disk.
+
+**Fix (this round).**
+- `moveResultMessage` is now a pure builder that takes the copied job, the deleted URIs, the retained originals and the titles. It reports the copy count independently of the deletion count.
+- A fully denied deletion produces **Copied, originals kept**, states that the videos now exist in both places, names them, and tells the user to delete the originals only after checking the copies. A partial result names the deleted count, the kept originals and any sources that were never copied. **Move complete** is reserved for every source copied and every original deleted.
+- The list of names stays bounded at three plus a count, so a large batch cannot turn the dialog into a wall of text.
+
+**Proof.** `MediaTransferResultMessagesTest` (5) pins complete, denied, partial, uncopied and bounded-name outcomes. The denied case explicitly asserts that the message contains **both places** and does not contain **Move not completed**. The before-fix dialog is captured in `evidence/09_move_denied_before_fix.png`: copy complete, deletion denied, yet the text says **0 of 1 videos moved**.
+
+---
+
 ## 3. Verification
 
 ### 3.1 Gate
@@ -425,12 +442,12 @@ The rule that keeps playback dark also lived inline in `MainNavigation`. Structu
 After the visual/capability round:
 
 ```
-575 tests / 91 suites / 0 failures / 0 skipped
+582 tests / 92 suites / 0 failures / 0 skipped
 lintDebug: 0 errors
 assembleRelease + verifyReleaseApk: clean
 ```
 
-The test counts were read from `app/build/test-results/testDebugUnitTest/*.xml`, not from a cached console line. The data-integrity round ended at **531 / 82**; the visual/capability round added **25 tests**; the durable-transfer round adds **19**: one resumed-copy case in `MediaFileTransferTest`, plus 18 journal, worker and scheduler cases that prove the process-durable path rather than only the byte loop.
+The test counts were read from `app/build/test-results/testDebugUnitTest/*.xml`, not from a cached console line. The data-integrity round ended at **531 / 82**; the visual/capability round added **25 tests**; the durable-transfer implementation added one resumed-copy case (included in the 557). This proof round adds **25**: 18 journal, worker and scheduler cases for the process-durable path, a release-manifest guard that parses provider authorities so the debug-only provider cannot ship, and 5 move-result cases that separate copying from deletion.
 
 The pixel tests are deliberately narrow. They capture the window synchronously and assert a flat fill region of one to a few pixels, away from text, rounded corners and hairlines. They catch a surface that vanishes, turns translucent or switches palette without freezing a screenshot that every font update would break.
 
@@ -459,6 +476,7 @@ All paths are relative to this folder.
 | `evidence/06_player_speed_sheet_dark.png` + `.xml` | Dark speed sheet with all eight speeds |
 | `evidence/07_guide_footer_light.png` + `.xml` | Guide page 5; fixed footer; last rows clear of the fade |
 | `evidence/08_library_final_light.png` | Final Light library, expanded sidebar, two fixtures, no selection |
+| `evidence/09_move_denied_before_fix.png` | F-22 before the fix: Android denied deletion, the copy existed, but the dialog said **Move not completed** and **0 of 1 videos moved** |
 
 ### 3.4 Evidence limitations
 
@@ -508,9 +526,9 @@ All paths are relative to this folder.
 
 ### 4.6 The instrumented provider proof is outside the commit gate
 
-**Why it is open.** `tools/gate.ps1` and CI run JVM/Robolectric tests only. `DocumentsProviderRenameTest` needs a connected device and a debug build, so it is currently a local command rather than a protected check. The debug-only provider is excluded from release, but a regression in the test wiring would not fail the gate.
+**Why it is open.** `tools/gate.ps1` and CI run JVM/Robolectric tests only. `DocumentsProviderRenameTest` needs a connected device and a debug build, so it is currently a local command rather than a protected check. The debug-only provider is excluded from release and the merged-manifest guard now fails if its authority or class reaches the release manifest, but a regression in the instrumented wiring would not fail the gate.
 
-**Next step.** Add a connected-device job that runs `:app:connectedDebugAndroidTest` on an API 35 emulator, plus an explicit release-manifest assertion that the test authority is absent. The existing exported-provider invariant already fails if a provider leaks into `main`, but the authority check makes the debug-only intent direct.
+**Next step.** Add a connected-device job that runs `:app:connectedDebugAndroidTest` on an API 35 emulator. The authority check already fails the unit gate when the debug provider leaks.
 
 ---
 
@@ -593,7 +611,7 @@ The gate now includes, among others:
 | `PlayerSheetThemePixelTest` | 1 | Quick speed sheet stays on the dark palette under a Light app theme |
 | `ThemeRouteTest` | 2 | Player route is dark for every app mode; other routes keep the chosen mode |
 | `DeviceCapabilitiesTest` | 3 | PiP present, absent, and below API 26 |
-| `MergedManifestInvariantsTest` | 19 | Permissions, exported components, features/categories, optional PiP |
+| `MergedManifestInvariantsTest` | 21 | Permissions, exported components, features/categories, optional PiP, provider-authority parsing, debug-provider authority absent |
 | `LibrarySidebarTest` | 2 | Wide index, 68 x 48 chip, 200% fallback |
 | `MediaStorageActionsTest` | 5 | Trash only for MediaStore on API 29/30/35; mixed-provider batches refused |
 | `PlayerSpeedRailTest` | 4 | Same ramp in both player sheets; chosen speed reaches the player |
@@ -603,10 +621,11 @@ The gate now includes, among others:
 | `MediaTransferJournalTest` | 7 | Field round trip, remaining sources, corrupt JSON, id-scoped clear |
 | `MediaTransferWorkerTest` | 5 | Partial removal, resume skip, post-copy idempotence, shortfall, cancellation, progress data |
 | `MediaTransferSchedulerTest` | 6 | Unfinished-journal refusal, journal-before-enqueue, queued refusal, id-scoped cancel, process-start resume |
+| `MediaTransferResultMessagesTest` | 5 | Complete, denied, partial, uncopied, bounded-name move outcomes |
 | `PlayerPipAvailabilityTest` | 1 | No PiP control without the feature |
 | `LibraryTouchTargetsTest` | 1 | 48 dp targets |
 
-That is **168 tests across the 34 suites most relevant to this round**; the full gate is **575 / 91**. Outside the unit gate, `DocumentsProviderRenameTest` (2) runs on a connected API 35 emulator against the debug-only provider; instrumented tests are not part of either count.
+That is **175 tests across the 35 suites most relevant to this round**; the full gate is **582 / 92**. Outside the unit gate, `DocumentsProviderRenameTest` (2) runs on a connected API 35 emulator against the debug-only provider; instrumented tests are not part of either count.
 
 ### 6.3 Layout tests at the sizes that break layouts
 

@@ -156,8 +156,6 @@ internal sealed interface LibraryActiveModal {
     ) : LibraryActiveModal
 }
 
-private data class TransferResultMessage(val title: String, val message: String)
-
 /**
  * Media Library Grid Screen (SCR-001, FR-LIB-001..015).
  * Built with Jetpack Compose following anti-slop taste guidelines and adaptive breakpoints.
@@ -435,25 +433,14 @@ private fun MediaLibraryContentView(
             // Copy-before-delete is unchanged. The journal stays until Android confirms the deletion, so a process
             // death at the consent dialog re-prompts on the next launch instead of silently leaving duplicates.
             deleteFlow.deleteAll(job.copiedUris) { deletion ->
-                val retainedCount = deletion.failedCount + job.failedUris.size
                 selectedUris = emptySet()
                 forgetTransferredClipboard(deletion.deletedUris, job.fromClipboard)
                 onRefresh()
-                transferResult = TransferResultMessage(
-                    title = when {
-                        deletion.deletedCount == 0 -> "Move not completed"
-                        retainedCount == 0 -> "Move complete"
-                        else -> "Move partially complete"
-                    },
-                    message = buildString {
-                        append("${deletion.deletedCount} of ${job.totalFiles} videos moved to the selected folder.")
-                        if (deletion.failedCount > 0) {
-                            append("\nOriginals still in the library: ${describeVideoUris(deletion.failedUris, titles)}.")
-                        }
-                        if (job.failedUris.isNotEmpty()) {
-                            append("\nNot copied (originals kept): ${describeVideoUris(job.failedUris, titles)}.")
-                        }
-                    }
+                transferResult = moveResultMessage(
+                    job = job,
+                    deletedUris = deletion.deletedUris,
+                    notDeletedUris = deletion.failedUris,
+                    titlesByUri = titles
                 )
                 clearTransferJournal(job.id)
             }
@@ -2032,14 +2019,6 @@ private fun shareVideos(context: android.content.Context, uris: List<String>) {
     } catch (_: Exception) {
         Toast.makeText(context, "No app can share these videos.", Toast.LENGTH_LONG).show()
     }
-}
-
-private fun describeVideoUris(uris: List<String>, titlesByUri: Map<String, String>): String {
-    val names = uris.map { uri ->
-        titlesByUri[uri] ?: Uri.parse(uri).lastPathSegment ?: "Unknown video"
-    }
-    val displayed = names.take(3).joinToString()
-    return if (names.size > 3) "$displayed, and ${names.size - 3} more" else displayed
 }
 
 @Composable
