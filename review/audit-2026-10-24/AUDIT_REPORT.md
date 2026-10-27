@@ -5,7 +5,7 @@
 **Delta for the first round:** 56 files, +5,430 / -799 across `14f26d1^..90ce6b9`  
 **Delta for the data-integrity round:** 18 files, +1,389 / -402 across `48f6b43..65e54be`  
 **Delta for the visual/capability round:** includes the reusable pixel helper, four coarse pixel guards, the route-theme resolver and the manifest feature/category matrix  
-**Quality gate after the final code change:** **557 tests / 88 suites, 0 failures, 0 skipped**; lint 0 errors; `assembleRelease` + `verifyReleaseApk` clean
+**Quality gate after the final code change:** **575 tests / 91 suites, 0 failures, 0 skipped**; lint 0 errors; `assembleRelease` + `verifyReleaseApk` clean
 **Runtime evidence:** `review/audit-2026-10-24/evidence/` (8 curated captures + UI XML); new visual guards are Robolectric pixel checks, not device screenshots
 
 > This round was not a second hunt for the P0 playback defects fixed in the previous audit. It targeted the layer underneath those fixes: **features that were absent, controls that looked wired but were not, and UI that only worked at the reviewer's window size, font scale and theme.** The report records what was found, what changed, what is still open, why the earlier passes missed this class of defect, and what now prevents it from coming back.
@@ -379,8 +379,9 @@ Severity here is product severity, not the previous report's P0 scale: **P1** = 
 - The library now shows a **TransferProgressDialog**: verb + count, current file, byte progress, real percentage, and a **Cancel** button that becomes "Cancelling…". It cannot be dismissed by tapping outside. A shortfall produces a **Not enough space** dialog naming both required and available sizes and confirming nothing was copied.
 - A cancellation result names how many files were copied, states that the unfinished file was removed, and states that no originals were deleted (or that originals are unchanged for a copy).
 - `MediaTransferWorker` and `MediaTransferJournal` now move that same copy contract outside the composition. WorkManager restores one unique job after process death; the journal commits the in-progress destination before writing and each completed source after writing, so a restored run removes only the partial document and skips completed sources. The selected SAF tree retains read/write permission for the worker, and the journal stays until move deletion consent completes.
+- No non-media notification is posted. R1 keeps the media-session `POST_NOTIFICATIONS` exemption (FR-PLAT-002), so a transfer notification would either need an undeclared permission or break that exemption. The in-app dialog remains the progress and Cancel surface; process start resumes an unfinished journal with `KEEP`, and the library rehydrates the same journal when it opens.
 
-**Proof.** `MediaFileTransferTest` (6) covers bytes copied with the source retained, byte progress reaching 100%, a shortfall before any write, a provider with no quota, a mid-copy cancellation that deletes the partial destination and leaves the source byte-identical, and resumed-source skipping. The full gate is green; a connected-device kill during a multi-gigabyte provider transfer remains physical-device work.
+**Proof.** `MediaFileTransferTest` (6) covers bytes copied with the source retained, byte progress reaching 100%, a shortfall before any write, a provider with no quota, a mid-copy cancellation that deletes the partial destination and leaves the source byte-identical, and resumed-source skipping. The durable path adds `MediaTransferJournalTest` (7: field round trip, id-scoped clear, corrupt JSON, remaining-source calculation), `MediaTransferWorkerTest` (5: partial removal and completed-source skipping in one resumed run, post-copy idempotence, preflight shortfall, cancelled journal, WorkData progress round trip) and `MediaTransferSchedulerTest` (6: unfinished-journal refusal, journal-before-enqueue, queued-work refusal, id-scoped cancel, process-start resume, finished/cancelled no-resume). The full gate is green; a connected-device kill during a multi-gigabyte provider transfer remains physical-device work.
 
 ---
 
@@ -424,12 +425,12 @@ The rule that keeps playback dark also lived inline in `MainNavigation`. Structu
 After the visual/capability round:
 
 ```
-557 tests / 88 suites / 0 failures / 0 skipped
+575 tests / 91 suites / 0 failures / 0 skipped
 lintDebug: 0 errors
 assembleRelease + verifyReleaseApk: clean
 ```
 
-The test counts were read from `app/build/test-results/testDebugUnitTest/*.xml`, not from a cached console line. The data-integrity round ended at **531 / 82**; the visual/capability round added **25 tests**, and the durable-transfer change adds one resumed-copy case in `MediaFileTransferTest`.
+The test counts were read from `app/build/test-results/testDebugUnitTest/*.xml`, not from a cached console line. The data-integrity round ended at **531 / 82**; the visual/capability round added **25 tests**; the durable-transfer round adds **19**: one resumed-copy case in `MediaFileTransferTest`, plus 18 journal, worker and scheduler cases that prove the process-durable path rather than only the byte loop.
 
 The pixel tests are deliberately narrow. They capture the window synchronously and assert a flat fill region of one to a few pixels, away from text, rounded corners and hairlines. They catch a surface that vanishes, turns translucent or switches palette without freezing a screenshot that every font update would break.
 
@@ -481,9 +482,11 @@ All paths are relative to this folder.
 
 **Finding.** Progress, cancellation and preflight previously lived in the library composition (`rememberCoroutineScope` plus `remember` state). Leaving the screen or process death cancelled the copy instead of resuming it.
 
-**Fix (`8ad9ebb`).** `MediaTransferWorker` runs the existing `MediaFileTransfer` byte loop through a unique WorkManager request. `MediaTransferJournal` uses synchronous SharedPreferences commits to record the stable job, completed source URIs and the in-progress destination document; a restored worker removes a truncated document and resumes only the remaining sources. The library observes WorkManager progress, rehydrates after process death, retains the journal through move-deletion consent, and persists read/write SAF grants when the destination is selected. Cancellation is journaled before WorkManager cancellation, and a copy-completion race cannot turn a late Cancel into source deletion.
+**Fix (`8ad9ebb`, proof added after).** `MediaTransferWorker` runs the existing `MediaFileTransfer` byte loop through a unique WorkManager request. `MediaTransferJournal` uses synchronous SharedPreferences commits to record the stable job, completed source URIs and the in-progress destination document; a restored worker removes a truncated document and resumes only the remaining sources. The library observes WorkManager progress, rehydrates after process death, retains the journal through move-deletion consent, and persists read/write SAF grants when the destination is selected. Cancellation is journaled before WorkManager cancellation, and a copy-completion race cannot turn a late Cancel into source deletion. `ApturaApplication` also calls `resumePending` at process start, so a run WorkManager preempted while no library screen existed is restored without waiting for the screen.
 
-**Proof.** `MediaFileTransferTest` (6) covers bytes, progress, space shortfall, no-quota fallback, cancellation cleanup and resumed-source skipping. The full gate passes. A connected-device kill during a multi-gigabyte SAF copy remains a physical validation item.
+**Why no notification.** WorkManager can post a progress notification through a foreground service, but that is a non-media notification. R1 intentionally has no `POST_NOTIFICATIONS` permission: the media-session exemption covers playback, and adding a transfer notification would either break FR-PLAT-002 or leave the notification undeliverable on Android 13+. The in-app transfer dialog is the progress and Cancel surface; the journal, not a notification, is the durable state.
+
+**Proof.** `MediaTransferJournalTest` (7), `MediaTransferWorkerTest` (5) and `MediaTransferSchedulerTest` (6) drive the journal, the restored worker and the scheduling guard directly; `MediaFileTransferTest` (6) covers the byte loop, progress, preflight and cancellation cleanup. The full gate passes. A connected-device kill during a multi-gigabyte SAF copy, including a provider that refuses partial-document deletion, remains a physical validation item.
 
 ### 4.3 Release-variant instrumented E2E is still shelved
 
@@ -597,10 +600,13 @@ The gate now includes, among others:
 | `PlayerWideTopBarTest` | 2 | Wide bar actions stay inline; PiP omitted when absent |
 | `PlaybackSpeedOptionsTest` | 2 | Shared list and labels |
 | `MediaFileTransferTest` | 6 | Bytes copied, progress, space shortfall, no-quota fallback, cancellation cleanup, resumed-source skipping |
+| `MediaTransferJournalTest` | 7 | Field round trip, remaining sources, corrupt JSON, id-scoped clear |
+| `MediaTransferWorkerTest` | 5 | Partial removal, resume skip, post-copy idempotence, shortfall, cancellation, progress data |
+| `MediaTransferSchedulerTest` | 6 | Unfinished-journal refusal, journal-before-enqueue, queued refusal, id-scoped cancel, process-start resume |
 | `PlayerPipAvailabilityTest` | 1 | No PiP control without the feature |
 | `LibraryTouchTargetsTest` | 1 | 48 dp targets |
 
-That is **150 tests across the 31 suites most relevant to this round**; the full gate is **557 / 88**. Outside the unit gate, `DocumentsProviderRenameTest` (2) runs on a connected API 35 emulator against the debug-only provider; instrumented tests are not part of either count.
+That is **168 tests across the 34 suites most relevant to this round**; the full gate is **575 / 91**. Outside the unit gate, `DocumentsProviderRenameTest` (2) runs on a connected API 35 emulator against the debug-only provider; instrumented tests are not part of either count.
 
 ### 6.3 Layout tests at the sizes that break layouts
 
@@ -660,7 +666,7 @@ These are not one-time fixes; they are the next layer of process.
 
 1. **Coarse pixel guards are now in place** for the scrolled Settings bar, the selection bar, the guide footer and the player's quick sheet under a Light app theme. They deliberately assert flat regions, not glyphs or golden files. The remaining step is a hardware-captured screenshot matrix for typography, illustrations and the player's video layer, where a golden image is the only honest evidence.
 2. **The real `DocumentsProvider` path is now proven.** `DocumentsProviderRenameTest` (2, instrumented, API 35) renames through Android's `DocumentsContract` against a debug-only provider that allocates a new document ID; it asserts the new URI is returned, the old ID stops resolving and the extension rule still holds. `MediaRepositoryTest` proves the row, saved progress and bookmarks follow that URI. The remaining step is to run the instrumented test in CI on a connected emulator, not only locally.
-3. **Exercise the durable transfer on physical storage.** The WorkManager/journal path is now in place and reuses `MediaFileTransfer`; the remaining step is a connected process-kill test during a large SAF copy, including a provider that refuses partial-document deletion.
+3. **Exercise the durable transfer on physical storage.** The WorkManager/journal path is now covered at the JVM level by the journal, worker and scheduler suites, including resumed partial cleanup and process-start scheduling. The remaining step is a connected process-kill test during a large SAF copy, including a provider that refuses partial-document deletion and a grant that cannot be persisted.
 4. **The capability matrix is now enforced in every gate**: the merged manifest's features and categories are allow-listed, PiP is optional in both the store declaration and the activity flag, `DeviceCapabilities` has present/absent/sub-API tests, and storage-era behavior is pinned at API 29/30/35. The remaining step is to run the same matrix on a device farm, including a real PiP-absent image.
 5. **Release-variant instrumented E2E** on a device farm, or an explicit signed release smoke checklist in CI. The current manual release smoke is honest but not scalable.
 6. **A physical-device lab pass** for codecs, HDR, thermal, Bluetooth and TalkBack. The emulator is a layout and logic tool, not a media-certification tool.

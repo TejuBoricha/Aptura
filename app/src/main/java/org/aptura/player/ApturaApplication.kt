@@ -8,6 +8,7 @@ import android.provider.MediaStore
 import androidx.core.content.ContextCompat
 import androidx.work.Configuration
 import org.aptura.player.data.scanner.MediaScanScheduler
+import org.aptura.player.data.transfer.MediaTransferScheduler
 import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
@@ -42,6 +43,8 @@ open class ApturaApplication : Application(), SingletonImageLoader.Factory, Conf
 
         // Index new videos without the user having to press Refresh (audit P0-09).
         MediaScanScheduler.scheduleOnProcessStart(this)
+        // A transfer that WorkManager preempted while no library screen existed resumes from its journal.
+        runCatching { MediaTransferScheduler.resumePending(this) }
         observeMediaStoreChanges()
     }
 

@@ -153,14 +153,6 @@ class MediaTransferWorker(
         const val KEY_TOTAL_BYTES = "total_bytes"
         const val KEY_CURRENT_NAME = "current_name"
 
-        fun MediaTransferProgress.toWorkData(): Data = workDataOf(
-            KEY_COMPLETED_FILES to completedFiles,
-            KEY_TOTAL_FILES to totalFiles,
-            KEY_COPIED_BYTES to copiedBytes,
-            KEY_TOTAL_BYTES to totalBytes,
-            KEY_CURRENT_NAME to currentName
-        )
-
         fun progressFrom(data: Data): MediaTransferProgress? {
             val total = data.getInt(KEY_TOTAL_FILES, 0)
             if (total <= 0) return null
@@ -174,3 +166,11 @@ class MediaTransferWorker(
         }
     }
 }
+
+internal fun MediaTransferProgress.toWorkData(): Data = workDataOf(
+    MediaTransferWorker.KEY_COMPLETED_FILES to completedFiles,
+    MediaTransferWorker.KEY_TOTAL_FILES to totalFiles,
+    MediaTransferWorker.KEY_COPIED_BYTES to copiedBytes,
+    MediaTransferWorker.KEY_TOTAL_BYTES to totalBytes,
+    MediaTransferWorker.KEY_CURRENT_NAME to currentName
+)

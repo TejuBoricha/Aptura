@@ -57,6 +57,16 @@ object MediaTransferScheduler {
         enqueue(context, job, ExistingWorkPolicy.KEEP)
     }
 
+    /**
+     * Process start is the safety net for a run WorkManager preempted while no library screen existed. The journal
+     * is the only durable record of an unfinished copy; `KEEP` leaves an already-restored request untouched.
+     */
+    fun resumePending(context: Context) {
+        val job = MediaTransferJournal.read(context) ?: return
+        if (job.cancelled || job.copyFinished) return
+        enqueue(context, job, ExistingWorkPolicy.KEEP)
+    }
+
     fun cancel(context: Context, jobId: String) {
         var shouldCancelWork = false
         val updated = MediaTransferJournal.update(context) { current ->
