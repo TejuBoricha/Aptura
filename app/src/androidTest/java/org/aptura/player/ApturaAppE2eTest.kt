@@ -1,5 +1,6 @@
 package org.aptura.player
 
+import android.Manifest
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -30,8 +31,10 @@ private class SeedAppEnvironmentRule : TestRule {
         override fun evaluate() {
             val instrumentation = InstrumentationRegistry.getInstrumentation()
             // Allow the library to proceed past the media access gate
-            instrumentation.uiAutomation
-                .executeShellCommand("pm grant org.aptura.player android.permission.READ_MEDIA_VIDEO")
+            instrumentation.uiAutomation.grantRuntimePermission(
+                instrumentation.targetContext.packageName,
+                Manifest.permission.READ_MEDIA_VIDEO
+            )
             // Mark the (first-run) onboarding guide as already seen, so MainActivity
             // opens straight on the library (start destination is gated on this flag)
             runBlocking {
@@ -70,7 +73,13 @@ class ApturaAppE2eTest {
      * library shows the "All Videos" filter chip (rendered only when videos exist).
      */
     private fun waitForLibraryLoaded(timeoutMillis: Long = 15_000) {
-        val labels = listOf("No videos found", "Scan Device", "All Videos")
+        val labels = listOf(
+            "No videos found",
+            "Storage Permission Required",
+            "Scan Device",
+            "All Videos",
+            "Search videos"
+        )
         composeTestRule.waitUntil(timeoutMillis = timeoutMillis) {
             labels.any { label ->
                 runCatching {
@@ -88,15 +97,31 @@ class ApturaAppE2eTest {
      */
     private fun dismissOnboardingIfShown() {
         runCatching {
-            composeTestRule.onNodeWithText("Skip")
-                .assertIsDisplayed()
-                .performClick()
-            composeTestRule.waitForIdle()
+            composeTestRule.waitUntil(timeoutMillis = 3_000) {
+                runCatching {
+                    composeTestRule.onNodeWithText("Skip").assertIsDisplayed()
+                    true
+                }.getOrDefault(false)
+            }
+            composeTestRule.onNodeWithText("Skip").performClick()
+            composeTestRule.waitUntil(timeoutMillis = 5_000) {
+                runCatching {
+                    composeTestRule.onNodeWithText("Start watching").assertIsDisplayed()
+                    true
+                }.getOrDefault(false)
+            }
+            composeTestRule.onNodeWithText("Start watching").performClick()
         }
         runCatching {
-            composeTestRule.onNodeWithText("Start watching")
-                .assertIsDisplayed()
-                .performClick()
+            composeTestRule.waitUntil(timeoutMillis = 5_000) {
+                runCatching {
+                    composeTestRule
+                        .onNodeWithText("Continue without access (Limited Mode)")
+                        .assertIsDisplayed()
+                    true
+                }.getOrDefault(false)
+            }
+            composeTestRule.onNodeWithText("Continue without access (Limited Mode)").performClick()
         }
         composeTestRule.waitForIdle()
     }
@@ -126,6 +151,8 @@ class ApturaAppE2eTest {
 
         // Fresh install: go through onboarding before exercising rotation
         dismissOnboardingIfShown()
+        // Do not rotate while the initial library scan is still rendering its loading state.
+        waitForLibraryLoaded()
 
         // Rotate to landscape
         device.setOrientationLeft()
