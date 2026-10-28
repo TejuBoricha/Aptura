@@ -136,8 +136,9 @@ These settings live in GitHub, not in the repository, so only the owner can appl
      Require conversation resolution.
    - Require status checks to pass: `verify` and `connected`, with **Require branches to be up to date before
      merging** turned on.
-2. **Labels:** `agent-ready` (owner-only signal), plus `claimed:claude`, `claimed:codex`, `claimed:opencode`,
-   `claimed:antigravity`, and one per other tool you use.
+2. **Labels:** created automatically by the **Labels** workflow (`.github/workflows/labels.yml`) when it reaches
+   `main`: `agent-ready` (owner-only signal), `task`, and `claimed:<tool>` for each tool. To add a tool, edit that
+   file.
 3. **Secret protection:** Settings → Code security → enable secret scanning and push protection.
 4. **Agent tokens:** give each tool its own fine-grained token, scoped to this repository, with contents and pull
    request write access. Grant no admin rights, so no agent can change the ruleset.
