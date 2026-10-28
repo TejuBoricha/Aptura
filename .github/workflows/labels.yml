@@ -1,0 +1,29 @@
+name: Labels
+
+# Creates the labels the agent workflow uses (docs/AGENT_WORKFLOW.md), so nobody has to make them by hand.
+# Runs when this file changes on main, or manually from the Actions tab. --force updates colour and description of
+# labels that already exist and never deletes anything.
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/labels.yml]
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Create or update labels
+        run: |
+          gh label create "agent-ready" --force --color 0E8A16 --description "Owner approved: an AI agent may start this"
+          gh label create "task" --force --color 1D76DB --description "Scoped task from the Agent task form"
+          for tool in claude codex opencode antigravity cursor copilot; do
+            gh label create "claimed:$tool" --force --color FBCA04 --description "Being worked on by $tool"
+          done
