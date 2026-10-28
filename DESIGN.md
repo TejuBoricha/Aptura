@@ -211,6 +211,32 @@ val ApturaTypography = Typography(
 - **Runtime checks live in `DeviceCapabilities`:** a screen must not call `hasSystemFeature` for a product-level capability on its own, or two surfaces can disagree about the same device.
 - **Storage eras are explicit:** system trash is offered only for MediaStore URIs on API 30+, never on API 29, and never for a batch that mixes MediaStore with another provider.
 
+### 5.6 Player Sheets and Settings Controls
+
+Every player sheet (Audio, Subtitles, Playback tools, Speed, Queue) is built from one set of controls in `ui/player/PlayerSheetChrome.kt` and `ui/player/PlayerControls.kt`. A tab must not bring its own pill, slider or stepper.
+
+- **Chrome:** `PlayerSheetHeader` (icon tile, title, one-line status subtitle that turns accent when something is active, close button) and `PlayerSheetTabs`. One header and one tab style for every sheet.
+- **Sections:** `SheetSection` is a neutral uppercase label above a `SurfaceElevated1` panel with a 16dp radius and a hairline `BorderSubtle` border. An optional trailing action (Reset, Clear, +5 min) sits on the label row, not inside the panel.
+- **On/off is always a real `Switch`** (`SheetSwitchRow`), and the whole row toggles it. Never use ON/OFF text pills.
+- **One-of-N:** a short fixed set (sleep durations, aspect ratio, subtitle size) uses the Settings `SegmentedPicker`. A list with descriptions (audio tracks, decoder) uses `SheetOptionRow`, where a check marks the choice, not colour alone.
+- **Sliders:** use `ApturaSlider` (4dp track, 20dp thumb). The fill grows from an `origin`, so "Normal" in the middle reads as zero, with a tick at the origin. It exposes `setProgress` and a spoken value. Picture values read as relative percentages ("Normal", "+10%", "−20%") and snap to whole percents.
+- **Timing offsets** (audio sync, subtitle timing) use `TimingOffsetControl`:
+  - a large readout with a signed value ("+150 ms", "−250 ms", using U+2212);
+  - one sentence saying what the value does;
+  - Reset when the value is non-zero;
+  - 48dp −/+ step buttons that **repeat while held** (400ms delay, then every 90ms; a tap is exactly one step);
+  - a slider snapped to the step;
+  - both directions named in words under the slider.
+- **Sign convention:** a positive audio offset delays the sound. Bluetooth headphones already play sound late, so their fix is **negative** ("Sound earlier"). When Bluetooth output is connected and sync is at 0, the Audio sync section offers a one-tap "Try −200 ms" starting point. Never ship device presets that push the offset the wrong way.
+- **Sleep timer** (FR-CTRL-009):
+  - The choices are Off / 15 / 30 / 45 / 60 min, plus an "At the end of this video" switch.
+  - "At the end of this video" pauses when the item ends, even under Repeat one, and does not start Up Next. It fires once.
+  - The sound fades out over the last 10 seconds using the player's own volume, never the system volume. Full volume returns after the pause and after cancel or extend.
+  - A running timer offers "+5 min", which adds to the time left instead of restarting the countdown.
+  - While a timer is set, the HUD shows "Sleep in m:ss" or "Sleep at end" under the title.
+- **Frame by frame** shows the position to the millisecond (`1:02:03.417`).
+- **Reset this video** names what it resets: speed, aspect ratio, decoder, and audio and subtitle sync.
+
 ---
 
 ## 6. Component Style Guide (Jetpack Compose)
@@ -235,6 +261,28 @@ val ApturaTypography = Typography(
 // Examples: "4K", "10-BIT", "HEVC", "ASS", "5.1"
 ```
 
+### 6.3 Shared Design Kit (`ui/components/ApturaDesignKit.kt`)
+
+Dialogs, buttons and menus come from the kit, so every screen has the same shapes, order and tone.
+
+- **Buttons:** `ApturaButton`, `ApturaOutlinedButton` and `ApturaTextButton`, each with an `ApturaTone` (Accent, Neutral or Destructive). Destructive actions are never Accent.
+- **Dialogs:** `ApturaDialog` has a fixed button order: the dismiss action on the left, the confirming action on the right, and an optional `DialogAlternative`. Dialogs that ask for a choice use `DialogOptionRow`.
+- **Menus:** `ApturaMenuItem` (icon plus label, destructive in `StatusError`) and `ApturaMenuCaption`.
+- **Structure:** `SectionTitle` for headings, `NoticeBanner` for non-blocking notices with actions, and `SkeletonBlock` for loading placeholders.
+- **Copy:** use sentence case everywhere ("All videos", "Reset to defaults"), plain language over jargon, and say the consequence of an action, not only its name.
+
+### 6.4 Design Review Gallery
+
+`app/src/test/.../ui/visual/` renders real screens, sheets and dialogs with representative data to PNG through Robolectric native graphics. It is a review tool, not a regression test, and runs only when `APTURA_GALLERY_DIR` is set:
+
+```
+APTURA_GALLERY_DIR=/tmp/gallery ./gradlew :app:testDebugUnitTest --tests '*GalleryTest*'
+```
+
+- Run the gallery classes one at a time if the suite timeout trips.
+- Picture adjustments stay at their defaults in gallery states, because a non-default adjustment switches the video to a `TextureView`, which cannot be drawn to a software canvas.
+- Sheets show only what fits on screen and do not scroll under Robolectric. For long tabs, render the tab content directly; `tPlaybackContent` is an example.
+
 ---
 
 ## 7. Explicit Design Guardrails (DOs & DON'Ts)
@@ -248,6 +296,8 @@ val ApturaTypography = Typography(
 6. **Never use generic standard Android dialogs** with default light themes; always theme dialogs with `SurfaceElevated2` and `ApturaTypography`.
 7. **Never ship a control that is not wired.** No fake success, no placeholder toast, no "Picture in Picture" entry on a device without the feature, no speed value that only one surface can set.
 8. **Never show light player chrome when the app is Light.** The player and every sheet it opens use the dark palette, including the speed, subtitle, audio, queue and advanced sheets.
+9. **Never build a one-off control inside a player sheet.** Use the player controls in §5.6; a new need extends them.
+10. **Never label a timing offset with a bare number or a device name.** Say which way the sound or text moves.
 
 ### ✅ ALWAYS DO:
 1. **Always use tabular digits (`tnum`)** for timecodes, durations, bitrates, and counters to prevent UI jitter.
