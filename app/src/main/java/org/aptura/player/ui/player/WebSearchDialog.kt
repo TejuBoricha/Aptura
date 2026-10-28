@@ -78,9 +78,9 @@ fun WebSearchDialog(
 
     val providers = remember {
         listOf(
-            Triple(0, "Subdl", "Direct multi-language .srt releases & sync hashes"),
-            Triple(1, "OpenSubtitles Web", "Massive community-contributed subtitle index"),
-            Triple(2, "Google Search", "Universal fallback search with exact release title")
+            Triple(0, "Subdl", "Subtitle files in many languages"),
+            Triple(1, "OpenSubtitles Web", "Large community-made subtitle library"),
+            Triple(2, "Google Search", "A general web search for this title")
         )
     }
 
@@ -128,12 +128,12 @@ fun WebSearchDialog(
                         }
                         Column {
                             Text(
-                                text = "Search Subtitles on Web",
+                                text = "Find subtitles online",
                                 style = ApturaTypography.headlineMedium.copy(fontSize = 17.sp),
                                 color = ApturaColors.TextHighEmphasis
                             )
                             Text(
-                                text = "Sanitized query for maximum search accuracy",
+                                text = "Opens your browser. Your video never leaves the device.",
                                 style = ApturaTypography.labelSmall,
                                 color = ApturaColors.TextMediumEmphasis
                             )
@@ -156,7 +156,7 @@ fun WebSearchDialog(
                 // Query Input Field
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
-                        text = "SEARCH QUERY",
+                        text = "SEARCH FOR",
                         style = ApturaTypography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
                         color = ApturaColors.TextMediumEmphasis
                     )
@@ -204,7 +204,7 @@ fun WebSearchDialog(
                 // Provider Selection
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
-                        text = "SEARCH PROVIDER",
+                        text = "SEARCH WITH",
                         style = ApturaTypography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
                         color = ApturaColors.TextMediumEmphasis
                     )
@@ -349,7 +349,7 @@ fun WebSearchDialog(
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Text(
-                                text = "Search in Browser",
+                                text = "Search in browser",
                                 style = ApturaTypography.labelSmall.copy(
                                     fontWeight = FontWeight.Bold,
                                     color = ApturaColors.TextOnAccent

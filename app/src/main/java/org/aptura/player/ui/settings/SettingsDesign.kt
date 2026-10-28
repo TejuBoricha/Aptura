@@ -406,7 +406,7 @@ internal fun AccentPickerRow(
                     Spacer(Modifier.height(4.dp))
                     Text(
                         text = accent.label,
-                        style = ApturaTypography.labelSmall.copy(fontSize = 10.sp),
+                        style = ApturaTypography.labelMedium.copy(fontFeatureSettings = ""),
                         color = if (isSelected) ApturaColors.TextHighEmphasis else ApturaColors.TextMediumEmphasis,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                         maxLines = 1

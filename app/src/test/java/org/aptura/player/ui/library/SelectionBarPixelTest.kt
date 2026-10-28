@@ -101,9 +101,9 @@ class SelectionBarPixelTest {
 
         val bar = composeRule.onNodeWithTag("selection_action_bar")
             .getUnclippedBoundsInRoot()
-        val expected = ApturaColors.SurfaceElevated1
-        // Four dp inside the left edge and sixteen dp below/above the rounded corners is a pure fill strip: inside
-        // the 12 dp content padding, clear of both the label and the 14 dp corner radius.
+        val expected = ApturaColors.SurfaceElevated2
+        // Four dp inside the left edge and sixteen dp below/above the rounded corners is a pure fill strip: past the
+        // 1 dp outline, left of the close glyph, and clear of the 18 dp corner radius.
         val left = composeRule.toPx(bar.left + 4.dp)
         val right = left + 1
         val top = composeRule.toPx(bar.top + 16.dp)

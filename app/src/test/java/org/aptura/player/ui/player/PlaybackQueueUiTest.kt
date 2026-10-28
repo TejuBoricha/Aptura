@@ -52,7 +52,7 @@ class PlaybackQueueUiTest {
         }
 
         // Verify title & active indicator
-        composeTestRule.onNodeWithText("Playback Queue").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Queue").assertIsDisplayed()
         composeTestRule.onNodeWithText("NOW").assertIsDisplayed()
 
         // Verify items displayed
@@ -95,7 +95,7 @@ class PlaybackQueueUiTest {
         assertEquals(0, movedTo)
 
         // Clear queue
-        composeTestRule.onNodeWithContentDescription("Clear Queue").performClick()
+        composeTestRule.onNodeWithContentDescription("Clear queue").performClick()
         assertTrue(cleared)
     }
 
@@ -119,7 +119,7 @@ class PlaybackQueueUiTest {
         }
 
         // Toggle play mode chip ("Play All" for NORMAL mode)
-        composeTestRule.onNodeWithText("Play All").performClick()
+        composeTestRule.onNodeWithText("Play all").performClick()
         assertTrue(playModeToggled)
     }
 
@@ -152,11 +152,11 @@ class PlaybackQueueUiTest {
         assertTrue(replayClicked)
 
         // Test Play Now button
-        composeTestRule.onNodeWithText("Play Now").performClick()
+        composeTestRule.onNodeWithText("Play now").performClick()
         assertTrue(playNowClicked)
 
         // Test Cancel Auto-Advance button
-        composeTestRule.onNodeWithText("Cancel Auto-Advance").performClick()
+        composeTestRule.onNodeWithText("Stop countdown").performClick()
         assertTrue(cancelClicked)
     }
 }

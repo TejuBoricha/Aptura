@@ -154,7 +154,7 @@ fun OnboardingScreen(
                         else -> {
                             PageHeading(
                                 label = if (hasStorageAccess) "Ready" else "Access",
-                                title = if (hasStorageAccess) "You're all set" else "Access Your Library",
+                                title = if (hasStorageAccess) "You're all set" else "Let Aptura see your videos",
                                 body = if (hasStorageAccess) {
                                     "You can start watching now."
                                 } else {
@@ -257,7 +257,7 @@ fun OnboardingScreen(
                 }
                 else -> {
                     Button(onClick = onRequestPermissionClick, modifier = buttonModifier, shape = CircleShape, colors = primaryColors) {
-                        Text(text = "Grant Media Access", style = ApturaTypography.labelLarge, fontWeight = FontWeight.Bold)
+                        Text(text = "Allow access", style = ApturaTypography.labelLarge, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -267,7 +267,7 @@ fun OnboardingScreen(
                 when {
                     page == LAST_PAGE && !hasStorageAccess -> TextButton(onClick = onContinueWithoutPermissionClick) {
                         Text(
-                            text = "Continue without access (Limited Mode)",
+                            text = "Continue with limited access",
                             style = ApturaTypography.bodyMedium,
                             color = ApturaColors.TextMediumEmphasis
                         )
@@ -328,7 +328,7 @@ private fun PageIndicator(current: Int) {
             val selected = index == current
             val width = animateDpAsState(if (selected) 24.dp else 8.dp, label = "indicator-width")
             val color = animateColorAsState(
-                if (selected) ApturaColors.AccentPrimary else ApturaColors.SurfaceElevated3,
+                if (selected) ApturaColors.AccentPrimary else ApturaColors.TextLowEmphasis.copy(alpha = 0.35f),
                 label = "indicator-color"
             )
             Box(

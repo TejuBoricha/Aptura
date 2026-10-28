@@ -169,8 +169,8 @@ class PlayerScreenUiTest {
         composeTestRule.onNodeWithContentDescription("Rewind 10s").assertDoesNotExist()
 
         // Locked indicator pill must be visible and clickable to toggle lock
-        composeTestRule.onNodeWithText("Locked • Tap to unlock").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Locked • Tap to unlock").performClick()
+        composeTestRule.onNodeWithText("Unlock").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Unlock").performClick()
         assertTrue(unlockClicked)
     }
 

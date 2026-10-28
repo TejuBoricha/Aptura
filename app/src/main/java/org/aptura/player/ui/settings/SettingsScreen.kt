@@ -96,6 +96,8 @@ import org.aptura.player.domain.repository.LibraryStatistics
 import org.aptura.player.theme.AccentColor
 import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
+import org.aptura.player.ui.components.ApturaDialog
+import org.aptura.player.ui.components.ApturaTone
 import org.aptura.player.theme.ThemeMode
 import org.aptura.player.ui.components.SpeedRail
 import org.aptura.player.ui.library.MediaFormatters
@@ -180,60 +182,34 @@ fun SettingsScreen(
     }
 
     if (isDeleteDiagnosticsDialogOpen) {
-        AlertDialog(
+        ApturaDialog(
             onDismissRequest = { isDeleteDiagnosticsDialogOpen = false },
-            containerColor = ApturaColors.SurfaceElevated2,
-            shape = RoundedCornerShape(24.dp),
-            title = { Text("Delete diagnostic data?", color = ApturaColors.TextHighEmphasis) },
-            text = {
-                Text(
-                    "This erases the error log and crash reports Aptura keeps on this device. " +
-                        "Nothing was ever sent anywhere, and this cannot be undone.",
-                    color = ApturaColors.TextMediumEmphasis
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        isDeleteDiagnosticsDialogOpen = false
-                        onDeleteDiagnosticData()
-                        Toast.makeText(context, "Diagnostic data deleted", Toast.LENGTH_SHORT).show()
-                    }
-                ) { Text("Delete", color = ApturaColors.StatusError) }
-            },
-            dismissButton = {
-                TextButton(onClick = { isDeleteDiagnosticsDialogOpen = false }) {
-                    Text("Cancel", color = ApturaColors.TextMediumEmphasis)
-                }
+            icon = Icons.Default.DeleteForever,
+            title = "Delete diagnostic data?",
+            message = "This erases the error log and crash reports Aptura keeps on this device. " +
+                "Nothing was ever sent anywhere, and this can't be undone.",
+            confirmLabel = "Delete",
+            confirmTone = ApturaTone.Destructive,
+            onConfirm = {
+                isDeleteDiagnosticsDialogOpen = false
+                onDeleteDiagnosticData()
+                Toast.makeText(context, "Diagnostic data deleted", Toast.LENGTH_SHORT).show()
             }
         )
     }
 
     if (isResetPlaybackDialogOpen) {
-        AlertDialog(
+        ApturaDialog(
             onDismissRequest = { isResetPlaybackDialogOpen = false },
-            containerColor = ApturaColors.SurfaceElevated2,
-            shape = RoundedCornerShape(24.dp),
-            title = { Text("Reset playback defaults?", color = ApturaColors.TextHighEmphasis) },
-            text = {
-                Text(
-                    "This restores the default speed, aspect ratio, seek step, background-audio preference, and auto-advance timing.",
-                    color = ApturaColors.TextMediumEmphasis
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        isResetPlaybackDialogOpen = false
-                        onResetPlaybackDefaults()
-                        Toast.makeText(context, "Playback defaults restored", Toast.LENGTH_SHORT).show()
-                    }
-                ) { Text("Reset", color = ApturaColors.AccentPrimary) }
-            },
-            dismissButton = {
-                TextButton(onClick = { isResetPlaybackDialogOpen = false }) {
-                    Text("Cancel", color = ApturaColors.TextMediumEmphasis)
-                }
+            icon = Icons.Default.Refresh,
+            title = "Reset playback defaults?",
+            message = "This restores the default speed, aspect ratio, double-tap skip, background audio and " +
+                "up next countdown.",
+            confirmLabel = "Reset",
+            onConfirm = {
+                isResetPlaybackDialogOpen = false
+                onResetPlaybackDefaults()
+                Toast.makeText(context, "Playback defaults restored", Toast.LENGTH_SHORT).show()
             }
         )
     }
@@ -291,7 +267,7 @@ fun SettingsScreen(
                     ) {
                         ReadoutCell("${libraryStats.totalVideos}", "Videos", Modifier.weight(1f))
                         ReadoutDivider()
-                        ReadoutCell(MediaFormatters.formatDuration(libraryStats.totalDurationMs), "Total time", Modifier.weight(1f))
+                        ReadoutCell(MediaFormatters.formatRuntime(libraryStats.totalDurationMs), "Runtime", Modifier.weight(1f))
                         ReadoutDivider()
                         ReadoutCell(MediaFormatters.formatFileSize(libraryStats.totalSizeBytes), "Footprint", Modifier.weight(1f))
                     }
@@ -304,7 +280,7 @@ fun SettingsScreen(
                     SectionLabel("Appearance")
                     SettingsPanel {
                         PickerRow(
-                            title = "App Theme",
+                            title = "Theme",
                             subtitle = "System follows your device. Playback and its menus always stay dark.",
                             options = ThemeMode.entries.map { it.label },
                             selectedIndex = settings.themeMode.ordinal,
@@ -312,7 +288,7 @@ fun SettingsScreen(
                         )
                         PanelDivider()
                         AccentPickerRow(
-                            title = "Accent Color",
+                            title = "Accent color",
                             subtitle = "Controls, selection and progress",
                             selected = settings.accentColor,
                             onSelect = onUpdateAccentColor
@@ -328,18 +304,18 @@ fun SettingsScreen(
                     SettingsPanel {
                         // The same eight speeds the player offers, so any speed can also be the default.
                         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
-                            RowText("Default Playback Speed", "Every new video starts here")
+                            RowText("Default speed", "Every new video starts at this speed")
                             Spacer(Modifier.height(6.dp))
                             SpeedRail(
                                 speeds = PlaybackSpeedOptions.all,
                                 selectedSpeed = settings.defaultPlaybackSpeed,
                                 onSelect = onUpdateSpeed,
-                                label = "Default Playback Speed"
+                                label = "Default speed"
                             )
                         }
                         PanelDivider()
                         PickerRow(
-                            title = "Default Aspect Ratio",
+                            title = "Default aspect ratio",
                             subtitle = null,
                             options = ResizeModeChoices,
                             selectedIndex = settings.defaultResizeMode.takeIf { it in ResizeModeChoices.indices } ?: 0,
@@ -347,32 +323,32 @@ fun SettingsScreen(
                         )
                         PanelDivider()
                         PickerRow(
-                            title = "Double-Tap Seek Step",
-                            subtitle = "How far each double-tap on the video jumps",
+                            title = "Double-tap skip",
+                            subtitle = "How far a double-tap on the video jumps",
                             options = SeekSteps.map { "${it}s" },
                             selectedIndex = SeekSteps.indexOf(settings.seekDeltaSeconds),
                             onSelect = { onUpdateSeekDelta(SeekSteps[it]) }
                         )
                         PanelDivider()
                         PickerRow(
-                            title = "Up Next Countdown",
-                            subtitle = "Wait before the next video starts",
+                            title = "Up next countdown",
+                            subtitle = "How long to wait before the next video starts",
                             options = CountdownChoices.map { if (it == 0) "Instant" else "${it}s" },
                             selectedIndex = CountdownChoices.indexOf(settings.autoAdvanceCountdownSeconds),
                             onSelect = { onUpdateAutoAdvanceCountdown(CountdownChoices[it]) }
                         )
                         PanelDivider()
                         ToggleRow(
-                            title = "Background Audio Playback",
-                            subtitle = "Continue audio when switching apps or locking screen",
+                            title = "Background audio",
+                            subtitle = "Keep listening when you switch apps or lock the screen",
                             checked = settings.backgroundAudioEnabled,
                             onCheckedChange = onUpdateBackgroundAudio
                         )
                         PanelDivider()
                         ActionRow(
                             icon = Icons.Default.Refresh,
-                            title = "Reset Playback Defaults",
-                            subtitle = "Restore the default speed, format, seek step, and auto-advance profile",
+                            title = "Reset playback defaults",
+                            subtitle = "Speed, aspect ratio, double-tap skip and countdown",
                             trailing = {
                                 PillButton(
                                     text = "Reset",
@@ -383,7 +359,7 @@ fun SettingsScreen(
                         PanelDivider()
                         // Decoder Engine Strategy (FR-PLAY-003, Q13)
                         PickerRow(
-                            title = "Default Decoder",
+                            title = "Default decoder",
                             subtitle = null,
                             options = DecoderChoices,
                             selectedIndex = settings.defaultDecoderStrategy.takeIf { it in DecoderChoices.indices } ?: -1,
@@ -402,14 +378,6 @@ fun SettingsScreen(
                                             modifier = Modifier.padding(top = 12.dp)
                                         )
                                     }
-                                    Text(
-                                        text = "Aptura decodes video with this device's built-in decoders. The bundled " +
-                                            "FFmpeg extension adds audio codecs only; a video this phone cannot decode " +
-                                            "can be opened in an external player.",
-                                        style = ApturaTypography.bodySmall,
-                                        color = ApturaColors.TextLowEmphasis,
-                                        modifier = Modifier.padding(top = 6.dp)
-                                    )
                                 }
                             }
                         )
@@ -420,13 +388,13 @@ fun SettingsScreen(
             // Library & Storage (SCR-014)
             item(key = "library", contentType = "section") {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    SectionLabel("Library & Storage")
+                    SectionLabel("Library & storage")
                     SettingsPanel {
                         // Custom Storage Folders (SAF - FR-LIB-005)
                         ActionRow(
                             icon = Icons.Default.Folder,
-                            title = "Custom Storage Folders",
-                            subtitle = "Additional SAF directories & external SD cards",
+                            title = "Extra folders",
+                            subtitle = "Folders and SD cards Aptura can't find on its own",
                             trailing = {
                                 PillButton(
                                     text = "Add",
@@ -456,15 +424,15 @@ fun SettingsScreen(
                         PanelDivider()
                         ActionRow(
                             icon = Icons.Default.Refresh,
-                            title = "Rescan Media Library",
-                            subtitle = "Discover newly added, renamed or moved video files",
+                            title = "Rescan library",
+                            subtitle = "Find new, renamed or moved videos",
                             onClick = onRescanClick
                         )
                         if (hiddenVideoCount > 0) {
                             PanelDivider()
                             ActionRow(
                                 icon = Icons.Default.VisibilityOff,
-                                title = "Hidden Videos",
+                                title = "Hidden videos",
                                 subtitle = "$hiddenVideoCount hidden from your library",
                                 trailing = { PillButton("Restore all", onRestoreHiddenVideos) }
                             )
@@ -473,8 +441,8 @@ fun SettingsScreen(
                             PanelDivider()
                             ActionRow(
                                 icon = Icons.Default.DeleteOutline,
-                                title = "Missing Videos",
-                                subtitle = "$missingVideoCount unavailable or deleted files",
+                                title = "Missing videos",
+                                subtitle = "$missingVideoCount no longer found on this device",
                                 trailing = { PillButton("Remove all", onClearMissingVideos, tint = ApturaColors.StatusError) }
                             )
                         }
@@ -482,12 +450,12 @@ fun SettingsScreen(
                         // Thumbnail Cache Management (FR-LIB-022)
                         ActionRow(
                             icon = Icons.Default.DeleteSweep,
-                            title = "Thumbnail Cache",
-                            subtitle = "Preview storage: ${MediaFormatters.formatFileSize(cacheSizeBytes)}",
+                            title = "Thumbnail cache",
+                            subtitle = "${MediaFormatters.formatFileSize(cacheSizeBytes)} of preview images",
                             trailing = {
+                                // Clearing a cache loses nothing (previews are rebuilt), so it is not painted as destructive.
                                 PillButton(
                                     text = "Clear",
-                                    tint = ApturaColors.StatusError,
                                     onClick = {
                                         onClearThumbnailCache()
                                         cacheSizeBytes = 0L
@@ -502,7 +470,7 @@ fun SettingsScreen(
             // Privacy & Transparency (SCR-015, SCR-016)
             item(key = "privacy", contentType = "section") {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    SectionLabel("Privacy & Transparency")
+                    SectionLabel("Privacy")
                     SettingsPanel {
                         // The one place the offline guarantee is stated. The build enforces it: the merged-manifest and
                         // dependency invariant tests fail if INTERNET or a telemetry SDK ever appears.
@@ -519,13 +487,13 @@ fun SettingsScreen(
                             Spacer(Modifier.width(16.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "100% Offline & Private",
+                                    text = "100% offline and private",
                                     style = ApturaTypography.titleMedium,
                                     color = ApturaColors.TextHighEmphasis,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "Zero INTERNET permission in Manifest · 0 telemetry SDKs",
+                                    text = "No internet permission and no analytics. The build fails if either ever appears.",
                                     style = ApturaTypography.bodyMedium,
                                     color = ApturaColors.TextMediumEmphasis
                                 )
@@ -534,16 +502,16 @@ fun SettingsScreen(
                         PanelDivider()
                         ActionRow(
                             icon = Icons.Default.Memory,
-                            title = "Device Codec Support",
-                            subtitle = "Video and audio decoders this phone exposes, plus bundled audio codecs",
+                            title = "Codec support",
+                            subtitle = "Which video and audio formats this device can decode",
                             onClick = { isCodecDialogOpen = true },
                             trailing = { NavigationChevron() }
                         )
                         PanelDivider()
                         ActionRow(
                             icon = Icons.Default.Share,
-                            title = "Export Redacted Diagnostics",
-                            subtitle = "Shareable local error log with file paths and PII stripped",
+                            title = "Share diagnostic report",
+                            subtitle = "An error log with file names and personal details removed",
                             onClick = {
                                 val markdown = ApturaDiagnostics.generateDiagnosticMarkdown(context)
                                 val shareIntent = Intent(Intent.ACTION_SEND).apply {
@@ -558,16 +526,16 @@ fun SettingsScreen(
                         // Delete Diagnostic Data (spec/14 §2): removes the on-device event log and crash reports.
                         ActionRow(
                             icon = Icons.Default.DeleteForever,
-                            title = "Delete Diagnostic Data",
-                            subtitle = "Erase the local error log and crash reports stored on this device",
+                            title = "Delete diagnostic data",
+                            subtitle = "Erase the error log and crash reports kept on this device",
                             tint = ApturaColors.StatusError,
                             onClick = { isDeleteDiagnosticsDialogOpen = true }
                         )
                         PanelDivider()
                         ActionRow(
                             icon = Icons.Default.Info,
-                            title = "Welcome Guide",
-                            subtitle = "Gestures, tools and what stays private, in a few pages",
+                            title = "Welcome guide",
+                            subtitle = "Gestures, tools and what stays private",
                             onClick = onReplayOnboardingClick,
                             trailing = { NavigationChevron() }
                         )
@@ -715,12 +683,12 @@ private fun CodecSupportDialog(report: CodecSupportReport?, onDismiss: () -> Uni
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Device Codec Support",
+                            text = "Codec support",
                             style = ApturaTypography.titleLarge,
                             color = ApturaColors.TextHighEmphasis
                         )
                         Text(
-                            text = report?.deviceLabel ?: "Reading decoder list...",
+                            text = report?.deviceLabel ?: "Reading decoder list\u2026",
                             style = ApturaTypography.labelSmall,
                             color = ApturaColors.TextMediumEmphasis,
                             maxLines = 1,
@@ -753,7 +721,7 @@ private fun CodecSupportDialog(report: CodecSupportReport?, onDismiss: () -> Uni
                 ) {
                     if (report == null) {
                         Text(
-                            text = "Reading decoder list...",
+                            text = "Reading decoder list\u2026",
                             style = ApturaTypography.bodySmall,
                             color = ApturaColors.TextLowEmphasis
                         )
@@ -858,7 +826,7 @@ private fun CodecSection(title: String, entries: List<CodecSupportEntry>) {
 }
 
 private fun decoderExplanation(strategy: Int): String = when (strategy) {
-    1 -> "Hardware only · GPU/ISP decoders; a codec without one fails instead of falling back"
-    2 -> "Platform software · Android's CPU decoders; slower and hotter, but rescues broken hardware paths"
-    else -> "Auto · hardware first, then Android's platform software decoder"
+    1 -> "Hardware only: fastest and coolest, but a format without a hardware decoder won't play"
+    2 -> "Software: slower and uses more battery, but can rescue a video the hardware decoder garbles"
+    else -> "Auto: hardware first, then software if the hardware decoder fails"
 }

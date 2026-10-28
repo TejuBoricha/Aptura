@@ -953,8 +953,8 @@ fun PlayerScreen(
                         modifier = Modifier.size(20.dp)
                     )
                     Text(
-                        text = "Locked • Tap to unlock",
-                        style = ApturaTypography.labelSmall,
+                        text = "Unlock",
+                        style = ApturaTypography.labelLarge,
                         color = ApturaColors.TextHighEmphasis
                     )
                 }
@@ -1626,14 +1626,19 @@ fun PlayerScreen(
             Surface(
                 color = ApturaColors.SurfaceElevated2,
                 shape = RoundedCornerShape(20.dp),
-                border = BorderStroke(1.dp, ApturaColors.StatusError.copy(alpha = 0.8f)),
+                border = BorderStroke(1.dp, ApturaColors.BorderSubtle),
                 modifier = Modifier
                     .align(Alignment.Center)
-                    .widthIn(max = 420.dp)
-                    .padding(24.dp)
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(16.dp)
+                    .widthIn(max = 440.dp)
             ) {
+                // Scrolls: on a landscape phone the card is taller than the screen, and the last actions used to be
+                // cut off with no way to reach them.
                 Column(
-                    modifier = Modifier.padding(20.dp),
+                    modifier = Modifier
+                        .verticalScroll(rememberScrollState())
+                        .padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Box(
@@ -1651,7 +1656,7 @@ fun PlayerScreen(
                     }
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "Playback Error",
+                        text = "Can't play this video",
                         style = ApturaTypography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = ApturaColors.TextHighEmphasis
@@ -1708,7 +1713,7 @@ fun PlayerScreen(
                             ) {
                                 Icon(Icons.Filled.Tune, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("Switch to Software Decoder", fontWeight = FontWeight.SemiBold)
+                                Text("Try software decoding", fontWeight = FontWeight.SemiBold)
                             }
                         }
 
@@ -1733,7 +1738,7 @@ fun PlayerScreen(
                             ) {
                                 Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("Open in External Player", fontWeight = FontWeight.SemiBold)
+                                Text("Open in another app", fontWeight = FontWeight.SemiBold)
                             }
                         }
 
@@ -1771,7 +1776,7 @@ fun PlayerScreen(
                             ) {
                                 Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("Open in External Player")
+                                Text("Open in another app")
                             }
                         }
 
@@ -1813,7 +1818,7 @@ fun PlayerScreen(
                                 ),
                                 modifier = Modifier.weight(1f)
                             ) {
-                                Text("Go Back", style = ApturaTypography.labelMedium)
+                                Text("Go back", style = ApturaTypography.labelMedium)
                             }
                         }
                     }
@@ -1830,7 +1835,8 @@ fun PlayerScreen(
                 onPlayNow = onPlayNextImmediately,
                 onReplay = onReplayCurrentItem,
                 onCancel = onCancelAutoAdvance,
-                totalSeconds = uiState.autoAdvanceTotalSeconds
+                totalSeconds = uiState.autoAdvanceTotalSeconds,
+                nextItem = uiState.queueItems.firstOrNull { it.uri == uiState.nextItemUri }
             )
         }
 
@@ -1863,11 +1869,13 @@ fun PlayerScreen(
                         .padding(horizontal = 24.dp)
                         .padding(bottom = 24.dp)
                 ) {
-                    Text(
-                        text = "Playback Speed",
-                        style = ApturaTypography.titleMedium,
-                        color = ApturaColors.TextHighEmphasis,
-                        modifier = Modifier.padding(vertical = 12.dp)
+                    PlayerSheetHeader(
+                        icon = Icons.Filled.Speed,
+                        title = "Playback speed",
+                        subtitle = if (uiState.playbackSpeed == 1f) "Normal" else "${uiState.playbackSpeed}x",
+                        subtitleIsActive = uiState.playbackSpeed != 1f,
+                        onClose = { onSpeedSheetVisible(false) },
+                        modifier = Modifier.padding(bottom = 12.dp)
                     )
                     // The same single ramp as Settings and the advanced sheet. The old two-row list of cards made a
                     // small choice look like a settings table and pushed the sheet taller than the phone.
@@ -1875,7 +1883,7 @@ fun PlayerScreen(
                         speeds = PlaybackSpeedOptions.all,
                         selectedSpeed = uiState.playbackSpeed,
                         onSelect = onSpeedSelected,
-                        label = "Playback Speed"
+                        label = "Playback speed"
                     )
                 }
             }
@@ -1960,83 +1968,22 @@ fun PlayerScreen(
                         .padding(bottom = 24.dp)
                         .padding(horizontal = 24.dp)
                 ) {
-                    Text(
-                        text = "Playback & Display Settings",
-                        style = ApturaTypography.titleMedium,
-                        color = ApturaColors.TextHighEmphasis,
-                        modifier = Modifier.padding(vertical = 12.dp)
+                    PlayerSheetHeader(
+                        icon = Icons.Filled.Tune,
+                        title = "Playback tools",
+                        subtitle = "Speed, timer, loop, picture and more",
+                        onClose = { onAdvancedSheetVisible(false) },
+                        modifier = Modifier.padding(bottom = 14.dp)
                     )
 
-                    // Segmented Tab Row: [ Playback Tools | Picture & Display ]
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(ApturaColors.SurfaceElevated3, RoundedCornerShape(12.dp))
-                            .padding(4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (selectedTab == 0) ApturaColors.AccentPrimary else Color.Transparent,
-                            modifier = Modifier
-                                .weight(1f)
-                                .semantics {
-                                    role = Role.Tab
-                                    selected = (selectedTab == 0)
-                                }
-                                .clickable(role = Role.Tab) { selectedTab = 0 }
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(vertical = 8.dp),
-                                horizontalArrangement = Arrangement.Center,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Tune,
-                                    contentDescription = null,
-                                    tint = if (selectedTab == 0) ApturaColors.SurfacePureBlack else ApturaColors.TextHighEmphasis,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Playback Tools",
-                                    style = ApturaTypography.labelMedium,
-                                    color = if (selectedTab == 0) ApturaColors.SurfacePureBlack else ApturaColors.TextHighEmphasis
-                                )
-                            }
-                        }
-
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (selectedTab == 1) ApturaColors.AccentPrimary else Color.Transparent,
-                            modifier = Modifier
-                                .weight(1f)
-                                .semantics {
-                                    role = Role.Tab
-                                    selected = (selectedTab == 1)
-                                }
-                                .clickable(role = Role.Tab) { selectedTab = 1 }
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(vertical = 8.dp),
-                                horizontalArrangement = Arrangement.Center,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.AspectRatio,
-                                    contentDescription = null,
-                                    tint = if (selectedTab == 1) ApturaColors.SurfacePureBlack else ApturaColors.TextHighEmphasis,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Picture & Display",
-                                    style = ApturaTypography.labelMedium,
-                                    color = if (selectedTab == 1) ApturaColors.SurfacePureBlack else ApturaColors.TextHighEmphasis
-                                )
-                            }
-                        }
-                    }
+                    PlayerSheetTabs(
+                        tabs = listOf(
+                            "Playback" to Icons.Filled.Tune,
+                            "Picture" to Icons.Filled.AspectRatio
+                        ),
+                        selectedIndex = selectedTab,
+                        onSelect = { selectedTab = it }
+                    )
 
                     Spacer(modifier = Modifier.height(16.dp))
 
@@ -2053,7 +2000,7 @@ fun PlayerScreen(
                                 Text(
                                     text = "AUDIO ONLY",
                                     style = ApturaTypography.labelSmall,
-                                    color = ApturaColors.AccentPrimary
+                                    color = ApturaColors.TextMediumEmphasis
                                 )
                                 Text(
                                     text = "Turn the video off and keep listening",
@@ -2077,7 +2024,7 @@ fun PlayerScreen(
                         Text(
                             text = "PLAYBACK SPEED",
                             style = ApturaTypography.labelSmall,
-                            color = ApturaColors.AccentPrimary,
+                            color = ApturaColors.TextMediumEmphasis,
                             modifier = Modifier.padding(bottom = 2.dp)
                         )
                         SpeedRail(
@@ -2108,7 +2055,7 @@ fun PlayerScreen(
                                 Text(
                                     text = "SLEEP TIMER",
                                     style = ApturaTypography.labelSmall,
-                                    color = ApturaColors.AccentPrimary
+                                    color = ApturaColors.TextMediumEmphasis
                                 )
                             }
                             if (uiState.sleepTimerRemainingMs != null) {
@@ -2167,9 +2114,9 @@ fun PlayerScreen(
 
                         // 3. A-B Repeat Loop
                         Text(
-                            text = "A-B REPEAT LOOP",
+                            text = "A–B REPEAT",
                             style = ApturaTypography.labelSmall,
-                            color = ApturaColors.AccentPrimary,
+                            color = ApturaColors.TextMediumEmphasis,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
                         Row(
@@ -2236,9 +2183,9 @@ fun PlayerScreen(
                         // 4. Frame-by-Frame Stepper (Unwrapped buttons with full tactile width)
                         Column(modifier = Modifier.fillMaxWidth()) {
                             Text(
-                                text = "FRAME-BY-FRAME STEPPER",
+                                text = "FRAME STEP",
                                 style = ApturaTypography.labelSmall,
-                                color = ApturaColors.AccentPrimary,
+                                color = ApturaColors.TextMediumEmphasis,
                                 modifier = Modifier.padding(bottom = 8.dp)
                             )
                             Row(
@@ -2303,9 +2250,9 @@ fun PlayerScreen(
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Text(
-                                    text = "BOOKMARKS & CHAPTERS",
+                                    text = "BOOKMARKS",
                                     style = ApturaTypography.labelSmall,
-                                    color = ApturaColors.AccentPrimary
+                                    color = ApturaColors.TextMediumEmphasis
                                 )
                             }
                             Surface(
@@ -2480,9 +2427,9 @@ fun PlayerScreen(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "PLAYBACK STATS OVERLAY",
+                                    text = "PLAYBACK STATS",
                                     style = ApturaTypography.labelSmall,
-                                    color = ApturaColors.AccentPrimary
+                                    color = ApturaColors.TextMediumEmphasis
                                 )
                                 Text(
                                     text = "Live decode path, resolution, FPS, bitrate & frame drops",
@@ -2554,7 +2501,7 @@ fun PlayerScreen(
                             Text(
                                 text = "ASPECT RATIO",
                                 style = ApturaTypography.labelSmall,
-                                color = ApturaColors.AccentPrimary
+                                color = ApturaColors.TextMediumEmphasis
                             )
                             Text(
                                 text = "Current: ${uiState.resizeMode.label}",
@@ -2603,9 +2550,9 @@ fun PlayerScreen(
                         ) {
                             Column {
                                 Text(
-                                    text = "EYE COMFORT NIGHT MODE",
+                                    text = "NIGHT MODE",
                                     style = ApturaTypography.labelSmall,
-                                    color = ApturaColors.AccentPrimary
+                                    color = ApturaColors.TextMediumEmphasis
                                 )
                                 Text(
                                     text = "Warm amber blue-light attenuation",
@@ -2670,9 +2617,9 @@ fun PlayerScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "PICTURE CALIBRATION",
+                                text = "PICTURE",
                                 style = ApturaTypography.labelSmall,
-                                color = ApturaColors.AccentPrimary
+                                color = ApturaColors.TextMediumEmphasis
                             )
                             if (uiState.pictureAdjustment.contrast != 1.0f ||
                                 uiState.pictureAdjustment.saturation != 1.0f ||
@@ -2758,9 +2705,9 @@ fun PlayerScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "DECODER ENGINE STRATEGY",
+                                text = "DECODER",
                                 style = ApturaTypography.labelSmall,
-                                color = ApturaColors.AccentPrimary
+                                color = ApturaColors.TextMediumEmphasis
                             )
                             val currentDecoderLabel = when (uiState.decoderStrategy) {
                                 1 -> "Hardware"

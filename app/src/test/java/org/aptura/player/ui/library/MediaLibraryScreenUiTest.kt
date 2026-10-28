@@ -22,6 +22,8 @@ import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.theme.ApturaTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isSelectable
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -86,7 +88,7 @@ class MediaLibraryScreenUiTest {
         }
 
         // Verify scanning indicator text is displayed
-        composeTestRule.onNodeWithText("Scanning local videos...").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Looking for videos\u2026").assertIsDisplayed()
     }
 
     @Test
@@ -107,11 +109,11 @@ class MediaLibraryScreenUiTest {
         }
 
         // Verify empty view title and message
-        composeTestRule.onNodeWithText("No videos found").assertIsDisplayed()
+        composeTestRule.onNodeWithText("No videos yet").assertIsDisplayed()
 
         // Verify Scan Device button is displayed and triggers callback
-        composeTestRule.onNodeWithText("Scan Device").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Scan Device").performClick()
+        composeTestRule.onNodeWithText("Scan device").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Scan device").performClick()
         assertTrue(refreshClicked)
     }
 
@@ -147,7 +149,7 @@ class MediaLibraryScreenUiTest {
         composeTestRule.onNodeWithText("Blade Runner 2049").assertIsDisplayed()
 
         // Verify folder filter chip
-        composeTestRule.onNodeWithText("All Videos").assertIsDisplayed()
+        composeTestRule.onNodeWithText("All videos").assertIsDisplayed()
         composeTestRule.onNodeWithText("Movies").assertIsDisplayed()
 
         // Click on the first video card
@@ -204,10 +206,10 @@ class MediaLibraryScreenUiTest {
 
         composeTestRule.onNodeWithTag("library_video_grid").performTouchInput { swipeLeft() }
         composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithText("Camera").assertIsSelected()
+        composeTestRule.onNode(hasText("Camera") and isSelectable()).assertIsSelected()
         composeTestRule.onNodeWithTag("library_video_grid").performTouchInput { swipeRight() }
 
-        composeTestRule.onNodeWithText("Movies").assertIsSelected()
+        composeTestRule.onNode(hasText("Movies") and isSelectable()).assertIsSelected()
     }
 
     @Test
@@ -287,17 +289,17 @@ class MediaLibraryScreenUiTest {
         }
 
         composeTestRule.onNodeWithContentDescription("More actions for Oppenheimer").performClick()
-        composeTestRule.onNodeWithText("Play Next").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Add to Queue").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Video Details").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Play next").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Add to queue").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Video details").assertIsDisplayed()
         composeTestRule.onNodeWithText("Hide from library").assertIsDisplayed()
         composeTestRule.onNodeWithText("Delete video").assertIsDisplayed()
 
-        composeTestRule.onNodeWithText("Play Next").performClick()
+        composeTestRule.onNodeWithText("Play next").performClick()
         assertEquals("content://media/1", playNextItem?.uri)
 
         composeTestRule.onNodeWithContentDescription("More actions for Oppenheimer").performClick()
-        composeTestRule.onNodeWithText("Video Details").performClick()
+        composeTestRule.onNodeWithText("Video details").performClick()
         assertEquals("content://media/1", detailsShownItem?.uri)
     }
 
@@ -398,7 +400,7 @@ class MediaLibraryScreenUiTest {
 
         composeTestRule.onNodeWithContentDescription("More actions for Oppenheimer").performClick()
         // A missing file cannot play, move, share or be deleted again.
-        composeTestRule.onNodeWithText("Play Next").assertDoesNotExist()
+        composeTestRule.onNodeWithText("Play next").assertDoesNotExist()
         composeTestRule.onNodeWithText("Select").assertDoesNotExist()
         composeTestRule.onNodeWithText("Move to folder").assertDoesNotExist()
         composeTestRule.onNodeWithText("Share").assertDoesNotExist()
@@ -497,9 +499,9 @@ class MediaLibraryScreenUiTest {
         composeTestRule.onNodeWithContentDescription("More actions for selected videos").performClick()
         composeTestRule.onNodeWithText("Delete videos").performClick()
 
-        composeTestRule.onNodeWithText("Delete from Device?").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Delete from device?").assertIsDisplayed()
         composeTestRule.onNodeWithText(
-            "\"Oppenheimer\" can be moved to Android's trash and restored later, or deleted permanently. Android may ask you to confirm either action."
+            "\u201cOppenheimer\u201d can go to Android's trash, where you can restore it later, or be deleted permanently. Android may ask you to confirm."
         ).assertIsDisplayed()
         composeTestRule.onNodeWithText("Cancel").performClick()
     }
@@ -533,7 +535,7 @@ class MediaLibraryScreenUiTest {
 
         composeTestRule.onNodeWithText("Delete 2 videos from device?").assertIsDisplayed()
         composeTestRule.onNodeWithText(
-            "2 videos can be moved to Android's trash and restored later, or deleted permanently. Android may ask you to confirm either action."
+            "2 videos can go to Android's trash, where you can restore them later, or be deleted permanently. Android may ask you to confirm."
         ).assertIsDisplayed()
         composeTestRule.onNodeWithText("Move to trash").assertIsDisplayed()
         composeTestRule.onNodeWithText("Delete permanently").assertIsDisplayed()
@@ -568,7 +570,7 @@ class MediaLibraryScreenUiTest {
 
         composeTestRule.onNodeWithText("Move 2 videos?").assertIsDisplayed()
         composeTestRule.onNodeWithText(
-            "Aptura will copy each selected video to the folder you choose, then ask Android to delete its original. If copying fails or Android denies deletion, that original stays in your library. Make sure the destination has enough free space."
+            "Aptura copies each video to the folder you choose, then asks Android to delete the original. If a copy fails or Android declines the deletion, that original stays where it is. Make sure the destination has enough free space."
         ).assertIsDisplayed()
         composeTestRule.onNodeWithText("Choose folder").assertIsDisplayed()
         composeTestRule.onNodeWithText("Cancel").performClick()

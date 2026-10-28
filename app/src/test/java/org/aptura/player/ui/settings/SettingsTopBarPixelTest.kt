@@ -57,7 +57,7 @@ class SettingsTopBarPixelTest {
     }
 
     private fun scrollToTheBottomOfTheTitle(): CapturedScreen {
-        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("Default Aspect Ratio"))
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("Default aspect ratio"))
         return composeRule.captureScreen()
     }
 

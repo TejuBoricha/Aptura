@@ -122,103 +122,25 @@ fun AudioEnhancementSheet(
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 24.dp)
         ) {
-            // Header Bar
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = ApturaColors.AccentSubtle,
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.VolumeUp,
-                                contentDescription = null,
-                                tint = ApturaColors.AccentPrimary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-                    Column {
-                        Text(
-                            text = "Audio & Sound Studio",
-                            style = ApturaTypography.titleMedium,
-                            color = ApturaColors.TextHighEmphasis
-                        )
-                        Text(
-                            text = if (audioEnhancement.enabled) "DSP Effects Active" else "Native Playback",
-                            style = ApturaTypography.labelSmall,
-                            color = if (audioEnhancement.enabled) ApturaColors.AccentPrimary else ApturaColors.TextMediumEmphasis
-                        )
-                    }
-                }
-            }
+            PlayerSheetHeader(
+                icon = Icons.AutoMirrored.Filled.VolumeUp,
+                title = "Audio",
+                subtitle = if (audioEnhancement.enabled) "Sound effects on" else "Original sound",
+                subtitleIsActive = audioEnhancement.enabled,
+                onClose = onDismissRequest
+            )
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Segmented Top Tab Row: [ Tracks & Sync | Equalizer | Effects ]
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(ApturaColors.SurfaceElevated3, RoundedCornerShape(12.dp))
-                    .padding(4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                listOf(
-                    "Tracks & Sync" to Icons.Default.Sync,
+            PlayerSheetTabs(
+                tabs = listOf(
+                    "Tracks & sync" to Icons.Default.Sync,
                     "Equalizer" to Icons.Default.GraphicEq,
                     "Effects" to Icons.Default.SurroundSound
-                ).forEachIndexed { index, (label, icon) ->
-                    val isSelected = selectedTab == index
-                    val animBg by animateColorAsState(
-                        targetValue = if (isSelected) ApturaColors.SurfaceElevated1 else Color.Transparent,
-                        label = "tabBg"
-                    )
-                    Surface(
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            selectedTab = index
-                        },
-                        shape = RoundedCornerShape(9.dp),
-                        color = animBg,
-                        border = if (isSelected) BorderStroke(1.dp, ApturaColors.BorderSubtle) else null,
-                        modifier = Modifier
-                            .weight(1f)
-                            .semantics {
-                                role = Role.Tab
-                                selected = isSelected
-                            }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(vertical = 10.dp),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = icon,
-                                contentDescription = null,
-                                tint = if (isSelected) ApturaColors.AccentPrimary else ApturaColors.TextMediumEmphasis,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = label,
-                                style = ApturaTypography.labelSmall,
-                                color = if (isSelected) ApturaColors.TextHighEmphasis else ApturaColors.TextMediumEmphasis
-                            )
-                        }
-                    }
-                }
-            }
+                ),
+                selectedIndex = selectedTab,
+                onSelect = { selectedTab = it }
+            )
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -275,7 +197,7 @@ private fun AudioTracksAndSyncTab(
         Text(
             text = "AUDIO TRACK",
             style = ApturaTypography.labelSmall,
-            color = ApturaColors.AccentPrimary
+            color = ApturaColors.TextMediumEmphasis
         )
 
         if (audioTracks.isEmpty()) {
@@ -416,9 +338,9 @@ private fun AudioTracksAndSyncTab(
                 ) {
                     Column {
                         Text(
-                            text = "LIP-SYNC CALIBRATION",
+                            text = "AUDIO SYNC",
                             style = ApturaTypography.labelSmall,
-                            color = ApturaColors.AccentPrimary
+                            color = ApturaColors.TextMediumEmphasis
                         )
                         Text(
                             text = "Fine-tune audio/video alignment",
@@ -569,9 +491,9 @@ private fun EqualizerTab(
             ) {
                 Column {
                     Text(
-                        text = "EQUALIZER ENGINE",
+                        text = "EQUALIZER",
                         style = ApturaTypography.labelSmall,
-                        color = ApturaColors.AccentPrimary
+                        color = ApturaColors.TextMediumEmphasis
                     )
                     Text(
                         text = if (audioEnhancement.enabled) "Hardware DSP processing active" else "Audio bypass mode (neutral)",
@@ -652,9 +574,9 @@ private fun EqualizerTab(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "5-BAND FREQUENCY RACK",
+                        text = "BANDS",
                         style = ApturaTypography.labelSmall,
-                        color = ApturaColors.AccentPrimary
+                        color = ApturaColors.TextMediumEmphasis
                     )
                     Text(
                         text = if (audioEnhancement.enabled) "±10 dB Range" else "Bypassed",

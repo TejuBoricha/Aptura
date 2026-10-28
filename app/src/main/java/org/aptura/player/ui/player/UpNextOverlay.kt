@@ -1,5 +1,6 @@
 package org.aptura.player.ui.player
 
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -62,6 +63,7 @@ fun UpNextOverlay(
     onReplay: () -> Unit,
     onCancel: () -> Unit,
     totalSeconds: Int = 10,
+    nextItem: org.aptura.player.domain.model.DomainMediaItem? = null,
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
@@ -167,17 +169,28 @@ fun UpNextOverlay(
                     ) {
                         Surface(
                             modifier = Modifier
-                                .size(44.dp)
+                                .width(80.dp)
+                                .aspectRatio(16f / 9f)
                                 .clip(RoundedCornerShape(8.dp)),
                             color = ApturaColors.SurfaceElevated3
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.VideoFile,
+                            if (nextItem != null) {
+                                // The next episode's own frame, so "what's next" is recognisable before it plays.
+                                org.aptura.player.ui.library.VideoThumbnail(
+                                    uri = nextItem.uri,
+                                    dateModifiedSec = nextItem.dateModifiedSec,
                                     contentDescription = null,
-                                    tint = ApturaColors.AccentPrimary,
-                                    modifier = Modifier.size(24.dp)
+                                    modifier = Modifier.fillMaxSize()
                                 )
+                            } else {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.VideoFile,
+                                        contentDescription = null,
+                                        tint = ApturaColors.AccentPrimary,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
                             }
                         }
 
@@ -248,12 +261,12 @@ fun UpNextOverlay(
                     ) {
                         Icon(
                             imageVector = Icons.Default.PlayArrow,
-                            contentDescription = "Play Now",
+                            contentDescription = "Play now",
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "Play Now",
+                            text = "Play now",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -270,7 +283,7 @@ fun UpNextOverlay(
                     }
                 ) {
                     Text(
-                        text = "Cancel Auto-Advance",
+                        text = "Stop countdown",
                         color = ApturaColors.TextMediumEmphasis,
                         fontSize = 12.sp
                     )

@@ -106,7 +106,7 @@ class GestureHudUiTest {
             }
         }
 
-        composeTestRule.onNodeWithText("[ +0:15 ]").assertIsDisplayed()
+        composeTestRule.onNodeWithText("+0:15").assertIsDisplayed()
         composeTestRule.onNodeWithText("0:45").assertIsDisplayed()
         composeTestRule.onNodeWithText("2:00").assertIsDisplayed()
     }
@@ -119,7 +119,7 @@ class GestureHudUiTest {
             }
         }
 
-        composeTestRule.onNodeWithText("Screen Locked • Tap the lock icon to unlock").assertIsDisplayed()
-        composeTestRule.onNodeWithContentDescription("Screen Locked").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Screen locked · Tap Unlock to use the controls").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("Screen locked").assertIsDisplayed()
     }
 }

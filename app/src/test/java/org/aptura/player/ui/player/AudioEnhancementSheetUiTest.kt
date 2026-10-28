@@ -70,8 +70,8 @@ class AudioEnhancementSheetUiTest {
             }
         }
 
-        composeTestRule.onNodeWithText("Audio & Sound Studio").assertExists()
-        composeTestRule.onNodeWithText("Tracks & Sync").assertExists()
+        composeTestRule.onNodeWithText("Audio").assertExists()
+        composeTestRule.onNodeWithText("Tracks & sync").assertExists()
         composeTestRule.onNodeWithText("Equalizer").assertExists()
         composeTestRule.onNodeWithText("Effects").assertExists()
     }
@@ -100,7 +100,7 @@ class AudioEnhancementSheetUiTest {
         }
 
         composeTestRule.onNodeWithText("Track 1 (Stereo)").assertExists()
-        composeTestRule.onNodeWithText("LIP-SYNC CALIBRATION").assertExists()
+        composeTestRule.onNodeWithText("AUDIO SYNC").assertExists()
         composeTestRule.onNodeWithText("+150 ms").assertExists()
         composeTestRule.onNodeWithText("-50ms").assertExists()
         composeTestRule.onNodeWithText("+50ms").assertExists()
@@ -131,8 +131,8 @@ class AudioEnhancementSheetUiTest {
             }
         }
 
-        composeTestRule.onNodeWithText("EQUALIZER ENGINE").assertExists()
-        composeTestRule.onNodeWithText("5-BAND FREQUENCY RACK").assertExists()
+        composeTestRule.onNodeWithText("EQUALIZER").assertExists()
+        composeTestRule.onNodeWithText("BANDS").assertExists()
         composeTestRule.onNodeWithText("Flat").assertExists()
         composeTestRule.onNodeWithText("Bass Boost").assertExists()
         composeTestRule.onNodeWithText("60").assertExists()

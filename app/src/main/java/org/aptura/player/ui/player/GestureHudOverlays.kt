@@ -210,7 +210,7 @@ fun HorizontalSwipeSeekHud(
                 border = BorderStroke(1.dp, ApturaColors.AccentPrimary.copy(alpha = 0.4f))
             ) {
                 Text(
-                    text = "[ $deltaFormatted ]",
+                    text = deltaFormatted,
                     style = ApturaTypography.labelMedium.copy(
                         fontFeatureSettings = "tnum",
                         fontWeight = FontWeight.Bold
@@ -291,12 +291,12 @@ fun LockModeGuardHint(
         ) {
             Icon(
                 imageVector = Icons.Filled.Lock,
-                contentDescription = "Screen Locked",
+                contentDescription = "Screen locked",
                 tint = ApturaColors.AccentPrimary,
                 modifier = Modifier.size(20.dp)
             )
             Text(
-                text = "Screen Locked • Tap the lock icon to unlock",
+                text = "Screen locked · Tap Unlock to use the controls",
                 style = ApturaTypography.labelMedium.copy(fontWeight = FontWeight.Medium),
                 color = ApturaColors.TextHighEmphasis
             )

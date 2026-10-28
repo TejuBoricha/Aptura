@@ -61,8 +61,8 @@ class OnboardingScreenUiTest {
         composeRule.onNodeWithText("Skip").performClick()
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithText("Access Your Library").assertIsDisplayed()
-        composeRule.onNodeWithText("Grant Media Access").assertIsDisplayed()
+        composeRule.onNodeWithText("Let Aptura see your videos").assertIsDisplayed()
+        composeRule.onNodeWithText("Allow access").assertIsDisplayed()
     }
 
     @Test
@@ -149,8 +149,8 @@ class OnboardingScreenUiTest {
         composeRule.onNodeWithText("Skip").performClick()
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithText("Grant Media Access").performClick()
-        composeRule.onNodeWithText("Continue without access (Limited Mode)").performClick()
+        composeRule.onNodeWithText("Allow access").performClick()
+        composeRule.onNodeWithText("Continue with limited access").performClick()
 
         assertEquals(1, permissionRequests)
         assertEquals(1, limitedModeChosen)
@@ -164,8 +164,8 @@ class OnboardingScreenUiTest {
         composeRule.waitForIdle()
 
         composeRule.onNodeWithText("You're all set").assertIsDisplayed()
-        composeRule.onNodeWithText("Grant Media Access").assertDoesNotExist()
-        composeRule.onNodeWithText("Continue without access (Limited Mode)").assertDoesNotExist()
+        composeRule.onNodeWithText("Allow access").assertDoesNotExist()
+        composeRule.onNodeWithText("Continue with limited access").assertDoesNotExist()
 
         composeRule.onNodeWithText("Start watching").performClick()
 

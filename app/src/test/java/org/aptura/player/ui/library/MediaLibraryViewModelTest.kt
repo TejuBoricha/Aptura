@@ -418,6 +418,10 @@ class MediaLibraryViewModelTest {
         assertEquals("100 KB", MediaFormatters.formatFileSize(102400L))
         assertEquals("10 MB", MediaFormatters.formatFileSize(10485760L))
         assertEquals("2 GB", MediaFormatters.formatFileSize(2147483648L))
+        // One decimal below ten units only, so sibling cards never mix "782 MB" with "753.4 MB".
+        assertEquals("753 MB", MediaFormatters.formatFileSize(790_000_000L))
+        assertEquals("3.9 GB", MediaFormatters.formatFileSize(4_200_000_000L))
+        assertEquals("10 MB", MediaFormatters.formatFileSize(10_800_000L))
     }
 
     @Test

@@ -170,7 +170,7 @@ fun CompatibilityExplainerContent(
             Text(
                 text = "DECODER OVERRIDE",
                 style = ApturaTypography.labelSmall,
-                color = ApturaColors.AccentPrimary,
+                color = ApturaColors.TextMediumEmphasis,
                 modifier = Modifier.padding(bottom = 10.dp)
             )
 

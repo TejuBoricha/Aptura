@@ -76,10 +76,33 @@ import org.aptura.player.core.media.MediaPathResolver
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
+import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.sp
+import org.aptura.player.ui.components.ApturaButton
+import org.aptura.player.ui.components.ApturaOutlinedButton
+import org.aptura.player.ui.components.ApturaTextButton
+import org.aptura.player.ui.components.NoticeBanner
+import org.aptura.player.ui.components.ApturaDialog
+import org.aptura.player.ui.components.ApturaTone
+import org.aptura.player.ui.components.DialogAlternative
 
 /**
  * Media Details Content (FR-LIB-013, R-A02, R-A09).
- * Renders rich media details, codec specs, track summaries, and storage actions.
+ * The video first (its frame, title and the facts people scan for), then what you can do with it, then the full
+ * specification. Play used to sit under twenty rows of codec data; now it is the first thing under the title.
  */
 @Composable
 fun MediaDetailsContent(
@@ -120,445 +143,363 @@ fun MediaDetailsContent(
         storagePath == null -> "Unknown"
         else -> storagePath
     }
+    val title = MediaFormatters.cleanTitle(item.title)
 
     Column(
         modifier = modifier
             .fillMaxWidth()
             .verticalScroll(rememberScrollState())
             .navigationBarsPadding()
-            .padding(horizontal = 24.dp)
+            .padding(horizontal = 20.dp)
     ) {
-        // Header Row: Title & Container Badge
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                if (showCloseButton) {
-                    IconButton(
-                        onClick = onClose,
-                        modifier = Modifier.size(48.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Close Details",
-                            tint = ApturaColors.TextMediumEmphasis
-                        )
-                    }
-                }
-                Text(
-                    text = "Video Details & Specs",
-                    style = ApturaTypography.headlineMedium,
-                    color = ApturaColors.TextHighEmphasis
-                )
-            }
-
-            val container = MediaFormatters.formatContainer(item.mimeType, item.title)
-            Surface(
-                shape = RoundedCornerShape(6.dp),
-                color = ApturaColors.AccentSubtle,
-                border = BorderStroke(1.dp, ApturaColors.AccentPrimary.copy(alpha = 0.5f))
-            ) {
-                Text(
-                    text = container,
-                    style = ApturaTypography.labelSmall,
-                    color = ApturaColors.AccentPrimary,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+        if (showCloseButton) {
+            IconButton(onClick = onClose, modifier = Modifier.size(48.dp).offset(x = (-12).dp)) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Close Details",
+                    tint = ApturaColors.TextMediumEmphasis
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Metadata: Title & Path Card (with Quick Rename & Copy)
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            color = ApturaColors.SurfaceElevated2
-        ) {
-            Column(modifier = Modifier.padding(14.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "TITLE",
-                        style = ApturaTypography.labelSmall,
-                        color = ApturaColors.TextMediumEmphasis
+        // ---- Identity -------------------------------------------------------------------------------------------
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            val thumbShape = RoundedCornerShape(12.dp)
+            Box(
+                modifier = Modifier
+                    .width(128.dp)
+                    .aspectRatio(16f / 9f)
+                    .clip(thumbShape)
+                    .background(ApturaColors.SurfaceElevated2)
+                    .border(1.dp, ApturaColors.BorderSubtle, thumbShape)
+            ) {
+                VideoThumbnail(
+                    uri = item.uri,
+                    dateModifiedSec = item.dateModifiedSec,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize()
+                )
+                if (item.durationMs > 0L) {
+                    ThumbnailPill(
+                        text = MediaFormatters.formatDuration(item.durationMs),
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(5.dp)
                     )
-                    if (!item.isMissing) {
-                        IconButton(
-                            onClick = onRenameClick,
-                            modifier = Modifier.size(48.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Edit,
-                                contentDescription = "Rename Video",
-                                tint = ApturaColors.AccentPrimary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
                 }
-                Spacer(modifier = Modifier.height(2.dp))
+            }
+            Spacer(Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = MediaFormatters.cleanTitle(item.title),
-                    style = ApturaTypography.titleSmall,
+                    text = title,
+                    style = ApturaTypography.titleLarge,
                     color = ApturaColors.TextHighEmphasis,
-                    fontWeight = FontWeight.SemiBold
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis
                 )
-
-                Spacer(modifier = Modifier.height(10.dp))
-                HorizontalDivider(color = ApturaColors.SurfaceElevated3)
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "STORAGE PATH",
-                            style = ApturaTypography.labelSmall,
-                            color = ApturaColors.TextMediumEmphasis
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = storagePathLabel,
-                            style = ApturaTypography.bodyMedium,
-                            color = ApturaColors.TextHighEmphasis
-                        )
-                    }
-                    IconButton(
-                        enabled = storagePath != null,
-                        onClick = {
-                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            val clip = ClipData.newPlainText("Video Path", storagePath.orEmpty())
-                            clipboard.setPrimaryClip(clip)
-                            Toast.makeText(context, "Storage path copied to clipboard", Toast.LENGTH_SHORT).show()
-                        },
-                        modifier = Modifier.size(48.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ContentCopy,
-                            contentDescription = "Copy Path",
-                            tint = ApturaColors.AccentPrimary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    SpecChip(MediaFormatters.formatContainer(item.mimeType, item.title).substringBefore(' '))
+                    MediaFormatters.qualityLabel(item.width, item.height)?.let { SpecChip(it) }
+                    SpecChip(MediaFormatters.formatFileSize(item.sizeBytes))
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(Modifier.height(20.dp))
 
-        // Section 1: Video Specifications
-        SectionHeader("VIDEO SPECIFICATIONS")
-        MetadataRow("Video Codec", extended?.videoCodec ?: unknownOrLoading(extended))
-
-        if (item.width > 0 && item.height > 0) {
-            MetadataRow("Resolution", MediaFormatters.formatResolution(item.width, item.height))
-        }
-
-        if (item.frameRate > 0f) {
-            MetadataRow("Frame Rate", "%.2f fps".format(item.frameRate))
-        }
-
-        // Label what the number really is: the container's overall bitrate is not the video stream's bitrate.
-        val streamBitrate = extended?.videoBitrate?.takeIf { it > 0L }
-        val overallBitrate = extended?.bitRateTotal?.takeIf { it > 0L }
-        when {
-            streamBitrate != null -> MetadataRow("Video Bitrate", MediaMetadataInspector.formatBitrate(streamBitrate))
-            overallBitrate != null -> MetadataRow("Overall Bitrate", MediaMetadataInspector.formatBitrate(overallBitrate))
-        }
-
-        if (extended != null && extended.colorTransfer != null) {
-            MetadataRow("Dynamic Range", extended.colorTransfer)
-        } else if (extended?.isHdr == true) {
-            MetadataRow("Dynamic Range", "HDR10 (10-bit High Dynamic Range)")
-        }
-
-        if (extended?.colorStandard != null) {
-            MetadataRow("Color Space", extended.colorStandard)
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Section 2: Audio Streams
-        SectionHeader("AUDIO STREAMS")
-        if (extended != null && extended.audioTracks.isNotEmpty()) {
-            extended.audioTracks.forEachIndexed { idx, track ->
-                val channelStr = MediaMetadataInspector.formatChannels(track.channelCount)
-                val sampleRateStr = MediaMetadataInspector.formatSampleRate(track.sampleRate)
-                val brStr = if (track.bitrate != null && track.bitrate > 0L) " • ${MediaMetadataInspector.formatBitrate(track.bitrate)}" else ""
-                val langStr = MediaLanguageLabels.displayName(track.language)?.let { " ($it)" } ?: ""
-                MetadataRow(
-                    label = if (extended.audioTracks.size > 1) "Audio Track ${idx + 1}$langStr" else "Audio Stream$langStr",
-                    value = "${track.codec} • $channelStr • $sampleRateStr$brStr"
-                )
-            }
-        } else {
-            MetadataRow("Audio Stream", if (extended?.inspected == true) "None found" else unknownOrLoading(extended))
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Section 3: Subtitles & Tracks
-        SectionHeader("SUBTITLE TRACKS")
-        if (extended != null && extended.subtitleTracks.isNotEmpty()) {
-            extended.subtitleTracks.forEachIndexed { idx, sub ->
-                val langStr = MediaLanguageLabels.displayName(sub.language)?.let { " ($it)" } ?: ""
-                MetadataRow("Subtitle Track ${idx + 1}$langStr", sub.format)
-            }
-        } else {
-            MetadataRow("Subtitles", if (extended?.inspected == true) "None embedded" else unknownOrLoading(extended))
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Section 4: File & Playback Status
-        SectionHeader("FILE & STORAGE")
-        MetadataRow("File Size", "${MediaFormatters.formatFileSize(item.sizeBytes)}  (${MediaFormatters.formatExactBytes(item.sizeBytes)})")
-        MetadataRow("Duration", MediaFormatters.formatDuration(item.durationMs))
-
-        if (!item.mimeType.isNullOrBlank()) {
-            MetadataRow("MIME Type", item.mimeType)
-        }
-
-        if (item.dateAddedSec > 0L) {
-            MetadataRow("Date Added", MediaFormatters.formatTimestamp(item.dateAddedSec))
-        }
-
-        if (item.dateModifiedSec > 0L) {
-            MetadataRow("Date Modified", MediaFormatters.formatTimestamp(item.dateModifiedSec))
-        }
-
-        // Interactive Watch Status Row
-        val hasProgress = item.playbackPositionMs >= 1000L || item.isCompleted
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 5.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Watch Status",
-                style = ApturaTypography.bodyMedium,
-                color = ApturaColors.TextMediumEmphasis
-            )
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                val statusText = when {
-                    item.isCompleted -> "Watched (Completed)"
-                    item.playbackPositionMs >= 1000L -> "In progress (${MediaFormatters.formatDuration(item.playbackPositionMs)})"
-                    else -> "Unwatched"
-                }
-                Text(
-                    text = statusText,
-                    style = ApturaTypography.titleSmall.copy(fontFeatureSettings = "tnum"),
-                    color = if (item.isCompleted) ApturaColors.StatusSuccess else ApturaColors.TextHighEmphasis,
-                    fontWeight = FontWeight.Medium
-                )
-
-                if (hasProgress) {
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = ApturaColors.SurfaceElevated3,
-                        border = BorderStroke(1.dp, ApturaColors.BorderSubtle),
-                        onClick = onResetProgressClick
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.RestartAlt,
-                                contentDescription = null,
-                                tint = ApturaColors.AccentPrimary,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Text(
-                                text = "Reset",
-                                style = ApturaTypography.labelSmall,
-                                color = ApturaColors.AccentPrimary
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-        HorizontalDivider(color = ApturaColors.SurfaceElevated2)
-        Spacer(modifier = Modifier.height(16.dp))
-
+        // ---- Actions --------------------------------------------------------------------------------------------
         if (item.isMissing) {
             MissingVideoNotice(onRemoveMissingClick = onRemoveMissingClick)
         } else {
-            // Action Buttons: Primary Play & Audio-Only
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Button(
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ApturaButton(
+                    text = if (item.playbackPositionMs >= 1000L && !item.isCompleted) "Resume" else "Play",
+                    icon = Icons.Default.PlayArrow,
                     onClick = onPlayClick,
-                    modifier = Modifier.weight(1.3f),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = ApturaColors.AccentPrimary,
-                        contentColor = ApturaColors.SurfacePureBlack
-                    )
-                ) {
-                    Icon(imageVector = Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(text = "Play", style = ApturaTypography.labelLarge, fontWeight = FontWeight.Bold)
-                }
-
-                OutlinedButton(
+                    modifier = Modifier.weight(1f)
+                )
+                ApturaOutlinedButton(
+                    text = "Audio only",
+                    icon = Icons.Default.Headphones,
                     onClick = onPlayAudioOnlyClick,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = ApturaColors.TextHighEmphasis
-                    ),
-                    border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3)
-                ) {
-                    Icon(imageVector = Icons.Default.Headphones, contentDescription = null, modifier = Modifier.size(18.dp), tint = ApturaColors.AccentPrimary)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(text = "Audio Only", style = ApturaTypography.labelMedium)
-                }
+                    modifier = Modifier.weight(1f)
+                )
             }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Queue Actions Row: Play Next & Add to Queue (FR-CTRL-017, SCR-009)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                OutlinedButton(
-                    onClick = onPlayNextClick,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = ApturaColors.TextHighEmphasis),
-                    border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3),
-                    contentPadding = PaddingValues(vertical = 10.dp)
-                ) {
-                    Icon(imageVector = Icons.Default.FastForward, contentDescription = null, modifier = Modifier.size(16.dp), tint = ApturaColors.AccentPrimary)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(text = "Play Next", style = ApturaTypography.labelMedium)
-                }
-
-                OutlinedButton(
-                    onClick = onAddToQueueClick,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = ApturaColors.TextHighEmphasis),
-                    border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3),
-                    contentPadding = PaddingValues(vertical = 10.dp)
-                ) {
-                    Icon(imageVector = Icons.AutoMirrored.Filled.QueueMusic, contentDescription = null, modifier = Modifier.size(16.dp), tint = ApturaColors.AccentSecondary)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(text = "Add to Queue", style = ApturaTypography.labelMedium)
-                }
+            Spacer(Modifier.height(16.dp))
+            Row(modifier = Modifier.fillMaxWidth()) {
+                QuickAction(Icons.AutoMirrored.Filled.PlaylistPlay, "Play next", onPlayNextClick, Modifier.weight(1f))
+                QuickAction(Icons.AutoMirrored.Filled.PlaylistAdd, "Queue", onAddToQueueClick, Modifier.weight(1f))
+                QuickAction(Icons.Default.Edit, "Rename", onRenameClick, Modifier.weight(1f))
+                QuickAction(Icons.Default.Share, "Share", onShareClick, Modifier.weight(1f))
+                QuickAction(Icons.AutoMirrored.Filled.OpenInNew, "Open with", onOpenWithClick, Modifier.weight(1f))
             }
+        }
 
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Utility Row: Rename, Share, Open With
+        // ---- Progress -------------------------------------------------------------------------------------------
+        val hasProgress = item.playbackPositionMs >= 1000L || item.isCompleted
+        DetailsSection("Progress") {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 52.dp)
+                    .padding(start = 16.dp, end = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                OutlinedButton(
-                    onClick = onRenameClick,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = ApturaColors.TextHighEmphasis),
-                    border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3),
-                    contentPadding = PaddingValues(vertical = 10.dp)
-                ) {
-                    Icon(imageVector = Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp), tint = ApturaColors.TextMediumEmphasis)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(text = "Rename", style = ApturaTypography.labelMedium)
-                }
-
-                OutlinedButton(
-                    onClick = onShareClick,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = ApturaColors.TextHighEmphasis),
-                    border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3),
-                    contentPadding = PaddingValues(vertical = 10.dp)
-                ) {
-                    Icon(imageVector = Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp), tint = ApturaColors.TextMediumEmphasis)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(text = "Share", style = ApturaTypography.labelMedium)
-                }
-
-                OutlinedButton(
-                    onClick = onOpenWithClick,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = ApturaColors.TextHighEmphasis),
-                    border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3),
-                    contentPadding = PaddingValues(vertical = 10.dp)
-                ) {
-                    Icon(imageVector = Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp), tint = ApturaColors.TextMediumEmphasis)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(text = "Open With", style = ApturaTypography.labelMedium)
-                }
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Quarantined Destructive Actions (Hide, Delete) - P2-03
-            HorizontalDivider(color = ApturaColors.BorderSubtle)
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                OutlinedButton(
-                    onClick = onHideClick,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = ApturaColors.TextMediumEmphasis),
-                    border = BorderStroke(1.dp, ApturaColors.SurfaceElevated3),
-                    contentPadding = PaddingValues(vertical = 10.dp)
-                ) {
-                    Icon(imageVector = Icons.Default.VisibilityOff, contentDescription = null, modifier = Modifier.size(16.dp), tint = ApturaColors.TextMediumEmphasis)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(text = "Hide from Library", style = ApturaTypography.labelMedium)
-                }
-
-                OutlinedButton(
-                    onClick = onDeleteClick,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = ApturaColors.StatusError),
-                    border = BorderStroke(1.dp, ApturaColors.StatusError.copy(alpha = 0.5f)),
-                    contentPadding = PaddingValues(vertical = 10.dp)
-                ) {
-                    Icon(imageVector = Icons.Default.DeleteOutline, contentDescription = null, modifier = Modifier.size(16.dp), tint = ApturaColors.StatusError)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(text = "Delete", style = ApturaTypography.labelMedium, color = ApturaColors.StatusError)
+                Text(
+                    text = when {
+                        item.isCompleted -> "Watched"
+                        item.playbackPositionMs >= 1000L ->
+                            "Stopped at ${MediaFormatters.formatDuration(item.playbackPositionMs)} of " +
+                                MediaFormatters.formatDuration(item.durationMs)
+                        else -> "Not started"
+                    },
+                    style = ApturaTypography.bodyLarge.copy(fontFeatureSettings = "tnum"),
+                    color = if (item.isCompleted) ApturaColors.StatusSuccess else ApturaColors.TextHighEmphasis,
+                    modifier = Modifier.weight(1f)
+                )
+                if (hasProgress) {
+                    ApturaTextButton(text = "Reset", onClick = onResetProgressClick, tone = ApturaTone.Accent)
                 }
             }
         }
+
+        // ---- Location -------------------------------------------------------------------------------------------
+        DetailsSection("Location") {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = storagePathLabel,
+                    style = ApturaTypography.bodyMedium,
+                    color = ApturaColors.TextHighEmphasis,
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(
+                    enabled = storagePath != null,
+                    onClick = {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        val clip = ClipData.newPlainText("Video Path", storagePath.orEmpty())
+                        clipboard.setPrimaryClip(clip)
+                        Toast.makeText(context, "Storage path copied to clipboard", Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ContentCopy,
+                        contentDescription = "Copy Path",
+                        tint = ApturaColors.TextMediumEmphasis,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
+
+        // ---- Video ----------------------------------------------------------------------------------------------
+        DetailsSection("Video") {
+            MetadataRow("Codec", extended?.videoCodec ?: unknownOrLoading(extended))
+            if (item.width > 0 && item.height > 0) {
+                MetadataRow("Resolution", MediaFormatters.formatResolution(item.width, item.height))
+            }
+            if (item.frameRate > 0f) {
+                MetadataRow("Frame rate", "%.2f fps".format(item.frameRate))
+            }
+            // Label what the number really is: the container's overall bitrate is not the video stream's bitrate.
+            val streamBitrate = extended?.videoBitrate?.takeIf { it > 0L }
+            val overallBitrate = extended?.bitRateTotal?.takeIf { it > 0L }
+            when {
+                streamBitrate != null -> MetadataRow("Video bitrate", MediaMetadataInspector.formatBitrate(streamBitrate))
+                overallBitrate != null -> MetadataRow("Overall bitrate", MediaMetadataInspector.formatBitrate(overallBitrate))
+            }
+            if (extended != null && extended.colorTransfer != null) {
+                MetadataRow("Dynamic range", extended.colorTransfer)
+            } else if (extended?.isHdr == true) {
+                MetadataRow("Dynamic range", "HDR10 (10-bit)")
+            }
+            if (extended?.colorStandard != null) {
+                MetadataRow("Color space", extended.colorStandard)
+            }
+        }
+
+        // ---- Audio ----------------------------------------------------------------------------------------------
+        DetailsSection("Audio") {
+            if (extended != null && extended.audioTracks.isNotEmpty()) {
+                extended.audioTracks.forEachIndexed { idx, track ->
+                    val channelStr = MediaMetadataInspector.formatChannels(track.channelCount)
+                    val sampleRateStr = MediaMetadataInspector.formatSampleRate(track.sampleRate)
+                    val brStr = if (track.bitrate != null && track.bitrate > 0L) " · ${MediaMetadataInspector.formatBitrate(track.bitrate)}" else ""
+                    val langStr = MediaLanguageLabels.displayName(track.language)?.let { " ($it)" } ?: ""
+                    MetadataRow(
+                        label = if (extended.audioTracks.size > 1) "Track ${idx + 1}$langStr" else "Stream$langStr",
+                        value = "${track.codec} · $channelStr · $sampleRateStr$brStr"
+                    )
+                }
+            } else {
+                MetadataRow("Stream", if (extended?.inspected == true) "None found" else unknownOrLoading(extended))
+            }
+        }
+
+        // ---- Subtitles ------------------------------------------------------------------------------------------
+        DetailsSection("Subtitles") {
+            if (extended != null && extended.subtitleTracks.isNotEmpty()) {
+                extended.subtitleTracks.forEachIndexed { idx, sub ->
+                    val langStr = MediaLanguageLabels.displayName(sub.language)?.let { " ($it)" } ?: ""
+                    MetadataRow("Track ${idx + 1}$langStr", sub.format)
+                }
+            } else {
+                MetadataRow("Embedded", if (extended?.inspected == true) "None" else unknownOrLoading(extended))
+            }
+        }
+
+        // ---- File -----------------------------------------------------------------------------------------------
+        DetailsSection("File") {
+            MetadataRow("Size", "${MediaFormatters.formatFileSize(item.sizeBytes)} (${MediaFormatters.formatExactBytes(item.sizeBytes)})")
+            MetadataRow("Duration", MediaFormatters.formatDuration(item.durationMs))
+            if (!item.mimeType.isNullOrBlank()) {
+                MetadataRow("Format", "${MediaFormatters.formatContainer(item.mimeType, item.title)} · ${item.mimeType}")
+            }
+            if (item.dateAddedSec > 0L) {
+                MetadataRow("Added", MediaFormatters.formatTimestamp(item.dateAddedSec))
+            }
+            if (item.dateModifiedSec > 0L) {
+                MetadataRow("Modified", MediaFormatters.formatTimestamp(item.dateModifiedSec))
+            }
+        }
+
+        // ---- Remove (kept apart from everything above, P2-03) ----------------------------------------------------
+        if (!item.isMissing) {
+            Spacer(Modifier.height(24.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ApturaOutlinedButton(
+                    text = "Hide",
+                    icon = Icons.Default.VisibilityOff,
+                    onClick = onHideClick,
+                    modifier = Modifier.weight(1f)
+                )
+                ApturaOutlinedButton(
+                    text = "Delete",
+                    icon = Icons.Default.DeleteOutline,
+                    tone = ApturaTone.Destructive,
+                    onClick = onDeleteClick,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+    }
+}
+
+/** A compact fact over the title ("MKV", "4K", "3.9 GB"). */
+@Composable
+private fun SpecChip(text: String) {
+    Text(
+        text = text,
+        style = ApturaTypography.labelMedium,
+        color = ApturaColors.TextMediumEmphasis,
+        maxLines = 1,
+        modifier = Modifier
+            .background(ApturaColors.SurfaceElevated3, RoundedCornerShape(6.dp))
+            .padding(horizontal = 7.dp, vertical = 3.dp)
+    )
+}
+
+/** An icon over a short label: the secondary actions as one even row instead of a wall of outlined buttons. */
+@Composable
+private fun QuickAction(icon: ImageVector, label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .background(ApturaColors.SurfaceElevated2, CircleShape)
+                .border(1.dp, ApturaColors.BorderSubtle, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(imageVector = icon, contentDescription = null, tint = ApturaColors.TextHighEmphasis, modifier = Modifier.size(20.dp))
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = label,
+            style = ApturaTypography.labelMedium.copy(fontFeatureSettings = ""),
+            color = ApturaColors.TextMediumEmphasis,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+/** A labelled group of rows on its own panel, the same grouping Settings uses. */
+@Composable
+private fun DetailsSection(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Spacer(Modifier.height(22.dp))
+    Text(
+        text = title.uppercase(),
+        style = ApturaTypography.labelSmall.copy(letterSpacing = 1.4.sp),
+        color = ApturaColors.TextMediumEmphasis,
+        modifier = Modifier
+            .padding(start = 4.dp, bottom = 8.dp)
+            .semantics { heading() }
+    )
+    val shape = RoundedCornerShape(16.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(ApturaColors.SurfaceElevated2)
+            .border(1.dp, ApturaColors.BorderSubtle, shape)
+            .padding(vertical = 4.dp),
+        content = content
+    )
+}
+
+/**
+ * A missing item is not a broken item: the file is gone, so every action that needs bytes is replaced by
+ * the one action that makes sense. This keeps Play, Rename, Share and Delete from failing silently.
+ */
+@Composable
+private fun MissingVideoNotice(onRemoveMissingClick: () -> Unit) {
+    NoticeBanner(
+        icon = Icons.Default.FolderOff,
+        title = "File unavailable",
+        message = "It may have been moved, deleted, or stored on a disconnected drive. Playback, rename, move and " +
+            "share are off until the file returns.",
+        tint = ApturaColors.StatusError
+    ) {
+        ApturaTextButton(text = "Remove from library", onClick = onRemoveMissingClick, tone = ApturaTone.Destructive)
+    }
+}
+
+@Composable
+private fun MetadataRow(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 40.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Text(
+            text = label,
+            style = ApturaTypography.bodyMedium,
+            color = ApturaColors.TextMediumEmphasis,
+            modifier = Modifier.width(112.dp)
+        )
+        Text(
+            text = value,
+            style = ApturaTypography.bodyMedium.copy(fontFeatureSettings = "tnum"),
+            color = ApturaColors.TextHighEmphasis,
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(1f)
+        )
     }
 }
 
@@ -641,97 +582,7 @@ fun MediaDetailsSheet(
 }
 
 /**
- * A missing item is not a broken item: the file is gone, so every action that needs bytes is replaced by
- * the one action that makes sense. This keeps Play, Rename, Share and Delete from failing silently.
- */
-@Composable
-private fun MissingVideoNotice(onRemoveMissingClick: () -> Unit) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        color = ApturaColors.SurfaceElevated2,
-        border = BorderStroke(1.dp, ApturaColors.StatusError.copy(alpha = 0.4f))
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.FolderOff,
-                    contentDescription = null,
-                    tint = ApturaColors.StatusError,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "File unavailable",
-                    style = ApturaTypography.titleSmall,
-                    color = ApturaColors.TextHighEmphasis,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "It may have been moved, deleted, or stored on a disconnected drive. Playback, rename, move and share are disabled until the file returns.",
-                style = ApturaTypography.bodySmall,
-                color = ApturaColors.TextMediumEmphasis
-            )
-            Spacer(modifier = Modifier.height(14.dp))
-            Button(
-                onClick = onRemoveMissingClick,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = ApturaColors.StatusError,
-                    contentColor = ApturaColors.TextOnScrim
-                )
-            ) {
-                Icon(
-                    imageVector = Icons.Default.DeleteOutline,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(text = "Remove from library", style = ApturaTypography.labelLarge)
-            }
-        }
-    }
-}
-
-@Composable
-private fun SectionHeader(title: String) {
-    Text(
-        text = title,
-        style = ApturaTypography.labelSmall.copy(fontWeight = FontWeight.Bold),
-        color = ApturaColors.AccentPrimary,
-        modifier = Modifier.padding(bottom = 6.dp)
-    )
-}
-
-@Composable
-private fun MetadataRow(label: String, value: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 5.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = label,
-            style = ApturaTypography.bodyMedium,
-            color = ApturaColors.TextMediumEmphasis,
-            modifier = Modifier.weight(1f)
-        )
-        Text(
-            text = value,
-            style = ApturaTypography.titleSmall.copy(fontFeatureSettings = "tnum"),
-            color = ApturaColors.TextHighEmphasis,
-            fontWeight = FontWeight.Medium
-        )
-    }
-}
-
-/**
- * Modern Rename Video Dialog (FR-LIB-013).
+ * Rename Video Dialog (FR-LIB-013).
  * Renames video files and title metadata across Scoped Storage, SAF, and Room database.
  */
 @Composable
@@ -745,72 +596,44 @@ fun RenameVideoDialog(
     val hasIllegalChars = text.any { it in listOf('/', '\\', ':', '*', '?', '"', '<', '>', '|') }
     val isValid = !isBlank && !hasIllegalChars && text.trim() != itemTitle.trim()
 
-    AlertDialog(
+    ApturaDialog(
         onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "Rename Video",
-                style = ApturaTypography.headlineSmall,
-                color = ApturaColors.TextHighEmphasis
-            )
-        },
-        text = {
-            Column {
-                Text(
-                    text = "Enter a new title for this video file:",
-                    style = ApturaTypography.bodyMedium,
-                    color = ApturaColors.TextMediumEmphasis
-                )
-                Spacer(modifier = Modifier.height(14.dp))
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    singleLine = true,
-                    isError = hasIllegalChars,
-                    supportingText = if (hasIllegalChars) {
-                        { Text("Title cannot contain / \\ : * ? \" < > |", color = ApturaColors.StatusError) }
-                    } else null,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = ApturaColors.AccentPrimary,
-                        unfocusedBorderColor = ApturaColors.SurfaceElevated3,
-                        focusedTextColor = ApturaColors.TextHighEmphasis,
-                        unfocusedTextColor = ApturaColors.TextHighEmphasis,
-                        cursorColor = ApturaColors.AccentPrimary
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    if (isValid) {
-                        onConfirm(text.trim())
-                    }
-                },
-                enabled = isValid,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = ApturaColors.AccentPrimary,
-                    contentColor = ApturaColors.SurfacePureBlack
-                )
-            ) {
-                Text("Rename", fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", color = ApturaColors.TextMediumEmphasis)
-            }
-        },
-        containerColor = ApturaColors.SurfaceElevated2,
-        shape = RoundedCornerShape(16.dp)
-    )
+        icon = Icons.Default.Edit,
+        title = "Rename video",
+        message = "This changes the file name on your device. The extension is kept.",
+        confirmLabel = "Rename",
+        confirmEnabled = isValid,
+        onConfirm = { if (isValid) onConfirm(text.trim()) }
+    ) {
+        OutlinedTextField(
+            value = text,
+            onValueChange = { text = it },
+            singleLine = true,
+            isError = hasIllegalChars,
+            textStyle = ApturaTypography.bodyLarge,
+            supportingText = if (hasIllegalChars) {
+                { Text("A name can't contain / \\ : * ? \" < > |", color = ApturaColors.StatusError) }
+            } else null,
+            shape = RoundedCornerShape(14.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = ApturaColors.AccentPrimary,
+                unfocusedBorderColor = ApturaColors.BorderSubtle,
+                focusedContainerColor = ApturaColors.SurfaceElevated1,
+                unfocusedContainerColor = ApturaColors.SurfaceElevated1,
+                focusedTextColor = ApturaColors.TextHighEmphasis,
+                unfocusedTextColor = ApturaColors.TextHighEmphasis,
+                cursorColor = ApturaColors.AccentPrimary
+            ),
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
 }
 
 /**
  * Native Android Platform Deletion Confirmation Dialog.
  * Transparently informs the user that the file will be physically removed from storage,
  * freeing device memory/space via Android's platform consent contract (DEC-001).
+ * When the system trash exists it is the gentler, recoverable alternative and is offered alongside.
  */
 @Composable
 fun DeleteFromDeviceDialog(
@@ -821,59 +644,23 @@ fun DeleteFromDeviceDialog(
     onTrashClick: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
+    val subject = if (itemCount > 1) "$itemCount videos" else "“$itemTitle”"
+    ApturaDialog(
         onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = if (itemCount > 1) "Delete $itemCount videos from device?" else "Delete from Device?",
-                style = ApturaTypography.headlineSmall,
-                color = ApturaColors.TextHighEmphasis
-            )
+        icon = Icons.Default.DeleteOutline,
+        title = if (itemCount > 1) "Delete $itemCount videos from device?" else "Delete from device?",
+        message = if (allowTrash) {
+            "$subject can go to Android's trash, where you can restore ${if (itemCount > 1) "them" else "it"} " +
+                "later, or be deleted permanently. " +
+                "Android may ask you to confirm."
+        } else {
+            "$subject will be permanently deleted from your device's storage. This frees up space and can't be " +
+                "undone. Android may ask you to confirm."
         },
-        text = {
-            Text(
-                text = if (allowTrash) {
-                    if (itemCount > 1) {
-                        "$itemCount videos can be moved to Android's trash and restored later, or deleted permanently. Android may ask you to confirm either action."
-                    } else {
-                        "\"$itemTitle\" can be moved to Android's trash and restored later, or deleted permanently. Android may ask you to confirm either action."
-                    }
-                } else {
-                    if (itemCount > 1) {
-                        "Permanently delete $itemCount videos from your device's storage?\n\nThis frees up space and cannot be undone. Android may ask you to confirm the deletion."
-                    } else {
-                        "Permanently delete \"$itemTitle\" from your device's storage?\n\nThis frees up space and cannot be undone. Android may ask you to confirm the deletion."
-                    }
-                },
-                style = ApturaTypography.bodyMedium,
-                color = ApturaColors.TextMediumEmphasis
-            )
-        },
-        confirmButton = {
-            Column(horizontalAlignment = Alignment.End) {
-                if (allowTrash) {
-                    TextButton(onClick = onTrashClick) {
-                        Text("Move to trash", color = ApturaColors.AccentPrimary)
-                    }
-                }
-                Button(
-                    onClick = onConfirm,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = ApturaColors.StatusError,
-                        contentColor = ApturaColors.TextHighEmphasis
-                    )
-                ) {
-                    Text("Delete permanently")
-                }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", color = ApturaColors.TextMediumEmphasis)
-            }
-        },
-        containerColor = ApturaColors.SurfaceElevated2,
-        shape = RoundedCornerShape(16.dp)
+        confirmLabel = "Delete permanently",
+        confirmTone = ApturaTone.Destructive,
+        onConfirm = onConfirm,
+        alternative = if (allowTrash) DialogAlternative("Move to trash", onTrashClick) else null
     )
 }
 
@@ -887,40 +674,14 @@ fun HideFromLibraryDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
+    ApturaDialog(
         onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "Hide from Library?",
-                style = ApturaTypography.headlineSmall,
-                color = ApturaColors.TextHighEmphasis
-            )
-        },
-        text = {
-            Text(
-                text = "Hide \"$itemTitle\" from your Aptura library?\n\nThe video file stays on your device, and the video stays hidden when the library rescans. You can restore hidden videos in Settings.",
-                style = ApturaTypography.bodyMedium,
-                color = ApturaColors.TextMediumEmphasis
-            )
-        },
-        confirmButton = {
-            Button(
-                onClick = onConfirm,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = ApturaColors.SurfaceElevated3,
-                    contentColor = ApturaColors.TextHighEmphasis
-                )
-            ) {
-                Text("Hide")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", color = ApturaColors.TextMediumEmphasis)
-            }
-        },
-        containerColor = ApturaColors.SurfaceElevated2,
-        shape = RoundedCornerShape(16.dp)
+        icon = Icons.Default.VisibilityOff,
+        title = "Hide from library?",
+        message = "“$itemTitle” stays on your device but won't appear in Aptura, even after a rescan. " +
+            "You can restore hidden videos in Settings.",
+        confirmLabel = "Hide",
+        onConfirm = onConfirm
     )
 }
 
@@ -950,40 +711,16 @@ fun RemoveMissingVideoDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
+    ApturaDialog(
         onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "Remove missing video?",
-                style = ApturaTypography.headlineSmall,
-                color = ApturaColors.TextHighEmphasis
-            )
-        },
-        text = {
-            Text(
-                text = "Remove \"$itemTitle\" from your library?\n\nThe file is already unavailable, so nothing on disk will be deleted. Its saved playback position and bookmarks will be removed. If the file comes back later, it will be added as a new video.",
-                style = ApturaTypography.bodyMedium,
-                color = ApturaColors.TextMediumEmphasis
-            )
-        },
-        confirmButton = {
-            Button(
-                onClick = onConfirm,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = ApturaColors.StatusError,
-                    contentColor = ApturaColors.TextOnScrim
-                )
-            ) {
-                Text("Remove")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", color = ApturaColors.TextMediumEmphasis)
-            }
-        },
-        containerColor = ApturaColors.SurfaceElevated2,
-        shape = RoundedCornerShape(16.dp)
+        icon = Icons.Default.FolderOff,
+        title = "Remove missing video?",
+        message = "Remove “$itemTitle” from your library? The file is already unavailable, so nothing on disk " +
+            "will be deleted. Its saved playback position and bookmarks will be removed. If the file comes back " +
+            "later, it will be added as a new video.",
+        confirmLabel = "Remove",
+        confirmTone = ApturaTone.Destructive,
+        onConfirm = onConfirm
     )
 }
 

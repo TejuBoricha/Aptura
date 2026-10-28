@@ -123,126 +123,29 @@ fun SubtitleSheet(
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 24.dp)
         ) {
-            // Header: Title & Close
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = ApturaColors.AccentSubtle,
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.Subtitles,
-                                contentDescription = null,
-                                tint = ApturaColors.AccentPrimary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Subtitles",
-                            style = ApturaTypography.headlineMedium.copy(fontSize = 18.sp),
-                            color = ApturaColors.TextHighEmphasis
-                        )
-                        val activeTrackLabel = remember(uiState.selectedSubtitleTrackIndex, uiState.subtitleTracks) {
-                            val active = uiState.subtitleTracks.firstOrNull { it.index == uiState.selectedSubtitleTrackIndex }
-                            active?.label ?: if (uiState.selectedSubtitleTrackIndex == null) "Off" else "Default"
-                        }
-                        Text(
-                            text = "Active: $activeTrackLabel",
-                            style = ApturaTypography.labelSmall,
-                            color = if (uiState.selectedSubtitleTrackIndex != null) ApturaColors.AccentPrimary else ApturaColors.TextLowEmphasis,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-
-                IconButton(
-                    onClick = onDismissRequest,
-                    modifier = Modifier.size(48.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Close",
-                        tint = ApturaColors.TextMediumEmphasis,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
+            val activeTrackLabel = remember(uiState.selectedSubtitleTrackIndex, uiState.subtitleTracks) {
+                val active = uiState.subtitleTracks.firstOrNull { it.index == uiState.selectedSubtitleTrackIndex }
+                active?.label ?: if (uiState.selectedSubtitleTrackIndex == null) "Off" else "Default"
             }
+            PlayerSheetHeader(
+                icon = Icons.Default.Subtitles,
+                title = "Subtitles",
+                subtitle = "Showing: $activeTrackLabel",
+                subtitleIsActive = uiState.selectedSubtitleTrackIndex != null,
+                onClose = onDismissRequest
+            )
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Segmented Pill Tab Bar
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = ApturaColors.SurfaceElevated1,
-                border = BorderStroke(1.dp, ApturaColors.BorderSubtle),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    val tabs = listOf(
-                        "Tracks" to Icons.Default.Subtitles,
-                        "Sync Delay" to Icons.Default.Sync,
-                        "Style" to Icons.Default.Palette
-                    )
-                    tabs.forEachIndexed { index, (label, icon) ->
-                        val isSelected = selectedTab == index
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (isSelected) ApturaColors.SurfaceElevated3 else Color.Transparent,
-                            border = if (isSelected) BorderStroke(1.dp, ApturaColors.AccentPrimary.copy(alpha = 0.5f)) else null,
-                            modifier = Modifier
-                                .weight(1f)
-                                .semantics {
-                                    role = Role.Tab
-                                    selected = isSelected
-                                }
-                                .clickable(role = Role.Tab) {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    selectedTab = index
-                                }
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(vertical = 8.dp),
-                                horizontalArrangement = Arrangement.Center,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = icon,
-                                    contentDescription = null,
-                                    tint = if (isSelected) ApturaColors.AccentPrimary else ApturaColors.TextLowEmphasis,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = label,
-                                    style = ApturaTypography.labelSmall,
-                                    color = if (isSelected) ApturaColors.TextHighEmphasis else ApturaColors.TextMediumEmphasis,
-                                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+            PlayerSheetTabs(
+                tabs = listOf(
+                    "Tracks" to Icons.Default.Subtitles,
+                    "Timing" to Icons.Default.Sync,
+                    "Style" to Icons.Default.Palette
+                ),
+                selectedIndex = selectedTab,
+                onSelect = { selectedTab = it }
+            )
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -404,9 +307,9 @@ private fun SubtitleTracksTab(
 
         // Caption track list: one card per option keeps long sidecar names readable.
         Text(
-            text = "CAPTION TRACK",
+            text = "TRACK",
             style = ApturaTypography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
-            color = ApturaColors.TextLowEmphasis
+            color = ApturaColors.TextMediumEmphasis
         )
 
         val isOffSelected = uiState.selectedSubtitleTrackIndex == null
@@ -721,9 +624,9 @@ private fun SubtitleSyncTab(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "SYNC OFFSET",
+                    text = "OFFSET",
                     style = ApturaTypography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
-                    color = ApturaColors.AccentPrimary
+                    color = ApturaColors.TextMediumEmphasis
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 val sign = if (subtitleDelayMs > 0) "+" else ""
@@ -924,9 +827,9 @@ private fun SubtitleSyncTab(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "TAP-TO-SYNC CALIBRATOR",
+                        text = "TAP TO SYNC",
                         style = ApturaTypography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
-                        color = ApturaColors.AccentPrimary
+                        color = ApturaColors.TextMediumEmphasis
                     )
                     if (speechTimestamp != null || subtitleTimestamp != null) {
                         Text(

@@ -154,8 +154,8 @@ class DiagnosticsUiTest {
     }
 
     private fun openDeleteDialog() {
-        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("Delete Diagnostic Data"))
-        composeRule.onNodeWithText("Delete Diagnostic Data").performClick()
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("Delete diagnostic data"))
+        composeRule.onNodeWithText("Delete diagnostic data").performClick()
     }
 
     // ---- post-crash prompt ----------------------------------------------------------------------------------------

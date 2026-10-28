@@ -55,7 +55,7 @@ class WebSearchDialogTest {
         show { q, p -> query = q; provider = p }
 
         composeRule.onNodeWithText("OpenSubtitles Web").performClick()
-        composeRule.onNodeWithText("Search in Browser").performClick()
+        composeRule.onNodeWithText("Search in browser").performClick()
 
         assertEquals("Some Movie 2020", query)
         assertEquals(1, provider)

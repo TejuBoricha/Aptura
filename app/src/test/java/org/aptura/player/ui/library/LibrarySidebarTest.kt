@@ -16,6 +16,8 @@ import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.theme.ApturaTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isSelectable
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -88,7 +90,7 @@ class LibrarySidebarTest {
         // Whole-library pulse: count, runtime and footprint are the reason the column earns its width.
         // "9" appears twice: the collection pulse and the "All videos" row.
         composeRule.onAllNodesWithText("9").assertCountEquals(2)
-        composeRule.onNodeWithText("films").assertIsDisplayed()
+        composeRule.onNodeWithText("videos").assertIsDisplayed()
         composeRule.onNodeWithText("COLLECTIONS").assertIsDisplayed()
         composeRule.onNodeWithText("8h 30m total  ·  5 GB").assertIsDisplayed()
 
@@ -127,8 +129,9 @@ class LibrarySidebarTest {
         // Collapsing hands the width back to the grid, and the chips return because the rail has no folder list.
         composeRule.onNodeWithContentDescription("Collapse sidebar").performClick()
         composeRule.onAllNodesWithText("COLLECTIONS").assertCountEquals(0)
-        composeRule.onAllNodesWithText("All videos").assertCountEquals(0)
-        composeRule.onNodeWithText("All Videos").assertIsDisplayed()
+        // Only the chip remains: the sidebar's own "All videos" row is gone.
+        composeRule.onAllNodesWithText("All videos").assertCountEquals(1)
+        composeRule.onNode(hasText("All videos") and isSelectable()).assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Expand sidebar").assertIsDisplayed()
         val expandBounds = composeRule.onNodeWithContentDescription("Expand sidebar").getUnclippedBoundsInRoot()
         assertEquals(68f, (expandBounds.right - expandBounds.left).value, 0.5f)
@@ -168,11 +171,12 @@ class LibrarySidebarTest {
         composeRule.onAllNodesWithText("APTURA").assertCountEquals(0)
         composeRule.onAllNodesWithText("Open").assertCountEquals(0)
         composeRule.onAllNodesWithText("COLLECTIONS").assertCountEquals(0)
-        composeRule.onAllNodesWithText("All videos").assertCountEquals(0)
+        // Only the chip says "All videos": the sidebar's own row is gone.
+        composeRule.onAllNodesWithText("All videos").assertCountEquals(1)
         // The layout is forced compact at this font scale, so there is nothing to expand into.
         composeRule.onAllNodesWithContentDescription("Expand sidebar").assertCountEquals(0)
 
         // Chips come back because the rail has no folder list.
-        composeRule.onNodeWithText("All Videos").assertIsDisplayed()
+        composeRule.onNodeWithText("All videos").assertIsDisplayed()
     }
 }

@@ -69,15 +69,15 @@ class ApturaAppE2eTest {
 
     /**
      * Waits until the library has finished loading, tolerating either state:
-     * an empty library shows "No videos found" / "Scan Device", a populated
-     * library shows the "All Videos" filter chip (rendered only when videos exist).
+     * an empty library shows "No videos yet" / "Scan device", a populated
+     * library shows the "All videos" filter chip (rendered only when videos exist).
      */
     private fun waitForLibraryLoaded(timeoutMillis: Long = 15_000) {
         val labels = listOf(
-            "No videos found",
+            "No videos yet",
             "Storage Permission Required",
-            "Scan Device",
-            "All Videos",
+            "Scan device",
+            "All videos",
             "Search videos"
         )
         composeTestRule.waitUntil(timeoutMillis = timeoutMillis) {
@@ -116,12 +116,12 @@ class ApturaAppE2eTest {
             composeTestRule.waitUntil(timeoutMillis = 5_000) {
                 runCatching {
                     composeTestRule
-                        .onNodeWithText("Continue without access (Limited Mode)")
+                        .onNodeWithText("Continue with limited access")
                         .assertIsDisplayed()
                     true
                 }.getOrDefault(false)
             }
-            composeTestRule.onNodeWithText("Continue without access (Limited Mode)").performClick()
+            composeTestRule.onNodeWithText("Continue with limited access").performClick()
         }
         composeTestRule.waitForIdle()
     }
@@ -137,7 +137,7 @@ class ApturaAppE2eTest {
 
         // Verify Scan Device button is interactive when present (empty library only)
         runCatching {
-            composeTestRule.onNodeWithText("Scan Device")
+            composeTestRule.onNodeWithText("Scan device")
                 .assertIsDisplayed()
                 .performClick()
         }

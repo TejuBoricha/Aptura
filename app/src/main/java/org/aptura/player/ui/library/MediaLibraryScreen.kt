@@ -1,6 +1,42 @@
 package org.aptura.player.ui.library
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.offset
+import androidx.compose.material.icons.automirrored.filled.DriveFileMove
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
+import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.DriveFileRenameOutline
+import androidx.compose.material.icons.filled.RemoveCircleOutline
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Movie
+import org.aptura.player.ui.components.ApturaMenuItem
+import org.aptura.player.ui.components.ApturaTone
+import org.aptura.player.ui.components.ApturaDialog
+import org.aptura.player.ui.components.DialogOptionRow
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.outlined.SearchOff
+import androidx.compose.material.icons.outlined.VideoLibrary
+import org.aptura.player.ui.components.ApturaButton
+import org.aptura.player.ui.components.ApturaOutlinedButton
+import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.ContentCut
+import androidx.compose.material.icons.outlined.CreateNewFolder
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import org.aptura.player.ui.components.ApturaMenuCaption
+import org.aptura.player.ui.components.ApturaTextButton
+import org.aptura.player.ui.components.NoticeBanner
+import org.aptura.player.ui.components.SectionTitle
+import org.aptura.player.ui.components.SkeletonBlock
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.tween
@@ -50,7 +86,6 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Sort
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
@@ -193,33 +228,43 @@ fun MediaLibraryScreen(
         Box(modifier = Modifier.fillMaxSize()) {
             when (uiState) {
                 is MediaLibraryUiState.Loading -> {
-                    MediaLibraryLoadingView(
+                    Column(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(
                                 top = innerPadding.calculateTopPadding(),
                                 bottom = innerPadding.calculateBottomPadding()
                             )
-                    )
+                    ) {
+                        LibraryAppBar(onSettingsClick = onSettingsClick)
+                        MediaLibraryLoadingView(modifier = Modifier.weight(1f))
+                    }
                 }
 
                 is MediaLibraryUiState.Empty -> {
-                    MediaLibraryEmptyView(
-                        isFiltered = uiState.isFiltered,
-                        query = uiState.query,
-                        isPermissionDenied = uiState.isPermissionDenied,
-                        onClearSearch = { onSearchQueryChanged("") },
-                        onRefresh = onRefresh,
-                        onOpenFilePicker = onOpenFilePicker,
-                        onRequestPermission = onRequestPermission,
-                        onAddFolderClick = onAddFolderClick,
+                    // Without videos there is no sidebar or search row, but Settings (theme, folders, the guide) must
+                    // still be one tap away: an empty library used to be a dead end.
+                    Column(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(
                                 top = innerPadding.calculateTopPadding(),
                                 bottom = innerPadding.calculateBottomPadding()
                             )
-                    )
+                    ) {
+                        LibraryAppBar(onSettingsClick = onSettingsClick)
+                        MediaLibraryEmptyView(
+                            isFiltered = uiState.isFiltered,
+                            query = uiState.query,
+                            isPermissionDenied = uiState.isPermissionDenied,
+                            onClearSearch = { onSearchQueryChanged("") },
+                            onRefresh = onRefresh,
+                            onOpenFilePicker = onOpenFilePicker,
+                            onRequestPermission = onRequestPermission,
+                            onAddFolderClick = onAddFolderClick,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
 
                 is MediaLibraryUiState.Success -> {
@@ -689,13 +734,14 @@ private fun MediaLibraryContentView(
                     .fillMaxHeight()
                     .padding(top = topPadding)
             ) {
+                // One page gutter for the header, chips, banners and grid, so every edge lines up.
+                val pagePadding = if (isWideScreen) 24.dp else 16.dp
+
                 // Search & Sort Bar
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .wrapContentWidth(Alignment.CenterHorizontally)
-                        .widthIn(max = 680.dp)
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        .padding(start = pagePadding, end = pagePadding - 4.dp, top = 12.dp, bottom = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     OutlinedTextField(
@@ -703,8 +749,12 @@ private fun MediaLibraryContentView(
                         onValueChange = onSearchQueryChanged,
                         placeholder = {
                             Text(
-                                text = "Search videos",
-                                style = ApturaTypography.bodyMedium,
+                                text = if (state.selectedFolder != null) {
+                                    "Search ${friendlyFolderName(state.selectedFolder)}"
+                                } else {
+                                    "Search videos"
+                                },
+                                style = ApturaTypography.bodyLarge,
                                 color = ApturaColors.TextLowEmphasis,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -728,54 +778,49 @@ private fun MediaLibraryContentView(
                                 }
                             }
                         },
+                        textStyle = ApturaTypography.bodyLarge,
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                         keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
                         singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(16.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = ApturaColors.AccentPrimary,
-                            unfocusedBorderColor = ApturaColors.SurfaceElevated2,
+                            unfocusedBorderColor = ApturaColors.BorderSubtle,
                             focusedContainerColor = ApturaColors.SurfaceElevated1,
                             unfocusedContainerColor = ApturaColors.SurfaceElevated1,
                             focusedTextColor = ApturaColors.TextHighEmphasis,
                             unfocusedTextColor = ApturaColors.TextHighEmphasis,
                             cursorColor = ApturaColors.AccentPrimary
                         ),
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1f)
+                            .widthIn(max = 720.dp)
                     )
 
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
 
-                    // Sort Menu Button
+                    // Plain icon buttons: three filled tiles beside the field made the header heavier than the content.
                     Box {
-                        IconButton(
-                            onClick = { sortMenuExpanded = true },
-                            modifier = Modifier
-                                .size(48.dp)
-                                .background(ApturaColors.SurfaceElevated1, RoundedCornerShape(12.dp))
-                        ) {
-                            @Suppress("DEPRECATION")
+                        IconButton(onClick = { sortMenuExpanded = true }, modifier = Modifier.size(48.dp)) {
                             Icon(
-                                imageVector = Icons.Default.Sort,
+                                imageVector = Icons.AutoMirrored.Filled.Sort,
                                 contentDescription = "Sort library",
-                                tint = ApturaColors.AccentPrimary
+                                tint = ApturaColors.TextMediumEmphasis
                             )
                         }
 
                         DropdownMenu(
                             expanded = sortMenuExpanded,
                             onDismissRequest = { sortMenuExpanded = false },
-                            modifier = Modifier.background(ApturaColors.SurfaceElevated2)
+                            containerColor = ApturaColors.SurfaceElevated2,
+                            shape = RoundedCornerShape(16.dp)
                         ) {
+                            ApturaMenuCaption("Sort by")
                             LibrarySortOrder.entries.forEach { order ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            text = order.displayName,
-                                            style = ApturaTypography.bodyMedium,
-                                            color = if (state.sortOrder == order) ApturaColors.AccentPrimary else ApturaColors.TextHighEmphasis
-                                        )
-                                    },
+                                ApturaMenuItem(
+                                    text = order.displayName,
+                                    icon = null,
+                                    selected = state.sortOrder == order,
                                     onClick = {
                                         onSortOrderChanged(order)
                                         sortMenuExpanded = false
@@ -786,15 +831,7 @@ private fun MediaLibraryContentView(
                     }
 
                     if (!isWideScreen) {
-                        Spacer(modifier = Modifier.width(4.dp))
-
-                        // Refresh Button
-                        IconButton(
-                            onClick = onRefresh,
-                            modifier = Modifier
-                                .size(48.dp)
-                                .background(ApturaColors.SurfaceElevated1, RoundedCornerShape(12.dp))
-                        ) {
+                        IconButton(onClick = onRefresh, modifier = Modifier.size(48.dp)) {
                             if (state.isRefreshing) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(20.dp),
@@ -810,17 +847,9 @@ private fun MediaLibraryContentView(
                             }
                         }
 
-                        Spacer(modifier = Modifier.width(4.dp))
-
-                        // Settings Button
-                        IconButton(
-                            onClick = onSettingsClick,
-                            modifier = Modifier
-                                .size(48.dp)
-                                .background(ApturaColors.SurfaceElevated1, RoundedCornerShape(12.dp))
-                        ) {
+                        IconButton(onClick = onSettingsClick, modifier = Modifier.size(48.dp)) {
                             Icon(
-                                imageVector = Icons.Default.Settings,
+                                imageVector = Icons.Outlined.Settings,
                                 contentDescription = "Settings",
                                 tint = ApturaColors.TextMediumEmphasis
                             )
@@ -830,76 +859,28 @@ private fun MediaLibraryContentView(
 
         // Folder Chips Row (FR-LIB-009, FR-LIB-018). The expanded sidebar owns this job on wide screens and keeps the
         // top edge quiet; the compact rail still relies on the chips.
-        if (state.videos.isNotEmpty() && !isExpandedSidebar) {
+        if (state.folders.isNotEmpty() && !isExpandedSidebar) {
             LazyRow(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .wrapContentWidth(Alignment.CenterHorizontally)
-                    .widthIn(max = 680.dp)
-                    .padding(vertical = 4.dp),
-                contentPadding = PaddingValues(horizontal = 16.dp),
+                    .padding(bottom = 4.dp),
+                contentPadding = PaddingValues(horizontal = pagePadding),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                item(key = "all_videos", contentType = "all_videos_chip") {
-                    FilterChip(
+                item(key = "all_videos", contentType = "folder_chip") {
+                    FolderFilterChip(
+                        label = "All videos",
                         selected = state.selectedFolder == null,
-                        onClick = { onFolderSelected(null) },
-                        leadingIcon = if (state.selectedFolder == null) {
-                            {
-                                Icon(
-                                    imageVector = Icons.Filled.Check,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
-                                    tint = ApturaColors.AccentPrimary
-                                )
-                            }
-                        } else null,
-                        label = { Text("All Videos", style = ApturaTypography.labelSmall) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = ApturaColors.AccentSubtle,
-                            selectedLabelColor = ApturaColors.AccentPrimary,
-                            containerColor = ApturaColors.SurfaceElevated1,
-                            labelColor = ApturaColors.TextMediumEmphasis
-                        ),
-                        border = FilterChipDefaults.filterChipBorder(
-                            enabled = true,
-                            selected = state.selectedFolder == null,
-                            borderColor = ApturaColors.SurfaceElevated2,
-                            selectedBorderColor = ApturaColors.AccentPrimary
-                        ),
-                        shape = RoundedCornerShape(8.dp)
+                        onClick = { onFolderSelected(null) }
                     )
                 }
 
                 items(state.folders, key = { it }, contentType = { "folder_chip" }) { folder ->
                     val friendlyName = remember(folder) { friendlyFolderName(folder) }
-                    FilterChip(
+                    FolderFilterChip(
+                        label = friendlyName,
                         selected = state.selectedFolder == folder,
-                        onClick = { onFolderSelected(folder) },
-                        leadingIcon = if (state.selectedFolder == folder) {
-                            {
-                                Icon(
-                                    imageVector = Icons.Filled.Check,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
-                                    tint = ApturaColors.AccentPrimary
-                                )
-                            }
-                        } else null,
-                        label = { Text(friendlyName, style = ApturaTypography.labelSmall) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = ApturaColors.AccentSubtle,
-                            selectedLabelColor = ApturaColors.AccentPrimary,
-                            containerColor = ApturaColors.SurfaceElevated1,
-                            labelColor = ApturaColors.TextMediumEmphasis
-                        ),
-                        border = FilterChipDefaults.filterChipBorder(
-                            enabled = true,
-                            selected = state.selectedFolder == folder,
-                            borderColor = ApturaColors.SurfaceElevated2,
-                            selectedBorderColor = ApturaColors.AccentPrimary
-                        ),
-                        shape = RoundedCornerShape(8.dp)
+                        onClick = { onFolderSelected(folder) }
                     )
                 }
 
@@ -909,23 +890,27 @@ private fun MediaLibraryContentView(
                         onClick = onAddFolderClick,
                         leadingIcon = {
                             Icon(
-                                imageVector = Icons.Default.FolderOpen,
-                                contentDescription = "Add custom media folder",
-                                modifier = Modifier.size(16.dp),
+                                imageVector = Icons.Outlined.CreateNewFolder,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
                                 tint = ApturaColors.AccentPrimary
                             )
                         },
-                        label = { Text("+ Folder", style = ApturaTypography.labelSmall) },
+                        label = { Text("Add folder", style = ApturaTypography.labelLarge.copy(fontFeatureSettings = "")) },
                         colors = FilterChipDefaults.filterChipColors(
-                            containerColor = ApturaColors.SurfaceElevated1,
+                            containerColor = Color.Transparent,
                             labelColor = ApturaColors.AccentPrimary
                         ),
                         border = FilterChipDefaults.filterChipBorder(
                             enabled = true,
                             selected = false,
-                            borderColor = ApturaColors.AccentPrimary.copy(alpha = 0.4f)
+                            borderColor = ApturaColors.BorderSubtle
                         ),
-                        shape = RoundedCornerShape(8.dp)
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .height(48.dp)
+                            .padding(vertical = 6.dp)
+                            .semantics { contentDescription = "Add custom media folder" }
                     )
                 }
             }
@@ -936,54 +921,21 @@ private fun MediaLibraryContentView(
             CrashNoticeCard(
                 onShareDetails = onShareCrashDetails,
                 onDismiss = onDismissCrashNotice,
-                modifier = Modifier.wrapContentWidth(Alignment.CenterHorizontally)
+                modifier = Modifier.padding(horizontal = pagePadding, vertical = 6.dp)
             )
         }
 
         // Limited Storage Mode Banner (SCR-012)
         if (state.isLimitedMode) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .wrapContentWidth(Alignment.CenterHorizontally)
-                    .widthIn(max = 680.dp)
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = ApturaColors.SurfaceElevated2)
+            NoticeBanner(
+                icon = Icons.Outlined.Lock,
+                title = "Limited access",
+                message = "Aptura can only see videos you open or share with it. Allow access to list your whole library.",
+                tint = ApturaColors.StatusWarning,
+                modifier = Modifier.padding(horizontal = pagePadding, vertical = 6.dp)
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Warning,
-                        contentDescription = null,
-                        tint = ApturaColors.AccentPrimary,
-                        modifier = Modifier.size(22.dp)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Limited Storage Access",
-                            style = ApturaTypography.titleSmall,
-                            color = ApturaColors.TextHighEmphasis,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Only selected or shared files appear here",
-                            style = ApturaTypography.bodyMedium,
-                            color = ApturaColors.TextMediumEmphasis
-                        )
-                    }
-                    TextButton(onClick = onOpenFilePicker) {
-                        Text("Open File", style = ApturaTypography.labelMedium, color = ApturaColors.AccentPrimary)
-                    }
-                    TextButton(onClick = onRequestPermission) {
-                        Text("Grant", style = ApturaTypography.labelMedium, color = ApturaColors.AccentPrimary)
-                    }
-                }
+                ApturaTextButton(text = "Open a file", onClick = onOpenFilePicker)
+                ApturaTextButton(text = "Allow access", onClick = onRequestPermission, tone = ApturaTone.Accent)
             }
         }
 
@@ -999,46 +951,39 @@ private fun MediaLibraryContentView(
             ) {
                 Surface(
                     modifier = Modifier
-                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                        .padding(horizontal = pagePadding, vertical = 6.dp)
                         .widthIn(max = 680.dp)
                         .fillMaxWidth()
                         .testTag("selection_action_bar"),
-                    color = ApturaColors.SurfaceElevated1,
-                    shape = RoundedCornerShape(14.dp)
+                    color = ApturaColors.SurfaceElevated2,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, ApturaColors.AccentPrimary.copy(alpha = 0.35f)),
+                    shape = RoundedCornerShape(18.dp)
                 ) {
-                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+                    Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)) {
                         if (selectedItems.isNotEmpty()) {
+                            // One row: leave, count, then the actions. Selection is a mode, so it gets a visible exit.
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "${selectedItems.size} selected",
-                                    style = ApturaTypography.titleSmall,
-                                    color = ApturaColors.TextHighEmphasis
-                                )
-                                TextButton(onClick = {
-                                    selectedUris = if (selectedItems.size == state.videos.size) {
-                                        emptySet()
-                                    } else {
-                                        state.videos.mapTo(mutableSetOf()) { it.uri }
-                                    }
-                                }) {
-                                    Text(
-                                        if (selectedItems.size == state.videos.size) "Clear" else "Select all",
-                                        color = ApturaColors.AccentPrimary
+                                IconButton(onClick = { selectedUris = emptySet() }, modifier = Modifier.size(48.dp)) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Clear selection",
+                                        tint = ApturaColors.TextHighEmphasis
                                     )
                                 }
-                            }
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.End,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
+                                Text(
+                                    text = "${selectedItems.size} selected",
+                                    style = ApturaTypography.titleMedium.copy(fontFeatureSettings = "tnum"),
+                                    color = ApturaColors.TextHighEmphasis,
+                                    maxLines = 1,
+                                    modifier = Modifier.weight(1f)
+                                )
                                 TextButton(onClick = {
                                     activeModal = LibraryActiveModal.MoveToFolder(selectedItems.map { it.uri })
                                 }) {
-                                    Text("Move", color = ApturaColors.AccentPrimary)
+                                    Text("Move", style = ApturaTypography.labelLarge, color = ApturaColors.AccentPrimary)
                                 }
                                 TextButton(onClick = { shareVideos(context, selectedItems.map { it.uri }) }) {
-                                    Text("Share", color = ApturaColors.TextHighEmphasis)
+                                    Text("Share", style = ApturaTypography.labelLarge, color = ApturaColors.AccentPrimary)
                                 }
                                 Box {
                                     IconButton(
@@ -1054,65 +999,72 @@ private fun MediaLibraryContentView(
                                     DropdownMenu(
                                         expanded = selectionActionsExpanded,
                                         onDismissRequest = { selectionActionsExpanded = false },
-                                        containerColor = ApturaColors.SurfaceElevated2
+                                        containerColor = ApturaColors.SurfaceElevated2,
+                                        shape = RoundedCornerShape(16.dp)
                                     ) {
+                                        val allSelected = selectedItems.size == state.videos.size
+                                        ApturaMenuItem(
+                                            text = if (allSelected) "Clear" else "Select all",
+                                            icon = if (allSelected) Icons.Default.Close else Icons.Default.Check,
+                                            onClick = {
+                                                selectionActionsExpanded = false
+                                                selectedUris = if (allSelected) {
+                                                    emptySet()
+                                                } else {
+                                                    state.videos.mapTo(mutableSetOf()) { it.uri }
+                                                }
+                                            }
+                                        )
+                                        MenuDivider()
                                         if (selectedItems.size == 1) {
-                                            DropdownMenuItem(
-                                                text = { Text("Rename", color = ApturaColors.TextHighEmphasis) },
-                                                onClick = {
-                                                    selectionActionsExpanded = false
-                                                    activeModal = LibraryActiveModal.Rename(selectedItems.single())
-                                                }
-                                            )
-                                            DropdownMenuItem(
-                                                text = { Text("Details", color = ApturaColors.TextHighEmphasis) },
-                                                onClick = {
-                                                    selectionActionsExpanded = false
-                                                    val item = selectedItems.single()
-                                                    selectedUris = emptySet()
-                                                    if (onShowDetails != null) onShowDetails(item)
-                                                    else activeModal = LibraryActiveModal.Details(item)
-                                                }
-                                            )
+                                            ApturaMenuItem("Rename", Icons.Default.DriveFileRenameOutline, onClick = {
+                                                selectionActionsExpanded = false
+                                                activeModal = LibraryActiveModal.Rename(selectedItems.single())
+                                            })
+                                            ApturaMenuItem("Details", Icons.Outlined.Info, onClick = {
+                                                selectionActionsExpanded = false
+                                                val item = selectedItems.single()
+                                                selectedUris = emptySet()
+                                                if (onShowDetails != null) onShowDetails(item)
+                                                else activeModal = LibraryActiveModal.Details(item)
+                                            })
                                         }
-                                        DropdownMenuItem(
-                                            text = { Text("Copy", color = ApturaColors.TextHighEmphasis) },
-                                            onClick = {
-                                                selectionActionsExpanded = false
-                                                clipboardUris = selectedItems.map { it.uri }
-                                                clipboardIsCut = false
-                                            }
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text("Cut", color = ApturaColors.TextHighEmphasis) },
-                                            onClick = {
-                                                selectionActionsExpanded = false
-                                                clipboardUris = selectedItems.map { it.uri }
-                                                clipboardIsCut = true
-                                            }
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text("Hide from library", color = ApturaColors.TextHighEmphasis) },
-                                            onClick = {
-                                                selectionActionsExpanded = false
-                                                activeModal = LibraryActiveModal.HideSelection(selectedItems)
-                                            }
-                                        )
-                                        HorizontalDivider()
-                                        DropdownMenuItem(
-                                            text = { Text("Delete videos", color = ApturaColors.StatusError) },
-                                            onClick = {
-                                                selectionActionsExpanded = false
-                                                activeModal = LibraryActiveModal.DeleteSelection(selectedItems)
-                                            }
-                                        )
+                                        ApturaMenuItem("Copy", Icons.Outlined.ContentCopy, onClick = {
+                                            selectionActionsExpanded = false
+                                            clipboardUris = selectedItems.map { it.uri }
+                                            clipboardIsCut = false
+                                        })
+                                        ApturaMenuItem("Cut", Icons.Outlined.ContentCut, onClick = {
+                                            selectionActionsExpanded = false
+                                            clipboardUris = selectedItems.map { it.uri }
+                                            clipboardIsCut = true
+                                        })
+                                        ApturaMenuItem("Hide from library", Icons.Default.VisibilityOff, onClick = {
+                                            selectionActionsExpanded = false
+                                            activeModal = LibraryActiveModal.HideSelection(selectedItems)
+                                        })
+                                        MenuDivider()
+                                        ApturaMenuItem("Delete videos", Icons.Default.DeleteOutline, tone = ApturaTone.Destructive, onClick = {
+                                            selectionActionsExpanded = false
+                                            activeModal = LibraryActiveModal.DeleteSelection(selectedItems)
+                                        })
                                     }
                                 }
                             }
                         }
                         if (clipboardUris.isNotEmpty()) {
                             if (selectedItems.isNotEmpty()) HorizontalDivider(color = ApturaColors.BorderSubtle)
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(start = 12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (clipboardIsCut) Icons.Outlined.ContentCut else Icons.Outlined.ContentCopy,
+                                    contentDescription = null,
+                                    tint = ApturaColors.TextMediumEmphasis,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(Modifier.width(12.dp))
                                 Text(
                                     text = "${clipboardUris.size} ${if (clipboardUris.size == 1) "video" else "videos"} ${if (clipboardIsCut) "ready to move" else "copied"}",
                                     style = ApturaTypography.bodyMedium,
@@ -1132,13 +1084,13 @@ private fun MediaLibraryContentView(
                                         folderPicker.launch(null)
                                     }
                                 }) {
-                                    Text("Paste", color = ApturaColors.AccentPrimary)
+                                    Text("Paste", style = ApturaTypography.labelLarge, color = ApturaColors.AccentPrimary)
                                 }
                                 TextButton(onClick = {
                                     clipboardUris = emptyList()
                                     clipboardIsCut = false
                                 }) {
-                                    Text("Clear", color = ApturaColors.TextMediumEmphasis)
+                                    Text("Clear", style = ApturaTypography.labelLarge, color = ApturaColors.TextMediumEmphasis)
                                 }
                             }
                         }
@@ -1153,7 +1105,8 @@ private fun MediaLibraryContentView(
         val baseGridMinSize = when {
             containerWidth >= 1200.dp -> 240.dp
             isWideScreen -> 200.dp
-            else -> 140.dp
+            // 132 dp keeps two columns on a 320 dp phone (two 137 dp cells); 140 dp collapsed it to one huge column.
+            else -> 132.dp
         }
         // Fixed 140 dp cells at 200% font turn titles into "Aptura Audit Cl…" and make sibling episodes
         // indistinguishable. Growing the cell with the font scale buys the extra line it needs (and at the
@@ -1206,13 +1159,13 @@ private fun MediaLibraryContentView(
                     }
                 },
             contentPadding = PaddingValues(
-                start = 16.dp,
-                end = 16.dp,
-                top = 8.dp,
-                bottom = bottomPadding + 16.dp
+                start = pagePadding,
+                end = pagePadding,
+                top = 12.dp,
+                bottom = bottomPadding + 24.dp
             ),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(18.dp),
+            horizontalArrangement = Arrangement.spacedBy(if (isWideScreen) 20.dp else 14.dp)
         ) {
             if (state.continueWatching.isNotEmpty()) {
                 item(
@@ -1222,9 +1175,21 @@ private fun MediaLibraryContentView(
                 ) {
                     ContinueWatchingRow(
                         cards = state.continueWatching,
-                        onResume = { card -> onVideoClick(card.rawItem, allRawVideos) }
+                        onResume = { card -> onVideoClick(card.rawItem, allRawVideos) },
+                        modifier = Modifier.padding(bottom = 10.dp)
                     )
                 }
+            }
+            // The grid gets a title of its own, so it reads as a section rather than as leftovers under the shelf.
+            item(key = "grid_title", span = { GridItemSpan(maxLineSpan) }, contentType = "section_title") {
+                SectionTitle(
+                    title = when {
+                        state.searchQuery.isNotBlank() -> "Results"
+                        state.selectedFolder != null -> friendlyFolderName(state.selectedFolder)
+                        else -> "Library"
+                    },
+                    count = state.videos.size
+                )
             }
             items(
                 items = state.videos,
@@ -1331,43 +1296,43 @@ private fun MediaLibraryContentView(
 
             is LibraryActiveModal.MoreFileActions -> {
                 val item = modal.item
-                AlertDialog(
+                ApturaDialog(
                     onDismissRequest = { activeModal = null },
-                    title = { Text("More file actions") },
-                    text = {
-                        Text(
-                            "${MediaFormatters.cleanTitle(item.title)}\n\nRename changes the file name. Copy and Cut add it to Aptura's clipboard; choose Paste to select a destination.",
-                            color = ApturaColors.TextMediumEmphasis
+                    title = "More file actions",
+                    message = MediaFormatters.cleanTitle(item.title),
+                    confirmLabel = null,
+                    onConfirm = {},
+                    dismissLabel = "Close"
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        DialogOptionRow(
+                            icon = Icons.Default.DriveFileRenameOutline,
+                            title = "Rename",
+                            subtitle = "Change the file name on your device",
+                            onClick = { activeModal = LibraryActiveModal.Rename(item) }
                         )
-                    },
-                    confirmButton = {
-                        Column(horizontalAlignment = Alignment.End) {
-                            TextButton(onClick = { activeModal = LibraryActiveModal.Rename(item) }) {
-                                Text("Rename", color = ApturaColors.TextHighEmphasis)
-                            }
-                            TextButton(onClick = {
+                        DialogOptionRow(
+                            icon = Icons.Outlined.ContentCopy,
+                            title = "Copy",
+                            subtitle = "Keep this file and paste a copy into another folder",
+                            onClick = {
                                 clipboardUris = listOf(item.uri)
                                 clipboardIsCut = false
                                 activeModal = null
-                            }) {
-                                Text("Copy", color = ApturaColors.TextHighEmphasis)
                             }
-                            TextButton(onClick = {
+                        )
+                        DialogOptionRow(
+                            icon = Icons.Outlined.ContentCut,
+                            title = "Cut",
+                            subtitle = "Move it to the folder you choose with Paste",
+                            onClick = {
                                 clipboardUris = listOf(item.uri)
                                 clipboardIsCut = true
                                 activeModal = null
-                            }) {
-                                Text("Cut", color = ApturaColors.TextHighEmphasis)
                             }
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { activeModal = null }) {
-                            Text("Close", color = ApturaColors.TextMediumEmphasis)
-                        }
-                    },
-                    containerColor = ApturaColors.SurfaceElevated2
-                )
+                        )
+                    }
+                }
             }
 
             is LibraryActiveModal.Rename -> {
@@ -1466,62 +1431,42 @@ private fun MediaLibraryContentView(
 
             is LibraryActiveModal.HideSelection -> {
                 val items = modal.items
-                AlertDialog(
+                ApturaDialog(
                     onDismissRequest = { activeModal = null },
-                    title = { Text("Hide ${items.size} video${if (items.size == 1) "" else "s"}?") },
-                    text = {
-                        Text(
-                            "The files stay on your device. They will be hidden from Aptura, including after a rescan, and can be restored from Settings.",
-                            color = ApturaColors.TextMediumEmphasis
-                        )
-                    },
-                    confirmButton = {
-                        TextButton(onClick = {
-                            items.forEach { onRemoveVideo(it.uri) }
-                            selectedUris = emptySet()
-                            activeModal = null
-                            Toast.makeText(context, "${items.size} video(s) hidden.", Toast.LENGTH_SHORT).show()
-                        }) {
-                            Text("Hide videos", color = ApturaColors.AccentPrimary)
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { activeModal = null }) {
-                            Text("Cancel", color = ApturaColors.TextMediumEmphasis)
-                        }
-                    },
-                    containerColor = ApturaColors.SurfaceElevated2
+                    icon = Icons.Default.VisibilityOff,
+                    title = "Hide ${items.size} video${if (items.size == 1) "" else "s"}?",
+                    message = "The files stay on your device. They will be hidden from Aptura, including after a rescan, and can be restored from Settings.",
+                    confirmLabel = "Hide videos",
+                    onConfirm = {
+                        items.forEach { onRemoveVideo(it.uri) }
+                        selectedUris = emptySet()
+                        activeModal = null
+                        Toast.makeText(
+                            context,
+                            "${items.size} ${if (items.size == 1) "video" else "videos"} hidden",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
                 )
             }
 
             is LibraryActiveModal.MoveToFolder -> {
                 val uris = modal.uris
-                AlertDialog(
+                ApturaDialog(
                     onDismissRequest = { activeModal = null },
-                    title = { Text("Move ${uris.size} ${if (uris.size == 1) "video" else "videos"}?") },
-                    text = {
-                        Text(
-                            "Aptura will copy each selected video to the folder you choose, then ask Android to delete its original. If copying fails or Android denies deletion, that original stays in your library. Make sure the destination has enough free space.",
-                            color = ApturaColors.TextMediumEmphasis
-                        )
-                    },
-                    confirmButton = {
-                        TextButton(onClick = {
-                            activeModal = null
-                            transferUris = uris
-                            transferIsMove = true
-                            transferFromClipboard = modal.fromClipboard
-                            folderPicker.launch(null)
-                        }) {
-                            Text("Choose folder", color = ApturaColors.AccentPrimary)
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { activeModal = null }) {
-                            Text("Cancel", color = ApturaColors.TextMediumEmphasis)
-                        }
-                    },
-                    containerColor = ApturaColors.SurfaceElevated2
+                    icon = Icons.AutoMirrored.Filled.DriveFileMove,
+                    title = "Move ${uris.size} ${if (uris.size == 1) "video" else "videos"}?",
+                    message = "Aptura copies each video to the folder you choose, then asks Android to delete the original. " +
+                        "If a copy fails or Android declines the deletion, that original stays where it is. " +
+                        "Make sure the destination has enough free space.",
+                    confirmLabel = "Choose folder",
+                    onConfirm = {
+                        activeModal = null
+                        transferUris = uris
+                        transferIsMove = true
+                        transferFromClipboard = modal.fromClipboard
+                        folderPicker.launch(null)
+                    }
                 )
             }
 
@@ -1547,16 +1492,13 @@ private fun MediaLibraryContentView(
             )
         }
         transferResult?.let { result ->
-            AlertDialog(
+            ApturaDialog(
                 onDismissRequest = { transferResult = null },
-                title = { Text(result.title) },
-                text = { Text(result.message, color = ApturaColors.TextMediumEmphasis) },
-                confirmButton = {
-                    TextButton(onClick = { transferResult = null }) {
-                        Text("OK", color = ApturaColors.AccentPrimary)
-                    }
-                },
-                containerColor = ApturaColors.SurfaceElevated2
+                title = result.title,
+                message = result.message,
+                confirmLabel = "OK",
+                onConfirm = { transferResult = null },
+                dismissLabel = null
             )
         }
             }
@@ -1579,75 +1521,58 @@ private fun TransferProgressDialog(
     val verb = if (isMove) "Moving" else "Copying"
     val noun = if (progress.totalFiles == 1) "video" else "videos"
     val percent = (progress.fraction * 100f).roundToInt()
-    AlertDialog(
-        onDismissRequest = onCancel,
+    ApturaDialog(
+        onDismissRequest = { if (!isCancelling) onCancel() },
         properties = DialogProperties(dismissOnClickOutside = false),
-        title = {
+        title = "$verb ${progress.totalFiles} $noun",
+        confirmLabel = null,
+        onConfirm = {},
+        dismissLabel = if (isCancelling) "Cancelling…" else "Cancel",
+        onDismiss = { if (!isCancelling) onCancel() }
+    ) {
+        Text(
+            text = progress.currentName.ifBlank { "Preparing…" },
+            style = ApturaTypography.bodyLarge,
+            color = ApturaColors.TextHighEmphasis,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Spacer(modifier = Modifier.height(14.dp))
+        LinearProgressIndicator(
+            progress = { progress.fraction },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp)),
+            color = ApturaColors.AccentPrimary,
+            trackColor = ApturaColors.SurfaceElevated3,
+            gapSize = 0.dp,
+            drawStopIndicator = {}
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text(
-                text = "$verb ${progress.totalFiles} $noun",
-                style = ApturaTypography.headlineSmall,
+                text = buildString {
+                    append("${progress.completedFiles} of ${progress.totalFiles} files")
+                    if (progress.totalBytes > 0L) {
+                        append("  ·  ${MediaFormatters.formatFileSize(progress.copiedBytes)} of ")
+                        append(MediaFormatters.formatFileSize(progress.totalBytes))
+                    }
+                },
+                style = ApturaTypography.bodySmall.copy(fontFeatureSettings = "tnum"),
+                color = ApturaColors.TextMediumEmphasis,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = "$percent%",
+                style = ApturaTypography.titleSmall.copy(fontFeatureSettings = "tnum"),
                 color = ApturaColors.TextHighEmphasis
             )
-        },
-        text = {
-            Column {
-                Text(
-                    text = progress.currentName.ifBlank { "Preparing…" },
-                    style = ApturaTypography.bodyMedium,
-                    color = ApturaColors.TextHighEmphasis,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                LinearProgressIndicator(
-                    progress = { progress.fraction },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp)),
-                    color = ApturaColors.AccentPrimary,
-                    trackColor = ApturaColors.SurfaceElevated3
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "${progress.completedFiles} of ${progress.totalFiles} files",
-                        style = ApturaTypography.bodySmall,
-                        color = ApturaColors.TextMediumEmphasis
-                    )
-                    Spacer(modifier = Modifier.weight(1f))
-                    Text(
-                        text = "$percent%",
-                        style = ApturaTypography.bodySmall,
-                        color = ApturaColors.TextHighEmphasis,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-                if (progress.totalBytes > 0L) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "${MediaFormatters.formatFileSize(progress.copiedBytes)} of " +
-                            MediaFormatters.formatFileSize(progress.totalBytes),
-                        style = ApturaTypography.bodySmall,
-                        color = ApturaColors.TextMediumEmphasis
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onCancel, enabled = !isCancelling) {
-                Text(
-                    text = if (isCancelling) "Cancelling…" else "Cancel",
-                    color = if (isCancelling) ApturaColors.TextMediumEmphasis else ApturaColors.StatusError
-                )
-            }
-        },
-        containerColor = ApturaColors.SurfaceElevated2,
-        shape = RoundedCornerShape(16.dp)
-    )
+        }
+    }
 }
 
 @Composable
@@ -1668,11 +1593,14 @@ fun VideoGridCard(
     onSelectClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     var overflowExpanded by remember { mutableStateOf(false) }
-    Card(
+    val thumbShape = RoundedCornerShape(14.dp)
+    // A flat card: the picture carries the shape and the text sits on the page below it. Without a container, a
+    // one-line title next to a two-line title no longer leaves a blank band inside one of the cards.
+    Column(
         modifier = modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
             .then(
                 if (onLongClick != null) {
                     Modifier.combinedClickable(
@@ -1685,309 +1613,309 @@ fun VideoGridCard(
                 }
             )
             .semantics { selected = isSelected }
-            .then(
-                if (isSelected) Modifier.border(2.dp, ApturaColors.AccentPrimary, RoundedCornerShape(12.dp))
-                else Modifier
-            ),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = ApturaColors.SurfaceElevated1
-        )
     ) {
-        Column {
-            // Thumbnail Container (16:9)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(16f / 9f)
-                    .background(ApturaColors.SurfacePureBlack)
-            ) {
-                val cachedThumbnail = remember(card.uri, card.rawItem.dateModifiedSec) {
-                    ThumbnailRepository.getCachedThumbnailFile(context, card.uri, card.rawItem.dateModifiedSec)
-                }
-                val thumbnailFile by produceState<File?>(
-                    initialValue = cachedThumbnail,
-                    card.uri,
-                    card.rawItem.dateModifiedSec
-                ) {
-                    if (value == null) {
-                        value = ThumbnailRepository.getOrCreateThumbnail(
-                            context,
-                            card.uri,
-                            card.rawItem.dateModifiedSec
-                        )
-                    }
-                }
-
-                val imageRequest = remember(thumbnailFile) {
-                    ImageRequest.Builder(context)
-                        .data(thumbnailFile)
-                        .build()
-                }
-
-                AsyncImage(
-                    model = imageRequest,
-                    contentDescription = card.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(16f / 9f)
+                .clip(thumbShape)
+                .background(ApturaColors.SurfaceElevated2)
+                .border(
+                    width = if (isSelected) 3.dp else 1.dp,
+                    color = if (isSelected) ApturaColors.AccentPrimary else ApturaColors.BorderSubtle,
+                    shape = thumbShape
                 )
+        ) {
+            VideoThumbnail(card = card, modifier = Modifier.fillMaxSize())
 
-                if (isSelected) {
-                    Surface(
-                        modifier = Modifier
-                            .align(Alignment.TopStart)
-                            .padding(8.dp)
-                            .size(28.dp),
-                        shape = CircleShape,
-                        color = ApturaColors.AccentPrimary
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = "Selected",
-                            tint = ApturaColors.TextOnAccent,
-                            modifier = Modifier.padding(5.dp)
-                        )
-                    }
-                }
-
-                // Duration Badge (Bottom-Right with tabular numerals)
-                if (card.rawItem.durationMs > 0L) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(6.dp)
-                            .background(ApturaColors.SurfaceScrim, RoundedCornerShape(4.dp))
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = card.durationFormatted,
-                            style = ApturaTypography.labelSmall,
-                            color = ApturaColors.TextOnScrim
-                        )
-                    }
-                }
-
-                // Missing / Unmounted Badge (FR-LIB-018, FR-LIB-021)
-                if (card.isMissing) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(ApturaColors.SurfaceScrim.copy(alpha = 0.55f))
+            if (isSelected) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(ApturaColors.AccentPrimary.copy(alpha = 0.18f))
+                )
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(8.dp)
+                        .size(28.dp),
+                    shape = CircleShape,
+                    color = ApturaColors.AccentPrimary
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = "Selected",
+                        tint = ApturaColors.TextOnAccent,
+                        modifier = Modifier.padding(5.dp)
                     )
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopStart)
-                            .padding(6.dp)
-                            .background(ApturaColors.StatusError.copy(alpha = 0.9f), RoundedCornerShape(4.dp))
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.FolderOff,
-                                contentDescription = null,
-                                tint = ApturaColors.TextOnScrim,
-                                modifier = Modifier.size(12.dp)
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text(
-                                text = "Missing",
-                                style = ApturaTypography.labelSmall,
-                                color = ApturaColors.TextOnScrim
-                            )
-                        }
-                    }
                 }
+            } else if (card.isCompleted && !card.isMissing) {
+                ThumbnailPill(
+                    text = "Watched",
+                    icon = Icons.Default.Check,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(8.dp)
+                )
+            }
 
-                // Playback Progress Bar (Flush 3 dp indicator along bottom edge without stop dot - P2-05)
-                if (card.progressFraction > 0f) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(3.dp)
-                            .align(Alignment.BottomCenter)
-                            .background(ApturaColors.SurfaceScrim)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxHeight()
-                                .fillMaxWidth(card.progressFraction.coerceIn(0f, 1f))
-                                .background(ApturaColors.AccentPrimary)
-                        )
-                    }
+            if (card.rawItem.durationMs > 0L) {
+                ThumbnailPill(
+                    text = card.durationFormatted,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(8.dp)
+                )
+            }
+
+            // Missing / Unmounted (FR-LIB-018, FR-LIB-021)
+            if (card.isMissing) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(ApturaColors.SurfaceScrim.copy(alpha = 0.55f))
+                )
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(8.dp)
+                        .background(ApturaColors.StatusError.copy(alpha = 0.92f), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 7.dp, vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.FolderOff,
+                        contentDescription = null,
+                        tint = ApturaColors.TextOnScrim,
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(text = "Missing", style = ApturaTypography.labelSmall, color = ApturaColors.TextOnScrim)
                 }
             }
 
-            // Metadata & Title Area
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 10.dp, end = 4.dp, top = 8.dp, bottom = 8.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.Top,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = card.title,
-                        style = ApturaTypography.titleMedium,
-                        maxLines = 2,
-                        minLines = 2, // Fixed 2-line title slot ensures consistent baseline alignment (P2-01)
-                        overflow = TextOverflow.Ellipsis,
-                        color = ApturaColors.TextHighEmphasis,
-                        modifier = Modifier.weight(1f)
-                    )
-                    if (onMoreClick != null) {
-                        val hasContextActions = onPlayNextClick != null || onAddToQueueClick != null ||
-                            onHideClick != null || onDeleteClick != null || onRemoveMissingClick != null ||
-                            onMoreFileActionsClick != null || onShareClick != null || onMoveClick != null ||
-                            onSelectClick != null
-                        Box {
-                            IconButton(
-                                onClick = {
-                                    if (hasContextActions) {
-                                        overflowExpanded = true
-                                    } else {
-                                        onMoreClick()
-                                    }
-                                },
-                                modifier = Modifier.size(48.dp) // the 48 dp touch-target minimum
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.MoreVert,
-                                    // With a grid full of identical ellipses, "More actions" alone tells a
-                                    // screen-reader user nothing about which video will be changed.
-                                    contentDescription = "More actions for ${card.title}",
-                                    tint = ApturaColors.TextMediumEmphasis,
-                                    modifier = Modifier.size(22.dp)
-                                )
+            // Watch progress: a flush 3 dp line along the bottom edge (no stop dot, P2-05).
+            if (card.progressFraction > 0f && !card.isCompleted) {
+                WatchProgressLine(
+                    fraction = card.progressFraction,
+                    modifier = Modifier.align(Alignment.BottomCenter)
+                )
+            }
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 4.dp, top = 10.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = card.title,
+                    style = ApturaTypography.titleMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    color = ApturaColors.TextHighEmphasis
+                )
+                Spacer(modifier = Modifier.height(3.dp))
+                Text(
+                    text = "${card.fileSizeFormatted}  ·  ${card.folderName}",
+                    style = ApturaTypography.bodySmall.copy(fontFeatureSettings = "tnum"),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = ApturaColors.TextMediumEmphasis
+                )
+            }
+            if (onMoreClick != null) {
+                val hasContextActions = onPlayNextClick != null || onAddToQueueClick != null ||
+                    onHideClick != null || onDeleteClick != null || onRemoveMissingClick != null ||
+                    onMoreFileActionsClick != null || onShareClick != null || onMoveClick != null ||
+                    onSelectClick != null
+                // The touch target stays 48 dp; the offset lines the visible glyph up with the title's first line and
+                // the card's right edge instead of floating in the middle of the text block.
+                Box(modifier = Modifier.offset(x = 12.dp, y = (-12).dp)) {
+                    IconButton(
+                        onClick = {
+                            if (hasContextActions) overflowExpanded = true else onMoreClick()
+                        },
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            // With a grid full of identical ellipses, "More actions" alone tells a
+                            // screen-reader user nothing about which video will be changed.
+                            contentDescription = "More actions for ${card.title}",
+                            tint = ApturaColors.TextMediumEmphasis,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    if (hasContextActions) {
+                        DropdownMenu(
+                            expanded = overflowExpanded,
+                            onDismissRequest = { overflowExpanded = false },
+                            containerColor = ApturaColors.SurfaceElevated2,
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            fun pick(action: () -> Unit) {
+                                overflowExpanded = false
+                                action()
                             }
-                            if (hasContextActions) {
-                                DropdownMenu(
-                                    expanded = overflowExpanded,
-                                    onDismissRequest = { overflowExpanded = false },
-                                    containerColor = ApturaColors.SurfaceElevated2
-                                ) {
-                                    DropdownMenuItem(
-                                        text = { Text("Video Details", style = ApturaTypography.bodyMedium, color = ApturaColors.TextHighEmphasis) },
-                                        onClick = {
-                                            overflowExpanded = false
-                                            onMoreClick()
-                                        }
+                            ApturaMenuItem("Video details", Icons.Outlined.Info, onClick = { pick(onMoreClick) })
+                            if (card.isMissing) {
+                                // A missing file cannot play, move, share or be deleted again. The only
+                                // honest action is to remove its index row (and its saved progress).
+                                if (onRemoveMissingClick != null) {
+                                    MenuDivider()
+                                    ApturaMenuItem(
+                                        "Remove from library",
+                                        Icons.Default.RemoveCircleOutline,
+                                        onClick = { pick(onRemoveMissingClick) },
+                                        tone = ApturaTone.Destructive
                                     )
-                                    if (card.isMissing) {
-                                        // A missing file cannot play, move, share or be deleted again. The only
-                                        // honest action is to remove its index row (and its saved progress).
-                                        if (onRemoveMissingClick != null) {
-                                            HorizontalDivider()
-                                            DropdownMenuItem(
-                                                text = { Text("Remove from library", style = ApturaTypography.bodyMedium, color = ApturaColors.StatusError) },
-                                                onClick = {
-                                                    overflowExpanded = false
-                                                    onRemoveMissingClick()
-                                                }
-                                            )
-                                        }
-                                    } else {
-                                        if (onPlayNextClick != null) {
-                                            DropdownMenuItem(
-                                                text = { Text("Play Next", style = ApturaTypography.bodyMedium, color = ApturaColors.TextHighEmphasis) },
-                                                onClick = {
-                                                    overflowExpanded = false
-                                                    onPlayNextClick()
-                                                }
-                                            )
-                                        }
-                                        if (onAddToQueueClick != null) {
-                                            DropdownMenuItem(
-                                                text = { Text("Add to Queue", style = ApturaTypography.bodyMedium, color = ApturaColors.TextHighEmphasis) },
-                                                onClick = {
-                                                    overflowExpanded = false
-                                                    onAddToQueueClick()
-                                                }
-                                            )
-                                        }
-                                        if (onSelectClick != null) {
-                                            DropdownMenuItem(
-                                                text = { Text("Select", style = ApturaTypography.bodyMedium, color = ApturaColors.AccentPrimary) },
-                                                onClick = {
-                                                    overflowExpanded = false
-                                                    onSelectClick()
-                                                }
-                                            )
-                                        }
-                                        if (onMoveClick != null) {
-                                            HorizontalDivider()
-                                            DropdownMenuItem(
-                                                text = { Text("Move to folder", style = ApturaTypography.bodyMedium, color = ApturaColors.AccentPrimary) },
-                                                onClick = {
-                                                    overflowExpanded = false
-                                                    onMoveClick()
-                                                }
-                                            )
-                                        }
-                                        if (onShareClick != null) {
-                                            DropdownMenuItem(
-                                                text = { Text("Share", style = ApturaTypography.bodyMedium, color = ApturaColors.TextHighEmphasis) },
-                                                onClick = {
-                                                    overflowExpanded = false
-                                                    onShareClick()
-                                                }
-                                            )
-                                        }
-                                        if (onMoreFileActionsClick != null) {
-                                            DropdownMenuItem(
-                                                text = { Text("More file actions", style = ApturaTypography.bodyMedium, color = ApturaColors.TextHighEmphasis) },
-                                                onClick = {
-                                                    overflowExpanded = false
-                                                    onMoreFileActionsClick()
-                                                }
-                                            )
-                                        }
-                                        if (onHideClick != null || onDeleteClick != null) {
-                                            HorizontalDivider()
-                                        }
-                                        if (onHideClick != null) {
-                                            DropdownMenuItem(
-                                                text = { Text("Hide from library", style = ApturaTypography.bodyMedium, color = ApturaColors.TextHighEmphasis) },
-                                                onClick = {
-                                                    overflowExpanded = false
-                                                    onHideClick()
-                                                }
-                                            )
-                                        }
-                                        if (onDeleteClick != null) {
-                                            DropdownMenuItem(
-                                                text = { Text("Delete video", style = ApturaTypography.bodyMedium, color = ApturaColors.StatusError) },
-                                                onClick = {
-                                                    overflowExpanded = false
-                                                    onDeleteClick()
-                                                }
-                                            )
-                                        }
-                                    }
+                                }
+                            } else {
+                                onPlayNextClick?.let { ApturaMenuItem("Play next", Icons.AutoMirrored.Filled.PlaylistPlay, onClick = { pick(it) }) }
+                                onAddToQueueClick?.let { ApturaMenuItem("Add to queue", Icons.AutoMirrored.Filled.PlaylistAdd, onClick = { pick(it) }) }
+                                onSelectClick?.let { ApturaMenuItem("Select", Icons.Outlined.CheckCircle, onClick = { pick(it) }) }
+                                if (onMoveClick != null || onShareClick != null || onMoreFileActionsClick != null) MenuDivider()
+                                onMoveClick?.let { ApturaMenuItem("Move to folder", Icons.AutoMirrored.Filled.DriveFileMove, onClick = { pick(it) }) }
+                                onShareClick?.let { ApturaMenuItem("Share", Icons.Default.Share, onClick = { pick(it) }) }
+                                onMoreFileActionsClick?.let { ApturaMenuItem("More file actions", Icons.Default.DriveFileRenameOutline, onClick = { pick(it) }) }
+                                if (onHideClick != null || onDeleteClick != null) MenuDivider()
+                                onHideClick?.let { ApturaMenuItem("Hide from library", Icons.Default.VisibilityOff, onClick = { pick(it) }) }
+                                onDeleteClick?.let {
+                                    ApturaMenuItem("Delete video", Icons.Default.DeleteOutline, onClick = { pick(it) }, tone = ApturaTone.Destructive)
                                 }
                             }
                         }
                     }
                 }
-
-                Spacer(modifier = Modifier.height(2.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "${card.fileSizeFormatted} • ${card.folderName}",
-                        style = ApturaTypography.bodyMedium.copy(fontFeatureSettings = "tnum"),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        color = ApturaColors.TextMediumEmphasis
-                    )
-                }
             }
         }
+    }
+}
+
+/** A folder filter. Selection is shown by fill and a check, never by colour alone. */
+@Composable
+private fun FolderFilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        leadingIcon = if (selected) {
+            {
+                Icon(
+                    imageVector = Icons.Filled.Check,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = ApturaColors.AccentPrimary
+                )
+            }
+        } else null,
+        label = {
+            Text(
+                text = label,
+                style = ApturaTypography.labelLarge.copy(fontFeatureSettings = ""),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        },
+        colors = FilterChipDefaults.filterChipColors(
+            selectedContainerColor = ApturaColors.AccentSubtle,
+            selectedLabelColor = ApturaColors.AccentPrimary,
+            containerColor = ApturaColors.SurfaceElevated1,
+            labelColor = ApturaColors.TextHighEmphasis
+        ),
+        border = FilterChipDefaults.filterChipBorder(
+            enabled = true,
+            selected = selected,
+            borderColor = ApturaColors.BorderSubtle,
+            selectedBorderColor = ApturaColors.AccentPrimary.copy(alpha = 0.6f)
+        ),
+        shape = RoundedCornerShape(12.dp),
+        // 36 dp visible, 48 dp to touch.
+        modifier = Modifier
+            .height(48.dp)
+            .padding(vertical = 6.dp)
+    )
+}
+
+@Composable
+private fun MenuDivider() {
+    HorizontalDivider(color = ApturaColors.BorderSubtle, modifier = Modifier.padding(vertical = 4.dp))
+}
+
+/** A small dark pill over a thumbnail (duration, "Watched"). Fixed light text: it always sits on a scrim. */
+@Composable
+internal fun ThumbnailPill(text: String, modifier: Modifier = Modifier, icon: androidx.compose.ui.graphics.vector.ImageVector? = null) {
+    Row(
+        modifier = modifier
+            .background(ApturaColors.SurfaceScrim, RoundedCornerShape(6.dp))
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (icon != null) {
+            Icon(icon, contentDescription = null, tint = ApturaColors.TextOnScrim, modifier = Modifier.size(12.dp))
+            Spacer(Modifier.width(3.dp))
+        }
+        Text(text = text, style = ApturaTypography.labelSmall, color = ApturaColors.TextOnScrim)
+    }
+}
+
+/** The flush watch-progress line used on every thumbnail, so the library and Continue watching read the same. */
+@Composable
+internal fun WatchProgressLine(fraction: Float, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(3.dp)
+            .background(ApturaColors.TextOnScrim.copy(alpha = 0.28f))
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .fillMaxWidth(fraction.coerceIn(0f, 1f))
+                .background(ApturaColors.AccentPrimary)
+        )
+    }
+}
+
+/**
+ * The cached frame for a video, generated on first use. While it loads (or when a frame cannot be read) a film glyph
+ * on the elevated surface stands in, so an unreadable file never looks like a black hole in the grid.
+ */
+@Composable
+internal fun VideoThumbnail(card: VideoCardUiModel, modifier: Modifier = Modifier) =
+    VideoThumbnail(card.uri, card.rawItem.dateModifiedSec, card.title, modifier)
+
+@Composable
+internal fun VideoThumbnail(uri: String, dateModifiedSec: Long, contentDescription: String?, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val cachedThumbnail = remember(uri, dateModifiedSec) {
+        ThumbnailRepository.getCachedThumbnailFile(context, uri, dateModifiedSec)
+    }
+    val thumbnailFile by produceState<File?>(initialValue = cachedThumbnail, uri, dateModifiedSec) {
+        if (value == null) {
+            value = ThumbnailRepository.getOrCreateThumbnail(context, uri, dateModifiedSec)
+        }
+    }
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        if (thumbnailFile == null) {
+            Icon(
+                imageVector = Icons.Outlined.Movie,
+                contentDescription = null,
+                tint = ApturaColors.TextLowEmphasis,
+                modifier = Modifier.size(28.dp)
+            )
+        }
+        val imageRequest = remember(thumbnailFile) {
+            ImageRequest.Builder(context).data(thumbnailFile).build()
+        }
+        AsyncImage(
+            model = imageRequest,
+            contentDescription = contentDescription,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
+        )
     }
 }
 
@@ -2021,6 +1949,33 @@ private fun shareVideos(context: android.content.Context, uris: List<String>) {
     }
 }
 
+/** The library's bar when there is no grid yet (loading or empty): the mark, the name, and a way to Settings. */
+@Composable
+private fun LibraryAppBar(onSettingsClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        ApturaMark(size = 32.dp)
+        Spacer(Modifier.width(12.dp))
+        Text(
+            text = "Aptura",
+            style = ApturaTypography.titleLarge,
+            color = ApturaColors.TextHighEmphasis,
+            modifier = Modifier.weight(1f)
+        )
+        IconButton(onClick = onSettingsClick, modifier = Modifier.size(48.dp)) {
+            Icon(
+                imageVector = Icons.Outlined.Settings,
+                contentDescription = "Settings",
+                tint = ApturaColors.TextMediumEmphasis
+            )
+        }
+    }
+}
+
 @Composable
 private fun MediaLibraryEmptyView(
     isFiltered: Boolean,
@@ -2034,38 +1989,42 @@ private fun MediaLibraryEmptyView(
     modifier: Modifier = Modifier
 ) {
     Box(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
         contentAlignment = Alignment.Center
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(32.dp)
+            modifier = Modifier
+                .widthIn(max = 440.dp)
+                .padding(horizontal = 32.dp, vertical = 48.dp)
         ) {
             Box(
                 modifier = Modifier
-                    .size(72.dp)
-                    .background(ApturaColors.SurfaceElevated1, CircleShape),
+                    .size(88.dp)
+                    .background(ApturaColors.AccentSubtle, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = when {
-                        isPermissionDenied -> Icons.Default.FolderOff
-                        isFiltered -> Icons.Default.Search
-                        else -> Icons.Default.VideoLibrary
+                        isPermissionDenied -> Icons.Outlined.Lock
+                        isFiltered -> Icons.Outlined.SearchOff
+                        else -> Icons.Outlined.VideoLibrary
                     },
                     contentDescription = null,
-                    modifier = Modifier.size(36.dp),
+                    modifier = Modifier.size(40.dp),
                     tint = ApturaColors.AccentPrimary
                 )
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             Text(
                 text = when {
-                    isPermissionDenied -> "Storage Permission Required"
-                    isFiltered -> "No videos match '$query'"
-                    else -> "No videos found"
+                    isPermissionDenied -> "Allow access to your videos"
+                    isFiltered -> "No results for “$query”"
+                    else -> "No videos yet"
                 },
                 style = ApturaTypography.headlineMedium,
                 color = ApturaColors.TextHighEmphasis,
@@ -2076,105 +2035,103 @@ private fun MediaLibraryEmptyView(
 
             Text(
                 text = when {
-                    isPermissionDenied -> "Aptura needs access to your device media to index and display videos. Grant permission, or add custom storage directories."
-                    isFiltered -> "Try checking for spelling errors or searching for a different title"
-                    else -> "Videos stored on your device storage, SD card, or custom folders can be scanned into your library."
+                    isPermissionDenied -> "Aptura needs permission to list the videos on this device. You can also add only the folders you choose."
+                    isFiltered -> "Check the spelling, or try a shorter part of the title."
+                    else -> "Aptura lists the videos on this device and its SD card. Scan again after adding files, or add a folder it can't see yet."
                 },
-                style = ApturaTypography.bodyMedium,
+                style = ApturaTypography.bodyLarge,
                 color = ApturaColors.TextMediumEmphasis,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 16.dp)
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(28.dp))
 
-            if (isPermissionDenied) {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(
+            when {
+                isPermissionDenied -> {
+                    ApturaButton(
+                        text = "Allow access",
                         onClick = onRequestPermission,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = ApturaColors.AccentPrimary,
-                            contentColor = ApturaColors.SurfacePureBlack
-                        ),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("Grant Access", style = ApturaTypography.titleSmall, fontWeight = FontWeight.Bold)
-                    }
-
-                    androidx.compose.material3.OutlinedButton(
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    ApturaOutlinedButton(
+                        text = "Add a folder",
+                        icon = Icons.Outlined.CreateNewFolder,
                         onClick = onAddFolderClick,
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("Add Folder", style = ApturaTypography.titleSmall, color = ApturaColors.TextHighEmphasis)
-                    }
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    ApturaTextButton(text = "Open a single file", onClick = onOpenFilePicker)
                 }
-            } else if (isFiltered) {
-                Button(
-                    onClick = onClearSearch,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = ApturaColors.AccentPrimary,
-                        contentColor = ApturaColors.TextOnAccent
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text("Clear Search", style = ApturaTypography.titleMedium)
-                }
-            } else {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(
+
+                isFiltered -> ApturaButton(text = "Clear search", onClick = onClearSearch)
+
+                else -> {
+                    ApturaButton(
+                        text = "Scan device",
+                        icon = Icons.Default.Refresh,
                         onClick = onRefresh,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = ApturaColors.AccentPrimary,
-                            contentColor = ApturaColors.TextOnAccent
-                        ),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Scan Device", style = ApturaTypography.titleMedium)
-                    }
-
-                    androidx.compose.material3.OutlinedButton(
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    ApturaOutlinedButton(
+                        text = "Add a folder",
+                        icon = Icons.Outlined.CreateNewFolder,
                         onClick = onAddFolderClick,
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.FolderOpen,
-                            contentDescription = null,
-                            tint = ApturaColors.AccentPrimary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Add Folder", style = ApturaTypography.titleMedium, color = ApturaColors.TextHighEmphasis)
-                    }
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
         }
     }
 }
 
+/**
+ * The first scan: the shape of the library, breathing, instead of a lone spinner. It tells the viewer what is about
+ * to appear and where, so the grid does not "pop" into an empty screen.
+ */
 @Composable
 private fun MediaLibraryLoadingView(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(36.dp),
-                strokeWidth = 3.dp,
-                color = ApturaColors.AccentPrimary
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val columns = if (maxWidth >= 600.dp) 3 else 2
+        val pagePadding = if (maxWidth >= 600.dp) 24.dp else 16.dp
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = pagePadding)
+                .semantics(mergeDescendants = true) { contentDescription = "Looking for videos" }
+        ) {
+            SkeletonBlock(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(16.dp)
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(Modifier.height(20.dp))
             Text(
-                text = "Scanning local videos...",
+                text = "Looking for videos…",
                 style = ApturaTypography.bodyMedium,
                 color = ApturaColors.TextMediumEmphasis
             )
+            Spacer(Modifier.height(14.dp))
+            repeat(3) {
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    repeat(columns) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            SkeletonBlock(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .aspectRatio(16f / 9f),
+                                shape = RoundedCornerShape(14.dp)
+                            )
+                            Spacer(Modifier.height(10.dp))
+                            SkeletonBlock(modifier = Modifier.fillMaxWidth(0.8f).height(14.dp))
+                            Spacer(Modifier.height(6.dp))
+                            SkeletonBlock(modifier = Modifier.fillMaxWidth(0.5f).height(12.dp))
+                        }
+                    }
+                }
+                Spacer(Modifier.height(22.dp))
+            }
         }
     }
 }

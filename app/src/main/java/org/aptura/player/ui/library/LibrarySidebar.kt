@@ -207,7 +207,7 @@ internal fun LibraryCompactRail(
                     CompactExpandButton(onClick = onExpand)
                     Spacer(Modifier.size(10.dp))
                 } else {
-                    SidebarMark(size = 34.dp)
+                    ApturaMark(size = 34.dp)
                 }
                 if (showLabels) {
                     Spacer(Modifier.size(8.dp))
@@ -225,7 +225,7 @@ internal fun LibraryCompactRail(
                     color = ApturaColors.TextHighEmphasis
                 )
                 Text(
-                    text = if (total == 1) "FILM" else "FILMS",
+                    text = if (total == 1) "VIDEO" else "VIDEOS",
                     style = ApturaTypography.labelSmall,
                     color = ApturaColors.TextLowEmphasis
                 )
@@ -302,7 +302,7 @@ private fun SidebarBrand(onCollapse: () -> Unit) {
                 .padding(start = 16.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            SidebarMark(size = 40.dp)
+            ApturaMark(size = 40.dp)
             Spacer(Modifier.size(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -351,7 +351,7 @@ private fun CompactExpandButton(onClick: () -> Unit) {
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            SidebarMark(size = 26.dp)
+            ApturaMark(size = 26.dp)
             Spacer(Modifier.size(4.dp))
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
@@ -390,7 +390,7 @@ private fun SidebarControlButton(
 }
 
 @Composable
-private fun SidebarMark(size: Dp) {
+internal fun ApturaMark(size: Dp) {
     // The real aperture mark, not a letter tile: the sidebar should read as Aptura even without its wordmark.
     Box(
         modifier = Modifier
@@ -427,7 +427,7 @@ private fun LibraryPulse(total: Int, durationMs: Long, sizeBytes: Long) {
             )
             Spacer(Modifier.size(7.dp))
             Text(
-                text = if (total == 1) "film" else "films",
+                text = if (total == 1) "video" else "videos",
                 style = ApturaTypography.bodyMedium,
                 color = ApturaColors.TextMediumEmphasis,
                 modifier = Modifier.padding(bottom = 4.dp)
@@ -495,8 +495,8 @@ private fun SidebarCollectionRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 44.dp)
-            .clip(RoundedCornerShape(10.dp))
+            .heightIn(min = 48.dp)
+            .clip(RoundedCornerShape(12.dp))
             .background(if (selected) ApturaColors.AccentSubtle else Color.Transparent)
             .selectable(selected = selected, role = Role.Tab, onClick = onClick)
             .semantics(mergeDescendants = true) {}
@@ -571,8 +571,8 @@ private fun SidebarActionRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 42.dp)
-            .clip(RoundedCornerShape(10.dp))
+            .heightIn(min = 48.dp)
+            .clip(RoundedCornerShape(12.dp))
             .clickable(role = Role.Button, onClick = onClick)
             .semantics(mergeDescendants = true) {}
             .padding(horizontal = 10.dp, vertical = 7.dp),

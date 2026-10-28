@@ -42,11 +42,11 @@ sealed interface MediaLibraryUiState {
 }
 
 enum class LibrarySortOrder(val displayName: String) {
-    DATE_ADDED_DESC("Recently Added"),
-    LAST_PLAYED_DESC("Recently Played"),
-    TITLE_ASC("Title (A-Z)"),
-    DURATION_DESC("Longest First"),
-    SIZE_DESC("Largest First")
+    DATE_ADDED_DESC("Recently added"),
+    LAST_PLAYED_DESC("Recently played"),
+    TITLE_ASC("Title (A–Z)"),
+    DURATION_DESC("Longest first"),
+    SIZE_DESC("Largest first")
 }
 
 @Immutable
@@ -91,23 +91,41 @@ object MediaFormatters {
         }
     }
 
+    /**
+     * "752 MB", "3.9 GB", "10.8 MB". One decimal only below 10, where it carries information; above that a decimal is
+     * noise, and a grid that mixed "782 MB" with "753.4 MB" looked inconsistent.
+     */
     fun formatFileSize(bytes: Long): String {
         if (bytes <= 0L) return "0 B"
         val kb = bytes / 1024.0
         val mb = kb / 1024.0
         val gb = mb / 1024.0
 
+        fun scaled(value: Double, unit: String): String =
+            if (value < 10.0) {
+                "${String.format(Locale.US, "%.1f", value).removeSuffix(".0")} $unit"
+            } else {
+                "${Math.round(value)} $unit"
+            }
+
         return when {
-            gb >= 1.0 -> {
-                val formatted = String.format(Locale.US, "%.1f", gb)
-                "${formatted.removeSuffix(".0")} GB"
-            }
-            mb >= 1.0 -> {
-                val formatted = String.format(Locale.US, "%.1f", mb)
-                "${formatted.removeSuffix(".0")} MB"
-            }
+            gb >= 1.0 -> scaled(gb, "GB")
+            mb >= 1.0 -> scaled(mb, "MB")
             kb >= 1.0 -> "${Math.round(kb)} KB"
             else -> "$bytes B"
+        }
+    }
+
+    /** The short quality name people use ("4K", "1080p"), or null when the size is unknown. */
+    fun qualityLabel(width: Int, height: Int): String? {
+        if (width <= 0 || height <= 0) return null
+        return when {
+            width >= 3840 || height >= 2160 -> "4K"
+            width >= 2560 || height >= 1440 -> "1440p"
+            width >= 1920 || height >= 1080 -> "1080p"
+            width >= 1280 || height >= 720 -> "720p"
+            width >= 854 || height >= 480 -> "480p"
+            else -> "${height}p"
         }
     }
 

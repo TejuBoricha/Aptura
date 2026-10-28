@@ -70,7 +70,7 @@ class SettingsAppearanceTest {
         var chosen: ThemeMode? = null
         show(onMode = { chosen = it })
 
-        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("App Theme"))
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("Theme"))
         composeRule.onNode(hasText("Light") and isSelectable()).performClick()
 
         assertEquals(ThemeMode.LIGHT, chosen)

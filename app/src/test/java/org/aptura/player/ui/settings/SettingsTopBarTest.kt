@@ -64,7 +64,7 @@ class SettingsTopBarTest {
     @Test
     fun theCompactBar_coversTheBackButtonAndTitleRow() {
         show()
-        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("Default Aspect Ratio"))
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("Default aspect ratio"))
 
         val bar = composeRule.onNodeWithTag("settings_compact_bar").getUnclippedBoundsInRoot()
         val back = composeRule.onNodeWithContentDescription("Back").getUnclippedBoundsInRoot()

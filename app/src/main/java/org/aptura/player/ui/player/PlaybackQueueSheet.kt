@@ -7,6 +7,9 @@
 
 package org.aptura.player.ui.player
 
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.border
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
@@ -145,17 +148,24 @@ fun PlaybackQueueContent(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.QueueMusic,
-                        contentDescription = "Queue",
-                        tint = ApturaColors.AccentPrimary,
-                        modifier = Modifier.size(24.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(ApturaColors.AccentSubtle),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.QueueMusic,
+                            contentDescription = "Queue",
+                            tint = ApturaColors.AccentPrimary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
                     Text(
-                        text = "Playback Queue",
+                        text = "Queue",
                         color = ApturaColors.TextHighEmphasis,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
+                        style = ApturaTypography.titleLarge.copy(fontSize = 18.sp)
                     )
                     Surface(
                         color = ApturaColors.SurfaceElevated3,
@@ -187,9 +197,9 @@ fun PlaybackQueueContent(
                         PlayMode.SHUFFLE -> Icons.Default.Shuffle
                     }
                     val modeLabel = when (playMode) {
-                        PlayMode.NORMAL -> "Play All"
-                        PlayMode.REPEAT_ALL -> "Repeat All"
-                        PlayMode.REPEAT_ONE -> "Repeat One"
+                        PlayMode.NORMAL -> "Play all"
+                        PlayMode.REPEAT_ALL -> "Repeat all"
+                        PlayMode.REPEAT_ONE -> "Repeat one"
                         PlayMode.SHUFFLE -> "Shuffle"
                     }
 
@@ -239,7 +249,7 @@ fun PlaybackQueueContent(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.DeleteSweep,
-                                contentDescription = "Clear Queue",
+                                contentDescription = "Clear queue",
                                 tint = ApturaColors.TextMediumEmphasis,
                                 modifier = Modifier.size(20.dp)
                             )
@@ -376,22 +386,25 @@ private fun QueueItemRow(
                 )
             }
 
-            // Thumbnail / File Icon
-            Surface(
+            // The video's own frame: a column of identical file glyphs gave no way to recognise an episode at a glance.
+            Box(
                 modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(8.dp)),
-                color = if (isPlaying) ApturaColors.SurfaceElevated2 else ApturaColors.SurfaceBase,
-                border = BorderStroke(1.dp, ApturaColors.BorderSubtle)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Default.VideoFile,
-                        contentDescription = null,
-                        tint = if (isPlaying) ApturaColors.AccentPrimary else ApturaColors.TextLowEmphasis,
-                        modifier = Modifier.size(22.dp)
+                    .width(72.dp)
+                    .aspectRatio(16f / 9f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(ApturaColors.SurfaceElevated3)
+                    .border(
+                        1.dp,
+                        if (isPlaying) ApturaColors.AccentPrimary else ApturaColors.BorderSubtle,
+                        RoundedCornerShape(8.dp)
                     )
-                }
+            ) {
+                org.aptura.player.ui.library.VideoThumbnail(
+                    uri = item.uri,
+                    dateModifiedSec = item.dateModifiedSec,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize()
+                )
             }
 
             // Video Title & Duration
