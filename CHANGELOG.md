@@ -9,6 +9,7 @@ All notable changes to Aptura are recorded here. The format follows [Keep a Chan
 - Public project documentation: architecture, build, testing and privacy guides.
 - Apache-2.0 license, third-party notice, contribution guide, security policy and code of conduct.
 - GitHub issue forms and a pull-request template.
+- Agent coordination checks in CI (`tools/agents/pr_checks.py`): every commit must name the AI that helped or say a person wrote it, only one open pull request may change a hot file such as the Room schema, and one task gets one pull request. Permission errors fail loudly; a GitHub outage only warns.
 - `AGENTS.md`, `.agents/STATE.md` and `docs/AGENT_WORKFLOW.md`: one set of instructions, current state and handoff procedure shared by every AI coding agent, with an agent-task issue form and a Handoff section in the PR template.
 - New launcher mark: a cyan aperture disc with a play-triangle opening and three curved iris seams.
 
