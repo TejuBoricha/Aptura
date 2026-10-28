@@ -6,6 +6,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -30,7 +32,11 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,6 +61,7 @@ import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
 import org.aptura.player.ui.components.ApturaTextButton
 import org.aptura.player.ui.components.ApturaTone
+import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.roundToLong
 
@@ -339,10 +346,26 @@ internal fun TimingOffsetControl(
     }
 }
 
+/** Hold to keep stepping: crossing a second in 50 ms taps is twenty taps. A tap is still exactly one step. */
 @Composable
-private fun StepButton(icon: androidx.compose.ui.graphics.vector.ImageVector, description: String, onClick: () -> Unit) {
+private fun StepButton(icon: androidx.compose.ui.graphics.vector.ImageVector, description: String, onStep: () -> Unit) {
+    val currentOnStep by rememberUpdatedState(onStep)
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    var repeatedWhileHeld by remember { mutableStateOf(false) }
+    LaunchedEffect(pressed) {
+        if (!pressed) return@LaunchedEffect
+        repeatedWhileHeld = false
+        delay(STEP_HOLD_DELAY_MS)
+        while (true) {
+            repeatedWhileHeld = true
+            currentOnStep()
+            delay(STEP_REPEAT_MS)
+        }
+    }
     IconButton(
-        onClick = onClick,
+        onClick = { if (repeatedWhileHeld) repeatedWhileHeld = false else currentOnStep() },
+        interactionSource = interaction,
         modifier = Modifier
             .size(48.dp)
             .clip(CircleShape)
@@ -351,6 +374,9 @@ private fun StepButton(icon: androidx.compose.ui.graphics.vector.ImageVector, de
         Icon(imageVector = icon, contentDescription = description, tint = ApturaColors.TextHighEmphasis, modifier = Modifier.size(20.dp))
     }
 }
+
+private const val STEP_HOLD_DELAY_MS = 400L
+private const val STEP_REPEAT_MS = 90L
 
 /** One choice in a list (an audio track, a decoder): a check marks the chosen one, not colour alone. */
 @Composable

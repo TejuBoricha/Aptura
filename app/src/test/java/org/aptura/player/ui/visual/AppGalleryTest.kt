@@ -1,9 +1,15 @@
 package org.aptura.player.ui.visual
 
+import androidx.test.core.app.ApplicationProvider
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.background
+
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import org.aptura.player.data.settings.ApturaSettings
 import org.aptura.player.domain.model.AbRepeatState
@@ -236,4 +242,42 @@ class PlayerGalleryTest : GalleryBase() {
     @Config(qualifiers = "w411dp-h1700dp-xhdpi") @Test fun tSubStyle() = tab(PlayerSheet.Subtitle, "Style", "tab_sub_style")
     @Config(qualifiers = "w411dp-h1700dp-xhdpi") @Test fun tPlayback() = tab(PlayerSheet.Advanced, null, "tab_playback")
     @Config(qualifiers = "w411dp-h1700dp-xhdpi") @Test fun tPicture() = tab(PlayerSheet.Advanced, "Picture", "tab_picture")
+
+    @Config(qualifiers = "w411dp-h1700dp-xhdpi") @Test fun tPlaybackSleepAtEnd() {
+        player(tuned.copy(activeSheet = PlayerSheet.Advanced, sleepTimerRemainingMs = null, sleepAtEndOfVideo = true))
+        shoot("tab_playback_sleep_at_end")
+    }
+
+    @Config(qualifiers = "w411dp-h1700dp-xhdpi") @Test fun tAudioTracksBluetooth() {
+        val audio = ApplicationProvider.getApplicationContext<android.content.Context>()
+            .getSystemService(android.media.AudioManager::class.java)
+        org.robolectric.Shadows.shadowOf(audio).addOutputDevice(
+            org.robolectric.shadows.AudioDeviceInfoBuilder.newBuilder()
+                .setType(android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP)
+                .build(),
+            false
+        )
+        player(tuned.copy(activeSheet = PlayerSheet.Audio, audioDelayMs = 0L))
+        shoot("tab_audio_tracks_bluetooth")
+    }
+
+    @Config(qualifiers = "w411dp-h2000dp-xhdpi") @Test fun tPlaybackContent() {
+        // The whole tab outside its sheet: a sheet shows only what fits, and Robolectric won't scroll it.
+        themed(ThemeMode.DARK) {
+            androidx.compose.foundation.layout.Box(
+                androidx.compose.ui.Modifier
+                    .background(org.aptura.player.theme.ApturaColors.SurfaceElevated2)
+                    .padding(20.dp)
+            ) {
+                org.aptura.player.ui.player.PlaybackToolsTab(
+                    uiState = tuned.copy(currentPositionMs = 3_723_417L),
+                    onAudioOnlyChanged = {}, onSpeedSelected = {}, onStartSleepTimer = {}, onCancelSleepTimer = {},
+                    onExtendSleepTimer = {}, onSleepAtEndOfVideo = {}, onSetAbPointA = {}, onSetAbPointB = {},
+                    onClearAbRepeat = {}, onStepFrame = {}, onAddBookmark = {}, onSeekTo = {}, onDeleteBookmark = {},
+                    onUpdateBookmarkNote = { _, _ -> }, onToggleStatsOverlay = {}, onResetVideoPreferences = {}
+                )
+            }
+        }
+        shoot("tab_playback_content")
+    }
 }

@@ -800,6 +800,8 @@ private fun AppNavHost(
                     onAudioDelayChanged = playerViewModel::setAudioDelay,
                     onStartSleepTimer = playerViewModel::startSleepTimer,
                     onCancelSleepTimer = playerViewModel::cancelSleepTimer,
+                    onExtendSleepTimer = playerViewModel::extendSleepTimer,
+                    onSleepAtEndOfVideo = playerViewModel::startSleepAtEndOfVideo,
                     onDelayStepChanged = playerViewModel::setDelayStep,
                     onEqualizerEnabledChanged = playerViewModel::setEqualizerEnabled,
                     onEqualizerPresetSelected = playerViewModel::setEqualizerPreset,

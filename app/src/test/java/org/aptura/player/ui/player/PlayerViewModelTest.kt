@@ -130,6 +130,19 @@ class PlayerViewModelTest {
             }
         }
 
+        var volume = 1f
+        val volumeHistory = mutableListOf<Float>()
+        var stopAfterCurrentItem = false
+
+        override suspend fun setVolume(volume: Float) {
+            this.volume = volume
+            volumeHistory += volume
+        }
+
+        override suspend fun setStopAfterCurrentItem(enabled: Boolean) {
+            stopAfterCurrentItem = enabled
+        }
+
         var lastSubtitleDelay: Long? = null
         var lastAudioDelay: Long? = null
         val steppedFrames = mutableListOf<Boolean>()
@@ -1143,6 +1156,93 @@ class PlayerViewModelTest {
         // (see Media3PlaybackControllerTest for the stepping behaviour against a real ExoPlayer).
         assertEquals(listOf(true, false), controller.steppedFrames)
 
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun sleepTimer_fadesTheSoundOut_thenPausesAndRestoresVolume() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val viewModel = PlayerViewModel(controller, FakeMediaRepository(), testDispatcher)
+        viewModel.loadAndPlay(sampleVideo.uri)
+        runCurrent()
+        controller.play()
+
+        viewModel.startSleepTimer(1)
+        advanceTimeBy(49_500L)
+        runCurrent()
+        assertEquals("full volume until the last ten seconds", 1f, controller.volume, 0f)
+
+        advanceTimeBy(5_000L)
+        runCurrent()
+        assertTrue("fading", controller.volume in 0.4f..0.6f)
+        assertTrue(controller.isPlaying)
+
+        advanceTimeBy(6_000L)
+        runCurrent()
+        assertFalse(controller.isPlaying)
+        assertNull(viewModel.uiState.value.sleepTimerRemainingMs)
+        assertEquals("the next play is not silent", 1f, controller.volume, 0f)
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun sleepTimer_cancelDuringFade_restoresVolume_andExtendAddsTime() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val viewModel = PlayerViewModel(controller, FakeMediaRepository(), testDispatcher)
+
+        viewModel.startSleepTimer(1)
+        advanceTimeBy(55_500L)
+        runCurrent()
+        assertTrue(controller.volume < 1f)
+
+        viewModel.extendSleepTimer(5)
+        runCurrent()
+        assertEquals(1f, controller.volume, 0f)
+        val remaining = viewModel.uiState.value.sleepTimerRemainingMs!!
+        assertTrue("about 5 min 5 s left, not a fresh 5 min", remaining in 304_000L..306_000L)
+
+        viewModel.cancelSleepTimer()
+        runCurrent()
+        assertNull(viewModel.uiState.value.sleepTimerRemainingMs)
+        assertEquals(1f, controller.volume, 0f)
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun sleepAtEndOfVideo_stopsAfterThisItem_andSkipsUpNext() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val viewModel = PlayerViewModel(controller, FakeMediaRepository(), testDispatcher)
+        val next = sampleVideo.copy(uri = "content://media/2", title = "Next Video")
+        viewModel.playQueue(listOf(sampleVideo, next), 0)
+        runCurrent()
+
+        viewModel.startSleepTimer(30)
+        viewModel.startSleepAtEndOfVideo()
+        runCurrent()
+        assertTrue(viewModel.uiState.value.sleepAtEndOfVideo)
+        assertNull("replaces the timed countdown", viewModel.uiState.value.sleepTimerRemainingMs)
+        assertTrue(controller.stopAfterCurrentItem)
+
+        controller._playbackState.value = DomainPlaybackState.Ended(sampleVideo.durationMs)
+        runCurrent()
+        assertNull("no Up Next countdown", viewModel.uiState.value.autoAdvanceCountdownSeconds)
+        assertFalse("one-shot", viewModel.uiState.value.sleepAtEndOfVideo)
+        assertFalse(controller.stopAfterCurrentItem)
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun sleepAtEndOfVideo_isReplacedByATimedCountdown() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val viewModel = PlayerViewModel(controller, FakeMediaRepository(), testDispatcher)
+
+        viewModel.startSleepAtEndOfVideo()
+        runCurrent()
+        viewModel.startSleepTimer(15)
+        runCurrent()
+        assertFalse(viewModel.uiState.value.sleepAtEndOfVideo)
+        assertFalse(controller.stopAfterCurrentItem)
+        assertEquals(15 * 60_000L, viewModel.uiState.value.sleepTimerRemainingMs)
         viewModel.clearForTesting()
     }
 

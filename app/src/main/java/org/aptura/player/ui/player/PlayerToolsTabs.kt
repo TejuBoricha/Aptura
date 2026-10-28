@@ -59,6 +59,8 @@ internal fun PlaybackToolsTab(
     onSpeedSelected: (Float) -> Unit,
     onStartSleepTimer: (Int) -> Unit,
     onCancelSleepTimer: () -> Unit,
+    onExtendSleepTimer: (Int) -> Unit,
+    onSleepAtEndOfVideo: () -> Unit,
     onSetAbPointA: () -> Unit,
     onSetAbPointB: () -> Unit,
     onClearAbRepeat: () -> Unit,
@@ -89,18 +91,38 @@ internal fun PlaybackToolsTab(
         }
 
         val remaining = uiState.sleepTimerRemainingMs
-        SheetSection("Sleep timer") {
+        val atEnd = uiState.sleepAtEndOfVideo
+        SheetSection(
+            "Sleep timer",
+            trailing = if (remaining != null) {
+                { ApturaTextButton(text = "+5 min", onClick = { onExtendSleepTimer(5) }, tone = ApturaTone.Accent) }
+            } else null
+        ) {
             SheetRowText(
-                title = if (remaining != null) "Stops in ${MediaFormatters.formatDuration(remaining)}" else "Off",
-                subtitle = if (remaining != null) "Pick a time to restart the countdown from now" else "Pause playback after a while"
+                title = when {
+                    remaining != null -> "Stops in ${MediaFormatters.formatDuration(remaining)}"
+                    atEnd -> "Stops when this video ends"
+                    else -> "Off"
+                },
+                subtitle = when {
+                    remaining != null -> "The sound fades out over the last 10 seconds"
+                    atEnd -> "Up next won't start"
+                    else -> "Pause playback after a while"
+                }
             )
             // The Settings selector: Off is a real choice, and four timings fit without truncating.
             val minutes = listOf(15, 30, 45, 60)
             SegmentedPicker(
                 options = listOf("Off") + minutes.map { "$it min" },
-                selectedIndex = if (remaining == null) 0 else -1,
+                selectedIndex = if (remaining == null && !atEnd) 0 else -1,
                 onSelect = { index -> if (index == 0) onCancelSleepTimer() else onStartSleepTimer(minutes[index - 1]) },
                 label = "Sleep timer"
+            )
+            SheetSwitchRow(
+                title = "At the end of this video",
+                subtitle = "Instead of a set time",
+                checked = atEnd,
+                onCheckedChange = { on -> if (on) onSleepAtEndOfVideo() else onCancelSleepTimer() }
             )
         }
 
@@ -142,7 +164,11 @@ internal fun PlaybackToolsTab(
         }
 
         SheetSection("Frame by frame") {
-            SheetRowText("Step through the picture", "Pauses the video and moves one frame at a time")
+            // To the millisecond: frame stepping is how people find an exact cut, and m:ss can't tell frames apart.
+            SheetRowText(
+                title = "At ${MediaFormatters.formatDuration(uiState.currentPositionMs)}.${"%03d".format(uiState.currentPositionMs.coerceAtLeast(0L) % 1000)}",
+                subtitle = "Pauses the video and moves one frame at a time"
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 ApturaOutlinedButton(
                     text = "Previous",
@@ -209,8 +235,12 @@ internal fun PlaybackToolsTab(
                 checked = uiState.isStatsOverlayVisible,
                 onCheckedChange = { onToggleStatsOverlay() }
             )
+            SheetRowText(
+                title = "Reset this video",
+                subtitle = "Speed, aspect ratio, decoder, and audio and subtitle sync go back to your defaults"
+            )
             ApturaOutlinedButton(
-                text = "Reset this video's settings",
+                text = "Reset to defaults",
                 onClick = {
                     onResetVideoPreferences()
                     android.widget.Toast.makeText(context, "This video's settings were reset", android.widget.Toast.LENGTH_SHORT).show()

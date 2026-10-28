@@ -136,6 +136,7 @@ class Media3PlaybackController(
     private val externalSubtitleLabels = mutableSetOf<String>()
     private var playMode: PlayMode = PlayMode.NORMAL
     private var pauseAtEndOfItems = false
+    private var stopAfterCurrentItem = false
 
     /** Sidecar subtitles already resolved per media URI (they are baked into that item's MediaItem). */
     private val sidecarsByUri = mutableMapOf<String, List<DomainExternalSubtitle>>()
@@ -662,7 +663,12 @@ class Media3PlaybackController(
             PlayMode.NORMAL, PlayMode.SHUFFLE -> Player.REPEAT_MODE_OFF
         }
         player.shuffleModeEnabled = (playMode == PlayMode.SHUFFLE)
-        (player as? ExoPlayer)?.pauseAtEndOfMediaItems = pauseAtEndOfItems && playMode != PlayMode.REPEAT_ONE
+        applyPauseAtEnd()
+    }
+
+    private fun applyPauseAtEnd() {
+        (player as? ExoPlayer)?.pauseAtEndOfMediaItems =
+            (pauseAtEndOfItems && playMode != PlayMode.REPEAT_ONE) || stopAfterCurrentItem
     }
 
     /**
@@ -850,7 +856,16 @@ class Media3PlaybackController(
 
     override suspend fun setPauseAtEndOfItems(enabled: Boolean) {
         pauseAtEndOfItems = enabled
-        (player as? ExoPlayer)?.pauseAtEndOfMediaItems = enabled && playMode != PlayMode.REPEAT_ONE
+        applyPauseAtEnd()
+    }
+
+    override suspend fun setStopAfterCurrentItem(enabled: Boolean) {
+        stopAfterCurrentItem = enabled
+        applyPauseAtEnd()
+    }
+
+    override suspend fun setVolume(volume: Float) {
+        player.volume = volume.coerceIn(0f, 1f)
     }
 
     override suspend fun selectAudioTrack(index: Int?) {

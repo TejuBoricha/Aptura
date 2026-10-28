@@ -239,6 +239,8 @@ fun PlayerScreen(
     onAudioDelayChanged: (Long) -> Unit = {},
     onStartSleepTimer: (Int) -> Unit = {},
     onCancelSleepTimer: () -> Unit = {},
+    onExtendSleepTimer: (Int) -> Unit = {},
+    onSleepAtEndOfVideo: () -> Unit = {},
     onDelayStepChanged: (Long) -> Unit = {},
     onEqualizerEnabledChanged: (Boolean) -> Unit = {},
     onEqualizerPresetSelected: (EqualizerPreset) -> Unit = {},
@@ -1137,7 +1139,8 @@ fun PlayerScreen(
                     // button) on its own line, so it never takes width from the title itself.
                     val sleepLeft = uiState.sleepTimerRemainingMs
                     val looping = uiState.abRepeat.isLooping
-                    if (sleepLeft != null || looping) {
+                    val sleepAtEnd = uiState.sleepAtEndOfVideo
+                    if (sleepLeft != null || sleepAtEnd || looping) {
                         Row(
                             modifier = Modifier
                                 .padding(start = 56.dp)
@@ -1149,6 +1152,8 @@ fun PlayerScreen(
                         ) {
                             if (sleepLeft != null) {
                                 PlaybackStatusLabel(Icons.Filled.Bedtime, "Sleep in ${MediaFormatters.formatDuration(sleepLeft)}")
+                            } else if (sleepAtEnd) {
+                                PlaybackStatusLabel(Icons.Filled.Bedtime, "Sleep at end")
                             }
                             if (looping) {
                                 PlaybackStatusLabel(Icons.Filled.Repeat, "A\u2013B loop")
@@ -1618,7 +1623,7 @@ fun PlayerScreen(
                                     Icon(
                                         imageVector = Icons.Filled.Tune,
                                         contentDescription = "Advanced Settings",
-                                        tint = if (uiState.subtitleDelayMs != 0L || uiState.audioDelayMs != 0L || uiState.sleepTimerRemainingMs != null)
+                                        tint = if (uiState.subtitleDelayMs != 0L || uiState.audioDelayMs != 0L || uiState.sleepTimerRemainingMs != null || uiState.sleepAtEndOfVideo)
                                             ApturaColors.AccentPrimary
                                         else
                                             ApturaColors.TextMediumEmphasis
@@ -2017,6 +2022,8 @@ fun PlayerScreen(
                             onSpeedSelected = onSpeedSelected,
                             onStartSleepTimer = onStartSleepTimer,
                             onCancelSleepTimer = onCancelSleepTimer,
+                            onExtendSleepTimer = onExtendSleepTimer,
+                            onSleepAtEndOfVideo = onSleepAtEndOfVideo,
                             onSetAbPointA = onSetAbPointA,
                             onSetAbPointB = onSetAbPointB,
                             onClearAbRepeat = onClearAbRepeat,

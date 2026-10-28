@@ -53,7 +53,12 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
+import android.media.AudioDeviceCallback
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -67,6 +72,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.Role
@@ -80,6 +86,8 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import org.aptura.player.ui.components.ApturaTextButton
+import org.aptura.player.ui.components.ApturaTone
 import org.aptura.player.domain.model.AudioEnhancementState
 import org.aptura.player.domain.model.EqualizerBand
 import org.aptura.player.domain.model.EqualizerPreset
@@ -234,17 +242,73 @@ private fun AudioTracksAndSyncTab(
                     }
                 }
             )
-            Text(
-                text = "Hearing voices after lips move, for example on Bluetooth headphones? Move toward Sound earlier.",
-                style = ApturaTypography.bodySmall,
-                color = ApturaColors.TextLowEmphasis
-            )
+            // Wireless audio is the usual cause of late sound, so when it is the output, offer the usual fix in one tap.
+            // It is a starting point, not a preset: latency varies by headphone, and Android compensates for some.
+            if (rememberBluetoothOutputConnected() && audioDelayMs == 0L) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(ApturaColors.SurfaceElevated2)
+                        .padding(start = 14.dp, top = 6.dp, bottom = 6.dp, end = 4.dp)
+                ) {
+                    Text(
+                        text = "Bluetooth is connected, and wireless sound often runs late. A good place to start:",
+                        style = ApturaTypography.bodySmall,
+                        color = ApturaColors.TextMediumEmphasis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    ApturaTextButton(
+                        text = "Try ${formatOffset(-BLUETOOTH_SUGGESTED_OFFSET_MS)}",
+                        onClick = { onAudioDelayChanged(-BLUETOOTH_SUGGESTED_OFFSET_MS) },
+                        tone = ApturaTone.Accent
+                    )
+                }
+            } else {
+                Text(
+                    text = "Hearing voices after lips move, for example on Bluetooth headphones? Move toward Sound earlier.",
+                    style = ApturaTypography.bodySmall,
+                    color = ApturaColors.TextLowEmphasis
+                )
+            }
         }
     }
 }
 
 /** Two-sided audio offset range shown in the player (the processor itself accepts up to ten seconds). */
 private const val AUDIO_SYNC_RANGE_MS = 1_000L
+
+/** Typical uncompensated Bluetooth lag. */
+private const val BLUETOOTH_SUGGESTED_OFFSET_MS = 200L
+
+/** Whether sound is going to a Bluetooth device right now; follows headphones connecting and disconnecting. */
+@Composable
+private fun rememberBluetoothOutputConnected(): Boolean {
+    val context = LocalContext.current
+    var connected by remember { mutableStateOf(false) }
+    DisposableEffect(context) {
+        val audio = context.getSystemService(AudioManager::class.java) ?: return@DisposableEffect onDispose {}
+        fun refresh() {
+            connected = audio.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { it.type in BLUETOOTH_OUTPUT_TYPES }
+        }
+        val callback = object : AudioDeviceCallback() {
+            override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>?) = refresh()
+            override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>?) = refresh()
+        }
+        refresh()
+        audio.registerAudioDeviceCallback(callback, null)
+        onDispose { audio.unregisterAudioDeviceCallback(callback) }
+    }
+    return connected
+}
+
+@android.annotation.SuppressLint("InlinedApi") // Plain ints; older releases just never report the BLE types.
+private val BLUETOOTH_OUTPUT_TYPES = setOf(
+    AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+    AudioDeviceInfo.TYPE_BLE_HEADSET,
+    AudioDeviceInfo.TYPE_BLE_SPEAKER
+)
 
 @Composable
 private fun EqualizerTab(

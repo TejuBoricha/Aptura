@@ -93,6 +93,8 @@ data class PlayerUiState(
     val pictureAdjustment: PictureAdjustmentState = PictureAdjustmentState(),
     val abRepeat: AbRepeatState = AbRepeatState(),
     val sleepTimerRemainingMs: Long? = null,
+    /** The sleep timer is set to pause when this video ends rather than after a time. */
+    val sleepAtEndOfVideo: Boolean = false,
     val volumePercent: Int? = null,
     val brightnessPercent: Int? = null,
     val seekDeltaSeconds: Int? = null,

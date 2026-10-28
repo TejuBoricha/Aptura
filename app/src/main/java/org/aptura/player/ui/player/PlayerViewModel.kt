@@ -7,6 +7,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,6 +20,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.aptura.player.core.diagnostics.ApturaErrorHandler
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.domain.model.DomainPlaybackState
@@ -122,6 +124,7 @@ class PlayerViewModel(
         const val SEEK_ACCUMULATION_THRESHOLD_MS = 800L
         const val CHECKPOINT_INTERVAL_MS = 5000L // TST-REST-01, spec/12A §3.3
         const val SLEEP_TIMER_TICK_MS = 1000L
+        const val SLEEP_FADE_MS = 10_000L
         const val AUDIO_EFFECTS_SAVE_DEBOUNCE_MS = 400L
     }
 
@@ -342,7 +345,12 @@ class PlayerViewModel(
                                 isCompleted = true
                             )
                         }
-                        handleAutoAdvanceOnEnded()
+                        if (_uiState.value.sleepAtEndOfVideo) {
+                            // The sleep timer's "end of this video": stop here, don't count down to the next one.
+                            clearStopAtEndOfVideo()
+                        } else {
+                            handleAutoAdvanceOnEnded()
+                        }
                     }
                     is DomainPlaybackState.Error -> {
                         _uiState.update {
@@ -1232,27 +1240,61 @@ class PlayerViewModel(
     }
 
     fun startSleepTimer(minutes: Int) {
+        runSleepCountdown(minutes * 60 * 1000L)
+    }
+
+    /** "Add 5 min" on a running timer: keeps the countdown going instead of restarting it from a fixed choice. */
+    fun extendSleepTimer(minutes: Int) {
+        val remaining = _uiState.value.sleepTimerRemainingMs ?: return
+        runSleepCountdown(remaining + minutes * 60 * 1000L)
+    }
+
+    private fun runSleepCountdown(durationMs: Long) {
         sleepTimerJob?.cancel()
-        val durationMs = minutes * 60 * 1000L
+        clearStopAtEndOfVideo()
         _uiState.update { it.copy(sleepTimerRemainingMs = durationMs) }
         sleepTimerJob = viewModelScope.launch(dispatcher + errorHandler) {
             // A real countdown: the UI shows the time left, and nothing else can overwrite it.
             var remaining = durationMs
-            while (remaining > 0L) {
-                val step = minOf(SLEEP_TIMER_TICK_MS, remaining)
-                delay(step)
-                remaining -= step
-                _uiState.update { it.copy(sleepTimerRemainingMs = remaining.takeIf { r -> r > 0L }) }
+            try {
+                while (remaining > 0L) {
+                    val step = minOf(SLEEP_TIMER_TICK_MS, remaining)
+                    delay(step)
+                    remaining -= step
+                    _uiState.update { it.copy(sleepTimerRemainingMs = remaining.takeIf { r -> r > 0L }) }
+                    // Fade the sound out over the last seconds, so a sleeper isn't woken by it stopping dead.
+                    if (remaining < SLEEP_FADE_MS) {
+                        playbackController.setVolume(remaining.toFloat() / SLEEP_FADE_MS)
+                    }
+                }
+                playbackController.pause()
+                persistCurrentPosition()
+            } finally {
+                // Paused, cancelled or extended: the next play starts at full volume.
+                withContext(NonCancellable) { playbackController.setVolume(1f) }
             }
-            playbackController.pause()
-            persistCurrentPosition()
         }
+    }
+
+    /** Pause when this video ends; Up Next does not start. Replaces a timed countdown. */
+    fun startSleepAtEndOfVideo() {
+        sleepTimerJob?.cancel()
+        sleepTimerJob = null
+        _uiState.update { it.copy(sleepTimerRemainingMs = null, sleepAtEndOfVideo = true) }
+        viewModelScope.launch(dispatcher + errorHandler) { playbackController.setStopAfterCurrentItem(true) }
     }
 
     fun cancelSleepTimer() {
         sleepTimerJob?.cancel()
         sleepTimerJob = null
+        clearStopAtEndOfVideo()
         _uiState.update { it.copy(sleepTimerRemainingMs = null) }
+    }
+
+    private fun clearStopAtEndOfVideo() {
+        if (!_uiState.value.sleepAtEndOfVideo) return
+        _uiState.update { it.copy(sleepAtEndOfVideo = false) }
+        viewModelScope.launch(dispatcher + errorHandler) { playbackController.setStopAfterCurrentItem(false) }
     }
 
     fun setAdvancedSheetVisible(visible: Boolean) {
@@ -1444,6 +1486,10 @@ class PlayerViewModel(
         seekFeedbackJob?.cancel()
         lockHintJob?.cancel()
         sleepTimerJob?.cancel()
+        if (_uiState.value.sleepAtEndOfVideo) {
+            // The controller outlives this screen; don't leave it stopping after every item.
+            persistScope.launch { playbackController.setStopAfterCurrentItem(false) }
+        }
         autoAdvanceJob?.cancel()
         bookmarksJob?.cancel()
         persistCurrentPosition()

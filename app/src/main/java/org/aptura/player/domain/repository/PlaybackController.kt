@@ -65,6 +65,12 @@ interface PlaybackController {
     /** When true the player pauses at the end of every item (so the Up Next countdown can run); false = gapless. */
     suspend fun setPauseAtEndOfItems(enabled: Boolean) {}
 
+    /** The sleep timer's "end of this video": pause when the playing item ends, even when it is set to repeat. */
+    suspend fun setStopAfterCurrentItem(enabled: Boolean) {}
+
+    /** The player's own gain, 0..1, under the system volume; the sleep timer fades the sound out with it. */
+    suspend fun setVolume(volume: Float) {}
+
     /** Steps exactly one video frame (pauses first). */
     suspend fun stepFrame(forward: Boolean) {}
 
