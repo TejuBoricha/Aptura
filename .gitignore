@@ -13,8 +13,7 @@ Desktop.ini
 *_RECON*.md
 *.tmp
 
-# Build-phase artifacts (this repo is spec-only today; keeps future
-# accidental commits of build output out of the history)
+# Build output and machine-local configuration
 .gradle/
 build/
 *.apk
@@ -53,3 +52,6 @@ fixtures/meta_bombs/paths/
 *.iml
 .vscode/
 opencode.jsonc
+
+# Ad-hoc emulator dumps (curated evidence belongs in review/)
+tools/captures/

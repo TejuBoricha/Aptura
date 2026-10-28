@@ -13,7 +13,7 @@ When writing UI code in Jetpack Compose for Aptura, you MUST adhere to these tas
 - **Intentional Asymmetry & Content-First Design:** Video thumbnails and playback metrics should dictate the layout. Content previews should be large, clear, and uncrowded.
 
 ## 2. Typography with Intent
-- **No Default System Fallbacks:** Always use `ApturaTypography` tokens from [DESIGN.md](file:///c:/Users/tejas/Desktop/Mobile%20App/DESIGN.md).
+- **No Default System Fallbacks:** Always use `ApturaTypography` tokens from [DESIGN.md](../../DESIGN.md).
 - **Tabular Figures:** Any label displaying numbers that change dynamically (e.g. current playback time, duration, frame rates, file size, bitrates) MUST specify `fontFeatureSettings = "tnum"` to eliminate text jitter.
 - **Strict Hierarchy:** Never display more than two primary font weights on a single card. Let size and semantic color (`TextHighEmphasis` vs `TextMediumEmphasis`) establish the hierarchy.
 
