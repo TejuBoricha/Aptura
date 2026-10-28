@@ -147,9 +147,10 @@ workflow) rather than the whole build. That re-run is **not a required check**: 
 and it becomes blocking at the next push, when `verify` runs the same script. To make edits block immediately, add
 `agent-checks` to the ruleset's required status checks.
 
-If GitHub is down or rate-limiting after three tries, the check is skipped with a warning instead of blocking every
-open PR; the tests and build in the same job still gate the code. A permission or token error is not skipped: it
-fails, so a misconfiguration cannot silently switch the checks off. GitHub lists at most 250 commits per pull
+If GitHub is down or rate-limiting (5xx, 429, or a 403 with an exhausted counter or a `Retry-After`) after three
+tries, the check is skipped with a warning instead of blocking every open PR; the tests and build in the same job
+still gate the code. A permission or token error is not retried or skipped: it fails at once, so a misconfiguration
+cannot silently switch the checks off. GitHub lists at most 250 commits per pull
 request, so commits beyond that are not checked.
 
 To check a PR before pushing more work: `python3 tools/agents/pr_checks.py --repo TejuBoricha/Aptura --pr <n>`. It
