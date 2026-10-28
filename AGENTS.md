@@ -86,7 +86,17 @@ The full workflow, with examples, is in [`docs/AGENT_WORKFLOW.md`](docs/AGENT_WO
 - To bring your branch up to date, rebase it on `origin/main` and force-push **your own** branch
   (`git push --force-with-lease`). Never force-push `main` or another agent's branch; `main` is protected anyway.
 - Fill in the PR template, including what was **not** verified (device-only behaviour, TalkBack, Bluetooth latency).
-- Merging into `main` is the owner's decision. Do not merge unless the owner tells you to in the current session.
+- **Agents merge without asking the owner** (the owner's standing instruction, 2026-10-28) when all of these hold on
+  the PR's current head:
+  1. the required checks (`verify`, `connected`) are green and the branch is up to date with `main`;
+  2. if the change needs an independent review (see Review), a different model has posted an approving verdict and
+     every must-fix finding is fixed and re-checked by that reviewer;
+  3. no `To:` message on the PR is waiting for an answer, and no reviewer has asked to hold.
+
+  Merge with **rebase**, then post `To: all` on the PR saying what was merged. Never merge your own PR on your own
+  review when an independent one is required. Ask the owner only for product decisions, GitHub settings or secrets,
+  anything irreversible outside the repository (a release, deleting data), or a disagreement two review rounds did
+  not settle.
 
 ## Review
 

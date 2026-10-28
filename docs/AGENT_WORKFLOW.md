@@ -19,7 +19,7 @@ issue (owner adds agent-ready)
   -> draft PR after the first meaningful commit, Handoff block filled in
   -> commits pushed at each green checkpoint
   -> PR ready: gate green, trailers present, review recorded if required
-  -> owner merges (rebase), STATE.md corrected in the same PR if needed
+  -> an agent merges (rebase) once CI is green and the required review approved, STATE.md corrected if needed
 ```
 
 ### 1. Create the task (owner)
@@ -118,9 +118,13 @@ Reviews go in the PR or in `review/` for large audits, such as `review/audit-202
 reviewer finds real defects is tracked over time: keep a reviewer whose findings you usually accept, and drop one
 that mostly produces noise.
 
-### 9. Merge (owner)
+### 9. Merge
 
-The owner merges with **rebase** once CI is green and the branch is up to date with `main`. If the branch is behind,
+The agents merge without the owner, with **rebase**, once the conditions in `AGENTS.md` hold: CI green on an
+up-to-date branch, the required independent review approved with its must-fix findings re-checked, and no message
+left unanswered. Usually the reviewer merges after confirming the fixes; the author may merge once the reviewer has
+approved. The merging agent posts `To: all` with what went in. The owner is asked only for product decisions,
+settings or secrets, irreversible actions outside the repository, or a disagreement two rounds did not settle. If the branch is behind,
 the agent rebases and CI runs again on the combined code. That is the step that catches two changes which each pass
 alone but break together. If a merged change turns out wrong, `git revert` its commits; `Refs: #N` finds them.
 
