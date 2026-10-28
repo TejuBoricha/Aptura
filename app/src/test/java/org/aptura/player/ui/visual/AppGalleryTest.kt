@@ -203,4 +203,37 @@ class PlayerGalleryTest : GalleryBase() {
 
     @Config(qualifiers = "w411dp-h891dp-xhdpi")
     @Test fun portraitAudio() { player(base.copy(activeSheet = PlayerSheet.Audio)); shoot("sheet_audio_portrait") }
+
+    // ---- Every tab of every sheet, on a tall canvas so nothing hides below the fold --------------------------------
+
+    private val tuned = base.copy(
+        audioDelayMs = 150L,
+        subtitleDelayMs = -250L,
+        sleepTimerRemainingMs = 1_200_000L,
+        abRepeat = AbRepeatState(1_800_000, 2_400_000, true),
+        bookmarks = listOf(
+            org.aptura.player.domain.model.Bookmark(1, base.videoUri, 1_250_000, "Opening shot"),
+            org.aptura.player.domain.model.Bookmark(2, base.videoUri, 4_810_000, "")
+        )
+        // Picture adjustments stay at default here: any change switches the video to a TextureView (for the colour
+        // filter), which Robolectric cannot draw into a software canvas.
+    )
+
+    private fun tab(sheet: PlayerSheet, tabLabel: String?, name: String) {
+        player(tuned.copy(activeSheet = sheet))
+        if (tabLabel != null) {
+            composeRule.onAllNodes(androidx.compose.ui.test.hasText(tabLabel))[0].performClick()
+            settle()
+        }
+        shoot(name)
+    }
+
+    @Config(qualifiers = "w411dp-h1700dp-xhdpi") @Test fun tAudioTracks() = tab(PlayerSheet.Audio, null, "tab_audio_tracks")
+    @Config(qualifiers = "w411dp-h1700dp-xhdpi") @Test fun tAudioEq() = tab(PlayerSheet.Audio, "Equalizer", "tab_audio_eq")
+    @Config(qualifiers = "w411dp-h1700dp-xhdpi") @Test fun tAudioFx() = tab(PlayerSheet.Audio, "Effects", "tab_audio_fx")
+    @Config(qualifiers = "w411dp-h1700dp-xhdpi") @Test fun tSubTracks() = tab(PlayerSheet.Subtitle, null, "tab_sub_tracks")
+    @Config(qualifiers = "w411dp-h1700dp-xhdpi") @Test fun tSubTiming() = tab(PlayerSheet.Subtitle, "Timing", "tab_sub_timing")
+    @Config(qualifiers = "w411dp-h1700dp-xhdpi") @Test fun tSubStyle() = tab(PlayerSheet.Subtitle, "Style", "tab_sub_style")
+    @Config(qualifiers = "w411dp-h1700dp-xhdpi") @Test fun tPlayback() = tab(PlayerSheet.Advanced, null, "tab_playback")
+    @Config(qualifiers = "w411dp-h1700dp-xhdpi") @Test fun tPicture() = tab(PlayerSheet.Advanced, "Picture", "tab_picture")
 }

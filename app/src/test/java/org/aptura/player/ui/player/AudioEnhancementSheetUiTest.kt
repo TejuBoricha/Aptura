@@ -8,6 +8,13 @@ import org.aptura.player.domain.model.AudioEnhancementState
 import org.aptura.player.domain.model.EqualizerBand
 import org.aptura.player.domain.model.EqualizerPreset
 import org.aptura.player.theme.ApturaTheme
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.assertCountEquals
+import org.junit.Assert.assertEquals
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.performSemanticsAction
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -102,9 +109,45 @@ class AudioEnhancementSheetUiTest {
         composeTestRule.onNodeWithText("Track 1 (Stereo)").assertExists()
         composeTestRule.onNodeWithText("AUDIO SYNC").assertExists()
         composeTestRule.onNodeWithText("+150 ms").assertExists()
-        composeTestRule.onNodeWithText("-50ms").assertExists()
-        composeTestRule.onNodeWithText("+50ms").assertExists()
-        composeTestRule.onNodeWithText("Buds (+150ms)").assertExists()
+        // The value is explained in words, so the direction is never a guess.
+        composeTestRule.onNodeWithText("Sound plays 150 ms after the picture").assertExists()
+        composeTestRule.onNodeWithContentDescription("\u221250 ms, Sound earlier").assertExists()
+        composeTestRule.onNodeWithContentDescription("+50 ms, Sound later").assertExists()
+        // The device presets pointed the wrong way (a positive offset makes sound *later*); they must not return.
+        composeTestRule.onAllNodesWithText("Buds", substring = true).assertCountEquals(0)
+    }
+
+    @Test
+    fun audioSync_minusMovesSoundEarlierByOneStep() {
+        var delay = 150L
+        composeTestRule.setContent {
+            ApturaTheme {
+                AudioEnhancementSheet(
+                    audioTracks = sampleTracks,
+                    selectedAudioTrackIndex = 0,
+                    audioDelayMs = delay,
+                    delayStepMs = 50L,
+                    audioEnhancement = sampleAudioEnhancement,
+                    onDismissRequest = {},
+                    onAudioTrackSelected = {},
+                    onAudioDelayChanged = { delay = it },
+                    onEqualizerEnabledChanged = {},
+                    onEqualizerPresetSelected = {},
+                    onEqualizerBandChanged = { _, _ -> },
+                    onBassBoostChanged = {},
+                    onVirtualizerChanged = {},
+                    onLoudnessBoostChanged = {}
+                )
+            }
+        }
+
+        // Robolectric does not deliver injected taps into a ModalBottomSheet window (no control in this sheet
+        // responds to them, the untouched track rows included), so the button's own click action is invoked: that
+        // still proves the accessible label, the direction and the step size.
+        composeTestRule.onNodeWithContentDescription("\u221250 ms, Sound earlier")
+            .performScrollTo()
+            .performSemanticsAction(SemanticsActions.OnClick)
+        assertEquals(100L, delay)
     }
 
     @Test
@@ -131,12 +174,13 @@ class AudioEnhancementSheetUiTest {
             }
         }
 
-        composeTestRule.onNodeWithText("EQUALIZER").assertExists()
+        composeTestRule.onNodeWithText("TONE").assertExists()
         composeTestRule.onNodeWithText("BANDS").assertExists()
         composeTestRule.onNodeWithText("Flat").assertExists()
         composeTestRule.onNodeWithText("Bass Boost").assertExists()
-        composeTestRule.onNodeWithText("60").assertExists()
-        composeTestRule.onNodeWithText("14k").assertExists()
+        // Frequencies carry their unit.
+        composeTestRule.onNodeWithText("60 Hz").assertExists()
+        composeTestRule.onNodeWithText("14 kHz").assertExists()
     }
 
     @Test
@@ -163,10 +207,11 @@ class AudioEnhancementSheetUiTest {
             }
         }
 
-        composeTestRule.onNodeWithText("BASS BOOST").assertExists()
+        composeTestRule.onNodeWithText("Bass boost").assertExists()
         composeTestRule.onNodeWithText("60%").assertExists()
-        composeTestRule.onNodeWithText("SURROUND VIRTUALIZER").assertExists()
-        composeTestRule.onNodeWithText("DIALOGUE & LOUDNESS BOOST").assertExists()
-        composeTestRule.onNodeWithText("Punch").assertExists()
+        composeTestRule.onNodeWithText("Surround").assertExists()
+        composeTestRule.onNodeWithText("Dialogue boost").assertExists()
+        // One control per effect: the preset buttons that duplicated each slider are gone.
+        composeTestRule.onAllNodesWithText("Punch").assertCountEquals(0)
     }
 }
