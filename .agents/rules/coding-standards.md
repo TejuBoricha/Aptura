@@ -28,7 +28,7 @@ description: Coding standards, Kotlin conventions, StateFlow architecture, and t
 
 ## 4. Test-Driven Verification & Quality Gates
 - Every functional module MUST include automated unit tests (`src/test/`) or instrumented tests (`src/androidTest/`).
-- **Fail-Fast Test Timeouts:** All unit tests must be bounded by explicit timeouts (configured in Gradle `testOptions.unitTests.all { timeout.set(Duration.ofSeconds(30)) }`).
+- **Fail-Fast Test Timeouts:** All unit tests must be bounded by an explicit whole-task timeout (configured in Gradle `testOptions.unitTests.all { timeout.set(Duration.ofSeconds(300)) }`; it was 30 s when the suite took ~15 s, and 120 s until a cold CI runner exceeded it at ~680 tests). Never run the suite unbounded.
 - **No Protected API Access in Tests:** Never call framework `protected` methods (e.g., `ViewModel.onCleared()`) directly in unit tests. Use test doubles, cancellation of test scopes, or explicit `@VisibleForTesting fun clearForTesting()`.
 - Use Turbine for testing `StateFlow` streams. Always cancel open turbine blocks before test exit.
 - **Mandatory Quality Gate:** Never declare a feature complete or commit code without executing the atomic verification script (`tools/gate.ps1` or `./gradlew testDebugUnitTest lintDebug`).

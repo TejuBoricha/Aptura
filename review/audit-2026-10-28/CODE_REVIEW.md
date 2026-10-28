@@ -204,14 +204,17 @@ ladder, a custom duration, and an offer after the timer fires) is complete in th
   then wait `SYNC_APPLY_DEBOUNCE_MS` (200 ms) of stillness before telling the controller and persisting. A pending
   edit is cancelled in `applyItemPreferences` (video change) and `resetVideoPreferences`, so it cannot land on the
   next video or reappear after a reset. One test drives twenty 50 ms steps and asserts zero writes during the drag
-  and exactly one write at the end.
+  and exactly one write at the end. A drag that ends inside the window is flushed from `persistScope` in `onCleared`,
+  so closing the player cannot drop the user's last change.
   - The track-selection collector no longer copies `audioDelayMs` / `subtitleDelayMs` back from the controller.
     While the edit is pending the controller still holds the old value, so an unrelated emission would have
     reverted the label mid-drag. The ViewModel owns those two values; everything else in the collector is unchanged.
 - **F5:** the fade is exactly 10 s - ten equal steps, the first at 9 s remaining (`SLEEP_FADE_STEPS`,
   `SLEEP_FADE_STEP_MS`), pinned by `sleepTimer_fadeStartsExactlyTenSecondsBeforeTheDeadline`.
-- **F6:** `SectionTitle` gives the title the free width (`fill = trailing == null`), so a long title is measured
-  against the whole row instead of half of it.
+- **F6:** `SectionTitle` keeps the title and count in one weighted row, with the title hugging its text, and the
+  trailing slot outside it. A long title is measured against the whole row and ellipsizes, the count stays next to it,
+  and a trailing action sits at the row's end. The independent review caught the first attempt's inverted `fill`, which
+  pushed the Library count to the far edge; `SectionTitleUiTest` now pins both layouts.
 - **F9:** `formatOffset` uses `Locale.ROOT`, so the decimal separator stays a dot in English copy.
 - **F10:** the sheet tab row is a `selectableGroup()`.
 - **F7 (Bluetooth hint) and F8 (16-bit PCM):** untouched; both need a real device and are part of the physical
@@ -222,5 +225,5 @@ ladder, a custom duration, and an offer after the timer fires) is complete in th
   `SleepTimerOptionsTest` pins the ladder and the custom bounds, `SleepTimerOptionsUiTest` pins the visible chips.
 - **CI hang guard:** the unit-test task timeout moved from 120 s to 300 s after a cold GitHub runner exceeded the old
   value at ~680 tests. It remains a guard, not a disabled check (`app/build.gradle.kts`).
-- **Gate after the fixes:** 679 tests / 100 suites, 0 failures, 0 errors, 78 opt-in gallery renders skipped; lint 0;
+- **Gate after the fixes:** 682 tests / 101 suites, 0 failures, 0 errors, 78 opt-in gallery renders skipped; lint 0;
   `assembleRelease` + `verifyReleaseApk` clean.

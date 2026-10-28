@@ -4,7 +4,7 @@
 > change makes them false; do not append contradicting notes. History lives in [`MEMORY.md`](MEMORY.md); decisions in
 > [`spec/17`](../spec/17_RISKS_ASSUMPTIONS_AND_DECISIONS.md) (DEC) and [`spec/08`](../spec/08_TECHNOLOGY_EVALUATION_AND_ADRS.md) (ADR).
 
-**Last verified against:** `main` @ `329dec5` plus PR #4 on `agent/opencode/sleep-timer-and-review-fixes` (2026-10-28)
+**Last verified against:** `main` @ `0d99e1f` plus PR #4 on `agent/opencode/sleep-timer-and-review-fixes` (2026-10-28)
 
 ## Project
 
@@ -22,8 +22,8 @@
   release + `verifyReleaseApk`; `connected` = instrumented tests on an API 35 tablet emulator).
 - The gate also runs the checker's Python tests (`python -m unittest discover -s tools/agents`) when Python 3 is
   installed; CI always runs them.
-- Last full result: 679 tests / 100 suites, 0 failures, 0 errors, 78 opt-in gallery tests skipped; lint 0; release
-  invariants clean (branch `agent/opencode/sleep-timer-and-review-fixes`, rebased on `main` @ `329dec5`).
+- Last full result: 682 tests / 101 suites, 0 failures, 0 errors, 78 opt-in gallery tests skipped; lint 0; release
+  invariants clean (branch `agent/opencode/sleep-timer-and-review-fixes`, rebased on `main` @ `0d99e1f`).
 - `gradle/actions/setup-gradle` is pinned to **v5 on purpose** (v6 pulls a proprietary build-cache component).
 
 ## Open work (highest first)
@@ -33,7 +33,7 @@
    before merge.
 2. **Hardware verification:** physical-device playback, TalkBack, Bluetooth latency and detection, HDR, thermal,
    process-kill during a SAF copy. Run [DEVICE_CHECKLIST.md](../docs/DEVICE_CHECKLIST.md) before tagging 1.0.
-3. **Release:** signed 1.0 tag when a signing key exists; social-preview image upload.
+3. **Release:** signed 1.0 tag when a signing key exists.
 4. **Undecided:** one audio sync value for every video needs a storage decision first (per-video storage cannot tell 0
    from "never set").
 

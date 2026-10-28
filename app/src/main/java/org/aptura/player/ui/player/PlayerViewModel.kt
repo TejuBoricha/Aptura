@@ -1251,18 +1251,20 @@ class PlayerViewModel(
         val uri = _uiState.value.videoUri
         if (uri.isBlank()) return
         val state = _uiState.value
-        viewModelScope.launch(dispatcher + errorHandler) {
-            mediaRepository.savePlaybackPreferences(
-                uri = uri,
-                resizeMode = state.resizeMode.name,
-                playbackSpeed = state.playbackSpeed,
-                // Only a decoder the user chose is saved. The automatic software fallback and the Settings default
-                // are not this video's choice, and must not be frozen into it.
-                decoderStrategy = if (state.decoderOverridden) state.decoderStrategy else null,
-                audioDelayMs = state.audioDelayMs,
-                subtitleDelayMs = state.subtitleDelayMs
-            )
-        }
+        viewModelScope.launch(dispatcher + errorHandler) { savePlaybackPreferences(uri, state) }
+    }
+
+    private suspend fun savePlaybackPreferences(uri: String, state: PlayerUiState) {
+        mediaRepository.savePlaybackPreferences(
+            uri = uri,
+            resizeMode = state.resizeMode.name,
+            playbackSpeed = state.playbackSpeed,
+            // Only a decoder the user chose is saved. The automatic software fallback and the Settings default
+            // are not this video's choice, and must not be frozen into it.
+            decoderStrategy = if (state.decoderOverridden) state.decoderStrategy else null,
+            audioDelayMs = state.audioDelayMs,
+            subtitleDelayMs = state.subtitleDelayMs
+        )
     }
 
 
@@ -1491,6 +1493,25 @@ class PlayerViewModel(
         }
     }
 
+    /**
+     * A sync drag can end inside the [SYNC_APPLY_DEBOUNCE_MS] window. Closing the player cancels [viewModelScope], so
+     * the pending job would neither reach the controller nor be saved; apply and save the last value from
+     * [persistScope] instead, which is the scope built to outlive the screen.
+     */
+    private fun flushPendingSyncEdits() {
+        val audioPending = audioSyncJob?.isActive == true
+        val subtitlePending = subtitleSyncJob?.isActive == true
+        if (!audioPending && !subtitlePending) return
+        val uri = _uiState.value.videoUri
+        if (uri.isBlank()) return
+        val state = _uiState.value
+        persistScope.launch {
+            if (audioPending) playbackController.setAudioDelay(state.audioDelayMs)
+            if (subtitlePending) playbackController.setSubtitleDelay(state.subtitleDelayMs)
+            savePlaybackPreferences(uri, state)
+        }
+    }
+
     /** Saves progress without touching playback; called when the app goes to the background (ON_STOP). */
     fun persistProgress() {
         persistCurrentPosition()
@@ -1548,6 +1569,7 @@ class PlayerViewModel(
         }
         autoAdvanceJob?.cancel()
         bookmarksJob?.cancel()
+        flushPendingSyncEdits()
         persistCurrentPosition()
         // Free the system's (limited) effect instances, and keep the last tweak even if it is inside the debounce window.
         audioEffectsStore?.let { store ->

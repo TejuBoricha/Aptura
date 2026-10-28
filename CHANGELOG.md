@@ -24,7 +24,7 @@ All notable changes to Aptura are recorded here. The format follows [Keep a Chan
 
 ### Fixed
 
-- The sleep timer's fade is exactly 10 seconds in ten equal steps; `SectionTitle` no longer halves a long title when a trailing action is present; decimal separators in sync offsets no longer follow the device locale; the player sheet tabs form a selectable group for TalkBack.
+- The sleep timer's fade is exactly 10 seconds in ten equal steps; `SectionTitle` no longer halves a long title when a trailing action is present (the Library count stays next to its title, and a trailing action sits at the row's end); decimal separators in sync offsets no longer follow the device locale; the player sheet tabs form a selectable group for TalkBack; a sync drag that ends just before the player closes is still applied and saved.
 - Stale player-sheet and delete-dialog evidence replaced with renders from the current code, including after-only evidence where the old "before" state no longer exists.
 
 ## 1.0.0 - 2026-10-28
