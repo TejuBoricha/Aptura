@@ -46,7 +46,7 @@
 
 ## Handoff
 
-<!-- Keep this current while the PR is in progress, so another agent can continue from here alone. Delete it when the PR is ready. See docs/AGENT_WORKFLOW.md. -->
+<!-- Keep this current while the PR is in progress, so another agent can continue from here alone. When the PR is ready, set "Next" to "none". See docs/AGENT_WORKFLOW.md. -->
 
 - **Goal:**
 - **Done:**

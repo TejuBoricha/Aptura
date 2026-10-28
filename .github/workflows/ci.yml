@@ -13,6 +13,7 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: read # tools/agents/pr_checks.py lists other open pull requests and their files
 
 jobs:
   verify:
@@ -20,6 +21,16 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
+
+      # Several AI agents work in parallel (AGENTS.md). Runs first because it takes seconds: attribution trailers,
+      # one open PR per hot file, one open PR per issue. Inside `verify`, so the ruleset already requires it.
+      - name: Agent coordination checks
+        if: github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 -m unittest discover -s tools/agents
+          python3 tools/agents/pr_checks.py
 
       - uses: actions/setup-java@v6
         with:

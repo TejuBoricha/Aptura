@@ -4,7 +4,7 @@
 > change makes them false; do not append contradicting notes. History lives in [`MEMORY.md`](MEMORY.md); decisions in
 > [`spec/17`](../spec/17_RISKS_ASSUMPTIONS_AND_DECISIONS.md) (DEC) and [`spec/08`](../spec/08_TECHNOLOGY_EVALUATION_AND_ADRS.md) (ADR).
 
-**Last verified against:** `main` @ `8898d23` (2026-10-28)
+**Last verified against:** `main` @ `330cef7` (2026-10-28)
 
 ## Project
 
@@ -49,10 +49,12 @@
   `PlayerSheetChrome.kt` (DESIGN.md §5.6), not from per-sheet pills and steppers.
 - **Delete:** "Move to trash" is the primary action where the platform supports it; "Delete permanently" is a red
   outlined alternative.
-- **Merge queue is unavailable** (it needs an organization-owned repo). `main` relies on required checks with
-  up-to-date branches instead.
+- **Merge queue is unavailable** (it needs an organization-owned repo). `main` has a ruleset (active since
+  2026-10-28): PR required, `verify` and `connected` must pass on an up-to-date branch, linear history, no force-push
+  or deletion. `verify` also runs the agent coordination checks (`tools/agents/pr_checks.py`).
 
 ## Hot files (one open PR at a time)
 
-`app/schemas/**`, Room database and migration classes, `app/build.gradle.kts` (version), `gradle/libs.versions.toml`,
-`CHANGELOG.md`, `DESIGN.md` tokens, `.github/**`, `AGENTS.md`, this file.
+Enforced by CI from [`tools/agents/hot-files.txt`](../tools/agents/hot-files.txt): Room schema and database code,
+`app/build.gradle.kts`, `gradle/libs.versions.toml`, `DESIGN.md`, `.github/`, `AGENTS.md`, this file and `tools/agents/`.
+`CHANGELOG.md` is not on the list: Git already flags clashing edits to it.

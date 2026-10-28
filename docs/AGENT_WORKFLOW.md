@@ -56,16 +56,12 @@ local Gradle builds at once.
 
 ### 4. Check for overlap before editing hot files
 
-Hot files are listed in `AGENTS.md` and `.agents/STATE.md`. They merge cleanly in Git but break when two branches
-change them independently, for example two branches that each add Room migration 6→7. Before touching one, check the
-open PRs:
+Hot files are listed in [`tools/agents/hot-files.txt`](../tools/agents/hot-files.txt) and named in `AGENTS.md`.
+They merge cleanly in Git but break when two branches change them independently, for example two branches that each
+add Room migration 6→7. Before touching one, look at the open PRs (`gh pr list --state open`, then
+`gh pr view <n> --json files`). If one already changes the file, wait for it, or ask the owner to sequence the work.
 
-```bash
-gh pr list --state open --json number,headRefName --jq '.[].number' |
-  xargs -I{} gh pr diff {} --name-only
-```
-
-If another PR already touches the file, comment on your issue and wait, or ask the owner to sequence the work.
+CI enforces the same rule, so a mistake here is caught rather than merged (see "Automatic checks" below).
 
 ### 5. Leave a handoff, continuously
 
@@ -106,7 +102,8 @@ Refs: #41
 ```
 
 `Assisted-by` names the tool and model that helped; the owner stays the accountable author, as in the Linux kernel's
-policy. A tool may add its own `Co-Authored-By` or session trailer as well. Commits written by hand need no trailer.
+policy. A tool may add its own `Co-Authored-By` or session trailer as well. A commit written by hand ends with
+`Human-authored: yes` instead. `Refs` is only needed when there is an issue.
 
 ### 8. Review
 
@@ -125,6 +122,26 @@ that mostly produces noise.
 The owner merges with **rebase** once CI is green and the branch is up to date with `main`. If the branch is behind,
 the agent rebases and CI runs again on the combined code. That is the step that catches two changes which each pass
 alone but break together. If a merged change turns out wrong, `git revert` its commits; `Refs: #N` finds them.
+
+## Automatic checks
+
+`tools/agents/pr_checks.py` runs first in the required `verify` CI job on every pull request. It takes a few seconds.
+
+| Check | Result |
+|---|---|
+| A commit has neither `Assisted-by:` nor `Human-authored: yes` | **Blocks**, naming the commits |
+| An **older** open PR already changes the same hot file | **Blocks** the newer PR until the older one merges or closes, then the newer one rebases and pushes |
+| An **older** open PR references the same issue (`Refs`, `Closes`, `Fixes`, or `Issue: #N` in the title, body or commits) | **Blocks**: one task, one PR |
+| The older PR has been idle for 14 days | Only warns, so an abandoned draft cannot block forever |
+| Ordinary files overlap with another open PR | Warns; whichever merges second rebases and re-runs CI |
+| Half or more of the PR's files overlap another PR | Warns that the two may be the same task |
+| A draft PR has no `## Handoff` block | Warns |
+
+"Older" means the lower PR number, so two PRs never block each other: the first one goes in first. The result shows
+in the job summary. If a blocking PR closes without merging, push again or re-run the job to clear the check.
+
+To check a PR before pushing more work: `python3 tools/agents/pr_checks.py --repo TejuBoricha/Aptura --pr <n>`. It
+needs no token for this public repository. Its tests run with `python3 -m unittest discover -s tools/agents`.
 
 ## Owner setup checklist
 
@@ -148,10 +165,11 @@ These settings live in GitHub, not in the repository, so only the owner can appl
 - **No custom orchestrator, dashboard or shared vector memory.** GitHub's issue, PR and check views are the dashboard.
 - **No agent-to-agent messaging.** Agents communicate through issues, PRs and commits, which are durable and visible
   to the owner.
-- **No real-time file locks.** Overlap is detected at the PR level. Revisit this only if agents keep editing the same
-  files at the same time.
+- **No real-time file locks.** Overlap is detected at the PR level when an agent pushes. Revisit this only if agents
+  keep editing the same files at the same time before either pushes.
 - **No merge queue.** It is not available on personal-account repositories; up-to-date branches serve the same
   purpose at this volume.
 
-Planned next steps, once this has been used for a few weeks: CI checks for trailers and PR overlap, and a script that
-claims an issue and creates the worktree in one step.
+Possible next steps, only if usage shows the need: an AI review that runs automatically on risky pull requests (GitHub
+Agentic Workflows can do this, but it needs a paid model key), and a script that claims an issue and creates the
+worktree in one step.
