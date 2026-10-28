@@ -24,7 +24,7 @@ Before any commit, the AI Developer must evaluate the changes against the follow
 ### Pillar 3: Performance, Resources & Taste Audit
 - [ ] **Explicit Coroutine Dispatchers:** `Dispatchers.IO` for disk/database/MediaStore queries; `Dispatchers.Main` for UI state observations. Never block the Main thread.
 - [ ] **Tabular Figures (`tnum`):** All dynamic numeric labels (playback timecodes, durations, bitrates, file sizes) MUST specify `fontFeatureSettings = "tnum"`.
-- [ ] **Compose Anti-Slop:** Adhere to [DESIGN.md](file:///c:/Users/tejas/Desktop/Mobile%20App/DESIGN.md) tokens, luminance elevation over heavy shadows, and spring animations.
+- [ ] **Compose Anti-Slop:** Adhere to [DESIGN.md](../../DESIGN.md) tokens, luminance elevation over heavy shadows, and spring animations.
 - [ ] **State Completeness:** Every UI component must natively support Loading/Buffering, Empty, and Error states.
 
 ### Pillar 4: QA Test Execution & Static Analysis Scorecard

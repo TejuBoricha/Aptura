@@ -43,4 +43,4 @@ These are checked against what actually ships — the **release** variant — no
 ## 4. Execution Model Invariants
 1. **Solo AI Developer Protocol:**
    - Execution is sequential by the AI Developer (Antigravity) pair-programming with the Product Owner.
-   - Code changes must be accompanied by automated test assertions against frozen contracts ([spec/12A](file:///c:/Users/tejas/Desktop/Mobile%20App/spec/12A_B0_INSTRUMENTATION.md)).
+   - Code changes must be accompanied by automated test assertions against frozen contracts ([spec/12A](../../spec/12A_B0_INSTRUMENTATION.md)).

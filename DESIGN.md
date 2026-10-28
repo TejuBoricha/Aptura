@@ -1,7 +1,7 @@
 # Aptura — Design System & Visual Specification (`DESIGN.md`)
 
 > **Package:** `org.aptura.player`  
-> **Source of Truth:** [spec/06_UX_SCREEN_AND_STATE_SPECIFICATION.md](file:///c:/Users/tejas/Desktop/Mobile%20App/spec/06_UX_SCREEN_AND_STATE_SPECIFICATION.md)  
+> **Source of Truth:** [spec/06_UX_SCREEN_AND_STATE_SPECIFICATION.md](spec/06_UX_SCREEN_AND_STATE_SPECIFICATION.md)  
 > **Target Framework:** Android Jetpack Compose (Material 3 baseline with bespoke media extensions)  
 > **Purpose:** Authoritative UI/UX contract for AI-assisted code generation. Every screen, composable, and theme definition MUST conform to the tokens and rules in this document.
 

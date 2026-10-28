@@ -15,7 +15,7 @@ This dossier consolidates every analysis produced for Aptura into one file. Noth
 
 **Reading conventions:** findings `F-nn` are defined in Parts B–C; section numbers are per-part; `file:line` anchors reflect their respective snapshot dates (Parts A–D: post-`ee726cc`; Part E: the Oct 21 later snapshot — see §E.A reconciliation where claims drifted); `[n]` citations resolve to Part D Appendix A; recommendations crossing an R1 non-goal carry `⚠ Requires ADR`; Part D's Now/Next tiers are the authoritative sequencing for Part C's §17 action plan; Part E's finding IDs are domain-prefixed (B·build, S·security, P·performance, Q·quality, T·testing, C·compliance/ASO); Part F findings use `R-nn` (responsiveness: R-A·window/screen continuum, R-B·player across device classes, Oct 22 snapshot).
 
-**External artifacts (referenced, unchanged):** research notes `research_notes/Aptura media player competitive roadmap/` (4 files, incl. `code_gap_brief.md`); spec package `spec/`; capture set `review/captures/`.
+**External artifacts (referenced, unchanged):** research notes `research_notes/competitive-roadmap/` (4 files, incl. `code_gap_brief.md`); spec package `spec/`; capture set `review/captures/`.
 
 ---
 
@@ -579,7 +579,7 @@ Scope guard from your own specs: Kids Lock / equalizer / SMB / music-player are 
 | **Product** | `org.aptura.player` ("Aptura") — local-first Android video player; Compose + Media3/ExoPlayer 1.5.1, Room, WorkManager, Coil (+ custom `VideoFrameDecoder`), Navigation 3; 37 Kotlin files, 2 screens |
 | **Scope of this report** | **Product/function layer only**: features, functional gaps, use cases, prioritization, roadmap. Visual/UI defects live in Parts A–C and are referenced (not duplicated) via `F-01…F-19` |
 | **Parts A–C** | Above in this dossier (§1–17) — F-nn findings, gesture parity matrix vs MX Player (Part C §11.2), edge-to-edge (§13), adaptive (§14), perf (§15) audits, phased action plan §17 |
-| **Method** | 3 code-audit agents (player; library & data pipeline; platform/engine) · 3 market researchers (competitor feature matrix; user expectations/pain points; UX patterns & platform opportunities) · deep-research synthesis over four notes in `research_notes/Aptura media player competitive roadmap/` |
+| **Method** | 3 code-audit agents (player; library & data pipeline; platform/engine) · 3 market researchers (competitor feature matrix; user expectations/pain points; UX patterns & platform opportunities) · deep-research synthesis over four notes in `research_notes/competitive-roadmap/` |
 | **Confidence — code claims** | High. All anchors below were verified by the code-audit agents or directly by the reviewer in Parts A–C; every claim keeps its `file:line` anchor |
 | **Confidence — market claims** | Medium. Store listings and Reddit/Play review text are volatile; 👍 counts reflect the Oct 2026 fetch (user_expectations note, Q2 gaps). Items the researchers could not verify are marked *(unverified)* inline |
 | **Confidence — demand signals** | Medium-low. GitHub thumbs-up counts are a proxy, not survey data; no quantitative retention/market-share data surfaced in any note |

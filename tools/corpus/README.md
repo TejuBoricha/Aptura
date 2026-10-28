@@ -1,8 +1,8 @@
 # Aptura Test Corpus & Generator Toolchain
 
-> **Source of Truth:** [spec/12A_B0_INSTRUMENTATION.md](file:///c:/Users/tejas/Desktop/Mobile%20App/spec/12A_B0_INSTRUMENTATION.md)  
+> **Source of Truth:** [spec/12A_B0_INSTRUMENTATION.md](../../spec/12A_B0_INSTRUMENTATION.md)  
 > **Status:** B0.0-a Corpus Complete  
-> **Index of Record:** [`fixtures/manifest.csv`](file:///c:/Users/tejas/Desktop/Mobile%20App/fixtures/manifest.csv)
+> **Index of Record:** [`fixtures/manifest.csv`](../../fixtures/manifest.csv)
 
 ---
 

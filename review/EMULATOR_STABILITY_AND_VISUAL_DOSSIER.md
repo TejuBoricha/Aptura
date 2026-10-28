@@ -69,41 +69,41 @@ You or any script can now manage the emulator with 100% deterministic safety:
 All screenshots below were captured **live** on the running `Pixel_8_API_35` emulator running the freshly compiled Aptura build:
 
 ### 1. Media Library Grid (All Videos & Metadata)
-![Media Library Grid](file:///C:/Users/tejas/.gemini/antigravity-ide/brain/ffab48c5-a30b-4b5d-99af-0267c1d1ac25/live_library_all.png)
+*Media Library Grid: capture not kept in the repository (it was saved only in a local IDE cache).*
 
 *Displays OLED dark theme (`#0D0E11`), search bar, folder tags ("Movies", "Camera", "Trailers"), tabular duration badges, and clean video thumbnails.*
 
 ---
 
 ### 2. Video Details Bottom Sheet
-![Video Details Bottom Sheet](file:///C:/Users/tejas/.gemini/antigravity-ide/brain/ffab48c5-a30b-4b5d-99af-0267c1d1ac25/live_video_details.png)
+*Video Details Bottom Sheet: capture not kept in the repository (it was saved only in a local IDE cache).*
 
 *Detailed metadata sheet showing title, folder location, duration, file size, resolution (1920x1080), MIME type (`video/x-matroska`), watch status, and cyan Play action button.*
 
 ---
 
 ### 3. Native Video Playback & HUD Controls
-![Native Playback HUD](file:///C:/Users/tejas/.gemini/antigravity-ide/brain/ffab48c5-a30b-4b5d-99af-0267c1d1ac25/live_playback_hud.png)
+*Native Playback HUD: capture not kept in the repository (it was saved only in a local IDE cache).*
 
 *Live video playback with floating transport controls (`⏮ ⏪10 ▶ ⏩10 ⏭`), custom concentric scrubber with elapsed and secondary buffered track, tabular timestamps (`0:01 / 0:05`), top bar info, and bottom actions.*
 
 ---
 
 ### 4. Playback & Display Calibration Sheet
-![Playback & Display Settings](file:///C:/Users/tejas/.gemini/antigravity-ide/brain/ffab48c5-a30b-4b5d-99af-0267c1d1ac25/live_picture_calibration.png)
+*Playback & Display Settings: capture not kept in the repository (it was saved only in a local IDE cache).*
 
 *Live Picture & Display settings sheet with aspect ratio selector (`Fit`, `Fill`, `Zoom`, `16:9`, `4:3`), Eye Comfort Night Mode toggle, and real-time contrast & saturation calibration sliders.*
 
 ---
 
 ### 5. App Settings Screen (Playback & Storage Statistics)
-![App Settings Screen](file:///C:/Users/tejas/.gemini/antigravity-ide/brain/ffab48c5-a30b-4b5d-99af-0267c1d1ac25/live_app_settings.png)
+*App Settings Screen: capture not kept in the repository (it was saved only in a local IDE cache).*
 
 *Settings screen showing default playback speed chips, double-tap seek step chips, up-next countdown, background audio toggle, decoder engine strategy, and live library storage metrics (7 Videos, 0:26 Total Time, 665 KB Footprint).*
 
 ---
 
 ### 6. Dynamic Folder Filtering
-![Folder Filtering Active](file:///C:/Users/tejas/.gemini/antigravity-ide/brain/ffab48c5-a30b-4b5d-99af-0267c1d1ac25/live_folder_filtering.png)
+*Folder Filtering Active: capture not kept in the repository (it was saved only in a local IDE cache).*
 
 *Active folder chip filtering showing only items in `Movies`, with played watch progress indicators dynamically rendered.*
