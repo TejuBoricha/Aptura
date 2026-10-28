@@ -103,7 +103,8 @@ Refs: #41
 
 `Assisted-by` names the tool and model that helped; the owner stays the accountable author, as in the Linux kernel's
 policy. A tool may add its own `Co-Authored-By` or session trailer as well. A commit written by hand ends with
-`Human-authored: yes` instead. `Refs` is only needed when there is an issue.
+`Human-authored: yes` instead. `Refs` is only needed when there is an issue. Name the model when the tool allows it;
+CI checks that the trailer is present and not empty, not its exact format.
 
 ### 8. Review
 
@@ -137,8 +138,13 @@ alone but break together. If a merged change turns out wrong, `git revert` its c
 | Half or more of the PR's files overlap another PR | Warns that the two may be the same task |
 | A draft PR has no `## Handoff` block | Warns |
 
-"Older" means the lower PR number, so two PRs never block each other: the first one goes in first. The result shows
-in the job summary. If a blocking PR closes without merging, push again or re-run the job to clear the check.
+"Older" means the lower PR number, so two PRs never block each other: the first one goes in first. Only PRs into the
+same base branch are compared, and a renamed file counts under its old path too. The result shows in the job summary.
+If a blocking PR closes without merging, push again or re-run the job to clear the check.
+
+Editing a PR's title or description, or marking a draft ready, re-runs only this script (the **Agent checks**
+workflow) rather than the whole build. If GitHub's API is unreachable after three tries, the check is skipped with a
+warning instead of blocking every open PR; the tests and build in the same job still gate the code.
 
 To check a PR before pushing more work: `python3 tools/agents/pr_checks.py --repo TejuBoricha/Aptura --pr <n>`. It
 needs no token for this public repository. Its tests run with `python3 -m unittest discover -s tools/agents`.

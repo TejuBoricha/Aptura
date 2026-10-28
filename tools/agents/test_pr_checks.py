@@ -1,6 +1,7 @@
 """Tests for pr_checks.py. Run with: python3 -m unittest discover -s tools/agents"""
 
 import unittest
+import unittest.mock
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -33,7 +34,8 @@ class AttributionTest(unittest.TestCase):
             ("abcdef1234", "Fix\n\nCo-Authored-By: Someone <a@b>"),
             ("bcdefa1234", "Fix\n\nAssisted-by:"),
             ("cdefab1234", "Fix the Assisted-by: handling in prose"),
-        ]), ["abcdef1", "bcdefa1", "cdefab1"])
+            ("defabc1234", "Fix\n\nAssisted-by:\nRefs: #4"),
+        ]), ["abcdef1", "bcdefa1", "cdefab1", "defabc1"])
 
     def test_unattributed_commit_blocks(self):
         findings = check(pr(5, ["README.md"]), [], [("deadbeef00", "Fix")], PATTERNS, NOW)
@@ -75,6 +77,16 @@ class DuplicateWorkTest(unittest.TestCase):
         newer = pr(6, ["b.kt"], commits=["Fix\n\nRefs: #41"])
         self.assertIn("error", levels(check(newer, [older], ATTRIBUTED, PATTERNS, NOW)))
 
+    def test_issue_named_only_in_the_older_prs_commits_still_counts(self):
+        older = pr(4, ["a.kt"], body="## Handoff\n- Issue:", commits=["Fix\n\nAssisted-by: X\nRefs: #41"])
+        newer = pr(6, ["b.kt"], commits=["Fix\n\nRefs: #41"])
+        self.assertIn("error", levels(check(newer, [older], ATTRIBUTED, PATTERNS, NOW)))
+
+    def test_likely_duplicate_is_flagged_even_when_every_shared_file_is_hot(self):
+        files = ["app/build.gradle.kts", "gradle/libs.versions.toml"]
+        findings = check(pr(6, files), [pr(4, files, age_days=30)], ATTRIBUTED, PATTERNS, NOW)
+        self.assertTrue(any("same task" in f.message for f in findings))
+
     def test_ordinary_overlap_warns_and_flags_a_likely_duplicate(self):
         older = pr(4, ["ui/A.kt", "ui/B.kt", "ui/C.kt"])
         findings = check(pr(6, ["ui/A.kt", "ui/B.kt"]), [older], ATTRIBUTED, PATTERNS, NOW)
@@ -82,6 +94,47 @@ class DuplicateWorkTest(unittest.TestCase):
 
     def test_no_overlap_is_clean(self):
         self.assertEqual(check(pr(6, ["ui/A.kt"]), [pr(4, ["ui/B.kt"])], ATTRIBUTED, PATTERNS, NOW), [])
+
+
+class FetchTest(unittest.TestCase):
+    """fetch() with the GitHub API faked: renames and the base branch."""
+
+    def setUp(self):
+        stamp = "2026-10-28T12:00:00Z"
+        pulls = {
+            6: {"number": 6, "title": "t", "body": "", "draft": False, "updated_at": stamp, "base": {"ref": "main"}},
+            4: {"number": 4, "title": "t", "body": "", "draft": False, "updated_at": stamp, "base": {"ref": "main"}},
+            5: {"number": 5, "title": "t", "body": "", "draft": False, "updated_at": stamp,
+                "base": {"ref": "release/1.0"}},
+        }
+        files = {6: [{"filename": "app/build.gradle.kts"}],
+                 4: [{"filename": "data/db/ApturaDatabase.kt",
+                      "previous_filename": "app/src/main/java/org/aptura/player/data/database/ApturaDatabase.kt"}],
+                 5: [{"filename": "app/build.gradle.kts"}]}
+        commit = {"sha": "f" * 40, "parents": [{}], "commit": {"message": "x\n\nAssisted-by: T"}}
+
+        def fake_get(url, token):
+            return pulls[int(url.rsplit("/", 1)[1])]
+
+        def fake_pages(url, token, limit=10):
+            if url.endswith("pulls?state=open"):
+                return list(pulls.values())
+            number = int(url.split("/pulls/")[1].split("/")[0])
+            return files[number] if url.endswith("/files") else [commit]
+
+        self.patches = [unittest.mock.patch.object(pr_checks, "_get", fake_get),
+                        unittest.mock.patch.object(pr_checks, "_pages", fake_pages)]
+        for patch in self.patches:
+            patch.start()
+
+    def tearDown(self):
+        for patch in self.patches:
+            patch.stop()
+
+    def test_rename_counts_the_old_path_and_other_bases_are_ignored(self):
+        pr6, others, _ = pr_checks.fetch("o/r", 6, None)
+        self.assertEqual([o.number for o in others], [4])
+        self.assertIn("app/src/main/java/org/aptura/player/data/database/ApturaDatabase.kt", others[0].files)
 
 
 class HandoffTest(unittest.TestCase):

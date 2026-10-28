@@ -69,7 +69,8 @@ The full workflow, with examples, is in [`docs/AGENT_WORKFLOW.md`](docs/AGENT_WO
 ## Commits and pull requests
 
 - Imperative subject that says what the commit does ([CONTRIBUTING.md](CONTRIBUTING.md#commits)).
-- Every AI-assisted commit ends with trailers (`Refs` only when there is an issue):
+- Every AI-assisted commit ends with trailers (`Refs` only when there is an issue; include the model when your tool
+  allows it, since some tools may not write model names into commits):
 
   ```
   Assisted-by: <Tool> (<model>)
