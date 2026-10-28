@@ -91,6 +91,9 @@ The full workflow, with examples, is in [`docs/AGENT_WORKFLOW.md`](docs/AGENT_WO
   more than about 300 changed lines also get **one independent review by a different model** than the author. Record
   the reviewer model in the PR. Docs, copy and isolated UI tweaks do not need it.
 - A review never overrides a failing test. A defect that escaped gets a regression test in the fix.
+- **Prove it fails when it should.** For any check, gate, script or error handling, run each failure path (network
+  down, access denied, empty or unexpected input) and show the result is the intended one: blocked loudly, or skipped
+  on purpose. A test suite that only shows the happy path passing is not evidence that a safety check works.
 
 ## Keep the shared context true
 

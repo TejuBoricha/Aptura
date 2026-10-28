@@ -1,5 +1,8 @@
 """Tests for pr_checks.py. Run with: python3 -m unittest discover -s tools/agents"""
 
+import contextlib
+import io
+import sys
 import unittest
 import unittest.mock
 import urllib.error
@@ -154,6 +157,29 @@ class OutageTest(unittest.TestCase):
     def test_permission_token_and_missing_pr_errors_fail(self):
         for error in (self.http(401), self.http(403, "4999"), self.http(403), self.http(404)):
             self.assertFalse(pr_checks.is_outage(error), error)
+
+
+class MainFailureModeTest(unittest.TestCase):
+    """main() end to end with GitHub's answer faked: the whole decision path, not only is_outage()."""
+
+    def run_main(self, code, headers):
+        def fake_urlopen(request, timeout=30):
+            raise urllib.error.HTTPError(request.full_url, code, "msg", headers, io.BytesIO(b"{}"))
+
+        with unittest.mock.patch.object(pr_checks.urllib.request, "urlopen", fake_urlopen), \
+                unittest.mock.patch.object(pr_checks.time, "sleep", lambda seconds: None), \
+                unittest.mock.patch.object(sys, "argv", ["pr_checks.py", "--repo", "o/r", "--pr", "5"]), \
+                contextlib.redirect_stdout(io.StringIO()):
+            return pr_checks.main()
+
+    def test_bad_token_and_missing_permission_block(self):
+        self.assertEqual(self.run_main(401, {}), 1)
+        self.assertEqual(self.run_main(403, {"X-RateLimit-Remaining": "4999"}), 1)
+        self.assertEqual(self.run_main(404, {}), 1)
+
+    def test_outage_and_rate_limit_skip_without_blocking(self):
+        self.assertEqual(self.run_main(503, {}), 0)
+        self.assertEqual(self.run_main(403, {"X-RateLimit-Remaining": "0"}), 0)
 
 
 class HandoffTest(unittest.TestCase):
