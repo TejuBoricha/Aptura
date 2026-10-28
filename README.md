@@ -94,7 +94,7 @@ These are Robolectric renders of the real composables with representative data, 
 | No network capability | `PlatformInvariantsTest` asserts the merged manifest has no `INTERNET`; `verifyReleaseApk` reads the R8 mapping and shipped dex for network and telemetry packages. |
 | No telemetry | Dependency-graph invariant test plus the same shipped-code check. |
 | Scoped storage only | Manifest invariant: no `MANAGE_EXTERNAL_STORAGE`, no all-files access. |
-| The suite is green | 679 tests across 100 suites (601 executed, 78 opt-in gallery renders skipped), 0 failures, 0 errors. |
+| The suite is green | 682 tests across 101 suites (604 executed, 78 opt-in gallery renders skipped), 0 failures, 0 errors. |
 | Lint is clean | `lintDebug` reports 0 issues on the merged tree. |
 | Release builds work | CI runs `assembleRelease` with R8 and resource shrinking, including the shipped-code invariants. |
 | Real Android behavior | A separate CI job runs instrumented tests on an API 35 tablet emulator. |

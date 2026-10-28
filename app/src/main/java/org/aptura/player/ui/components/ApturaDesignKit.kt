@@ -400,25 +400,27 @@ fun SectionTitle(
     trailing: (@Composable () -> Unit)? = null
 ) {
     Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            text = title,
-            style = ApturaTypography.headlineSmall,
-            color = ApturaColors.TextHighEmphasis,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                // Only the title takes the free width, so a long title is measured against the whole row. Without a
-                // trailing slot it hugs its text and the count sits next to it.
-                .weight(1f, fill = trailing == null)
-                .semantics { heading() }
-        )
-        if (count != null) {
-            Spacer(Modifier.width(8.dp))
+        // Title and count share the free width; a long title is measured against the whole row and ellipsizes, while
+        // the count stays next to it. The trailing slot is outside that row, so it sits at the row's end.
+        Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = count.toString(),
-                style = ApturaTypography.titleMedium.copy(fontFeatureSettings = "tnum"),
-                color = ApturaColors.TextLowEmphasis
+                text = title,
+                style = ApturaTypography.headlineSmall,
+                color = ApturaColors.TextHighEmphasis,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .semantics { heading() }
             )
+            if (count != null) {
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = count.toString(),
+                    style = ApturaTypography.titleMedium.copy(fontFeatureSettings = "tnum"),
+                    color = ApturaColors.TextLowEmphasis
+                )
+            }
         }
         if (trailing != null) {
             Spacer(Modifier.width(12.dp))

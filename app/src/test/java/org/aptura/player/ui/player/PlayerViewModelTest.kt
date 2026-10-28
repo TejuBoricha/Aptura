@@ -1,7 +1,9 @@
 package org.aptura.player.ui.player
 
+import androidx.lifecycle.viewModelScope
 import app.cash.turbine.test
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -1047,6 +1049,29 @@ class PlayerViewModelTest {
         assertEquals("the stale drag must not come back", 0L, controller.lastAudioDelay)
         assertEquals(0L, viewModel.uiState.value.audioDelayMs)
         viewModel.clearForTesting()
+    }
+
+    @Test
+    fun aPendingSyncEdit_isAppliedAndSaved_whenThePlayerClosesInsideTheDebounceWindow() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        repository.items[sampleVideo.uri] = sampleVideo
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+        viewModel.loadAndPlay(sampleVideo.uri)
+        runCurrent()
+        repository.savedPreferencesCount = 0
+
+        viewModel.setAudioDelay(-400L)
+        runCurrent()
+        viewModel.clearForTesting()
+        // ViewModel.clear() cancels viewModelScope right after onCleared(); the test has to do it by hand.
+        viewModel.viewModelScope.cancel()
+        advanceTimeBy(PlayerViewModel.SYNC_APPLY_DEBOUNCE_MS)
+        runCurrent()
+
+        assertEquals("the last drag still reaches the player", -400L, controller.lastAudioDelay)
+        assertEquals("and is saved", 1, repository.savedPreferencesCount)
+        assertEquals(-400L, repository.items[sampleVideo.uri]?.audioDelayMs)
     }
 
     @Test

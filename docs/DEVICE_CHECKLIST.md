@@ -22,6 +22,10 @@ Use one video with several audio tracks, one sidecar `.srt`, and Bluetooth headp
 - [ ] **At the end of this video:** with Repeat one on, the item ends once and playback pauses; Up Next does not
       start.
 - [ ] **Background audio:** set a timer, turn the screen off with audio continuing, and confirm the timer still fires.
+- [ ] **Process death with audio continuing:** remove the task (or let the system kill the activity) while a timer runs
+      and audio plays. The deadline currently lives in `PlayerViewModel`, so it is expected to be lost when the activity
+      is destroyed; record whether playback continues and whether the timer survives. If it does not, FR-CTRL-009's
+      background-audio case needs a deadline owned by the playback service.
 
 ## Audio and subtitle sync
 

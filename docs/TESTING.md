@@ -6,8 +6,8 @@ Aptura has no network and no backend, so almost every behavior can be tested on 
 
 | Check | Result |
 |---|---|
-| JVM tests | 679 tests across 100 suites |
-| Executed in the gate | 601 (the 78 opt-in gallery renders are skipped) |
+| JVM tests | 682 tests across 101 suites |
+| Executed in the gate | 604 (the 78 opt-in gallery renders are skipped) |
 | Failures / errors | 0 / 0 |
 | Lint | 0 issues |
 | Release invariants | Pass |
