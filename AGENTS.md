@@ -56,7 +56,7 @@ The full workflow, with examples, is in [`docs/AGENT_WORKFLOW.md`](docs/AGENT_WO
 4. **Stay in scope.** Touch the files the issue names. If you must go beyond them, say so in the PR.
 5. **Hot files are serialized.** Only one open PR at a time may change:
    `app/schemas/`, `app/src/main/java/org/aptura/player/data/database/` (Room database and migrations),
-   `app/build.gradle.kts` (version), `gradle/libs.versions.toml`, `DESIGN.md`, `.github/`, `AGENTS.md`,
+   `app/build.gradle.kts` (the whole file, not only the version), `gradle/libs.versions.toml`, `DESIGN.md`, `.github/`, `AGENTS.md`,
    `.agents/STATE.md`, `tools/agents/`. Check open PRs before editing one. CI enforces this from
    `tools/agents/hot-files.txt`: a newer PR that touches a hot file an older open PR already changes fails until that
    one merges or closes.

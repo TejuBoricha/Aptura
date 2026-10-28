@@ -160,7 +160,7 @@ def _get(url: str, token: str | None):
             # 403/429 cover GitHub's rate limits; 5xx is a GitHub outage. Anything else is a real error.
             if error.code not in (403, 429, 500, 502, 503, 504) or attempt == RETRIES - 1:
                 raise
-        except urllib.error.URLError:
+        except (urllib.error.URLError, TimeoutError):
             if attempt == RETRIES - 1:
                 raise
         time.sleep(5 * (attempt + 1))
@@ -179,6 +179,19 @@ def _parse_time(value: str) -> datetime:
     return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
 
 
+def is_outage(error: Exception) -> bool:
+    """True when GitHub is unreachable or rate-limiting us; False for a real error such as a missing permission.
+
+    HTTPError is a subclass of URLError, so it must be told apart explicitly: a 401, a permission 403 or a 404 means
+    the check is misconfigured, and passing silently would turn off coordination without anyone noticing.
+    """
+    if isinstance(error, urllib.error.HTTPError):
+        if error.code in (429, 500, 502, 503, 504):
+            return True
+        return error.code == 403 and (error.headers or {}).get("X-RateLimit-Remaining") == "0"
+    return isinstance(error, (urllib.error.URLError, TimeoutError))
+
+
 def fetch(repo: str, number: int, token: str | None) -> tuple[PullRequest, list[PullRequest], list[tuple[str, str]]]:
     def files(n: int) -> list[str]:
         paths: list[str] = []
@@ -192,14 +205,16 @@ def fetch(repo: str, number: int, token: str | None) -> tuple[PullRequest, list[
         return [c for c in _pages(f"{API}/repos/{repo}/pulls/{n}/commits", token, limit=3)
                 if len(c.get("parents", [])) < 2]
 
-    def as_pr(raw: dict) -> PullRequest:
+    def as_pr(raw: dict, raw_commits: list[dict] | None = None) -> PullRequest:
         n = raw["number"]
+        raw_commits = commits(n) if raw_commits is None else raw_commits
         return PullRequest(n, raw["title"] or "", raw["body"] or "", bool(raw.get("draft")),
-                           _parse_time(raw["updated_at"]), files(n), [c["commit"]["message"] for c in commits(n)])
+                           _parse_time(raw["updated_at"]), files(n), [c["commit"]["message"] for c in raw_commits])
 
     raw_pr = _get(f"{API}/repos/{repo}/pulls/{number}", token)
-    pr = as_pr(raw_pr)
-    shas_and_messages = [(c["sha"], c["commit"]["message"]) for c in commits(number)]
+    own_commits = commits(number)  # Fetched once: used for attribution and for issue references.
+    pr = as_pr(raw_pr, own_commits)
+    shas_and_messages = [(c["sha"], c["commit"]["message"]) for c in own_commits]
     # Only pull requests into the same branch compete: a stacked PR or a release backport is a different queue.
     base = raw_pr["base"]["ref"]
     others = [as_pr(raw) for raw in _pages(f"{API}/repos/{repo}/pulls?state=open", token, limit=3)
@@ -239,10 +254,15 @@ def main() -> int:
     try:
         pr, others, shas_and_messages = fetch(args.repo, number, token)
     except (urllib.error.URLError, TimeoutError) as error:
-        # Fail open on a GitHub outage: these are coordination checks, and blocking every open pull request on an
-        # API hiccup would cost more than a rare duplicate. The tests and build in the same job still gate the code.
-        print(f"::warning::Agent coordination checks skipped: could not reach the GitHub API ({error}). "
-              f"Push again or re-run the job to check this pull request.")
+        if not is_outage(error):
+            # A missing permission, bad token or wrong PR number: fail loudly rather than switch the checks off.
+            print(f"::error::Agent coordination checks could not read pull request data ({error}). Check the "
+                  f"workflow's `pull-requests: read` permission and the token.")
+            return 1
+        # Fail open on a GitHub outage or rate limit: these are coordination checks, and blocking every open pull
+        # request on an API hiccup would cost more than a rare duplicate. The tests and build in the job still run.
+        print(f"::warning::Agent coordination checks skipped: GitHub API unavailable after {RETRIES} tries "
+              f"({error}). Push again or re-run the job to check this pull request.")
         return 0
     return report(check(pr, others, shas_and_messages, load_hot_patterns(), datetime.now(timezone.utc)))
 
