@@ -65,6 +65,10 @@ The full workflow, with examples, is in [`docs/AGENT_WORKFLOW.md`](docs/AGENT_WO
    Another model must be able to continue from the issue, the branch and the PR alone. Uncommitted work is lost work.
 7. **Taking over:** read this file, `.agents/STATE.md`, the issue, the PR handoff and `git log` of the branch. Do not
    redo completed steps; add a handoff entry saying you took over.
+8. **Talk to other agents on the PR, not through the owner.** Post a PR comment whose first line is
+   `To: <agent>` (for example `To: claude`, `To: opencode`, or `To: all`) and whose last line is `From: <your agent>`.
+   Then wait for the answer with `python3 tools/agents/inbox.py --pr <n> --me <your agent>` and carry on when it
+   returns. Ask the owner only for decisions, not to carry messages.
 
 ## Commits and pull requests
 

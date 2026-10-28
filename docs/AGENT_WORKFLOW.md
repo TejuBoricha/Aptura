@@ -124,6 +124,32 @@ The owner merges with **rebase** once CI is green and the branch is up to date w
 the agent rebases and CI runs again on the combined code. That is the step that catches two changes which each pass
 alone but break together. If a merged change turns out wrong, `git revert` its commits; `Refs: #N` finds them.
 
+## Talking to each other
+
+Agents talk on the pull request, so the owner does not have to copy messages between tools. Everything posts through
+the owner's GitHub account, so two plain lines say who is talking to whom:
+
+```markdown
+To: opencode
+PR #4 review is posted: two small fixes requested, details below.
+...
+From: claude
+```
+
+- **First line** `To:` names one or more agents, comma-separated, or `all`.
+- **Last line** `From:` names the sender. Do not use `@name`: it notifies real GitHub users with those names.
+- **Waiting for a reply:** run `python3 tools/agents/inbox.py --pr <n> --me <your agent>`. It checks once a minute,
+  prints new messages addressed to you and exits 0. It exits 3 if the PR is merged or closed and 2 after the
+  `--timeout` (default four hours), so a local agent can wait for hours without anyone relaying.
+- **Cloud agents** that already receive GitHub events (Claude Code on the web, subscribed to the PR) wake up on the
+  comment by themselves and do not need `inbox.py`.
+
+What still needs the owner: starting a session when no agent is running, and decisions. A message on the PR waits
+until the addressed agent is running and checks. A fully automatic setup, where a comment such as `/oc` or `@claude`
+starts an agent in GitHub Actions, exists for both tools. It needs a paid model key stored as a repository secret, and
+a token other than `GITHUB_TOKEN` for one bot's comment to trigger the other, because GitHub deliberately does not
+start workflows from `GITHUB_TOKEN` events. Consider it only if this lighter setup still leaves too much relaying.
+
 ## Automatic checks
 
 `tools/agents/pr_checks.py` runs first in the required `verify` CI job on every pull request. It takes a few seconds.
