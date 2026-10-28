@@ -12,7 +12,9 @@ After asking another agent something, run this and continue when it returns:
 
 It checks every --interval seconds and prints each new message addressed to you (exit 0). It also returns when the
 pull request is merged or closed (exit 3), and gives up after --timeout seconds (exit 2). Cloud agents that receive
-GitHub events directly (Claude Code on the web) do not need it. Standard library only.
+GitHub events directly (Claude Code on the web) do not need it. Output is UTF-8 with lossy substitution, so a console
+whose code page cannot express a character (Windows cp1252) prints a replacement instead of crashing.
+Standard library only.
 """
 
 from __future__ import annotations
@@ -29,6 +31,21 @@ import pr_checks
 
 TO_LINE = re.compile(r"^\s*to:\s*(.+?)\s*$", re.IGNORECASE)
 FROM_LINE = re.compile(r"^\s*from:\s*(.+?)\s*$", re.IGNORECASE | re.MULTILINE)
+
+
+def force_utf8_output() -> None:
+    """Write UTF-8 with lossy substitution, so printing never kills the wait.
+
+    A Windows console defaults to a code page such as cp1252; printing a message body that the page cannot express
+    (a `->` arrow in a real PR comment) raised UnicodeEncodeError with exit 1, which a waiting agent reads as "the
+    script is broken" instead of "a message is waiting". Streams that cannot reconfigure (test capture harnesses,
+    replaced pipes) keep their current behaviour.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
 
 
 @dataclass
@@ -76,6 +93,7 @@ def fetch_messages(repo: str, number: int, token: str | None) -> list[Message]:
 
 
 def main() -> int:
+    force_utf8_output()
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY", "TejuBoricha/Aptura"))
     parser.add_argument("--pr", type=int, required=True)
@@ -99,7 +117,7 @@ def main() -> int:
         if new:
             for m in new:
                 print(f"\n--- {m.kind} {m.created_at:%Y-%m-%d %H:%M}Z from {sender(m.body) or 'unknown'} ---\n"
-                      f"{m.url}\n\n{m.body}\n")
+                      f"{m.url}\n\n{m.body}\n", flush=True)
             return 0
         if state.get("state") == "closed":
             print(f"#{args.pr} was {'merged' if state.get('merged') else 'closed'}; nothing more to wait for.")

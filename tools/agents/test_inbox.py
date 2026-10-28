@@ -1,5 +1,6 @@
 """Tests for inbox.py. Run with: python3 -m unittest discover -s tools/agents"""
 
+import io
 import unittest
 import unittest.mock
 from datetime import datetime, timedelta, timezone
@@ -75,6 +76,43 @@ class WaitLoopTest(unittest.TestCase):
 
     def test_returns_3_when_the_pr_is_merged(self):
         self.assertEqual(self.run_main([[]], [{"state": "closed", "merged": True}]), 3)
+
+
+class OutputEncodingTest(unittest.TestCase):
+    """Regresses the cp1252 wait-killer: a real PR message containing a `→` crashed main() with exit 1, which a
+    waiting Windows agent reads as "the script is broken" instead of "a message is waiting"."""
+
+    def drive(self, stdout, batches, states, timeout="60"):
+        """Run main() with a fake GitHub and the real print, against `stdout` (WaitLoopTest mocks print out)."""
+        polls = iter(zip(batches, states))
+        current = {}
+
+        def fake_fetch(repo, number, token):
+            current["batch"], current["state"] = next(polls)
+            return current["batch"]
+
+        argv = ["inbox.py", "--pr", "4", "--me", "opencode", "--since", "2026-10-28T15:00:00Z", "--interval", "0",
+                "--timeout", timeout]
+        with unittest.mock.patch.object(inbox, "fetch_messages", fake_fetch), \
+                unittest.mock.patch.object(inbox.pr_checks, "_get", lambda url, token: current["state"]), \
+                unittest.mock.patch.object(inbox.time, "sleep", lambda s: None), \
+                unittest.mock.patch.object(inbox.sys, "argv", argv), \
+                unittest.mock.patch.object(inbox.sys, "stdout", stdout):
+            return inbox.main()
+
+    def test_a_body_the_console_cannot_encode_is_printed_instead_of_crashing(self):
+        reply = msg("To: opencode\nSound earlier → -200 ms\nFrom: claude")
+        buffer_out = io.BytesIO()
+        out = io.TextIOWrapper(buffer_out, encoding="cp1252")  # strict errors: the old code died on the body
+        self.assertEqual(self.drive(out, [[], [reply]], [{"state": "open"}, {"state": "open"}]), 0)
+        out.flush()
+        self.assertIn("Sound earlier → -200 ms", buffer_out.getvalue().decode("utf-8"))
+
+    def test_a_stream_that_cannot_reconfigure_is_left_alone(self):
+        """Capture harnesses replace stdout without a reconfigure method; the wait must keep working."""
+        out = io.StringIO()
+        self.assertEqual(self.drive(out, [[msg("To: opencode\nok\nFrom: claude")]], [{"state": "open"}]), 0)
+        self.assertIn("from claude", out.getvalue())
 
 
 if __name__ == "__main__":
