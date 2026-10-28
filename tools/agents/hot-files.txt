@@ -1,0 +1,12 @@
+# Files that must be changed by one open pull request at a time (see AGENTS.md).
+# They merge cleanly in Git yet break when two branches change them independently, for example two branches that
+# each add the next Room migration. One glob per line, matched against the repository path; `*` also matches `/`.
+app/schemas/*
+app/src/main/java/org/aptura/player/data/database/*
+app/build.gradle.kts
+gradle/libs.versions.toml
+DESIGN.md
+.github/*
+AGENTS.md
+.agents/STATE.md
+tools/agents/*

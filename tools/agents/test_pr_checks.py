@@ -1,0 +1,94 @@
+"""Tests for pr_checks.py. Run with: python3 -m unittest discover -s tools/agents"""
+
+import unittest
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+import pr_checks
+from pr_checks import PullRequest, check, issue_refs, is_hot, load_hot_patterns, unattributed
+
+NOW = datetime(2026, 10, 28, 12, tzinfo=timezone.utc)
+PATTERNS = load_hot_patterns()
+ATTRIBUTED = [("a" * 40, "Do a thing\n\nAssisted-by: Codex CLI (gpt-5.5)\nRefs: #41")]
+
+
+def pr(number, files, title="t", body="## Handoff\n", draft=False, age_days=0, commits=()):
+    return PullRequest(number, title, body, draft, NOW - timedelta(days=age_days), list(files), list(commits))
+
+
+def levels(findings):
+    return sorted(f.level for f in findings)
+
+
+class AttributionTest(unittest.TestCase):
+    def test_assisted_by_and_human_authored_pass(self):
+        self.assertEqual(unattributed([
+            ("1" * 40, "Fix\n\nAssisted-by: OpenCode (DeepSeek V4.1 Flash Free)"),
+            ("2" * 40, "Fix\n\nassisted-by: Claude Code"),
+            ("3" * 40, "Typo\n\nHuman-authored: yes"),
+        ]), [])
+
+    def test_missing_or_empty_trailer_fails(self):
+        self.assertEqual(unattributed([
+            ("abcdef1234", "Fix\n\nCo-Authored-By: Someone <a@b>"),
+            ("bcdefa1234", "Fix\n\nAssisted-by:"),
+            ("cdefab1234", "Fix the Assisted-by: handling in prose"),
+        ]), ["abcdef1", "bcdefa1", "cdefab1"])
+
+    def test_unattributed_commit_blocks(self):
+        findings = check(pr(5, ["README.md"]), [], [("deadbeef00", "Fix")], PATTERNS, NOW)
+        self.assertEqual(levels(findings), ["error"])
+
+
+class HotFileTest(unittest.TestCase):
+    def test_patterns_cover_schema_database_and_ci(self):
+        self.assertTrue(is_hot("app/schemas/org.aptura.player.data.database.ApturaDatabase/7.json", PATTERNS))
+        self.assertTrue(is_hot("app/src/main/java/org/aptura/player/data/database/ApturaDatabase.kt", PATTERNS))
+        self.assertTrue(is_hot(".github/workflows/ci.yml", PATTERNS))
+        self.assertFalse(is_hot("app/src/main/java/org/aptura/player/ui/player/PlayerViewModel.kt", PATTERNS))
+
+    def test_older_pr_on_same_hot_file_blocks_the_newer_one_only(self):
+        migration = "app/schemas/org.aptura.player.data.database.ApturaDatabase/7.json"
+        older, newer = pr(4, [migration]), pr(6, [migration])
+        self.assertIn("error", levels(check(newer, [older], ATTRIBUTED, PATTERNS, NOW)))
+        self.assertNotIn("error", levels(check(older, [newer], ATTRIBUTED, PATTERNS, NOW)))
+
+    def test_abandoned_older_pr_only_warns(self):
+        older = pr(4, ["gradle/libs.versions.toml"], age_days=30)
+        findings = check(pr(6, ["gradle/libs.versions.toml"]), [older], ATTRIBUTED, PATTERNS, NOW)
+        self.assertEqual(levels(findings), ["warning"])
+
+    def test_every_hot_pattern_is_named_in_agents_md(self):
+        agents = (Path(pr_checks.__file__).parents[2] / "AGENTS.md").read_text(encoding="utf-8")
+        for pattern in PATTERNS:
+            self.assertIn(pattern.removesuffix("/*").removesuffix("*"), agents, pattern)
+
+
+class DuplicateWorkTest(unittest.TestCase):
+    def test_issue_refs(self):
+        self.assertEqual(issue_refs("Closes #12, #13 and #14. Refs: #9. - Issue: #20. Issue: none"),
+                         {9, 12, 13, 14, 20})
+        self.assertEqual(issue_refs("see #12 and PR #3"), set())
+
+    def test_two_prs_for_the_same_issue(self):
+        older = pr(4, ["a.kt"], body="## Handoff\nRefs #41")
+        newer = pr(6, ["b.kt"], commits=["Fix\n\nRefs: #41"])
+        self.assertIn("error", levels(check(newer, [older], ATTRIBUTED, PATTERNS, NOW)))
+
+    def test_ordinary_overlap_warns_and_flags_a_likely_duplicate(self):
+        older = pr(4, ["ui/A.kt", "ui/B.kt", "ui/C.kt"])
+        findings = check(pr(6, ["ui/A.kt", "ui/B.kt"]), [older], ATTRIBUTED, PATTERNS, NOW)
+        self.assertEqual(levels(findings), ["warning", "warning"])
+
+    def test_no_overlap_is_clean(self):
+        self.assertEqual(check(pr(6, ["ui/A.kt"]), [pr(4, ["ui/B.kt"])], ATTRIBUTED, PATTERNS, NOW), [])
+
+
+class HandoffTest(unittest.TestCase):
+    def test_draft_without_handoff_warns(self):
+        findings = check(pr(6, ["ui/A.kt"], body="WIP", draft=True), [], ATTRIBUTED, PATTERNS, NOW)
+        self.assertEqual(levels(findings), ["warning"])
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -54,10 +54,12 @@ The full workflow, with examples, is in [`docs/AGENT_WORKFLOW.md`](docs/AGENT_WO
    and put the issue number in the PR title. Never commit to `main`. Never push to another agent's branch unless you
    are taking it over (rule 6).
 4. **Stay in scope.** Touch the files the issue names. If you must go beyond them, say so in the PR.
-5. **Hot files are serialized.** Before editing any of these, check that no other open PR touches it; if one does,
-   stop and comment on the issue:
-   `app/schemas/**`, Room database and migration classes, `app/build.gradle.kts` (`versionCode`/`versionName`),
-   `gradle/libs.versions.toml`, `CHANGELOG.md`, `DESIGN.md` tokens, `.github/**`, `AGENTS.md`, `.agents/STATE.md`.
+5. **Hot files are serialized.** Only one open PR at a time may change:
+   `app/schemas/`, `app/src/main/java/org/aptura/player/data/database/` (Room database and migrations),
+   `app/build.gradle.kts` (version), `gradle/libs.versions.toml`, `DESIGN.md`, `.github/`, `AGENTS.md`,
+   `.agents/STATE.md`, `tools/agents/`. Check open PRs before editing one. CI enforces this from
+   `tools/agents/hot-files.txt`: a newer PR that touches a hot file an older open PR already changes fails until that
+   one merges or closes.
 6. **Leave a handoff, not a memory.** Open a draft PR after your first meaningful commit, push at every green
    checkpoint, and keep the PR's `## Handoff` block current (goal, done, next, decisions, what was verified, gotchas).
    Another model must be able to continue from the issue, the branch and the PR alone. Uncommitted work is lost work.
@@ -67,15 +69,17 @@ The full workflow, with examples, is in [`docs/AGENT_WORKFLOW.md`](docs/AGENT_WO
 ## Commits and pull requests
 
 - Imperative subject that says what the commit does ([CONTRIBUTING.md](CONTRIBUTING.md#commits)).
-- Every AI-assisted commit ends with trailers:
+- Every AI-assisted commit ends with trailers (`Refs` only when there is an issue):
 
   ```
   Assisted-by: <Tool> (<model>)
   Refs: #<issue>
   ```
 
-  `Agent-Session: <link or id>` is welcome. `Co-Authored-By` lines that a tool adds by itself may stay, but
-  `Assisted-by` is the required one.
+  A commit written by a person ends with `Human-authored: yes` instead. CI rejects a PR containing a commit with
+  neither. `Agent-Session: <link or id>` is welcome; `Co-Authored-By` lines a tool adds by itself may stay.
+- To bring your branch up to date, rebase it on `origin/main` and force-push **your own** branch
+  (`git push --force-with-lease`). Never force-push `main` or another agent's branch; `main` is protected anyway.
 - Fill in the PR template, including what was **not** verified (device-only behaviour, TalkBack, Bluetooth latency).
 - Merging into `main` is the owner's decision. Do not merge unless the owner tells you to in the current session.
 
