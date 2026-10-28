@@ -3,7 +3,8 @@
 
 Runs in CI on every pull request, inside the required `verify` job, so a failure blocks the merge. It checks:
 
-* every commit names the agent that helped (`Assisted-by:`) or says a person wrote it (`Human-authored: yes`);
+* every commit names the agent that helped (`Assisted-by:`) or says a person wrote it (`Human-authored: yes`); commits
+  made by a GitHub App such as Dependabot are attributed by their bot account and exempt;
 * no older open pull request already changes the same hot file (tools/agents/hot-files.txt);
 * no older open pull request already works on the same issue.
 
@@ -74,6 +75,12 @@ def issue_refs(text: str) -> set[int]:
     for match in ISSUE_REF.finditer(text or ""):
         refs.update(int(n) for n in re.findall(r"#(\d+)", match.group(1)))
     return refs
+
+
+def is_bot_commit(commit: dict) -> bool:
+    """Commits by a GitHub App such as Dependabot carry no agent trailer and are attributed by their bot account."""
+    author = commit.get("author") or {}
+    return author.get("type") == "Bot" or str(author.get("login", "")).endswith("[bot]")
 
 
 def unattributed(messages: list[tuple[str, str]]) -> list[str]:
@@ -214,7 +221,7 @@ def fetch(repo: str, number: int, token: str | None) -> tuple[PullRequest, list[
     raw_pr = _get(f"{API}/repos/{repo}/pulls/{number}", token)
     own_commits = commits(number)  # Fetched once: used for attribution and for issue references.
     pr = as_pr(raw_pr, own_commits)
-    shas_and_messages = [(c["sha"], c["commit"]["message"]) for c in own_commits]
+    shas_and_messages = [(c["sha"], c["commit"]["message"]) for c in own_commits if not is_bot_commit(c)]
     # Only pull requests into the same branch compete: a stacked PR or a release backport is a different queue.
     base = raw_pr["base"]["ref"]
     others = [as_pr(raw) for raw in _pages(f"{API}/repos/{repo}/pulls?state=open", token, limit=3)

@@ -130,7 +130,7 @@ alone but break together. If a merged change turns out wrong, `git revert` its c
 
 | Check | Result |
 |---|---|
-| A commit has neither `Assisted-by:` nor `Human-authored: yes` | **Blocks**, naming the commits |
+| A commit has neither `Assisted-by:` nor `Human-authored: yes` (bot accounts such as Dependabot are exempt) | **Blocks**, naming the commits |
 | An **older** open PR already changes the same hot file | **Blocks** the newer PR until the older one merges or closes, then the newer one rebases and pushes |
 | An **older** open PR references the same issue (`Refs`, `Closes`, `Fixes`, or `Issue: #N` in the title, body or commits) | **Blocks**: one task, one PR |
 | The older PR has been idle for 14 days | Only warns, so an abandoned draft cannot block forever |

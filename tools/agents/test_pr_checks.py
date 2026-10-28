@@ -41,6 +41,12 @@ class AttributionTest(unittest.TestCase):
             ("defabc1234", "Fix\n\nAssisted-by:\nRefs: #4"),
         ]), ["abcdef1", "bcdefa1", "cdefab1", "defabc1"])
 
+    def test_bot_commits_are_recognised(self):
+        self.assertTrue(pr_checks.is_bot_commit({"author": {"login": "dependabot[bot]", "type": "Bot"}}))
+        self.assertTrue(pr_checks.is_bot_commit({"author": {"login": "renovate[bot]", "type": "User"}}))
+        self.assertFalse(pr_checks.is_bot_commit({"author": {"login": "TejuBoricha", "type": "User"}}))
+        self.assertFalse(pr_checks.is_bot_commit({"author": None}))
+
     def test_unattributed_commit_blocks(self):
         findings = check(pr(5, ["README.md"]), [], [("deadbeef00", "Fix")], PATTERNS, NOW)
         self.assertEqual(levels(findings), ["error"])
