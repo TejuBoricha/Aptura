@@ -92,7 +92,11 @@ data class PlayerUiState(
     val audioEnhancement: AudioEnhancementState = AudioEnhancementState(),
     val pictureAdjustment: PictureAdjustmentState = PictureAdjustmentState(),
     val abRepeat: AbRepeatState = AbRepeatState(),
-    val sleepTimerRemainingMs: Long? = null,
+    /**
+     * When the timed sleep countdown pauses playback, on the ViewModel's monotonic clock. The view derives the
+     * countdown from this while it is on screen; the ViewModel never ticks just to refresh the UI.
+     */
+    val sleepTimerEndsAtElapsedRealtime: Long? = null,
     /** The sleep timer is set to pause when this video ends rather than after a time. */
     val sleepAtEndOfVideo: Boolean = false,
     val volumePercent: Int? = null,

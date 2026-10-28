@@ -376,6 +376,7 @@ class PlayerViewModelTest {
         var lastSavedResizeMode: String? = null
         var lastSavedSpeed: Float? = null
         var lastSavedDecoderStrategy: Int? = null
+        var savedPreferencesCount = 0
 
         override suspend fun savePlaybackPreferences(
             uri: String,
@@ -389,6 +390,7 @@ class PlayerViewModelTest {
             lastSavedResizeMode = resizeMode
             lastSavedSpeed = playbackSpeed
             lastSavedDecoderStrategy = decoderStrategy
+            savedPreferencesCount++
             items[uri]?.let {
                 items[uri] = it.copy(
                     resizeMode = resizeMode,
@@ -964,24 +966,86 @@ class PlayerViewModelTest {
     fun advancedSettings_updatesDelays_andSleepTimer() = runTest(testDispatcher) {
         val controller = FakePlaybackController()
         val repository = FakeMediaRepository()
-        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+        val viewModel = PlayerViewModel(
+            playbackController = controller,
+            mediaRepository = repository,
+            dispatcher = testDispatcher,
+            clock = { testScheduler.currentTime }
+        )
 
         viewModel.setSubtitleDelay(150L)
         runCurrent()
+        assertEquals("the label updates at once", 150L, viewModel.uiState.value.subtitleDelayMs)
+        assertNull("but the player is not edited mid-drag", controller.lastSubtitleDelay)
+        advanceTimeBy(PlayerViewModel.SYNC_APPLY_DEBOUNCE_MS)
+        runCurrent()
         assertEquals(150L, controller.lastSubtitleDelay)
-        assertEquals(150L, viewModel.uiState.value.subtitleDelayMs)
 
         viewModel.setAudioDelay(-50L)
         runCurrent()
-        assertEquals(-50L, controller.lastAudioDelay)
         assertEquals(-50L, viewModel.uiState.value.audioDelayMs)
+        advanceTimeBy(PlayerViewModel.SYNC_APPLY_DEBOUNCE_MS)
+        runCurrent()
+        assertEquals(-50L, controller.lastAudioDelay)
 
         viewModel.startSleepTimer(30)
-        assertEquals(30 * 60 * 1000L, viewModel.uiState.value.sleepTimerRemainingMs)
+        assertEquals(
+            "deadline, not a running total",
+            testScheduler.currentTime + 30 * 60_000L,
+            viewModel.uiState.value.sleepTimerEndsAtElapsedRealtime
+        )
 
         viewModel.cancelSleepTimer()
-        assertNull(viewModel.uiState.value.sleepTimerRemainingMs)
+        assertNull(viewModel.uiState.value.sleepTimerEndsAtElapsedRealtime)
 
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun audioSync_isAppliedOnce_afterTheDragStops() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        repository.items[sampleVideo.uri] = sampleVideo
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+        viewModel.loadAndPlay(sampleVideo.uri)
+        runCurrent()
+        repository.savedPreferencesCount = 0
+
+        // A drag reports every 50 ms step; none of them should reach the audio pipeline or the database.
+        for (step in 1..20) {
+            viewModel.setAudioDelay(-step * 50L)
+        }
+        runCurrent()
+        assertEquals("previewed in the UI", -1000L, viewModel.uiState.value.audioDelayMs)
+        assertEquals("the player still has the loaded offset", 0L, controller.lastAudioDelay)
+        assertEquals("and nothing saved", 0, repository.savedPreferencesCount)
+
+        advanceTimeBy(PlayerViewModel.SYNC_APPLY_DEBOUNCE_MS)
+        runCurrent()
+        assertEquals(-1000L, controller.lastAudioDelay)
+        assertEquals("one write for the whole drag", 1, repository.savedPreferencesCount)
+        assertEquals(-1000L, repository.items[sampleVideo.uri]?.audioDelayMs)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun aPendingSyncEdit_isDroppedWhenThePreferencesAreReset() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+        viewModel.loadAndPlay(sampleVideo.uri)
+        runCurrent()
+
+        viewModel.setAudioDelay(-300L)
+        runCurrent()
+        viewModel.resetVideoPreferences()
+        runCurrent()
+        advanceTimeBy(PlayerViewModel.SYNC_APPLY_DEBOUNCE_MS)
+        runCurrent()
+
+        assertEquals("the stale drag must not come back", 0L, controller.lastAudioDelay)
+        assertEquals(0L, viewModel.uiState.value.audioDelayMs)
         viewModel.clearForTesting()
     }
 
@@ -1162,7 +1226,12 @@ class PlayerViewModelTest {
     @Test
     fun sleepTimer_fadesTheSoundOut_thenPausesAndRestoresVolume() = runTest(testDispatcher) {
         val controller = FakePlaybackController()
-        val viewModel = PlayerViewModel(controller, FakeMediaRepository(), testDispatcher)
+        val viewModel = PlayerViewModel(
+            playbackController = controller,
+            mediaRepository = FakeMediaRepository(),
+            dispatcher = testDispatcher,
+            clock = { testScheduler.currentTime }
+        )
         viewModel.loadAndPlay(sampleVideo.uri)
         runCurrent()
         controller.play()
@@ -1179,16 +1248,47 @@ class PlayerViewModelTest {
 
         advanceTimeBy(6_000L)
         runCurrent()
-        assertFalse(controller.isPlaying)
-        assertNull(viewModel.uiState.value.sleepTimerRemainingMs)
+        assertFalse("paused at the deadline", controller.isPlaying)
+        assertNull(viewModel.uiState.value.sleepTimerEndsAtElapsedRealtime)
         assertEquals("the next play is not silent", 1f, controller.volume, 0f)
         viewModel.clearForTesting()
     }
 
     @Test
-    fun sleepTimer_cancelDuringFade_restoresVolume_andExtendAddsTime() = runTest(testDispatcher) {
+    fun sleepTimer_fadeStartsExactlyTenSecondsBeforeTheDeadline() = runTest(testDispatcher) {
         val controller = FakePlaybackController()
-        val viewModel = PlayerViewModel(controller, FakeMediaRepository(), testDispatcher)
+        val viewModel = PlayerViewModel(
+            playbackController = controller,
+            mediaRepository = FakeMediaRepository(),
+            dispatcher = testDispatcher,
+            clock = { testScheduler.currentTime }
+        )
+
+        viewModel.startSleepTimer(1)
+
+        advanceTimeBy(50_000L)
+        runCurrent()
+        assertEquals("nothing faded before the last ten seconds", 1f, controller.volume, 0f)
+
+        advanceTimeBy(1_000L)
+        runCurrent()
+        assertEquals("the first of ten equal steps", 0.9f, controller.volume, 0.001f)
+
+        advanceTimeBy(9_000L)
+        runCurrent()
+        assertFalse(controller.isPlaying)
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun sleepTimer_cancelDuringFade_restoresVolume_andExtendMovesTheDeadline() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val viewModel = PlayerViewModel(
+            playbackController = controller,
+            mediaRepository = FakeMediaRepository(),
+            dispatcher = testDispatcher,
+            clock = { testScheduler.currentTime }
+        )
 
         viewModel.startSleepTimer(1)
         advanceTimeBy(55_500L)
@@ -1198,12 +1298,13 @@ class PlayerViewModelTest {
         viewModel.extendSleepTimer(5)
         runCurrent()
         assertEquals(1f, controller.volume, 0f)
-        val remaining = viewModel.uiState.value.sleepTimerRemainingMs!!
-        assertTrue("about 5 min 5 s left, not a fresh 5 min", remaining in 304_000L..306_000L)
+        val endsAt = viewModel.uiState.value.sleepTimerEndsAtElapsedRealtime!!
+        assertEquals("5 s already spent, plus 5 more minutes", 360_000L, endsAt)
+        assertEquals("about 5 min 5 s left, not a fresh 5 min", 304_500L, endsAt - testScheduler.currentTime)
 
         viewModel.cancelSleepTimer()
         runCurrent()
-        assertNull(viewModel.uiState.value.sleepTimerRemainingMs)
+        assertNull(viewModel.uiState.value.sleepTimerEndsAtElapsedRealtime)
         assertEquals(1f, controller.volume, 0f)
         viewModel.clearForTesting()
     }
@@ -1220,7 +1321,7 @@ class PlayerViewModelTest {
         viewModel.startSleepAtEndOfVideo()
         runCurrent()
         assertTrue(viewModel.uiState.value.sleepAtEndOfVideo)
-        assertNull("replaces the timed countdown", viewModel.uiState.value.sleepTimerRemainingMs)
+        assertNull("replaces the timed countdown", viewModel.uiState.value.sleepTimerEndsAtElapsedRealtime)
         assertTrue(controller.stopAfterCurrentItem)
 
         controller._playbackState.value = DomainPlaybackState.Ended(sampleVideo.durationMs)
@@ -1234,7 +1335,12 @@ class PlayerViewModelTest {
     @Test
     fun sleepAtEndOfVideo_isReplacedByATimedCountdown() = runTest(testDispatcher) {
         val controller = FakePlaybackController()
-        val viewModel = PlayerViewModel(controller, FakeMediaRepository(), testDispatcher)
+        val viewModel = PlayerViewModel(
+            playbackController = controller,
+            mediaRepository = FakeMediaRepository(),
+            dispatcher = testDispatcher,
+            clock = { testScheduler.currentTime }
+        )
 
         viewModel.startSleepAtEndOfVideo()
         runCurrent()
@@ -1242,7 +1348,7 @@ class PlayerViewModelTest {
         runCurrent()
         assertFalse(viewModel.uiState.value.sleepAtEndOfVideo)
         assertFalse(controller.stopAfterCurrentItem)
-        assertEquals(15 * 60_000L, viewModel.uiState.value.sleepTimerRemainingMs)
+        assertEquals(15 * 60_000L, viewModel.uiState.value.sleepTimerEndsAtElapsedRealtime)
         viewModel.clearForTesting()
     }
 

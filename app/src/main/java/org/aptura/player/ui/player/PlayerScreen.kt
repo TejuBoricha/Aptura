@@ -1137,7 +1137,7 @@ fun PlayerScreen(
                     // A running sleep timer or A-B loop changes what playback will do next, so it stays visible with the
                     // controls instead of living only inside the tools sheet. It sits under the title (past the back
                     // button) on its own line, so it never takes width from the title itself.
-                    val sleepLeft = uiState.sleepTimerRemainingMs
+                    val sleepLeft = rememberSleepTimerRemainingMs(uiState.sleepTimerEndsAtElapsedRealtime)
                     val looping = uiState.abRepeat.isLooping
                     val sleepAtEnd = uiState.sleepAtEndOfVideo
                     if (sleepLeft != null || sleepAtEnd || looping) {
@@ -1623,7 +1623,7 @@ fun PlayerScreen(
                                     Icon(
                                         imageVector = Icons.Filled.Tune,
                                         contentDescription = "Advanced Settings",
-                                        tint = if (uiState.subtitleDelayMs != 0L || uiState.audioDelayMs != 0L || uiState.sleepTimerRemainingMs != null || uiState.sleepAtEndOfVideo)
+                                        tint = if (uiState.subtitleDelayMs != 0L || uiState.audioDelayMs != 0L || uiState.sleepTimerEndsAtElapsedRealtime != null || uiState.sleepAtEndOfVideo)
                                             ApturaColors.AccentPrimary
                                         else
                                             ApturaColors.TextMediumEmphasis

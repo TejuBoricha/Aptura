@@ -407,7 +407,9 @@ fun SectionTitle(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
-                .weight(1f, fill = false)
+                // Only the title takes the free width, so a long title is measured against the whole row. Without a
+                // trailing slot it hugs its text and the count sits next to it.
+                .weight(1f, fill = trailing == null)
                 .semantics { heading() }
         )
         if (count != null) {
@@ -419,7 +421,7 @@ fun SectionTitle(
             )
         }
         if (trailing != null) {
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.width(12.dp))
             trailing()
         }
     }

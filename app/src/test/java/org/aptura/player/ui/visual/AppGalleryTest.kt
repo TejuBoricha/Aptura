@@ -1,5 +1,6 @@
 package org.aptura.player.ui.visual
 
+import android.os.SystemClock
 import androidx.test.core.app.ApplicationProvider
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.padding
@@ -179,7 +180,7 @@ class PlayerGalleryTest : GalleryBase() {
     }
     @Test fun upNext() { player(base.copy(isEnded = true, isPlaying = false, autoAdvanceCountdownSeconds = 6)); shoot("player_up_next") }
     @Test fun compatNotice() { player(base.copy(isCompatibilityMode = true, compatibilityNotice = "Playing with software decoding")); shoot("player_compat_notice") }
-    @Test fun abLoop() { player(base.copy(abRepeat = AbRepeatState(1_800_000, 2_400_000, true), sleepTimerRemainingMs = 1_200_000)); shoot("player_ab_sleep") }
+    @Test fun abLoop() { player(base.copy(abRepeat = AbRepeatState(1_800_000, 2_400_000, true), sleepTimerEndsAtElapsedRealtime = SystemClock.elapsedRealtime() + 1_200_000)); shoot("player_ab_sleep") }
 
     @Test fun speed() { player(base.copy(activeSheet = PlayerSheet.Speed)); shoot("sheet_speed") }
     @Test fun audio() { player(base.copy(activeSheet = PlayerSheet.Audio)); shoot("sheet_audio") }
@@ -215,7 +216,7 @@ class PlayerGalleryTest : GalleryBase() {
     private val tuned = base.copy(
         audioDelayMs = 150L,
         subtitleDelayMs = -250L,
-        sleepTimerRemainingMs = 1_200_000L,
+        sleepTimerEndsAtElapsedRealtime = SystemClock.elapsedRealtime() + 1_200_000L,
         abRepeat = AbRepeatState(1_800_000, 2_400_000, true),
         bookmarks = listOf(
             org.aptura.player.domain.model.Bookmark(1, base.videoUri, 1_250_000, "Opening shot"),
@@ -244,7 +245,7 @@ class PlayerGalleryTest : GalleryBase() {
     @Config(qualifiers = "w411dp-h1700dp-xhdpi") @Test fun tPicture() = tab(PlayerSheet.Advanced, "Picture", "tab_picture")
 
     @Config(qualifiers = "w411dp-h1700dp-xhdpi") @Test fun tPlaybackSleepAtEnd() {
-        player(tuned.copy(activeSheet = PlayerSheet.Advanced, sleepTimerRemainingMs = null, sleepAtEndOfVideo = true))
+        player(tuned.copy(activeSheet = PlayerSheet.Advanced, sleepTimerEndsAtElapsedRealtime = null, sleepAtEndOfVideo = true))
         shoot("tab_playback_sleep_at_end")
     }
 

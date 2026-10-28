@@ -1,5 +1,6 @@
 package org.aptura.player.ui.player
 
+import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CoroutineDispatcher
@@ -41,7 +42,7 @@ import java.io.File
 
 /**
  * ViewModel orchestrating player HUD state, transport controls, and progress persistence.
- * Follows Unidirectional Data Flow (UDF) and remains pure Kotlin (decoupled from Android framework).
+ * Follows Unidirectional Data Flow (UDF); it holds no Compose, Activity or View types.
  */
 class PlayerViewModel(
     private val playbackController: PlaybackController,
@@ -51,7 +52,9 @@ class PlayerViewModel(
     private val dispatcher: CoroutineDispatcher = Dispatchers.Main,
     private val audioEffectsStore: AudioEffectsStore? = settingsRepository,
     /** The default decoder from Settings (0 Auto, 1 Hardware, 2 Software). Videos without a choice of their own follow it. */
-    private val defaultDecoderFlow: Flow<Int>? = settingsRepository?.settingsFlow?.map { it.defaultDecoderStrategy }
+    private val defaultDecoderFlow: Flow<Int>? = settingsRepository?.settingsFlow?.map { it.defaultDecoderStrategy },
+    /** Monotonic clock for the sleep timer. Tests pass the virtual scheduler's time so deadlines are exact. */
+    private val clock: () -> Long = { SystemClock.elapsedRealtime() }
 ) : ViewModel() {
 
     constructor(
@@ -97,6 +100,8 @@ class PlayerViewModel(
     private var seekFeedbackJob: Job? = null
     private var lockHintJob: Job? = null
     private var sleepTimerJob: Job? = null
+    private var audioSyncJob: Job? = null
+    private var subtitleSyncJob: Job? = null
     private var autoAdvanceJob: Job? = null
     private var bookmarksJob: Job? = null
     private var lastPersistedPositionMs: Long = 0L
@@ -123,9 +128,16 @@ class PlayerViewModel(
         const val FEEDBACK_OVERLAY_DELAY_MS = 1200L
         const val SEEK_ACCUMULATION_THRESHOLD_MS = 800L
         const val CHECKPOINT_INTERVAL_MS = 5000L // TST-REST-01, spec/12A §3.3
-        const val SLEEP_TIMER_TICK_MS = 1000L
         const val SLEEP_FADE_MS = 10_000L
+        const val SLEEP_FADE_STEPS = 10
+        const val SLEEP_FADE_STEP_MS = SLEEP_FADE_MS / SLEEP_FADE_STEPS
         const val AUDIO_EFFECTS_SAVE_DEBOUNCE_MS = 400L
+
+        /**
+         * A/V sync is dragged in 50 ms steps. Applying every step edits the audio stream mid-drag (audible) and
+         * writes the row on every frame, so the player is only told once the drag has been still for this long.
+         */
+        const val SYNC_APPLY_DEBOUNCE_MS = 200L
     }
 
     init {
@@ -414,6 +426,9 @@ class PlayerViewModel(
      */
     private suspend fun applyItemPreferences(item: DomainMediaItem, resume: Boolean) {
         preHoldPlaybackSpeed = null
+        // A debounced edit from the video we just left must not land on this one.
+        audioSyncJob?.cancel()
+        subtitleSyncJob?.cancel()
         val restoredResizeMode = if (item.resizeMode == "FIT") {
             defaultResizeMode
         } else {
@@ -477,9 +492,10 @@ class PlayerViewModel(
                             )
                         },
                         selectedAudioTrackIndex = selection.selectedAudioTrackIndex,
-                        selectedSubtitleTrackIndex = selection.selectedSubtitleTrackIndex,
-                        subtitleDelayMs = selection.subtitleDelayMs,
-                        audioDelayMs = selection.audioDelayMs
+                        selectedSubtitleTrackIndex = selection.selectedSubtitleTrackIndex
+                        // The A/V delays are deliberately not copied back: the ViewModel owns them, and the player
+                        // only hears about a drag after the debounce. Reading the old value back here would snap
+                        // the label back mid-drag whenever the controller emitted for any other reason.
                     )
                 }
             }
@@ -1047,18 +1063,27 @@ class PlayerViewModel(
         }
     }
 
+    /**
+     * Sync offsets are dragged in 50 ms steps. The value is shown immediately, but the player is only told after the
+     * drag has been still for [SYNC_APPLY_DEBOUNCE_MS]: an audio offset inserts or drops PCM, so applying every step
+     * garbled the sound, and every step also wrote the row and refreshed the playback stats.
+     */
     fun setSubtitleDelay(delayMs: Long) {
-        viewModelScope.launch(dispatcher + errorHandler) {
+        _uiState.update { it.copy(subtitleDelayMs = delayMs) }
+        subtitleSyncJob?.cancel()
+        subtitleSyncJob = viewModelScope.launch(dispatcher + errorHandler) {
+            delay(SYNC_APPLY_DEBOUNCE_MS)
             playbackController.setSubtitleDelay(delayMs)
-            _uiState.update { it.copy(subtitleDelayMs = delayMs) }
             persistPlaybackPreferences()
         }
     }
 
     fun setAudioDelay(delayMs: Long) {
-        viewModelScope.launch(dispatcher + errorHandler) {
+        _uiState.update { it.copy(audioDelayMs = delayMs) }
+        audioSyncJob?.cancel()
+        audioSyncJob = viewModelScope.launch(dispatcher + errorHandler) {
+            delay(SYNC_APPLY_DEBOUNCE_MS)
             playbackController.setAudioDelay(delayMs)
-            _uiState.update { it.copy(audioDelayMs = delayMs) }
             persistPlaybackPreferences()
         }
     }
@@ -1195,6 +1220,9 @@ class PlayerViewModel(
         val uri = _uiState.value.videoUri
         if (uri.isNotBlank()) {
             preHoldPlaybackSpeed = null
+            // The reset below sets the offsets to 0; a pending drag must not put them back afterwards.
+            audioSyncJob?.cancel()
+            subtitleSyncJob?.cancel()
             viewModelScope.launch(dispatcher + errorHandler) {
                 mediaRepository.resetPlaybackPreferences(uri)
                 playbackController.setPlaybackSpeed(defaultPlaybackSpeed)
@@ -1240,35 +1268,39 @@ class PlayerViewModel(
     }
 
     fun startSleepTimer(minutes: Int) {
-        runSleepCountdown(minutes * 60 * 1000L)
+        scheduleSleepTimer(clock() + minutes * 60_000L)
     }
 
-    /** "Add 5 min" on a running timer: keeps the countdown going instead of restarting it from a fixed choice. */
+    /** "Add 5 min" on a running timer: moves the deadline instead of restarting from a fixed choice. */
     fun extendSleepTimer(minutes: Int) {
-        val remaining = _uiState.value.sleepTimerRemainingMs ?: return
-        runSleepCountdown(remaining + minutes * 60 * 1000L)
+        val endsAt = _uiState.value.sleepTimerEndsAtElapsedRealtime ?: return
+        scheduleSleepTimer(endsAt + minutes * 60_000L)
     }
 
-    private fun runSleepCountdown(durationMs: Long) {
+    /**
+     * The deadline, not a running total, is the source of truth. `delay` guarantees only a minimum, so subtracting
+     * each tick let every late wake-up shorten the sleep by that much. Here the pause is one deadline and the fade
+     * paces itself against the same deadline; nothing ticks for the UI, which derives the countdown from
+     * [PlayerUiState.sleepTimerEndsAtElapsedRealtime] while it is on screen.
+     */
+    private fun scheduleSleepTimer(endsAt: Long) {
         sleepTimerJob?.cancel()
         clearStopAtEndOfVideo()
-        _uiState.update { it.copy(sleepTimerRemainingMs = durationMs) }
+        _uiState.update { it.copy(sleepTimerEndsAtElapsedRealtime = endsAt) }
         sleepTimerJob = viewModelScope.launch(dispatcher + errorHandler) {
-            // A real countdown: the UI shows the time left, and nothing else can overwrite it.
-            var remaining = durationMs
             try {
-                while (remaining > 0L) {
-                    val step = minOf(SLEEP_TIMER_TICK_MS, remaining)
-                    delay(step)
-                    remaining -= step
-                    _uiState.update { it.copy(sleepTimerRemainingMs = remaining.takeIf { r -> r > 0L }) }
-                    // Fade the sound out over the last seconds, so a sleeper isn't woken by it stopping dead.
-                    if (remaining < SLEEP_FADE_MS) {
-                        playbackController.setVolume(remaining.toFloat() / SLEEP_FADE_MS)
-                    }
+                val fadeStart = endsAt - SLEEP_FADE_MS
+                val untilFade = fadeStart - clock()
+                if (untilFade > 0L) delay(untilFade)
+                for (step in 1..SLEEP_FADE_STEPS) {
+                    // Re-anchor every step to the deadline so a late wake-up is caught up, not added on.
+                    val wait = fadeStart + step * SLEEP_FADE_STEP_MS - clock()
+                    if (wait > 0L) delay(wait)
+                    playbackController.setVolume(1f - step / SLEEP_FADE_STEPS.toFloat())
                 }
                 playbackController.pause()
                 persistCurrentPosition()
+                _uiState.update { it.copy(sleepTimerEndsAtElapsedRealtime = null) }
             } finally {
                 // Paused, cancelled or extended: the next play starts at full volume.
                 withContext(NonCancellable) { playbackController.setVolume(1f) }
@@ -1280,7 +1312,7 @@ class PlayerViewModel(
     fun startSleepAtEndOfVideo() {
         sleepTimerJob?.cancel()
         sleepTimerJob = null
-        _uiState.update { it.copy(sleepTimerRemainingMs = null, sleepAtEndOfVideo = true) }
+        _uiState.update { it.copy(sleepTimerEndsAtElapsedRealtime = null, sleepAtEndOfVideo = true) }
         viewModelScope.launch(dispatcher + errorHandler) { playbackController.setStopAfterCurrentItem(true) }
     }
 
@@ -1288,7 +1320,7 @@ class PlayerViewModel(
         sleepTimerJob?.cancel()
         sleepTimerJob = null
         clearStopAtEndOfVideo()
-        _uiState.update { it.copy(sleepTimerRemainingMs = null) }
+        _uiState.update { it.copy(sleepTimerEndsAtElapsedRealtime = null) }
     }
 
     private fun clearStopAtEndOfVideo() {
