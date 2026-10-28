@@ -311,6 +311,8 @@ class PlayerViewModel(
                                 durationMs = state.durationMs,
                                 bufferedPositionMs = state.bufferedPositionMs,
                                 playbackSpeed = state.playbackSpeed,
+                                // Resuming after a fired sleep timer dismisses the "+5 min" offer: the user chose to stay up.
+                                sleepTimerExpired = if (state.isPlaying) false else it.sleepTimerExpired,
                                 errorMessage = null
                             )
                         }
@@ -454,6 +456,8 @@ class PlayerViewModel(
                 audioDelayMs = item.audioDelayMs,
                 subtitleDelayMs = item.subtitleDelayMs,
                 abRepeat = AbRepeatState(),
+                // The offer belongs to the video that was playing when the timer fired.
+                sleepTimerExpired = false,
                 isEnded = false
             )
         }
@@ -1271,10 +1275,25 @@ class PlayerViewModel(
         scheduleSleepTimer(clock() + minutes * 60_000L)
     }
 
-    /** "Add 5 min" on a running timer: moves the deadline instead of restarting from a fixed choice. */
+    /**
+     * "Add 5 min" on a running timer moves the deadline instead of restarting from a fixed choice. After the timer has
+     * fired it starts a fresh five minutes from now and resumes playback, so expiry is an offer to stay up rather than
+     * a dead end.
+     */
     fun extendSleepTimer(minutes: Int) {
-        val endsAt = _uiState.value.sleepTimerEndsAtElapsedRealtime ?: return
-        scheduleSleepTimer(endsAt + minutes * 60_000L)
+        val state = _uiState.value
+        val endsAt = state.sleepTimerEndsAtElapsedRealtime
+        val wasExpired = state.sleepTimerExpired
+        val nextEndsAt = when {
+            endsAt != null -> endsAt + minutes * 60_000L
+            wasExpired -> clock() + minutes * 60_000L
+            else -> return
+        }
+        scheduleSleepTimer(nextEndsAt)
+        if (wasExpired) {
+            // Accepting the offer means "I am still awake": the timer is only useful if playback comes back.
+            viewModelScope.launch(dispatcher + errorHandler) { playbackController.play() }
+        }
     }
 
     /**
@@ -1286,7 +1305,7 @@ class PlayerViewModel(
     private fun scheduleSleepTimer(endsAt: Long) {
         sleepTimerJob?.cancel()
         clearStopAtEndOfVideo()
-        _uiState.update { it.copy(sleepTimerEndsAtElapsedRealtime = endsAt) }
+        _uiState.update { it.copy(sleepTimerEndsAtElapsedRealtime = endsAt, sleepTimerExpired = false) }
         sleepTimerJob = viewModelScope.launch(dispatcher + errorHandler) {
             try {
                 val fadeStart = endsAt - SLEEP_FADE_MS
@@ -1299,8 +1318,11 @@ class PlayerViewModel(
                     playbackController.setVolume(1f - step / SLEEP_FADE_STEPS.toFloat())
                 }
                 playbackController.pause()
+                // Offer a way out instead of a dead end: the HUD and the sheet both point at "+5 min".
+                _uiState.update {
+                    it.copy(sleepTimerEndsAtElapsedRealtime = null, sleepTimerExpired = true)
+                }
                 persistCurrentPosition()
-                _uiState.update { it.copy(sleepTimerEndsAtElapsedRealtime = null) }
             } finally {
                 // Paused, cancelled or extended: the next play starts at full volume.
                 withContext(NonCancellable) { playbackController.setVolume(1f) }
@@ -1312,7 +1334,9 @@ class PlayerViewModel(
     fun startSleepAtEndOfVideo() {
         sleepTimerJob?.cancel()
         sleepTimerJob = null
-        _uiState.update { it.copy(sleepTimerEndsAtElapsedRealtime = null, sleepAtEndOfVideo = true) }
+        _uiState.update {
+            it.copy(sleepTimerEndsAtElapsedRealtime = null, sleepTimerExpired = false, sleepAtEndOfVideo = true)
+        }
         viewModelScope.launch(dispatcher + errorHandler) { playbackController.setStopAfterCurrentItem(true) }
     }
 
@@ -1320,7 +1344,7 @@ class PlayerViewModel(
         sleepTimerJob?.cancel()
         sleepTimerJob = null
         clearStopAtEndOfVideo()
-        _uiState.update { it.copy(sleepTimerEndsAtElapsedRealtime = null) }
+        _uiState.update { it.copy(sleepTimerEndsAtElapsedRealtime = null, sleepTimerExpired = false) }
     }
 
     private fun clearStopAtEndOfVideo() {

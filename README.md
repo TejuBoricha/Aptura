@@ -94,7 +94,7 @@ These are Robolectric renders of the real composables with representative data, 
 | No network capability | `PlatformInvariantsTest` asserts the merged manifest has no `INTERNET`; `verifyReleaseApk` reads the R8 mapping and shipped dex for network and telemetry packages. |
 | No telemetry | Dependency-graph invariant test plus the same shipped-code check. |
 | Scoped storage only | Manifest invariant: no `MANAGE_EXTERNAL_STORAGE`, no all-files access. |
-| The suite is green | 666 tests across 97 suites (589 executed, 77 opt-in gallery renders skipped), 0 failures, 0 errors. |
+| The suite is green | 679 tests across 100 suites (601 executed, 78 opt-in gallery renders skipped), 0 failures, 0 errors. |
 | Lint is clean | `lintDebug` reports 0 issues on the merged tree. |
 | Release builds work | CI runs `assembleRelease` with R8 and resource shrinking, including the shipped-code invariants. |
 | Real Android behavior | A separate CI job runs instrumented tests on an API 35 tablet emulator. |
@@ -149,6 +149,7 @@ The domain layer has no Android imports. The UI talks to view models; view model
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layers, data flow, playback bridge, storage model, invariants |
 | [docs/BUILDING.md](docs/BUILDING.md) | Build variants, signing, tests, gallery renders, CI |
 | [docs/TESTING.md](docs/TESTING.md) | Test strategy, fakes, Robolectric, instrumented tests, evidence |
+| [docs/DEVICE_CHECKLIST.md](docs/DEVICE_CHECKLIST.md) | The physical-device pass to run before the 1.0 tag |
 | [docs/PRIVACY.md](docs/PRIVACY.md) | Data flows, permissions, diagnostics, what is never collected |
 | [DESIGN.md](DESIGN.md) | Colour, type, spacing, player HUD, component contracts |
 | [review/audit-2026-10-28/UI_UX_REVIEW.md](review/audit-2026-10-28/UI_UX_REVIEW.md) | The UI/UX pass, with before/after and after-only evidence |

@@ -1310,6 +1310,67 @@ class PlayerViewModelTest {
     }
 
     @Test
+    fun sleepTimer_afterFiring_offersFiveMoreMinutes() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val viewModel = PlayerViewModel(
+            playbackController = controller,
+            mediaRepository = FakeMediaRepository(),
+            dispatcher = testDispatcher,
+            clock = { testScheduler.currentTime }
+        )
+        viewModel.loadAndPlay(sampleVideo.uri)
+        runCurrent()
+        controller.play()
+        runCurrent()
+
+        viewModel.startSleepTimer(1)
+        advanceTimeBy(60_000L)
+        runCurrent()
+        assertTrue("the offer appears instead of a dead end", viewModel.uiState.value.sleepTimerExpired)
+        assertFalse(controller.isPlaying)
+        assertNull(viewModel.uiState.value.sleepTimerEndsAtElapsedRealtime)
+
+        viewModel.extendSleepTimer(5)
+        runCurrent()
+        assertFalse("extending dismisses the offer", viewModel.uiState.value.sleepTimerExpired)
+        assertTrue("accepting the offer resumes playback", controller.isPlaying)
+        assertEquals(
+            "a fresh five minutes from now",
+            testScheduler.currentTime + 5 * 60_000L,
+            viewModel.uiState.value.sleepTimerEndsAtElapsedRealtime
+        )
+
+        advanceTimeBy(300_000L)
+        runCurrent()
+        assertFalse("the second deadline also pauses", controller.isPlaying)
+        assertTrue("and offers a way out again", viewModel.uiState.value.sleepTimerExpired)
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun resumingPlayback_dismissesTheSleepTimerOffer() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val viewModel = PlayerViewModel(
+            playbackController = controller,
+            mediaRepository = FakeMediaRepository(),
+            dispatcher = testDispatcher,
+            clock = { testScheduler.currentTime }
+        )
+
+        viewModel.loadAndPlay(sampleVideo.uri)
+        runCurrent()
+        viewModel.startSleepTimer(1)
+        advanceTimeBy(60_000L)
+        runCurrent()
+        assertTrue(viewModel.uiState.value.sleepTimerExpired)
+
+        controller.play()
+        runCurrent()
+        assertFalse("staying up is a choice, not a prompt that follows you", viewModel.uiState.value.sleepTimerExpired)
+        viewModel.clearForTesting()
+    }
+
+    @Test
     fun sleepAtEndOfVideo_stopsAfterThisItem_andSkipsUpNext() = runTest(testDispatcher) {
         val controller = FakePlaybackController()
         val viewModel = PlayerViewModel(controller, FakeMediaRepository(), testDispatcher)

@@ -6,14 +6,15 @@ Aptura has no network and no backend, so almost every behavior can be tested on 
 
 | Check | Result |
 |---|---|
-| JVM tests | 666 tests across 97 suites |
-| Executed in the gate | 589 (the 77 opt-in gallery renders are skipped) |
+| JVM tests | 679 tests across 100 suites |
+| Executed in the gate | 601 (the 78 opt-in gallery renders are skipped) |
 | Failures / errors | 0 / 0 |
 | Lint | 0 issues |
 | Release invariants | Pass |
 | Instrumented suite | API 35 tablet emulator, run in CI |
+| Agent coordination checks | `python -m unittest discover -s tools/agents`, run by the gate when Python 3 is installed and always in CI |
 
-Counts are from the merged `main` tree. Update this table when the numbers move.
+Counts come from the latest full `tools/gate.ps1` run; update this table when they move.
 
 ## Run it
 
@@ -29,9 +30,10 @@ Or individually:
 ./gradlew testDebugUnitTest --fail-fast
 ./gradlew lintDebug
 ./gradlew assembleRelease
+python -m unittest discover -s tools/agents
 ```
 
-The unit-test task has a 120-second whole-task timeout. That is a hang guard, not a performance target; if the suite legitimately grows past it, raise the guard in `app/build.gradle.kts` instead of deleting it.
+The unit-test task has a 300-second whole-task timeout. That is a hang guard, not a performance target; a cold CI runner exceeded the old 120 seconds at ~680 tests. If the suite legitimately grows past it, raise the guard in `app/build.gradle.kts` instead of deleting it.
 
 ## Test layers
 
@@ -124,4 +126,4 @@ The suite is strong on logic and UI structure, but it cannot prove:
 - process death during an actual SAF copy (the journal and worker are tested with fakes);
 - PiP behavior on an OEM that customizes the window manager.
 
-These are tracked in [review/audit-2026-10-28/UI_UX_REVIEW.md](../review/audit-2026-10-28/UI_UX_REVIEW.md) and the audit reports under `review/`.
+These are tracked in [review/audit-2026-10-28/UI_UX_REVIEW.md](../review/audit-2026-10-28/UI_UX_REVIEW.md) and the audit reports under `review/`. [DEVICE_CHECKLIST.md](DEVICE_CHECKLIST.md) turns them into the pass to run before the 1.0 tag.

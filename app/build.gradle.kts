@@ -243,9 +243,10 @@ android {
       unitTests.isIncludeAndroidResources = true
       unitTests.all { testTask ->
         testTask.jvmArgumentProviders.add(InvariantInputs(releaseMergedManifest, writeReleaseDependencies.flatMap { it.report }))
-        // Hang guard for the WHOLE unit-test task. It was 30 s when the suite took ~15 s; the suite now has ~300 tests
-        // (several against a real ExoPlayer / WorkManager / SQLite), so the guard is sized to the suite, not removed.
-        testTask.timeout.set(Duration.ofSeconds(120))
+        // Hang guard for the WHOLE unit-test task. It was 30 s when the suite took ~15 s; the suite now has ~680 tests
+        // (several against a real ExoPlayer / WorkManager / SQLite), and a cold CI runner needed more than the old
+        // 120 s. The guard stays, but sized to the suite: a real hang still fails long before the 45-minute job limit.
+        testTask.timeout.set(Duration.ofSeconds(300))
         testTask.testLogging {
           events("failed", "skipped")
           showStandardStreams = false

@@ -4,7 +4,7 @@
 > change makes them false; do not append contradicting notes. History lives in [`MEMORY.md`](MEMORY.md); decisions in
 > [`spec/17`](../spec/17_RISKS_ASSUMPTIONS_AND_DECISIONS.md) (DEC) and [`spec/08`](../spec/08_TECHNOLOGY_EVALUATION_AND_ADRS.md) (ADR).
 
-**Last verified against:** `main` @ `330cef7` (2026-10-28)
+**Last verified against:** `main` @ `329dec5` plus PR #4 on `agent/opencode/sleep-timer-and-review-fixes` (2026-10-28)
 
 ## Project
 
@@ -18,30 +18,30 @@
 
 ## Quality gate
 
-- `tools/gate.ps1` and CI (`.github/workflows/ci.yml`: `verify` = unit tests, lint, R8 release + `verifyReleaseApk`;
-  `connected` = instrumented tests on an API 35 tablet emulator).
-- Last full result: 666 tests / 97 suites, 0 failures, 77 opt-in gallery tests skipped; lint 0; release invariants
-  clean.
+- `tools/gate.ps1` and CI (`.github/workflows/ci.yml`: `verify` = agent coordination checks, unit tests, lint, R8
+  release + `verifyReleaseApk`; `connected` = instrumented tests on an API 35 tablet emulator).
+- The gate also runs the checker's Python tests (`python -m unittest discover -s tools/agents`) when Python 3 is
+  installed; CI always runs them.
+- Last full result: 679 tests / 100 suites, 0 failures, 0 errors, 78 opt-in gallery tests skipped; lint 0; release
+  invariants clean (branch `agent/opencode/sleep-timer-and-review-fixes`, rebased on `main` @ `329dec5`).
 - `gradle/actions/setup-gradle` is pinned to **v5 on purpose** (v6 pulls a proprietary build-cache component).
 
 ## Open work (highest first)
 
-1. **Code review findings** on the merged player work ([`CODE_REVIEW.md`](../review/audit-2026-10-28/CODE_REVIEW.md)),
-   to fix before a 1.0 tag:
-   - F1/F2: the sleep timer subtracts requested steps instead of measuring elapsed time (drifts) and is a polling loop,
-     which `.agents/rules/coding-standards.md` forbids.
-   - F3: audio sync writes Room on every slider frame.
-   - F4: audio sync inserts or drops PCM on every slider frame, so dragging is audible (then verify on device).
-   - F5-F10: nits and low items listed in the review.
-2. **Sleep timer spec gaps (FR-CTRL-009):** no 10 and 20 min presets, no custom duration, no extend offer after the
-   timer has fired.
-3. **Hardware verification:** physical-device playback, TalkBack, Bluetooth latency and detection, HDR, thermal.
-4. **Release:** signed 1.0 tag when a signing key exists; social-preview image upload.
-5. **Undecided:** one audio sync value for every video needs a storage decision first (per-video storage cannot tell 0
+1. **PR #4 review:** the 2026-10-28 review findings F1-F6, F9 and F10 and the FR-CTRL-009 gaps are fixed on
+   `agent/opencode/sleep-timer-and-review-fixes`. Playback changes need one independent review by a different model
+   before merge.
+2. **Hardware verification:** physical-device playback, TalkBack, Bluetooth latency and detection, HDR, thermal,
+   process-kill during a SAF copy. Run [DEVICE_CHECKLIST.md](../docs/DEVICE_CHECKLIST.md) before tagging 1.0.
+3. **Release:** signed 1.0 tag when a signing key exists; social-preview image upload.
+4. **Undecided:** one audio sync value for every video needs a storage decision first (per-video storage cannot tell 0
    from "never set").
 
 ## Facts that older notes get wrong
 
+- **Sleep timer:** one monotonic deadline (`sleepTimerEndsAtElapsedRealtime`, injected clock) is authoritative; the UI
+  derives the countdown only while it is visible and never polls the ViewModel. Expiry pauses and offers `+5 min`,
+  which resumes playback with a fresh five minutes.
 - **Audio sync sign:** a positive offset **delays** the sound. Bluetooth audio is already late, so its fix is
   negative ("Sound earlier"). The old "+150 ms / +250 ms Bluetooth presets" were wrong and were removed in `95231ca`.
   The player offers "Try −200 ms" only when Bluetooth output is connected and sync is at 0.
