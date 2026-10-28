@@ -84,11 +84,24 @@ Each accent has a dark and a light primary/secondary variant; the active pair is
 | `TextOnAccent` | `#001217` | 17.5:1 on Cyan | Text inside primary cyan badges or action buttons |
 | `TextOnScrim` | `#F0F4F8` | - | Text/icons on a dark scrim over thumbnails |
 
+### 2.5 Brand mark
+The Aptura mark is a cyan aperture disc whose triangular opening is the play symbol. Three curved iris seams cut through the disc at 120-degree symmetry. The silhouette stays a clean circle at launcher sizes; the seams never become separated blades.
+
+| Property | Value |
+|---|---|
+| Disc gradient | `#6FF3FF` to `#00A8C4`, top-left to bottom-right |
+| Iris seams | `#151820`, rounded ends |
+| Optional plate | Rounded square, `#171C25` to `#0D1016`, `#2A3441` hairline |
+| Clear space | 25% of the mark diameter on every side |
+| Minimum size | 16 px without the plate; 48 px when the plate is shown |
+
+Canonical assets live in `docs/assets/` (`logo.png` with plate, `logo-mark.png` transparent). The launcher foreground in `res/drawable/ic_launcher_foreground.xml` uses the same geometry. Do not redraw the mark as three separated wedges, and do not add a tick outside the disc.
+
 ---
 
 ## 3. Typography Scale (Jetpack Compose `Typography`)
 
-Font Family: **Inter** / Platform **Roboto** (Clean, high-legibility sans-serif with tabular numeric figures).
+Font Family: the platform default (**Roboto** on Android), with tabular figures (`tnum`) for timecodes and counters. No font file is bundled, so the app follows the system font and the user's font scale.
 
 ```kotlin
 // Jetpack Compose TextStyle Definitions
@@ -266,7 +279,8 @@ Every player sheet (Audio, Subtitles, Playback tools, Speed, Queue) is built fro
 Dialogs, buttons and menus come from the kit, so every screen has the same shapes, order and tone.
 
 - **Buttons:** `ApturaButton`, `ApturaOutlinedButton` and `ApturaTextButton`, each with an `ApturaTone` (Accent, Neutral or Destructive). Destructive actions are never Accent.
-- **Dialogs:** `ApturaDialog` has a fixed button order: the dismiss action on the left, the confirming action on the right, and an optional `DialogAlternative`. Dialogs that ask for a choice use `DialogOptionRow`.
+- **Dialogs:** `ApturaDialog` has a fixed button order: the dismiss action on the left, the confirming action on the right, and an optional `DialogAlternative`. `DialogAlternative` carries an `ApturaTone`, so a destructive alternative is outlined red rather than inheriting the primary tone. `iconTone` defaults to `confirmTone` but can be set independently: a delete dialog whose primary action is recoverable still shows a destructive red icon. Dialogs that ask for a choice use `DialogOptionRow`.
+- **Destructive hierarchy:** make the recoverable action primary. "Move to trash" is the filled button; "Delete permanently" is the red outlined alternative. When no recoverable path exists, permanent deletion is the only action and keeps the destructive tone.
 - **Menus:** `ApturaMenuItem` (icon plus label, destructive in `StatusError`) and `ApturaMenuCaption`.
 - **Structure:** `SectionTitle` for headings, `NoticeBanner` for non-blocking notices with actions, and `SkeletonBlock` for loading placeholders.
 - **Copy:** use sentence case everywhere ("All videos", "Reset to defaults"), plain language over jargon, and say the consequence of an action, not only its name.

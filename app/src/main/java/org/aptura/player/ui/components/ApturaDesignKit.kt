@@ -177,8 +177,12 @@ fun ApturaTextButton(
     }
 }
 
-/** A second, non-default way to confirm, offered next to the main one (e.g. "Move to trash" beside "Delete"). */
-data class DialogAlternative(val label: String, val onClick: () -> Unit)
+/** A second, non-default way to confirm, offered next to the main one (e.g. "Delete permanently" beside "Move to trash"). */
+data class DialogAlternative(
+    val label: String,
+    val onClick: () -> Unit,
+    val tone: ApturaTone = ApturaTone.Neutral
+)
 
 /**
  * The app's dialog. Title, an optional message, optional custom content, then the actions in a fixed order:
@@ -196,6 +200,7 @@ fun ApturaDialog(
     message: String? = null,
     icon: ImageVector? = null,
     confirmTone: ApturaTone = ApturaTone.Accent,
+    iconTone: ApturaTone = confirmTone,
     confirmEnabled: Boolean = true,
     dismissLabel: String? = "Cancel",
     onDismiss: () -> Unit = onDismissRequest,
@@ -217,7 +222,7 @@ fun ApturaDialog(
                             .size(44.dp)
                             .clip(CircleShape)
                             .background(
-                                if (confirmTone == ApturaTone.Destructive) ApturaColors.StatusError.copy(alpha = 0.14f)
+                                if (iconTone == ApturaTone.Destructive) ApturaColors.StatusError.copy(alpha = 0.14f)
                                 else ApturaColors.AccentSubtle
                             ),
                         contentAlignment = Alignment.Center
@@ -225,7 +230,7 @@ fun ApturaDialog(
                         Icon(
                             imageVector = icon,
                             contentDescription = null,
-                            tint = if (confirmTone == ApturaTone.Destructive) ApturaColors.StatusError else ApturaColors.AccentPrimary,
+                            tint = if (iconTone == ApturaTone.Destructive) ApturaColors.StatusError else ApturaColors.AccentPrimary,
                             modifier = Modifier.size(22.dp)
                         )
                     }
@@ -270,6 +275,7 @@ fun ApturaDialog(
                         ApturaOutlinedButton(
                             text = alternative.label,
                             onClick = alternative.onClick,
+                            tone = alternative.tone,
                             modifier = Modifier.fillMaxWidth()
                         )
                         if (dismissLabel != null) {

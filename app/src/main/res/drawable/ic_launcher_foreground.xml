@@ -1,24 +1,50 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Precision Aperture Outer Ring (#00E5FF Electric Cyan) -->
+    <!--
+      Aptura mark: a cyan aperture disc whose triangular opening is the play symbol, with three curved
+      iris seams. The seams are cut as rounded strokes over the disc, so the mark keeps a clean circular
+      silhouette at launcher sizes. Geometry is shared with docs/assets/logo.png.
+    -->
+    <path
+        android:fillType="evenOdd"
+        android:pathData="M54,25.5234A28.4766,28.4766 0 1,1 54,82.4766A28.4766,28.4766 0 1,1 54,25.5234Z M70.2422,54L45.8789,68.066L45.8789,39.934Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="25.5"
+                android:startY="25.5"
+                android:endX="82.5"
+                android:endY="82.5">
+                <item android:offset="0" android:color="#FF6FF3FF" />
+                <item android:offset="1" android:color="#FF00A8C4" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- Iris seams: dark rounded strokes from each triangle edge toward the rim. -->
     <path
         android:fillColor="#00000000"
-        android:pathData="M54,27A27,27 0 1,1 54,81A27,27 0 1,1 54,27Z"
-        android:strokeWidth="3.2"
-        android:strokeColor="#00E5FF" />
-    <!-- Aperture Calibration Ticks (Top, Right, Bottom, Left) -->
-    <path
-        android:fillColor="#00000000"
-        android:pathData="M54,27L54,32M81,54L76,54M54,81L54,76M27,54L32,54"
-        android:strokeWidth="2.4"
+        android:pathData="M58.0605,61.033C60.829,67.403 59.96,75.351 54,81.4219"
+        android:strokeColor="#FF151820"
+        android:strokeWidth="1.2656"
         android:strokeLineCap="round"
-        android:strokeColor="#00E5FF" />
-    <!-- Optical Play Prism (#00E5FF) -->
+        android:strokeLineJoin="round" />
     <path
-        android:fillColor="#00E5FF"
-        android:pathData="M46.5,41.2C46.5,39.7 48.1,38.8 49.4,39.5L67.2,49.8C68.5,50.6 68.5,52.4 67.2,53.2L49.4,63.5C48.1,64.2 46.5,63.3 46.5,61.8Z" />
+        android:fillColor="#00000000"
+        android:pathData="M45.8789,54C38.979,53.213 32.53,48.487 30.255,40.289"
+        android:strokeColor="#FF151820"
+        android:strokeWidth="1.2656"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M58.0605,46.967C62.191,41.384 69.51,38.162 77.745,40.289"
+        android:strokeColor="#FF151820"
+        android:strokeWidth="1.2656"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
 </vector>

@@ -648,19 +648,25 @@ fun DeleteFromDeviceDialog(
     ApturaDialog(
         onDismissRequest = onDismiss,
         icon = Icons.Default.DeleteOutline,
+        iconTone = ApturaTone.Destructive,
         title = if (itemCount > 1) "Delete $itemCount videos from device?" else "Delete from device?",
         message = if (allowTrash) {
             "$subject can go to Android's trash, where you can restore ${if (itemCount > 1) "them" else "it"} " +
-                "later, or be deleted permanently. " +
-                "Android may ask you to confirm."
+                "later. Deleting permanently cannot be undone. " +
+                "Android may ask you to confirm either action."
         } else {
             "$subject will be permanently deleted from your device's storage. This frees up space and can't be " +
                 "undone. Android may ask you to confirm."
         },
-        confirmLabel = "Delete permanently",
-        confirmTone = ApturaTone.Destructive,
-        onConfirm = onConfirm,
-        alternative = if (allowTrash) DialogAlternative("Move to trash", onTrashClick) else null
+        // The recoverable action is the default; permanent deletion is an explicit red alternative.
+        confirmLabel = if (allowTrash) "Move to trash" else "Delete permanently",
+        confirmTone = if (allowTrash) ApturaTone.Accent else ApturaTone.Destructive,
+        onConfirm = if (allowTrash) onTrashClick else onConfirm,
+        alternative = if (allowTrash) {
+            DialogAlternative("Delete permanently", onConfirm, ApturaTone.Destructive)
+        } else {
+            null
+        }
     )
 }
 

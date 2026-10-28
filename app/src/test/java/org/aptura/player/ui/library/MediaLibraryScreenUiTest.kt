@@ -501,7 +501,7 @@ class MediaLibraryScreenUiTest {
 
         composeTestRule.onNodeWithText("Delete from device?").assertIsDisplayed()
         composeTestRule.onNodeWithText(
-            "\u201cOppenheimer\u201d can go to Android's trash, where you can restore it later, or be deleted permanently. Android may ask you to confirm."
+            "\u201cOppenheimer\u201d can go to Android's trash, where you can restore it later. Deleting permanently cannot be undone. Android may ask you to confirm either action."
         ).assertIsDisplayed()
         composeTestRule.onNodeWithText("Cancel").performClick()
     }
@@ -535,7 +535,7 @@ class MediaLibraryScreenUiTest {
 
         composeTestRule.onNodeWithText("Delete 2 videos from device?").assertIsDisplayed()
         composeTestRule.onNodeWithText(
-            "2 videos can go to Android's trash, where you can restore them later, or be deleted permanently. Android may ask you to confirm."
+            "2 videos can go to Android's trash, where you can restore them later. Deleting permanently cannot be undone. Android may ask you to confirm either action."
         ).assertIsDisplayed()
         composeTestRule.onNodeWithText("Move to trash").assertIsDisplayed()
         composeTestRule.onNodeWithText("Delete permanently").assertIsDisplayed()
