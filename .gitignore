@@ -55,3 +55,7 @@ opencode.jsonc
 
 # Ad-hoc emulator dumps (curated evidence belongs in review/)
 tools/captures/
+
+# Python bytecode (tools/agents)
+__pycache__/
+*.pyc

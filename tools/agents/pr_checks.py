@@ -24,6 +24,8 @@ import json
 import os
 import re
 import sys
+import time
+import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -31,9 +33,11 @@ from pathlib import Path
 
 HOT_FILES = Path(__file__).with_name("hot-files.txt")
 STALE_DAYS = 14
+RETRIES = 3
 API = "https://api.github.com"
 
-ATTRIBUTION = re.compile(r"^(assisted-by:\s*\S|human-authored:\s*yes\b)", re.IGNORECASE | re.MULTILINE)
+# `[ \t]*`, not `\s*`: an empty "Assisted-by:" must not borrow the next line as its value.
+ATTRIBUTION = re.compile(r"^(assisted-by:[ \t]*\S|human-authored:[ \t]*yes\b)", re.IGNORECASE | re.MULTILINE)
 ISSUE_REF = re.compile(
     r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs?|issue)\b\s*:?\s*((?:#\d+[\s,]*(?:and\s+)?)+)", re.IGNORECASE
 )
@@ -99,7 +103,7 @@ def check(pr: PullRequest, others: list[PullRequest], shas_and_messages: list[tu
         stale = other.updated_at < stale_before
         blocking = earlier and not stale
         shared_hot = sorted(my_hot & set(other.files))
-        shared_issues = sorted(my_issues & issue_refs(f"{other.title}\n{other.body}"))
+        shared_issues = sorted(my_issues & issue_refs(f"{other.title}\n{other.body}\n" + "\n".join(other.commit_messages)))
         shared_files = sorted(set(pr.files) & set(other.files))
 
         if shared_hot:
@@ -125,10 +129,10 @@ def check(pr: PullRequest, others: list[PullRequest], shas_and_messages: list[tu
             findings.append(Finding("warning",
                 f"#{other.number} also changes {', '.join(ordinary[:5])}"
                 f"{' and more' if len(ordinary) > 5 else ''}. Whichever merges second must rebase and re-run CI."))
-            if len(pr.files) >= 2 and len(shared_files) * 2 >= len(pr.files):
-                findings.append(Finding("warning",
-                    f"#{other.number} changes {len(shared_files)} of this pull request's {len(pr.files)} files. "
-                    f"Check that the two are not the same task."))
+        if len(pr.files) >= 2 and len(shared_files) * 2 >= len(pr.files):
+            findings.append(Finding("warning",
+                f"#{other.number} changes {len(shared_files)} of this pull request's {len(pr.files)} files. "
+                f"Check that the two are not the same task."))
 
     if pr.draft and "## handoff" not in (pr.body or "").lower():
         findings.append(Finding("warning",
@@ -148,8 +152,18 @@ def _get(url: str, token: str | None):
     if token:  # Optional for a local run against a public repository (60 requests an hour without one).
         headers["Authorization"] = f"Bearer {token}"
     request = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(request, timeout=30) as response:
-        return json.load(response)
+    for attempt in range(RETRIES):
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                return json.load(response)
+        except urllib.error.HTTPError as error:
+            # 403/429 cover GitHub's rate limits; 5xx is a GitHub outage. Anything else is a real error.
+            if error.code not in (403, 429, 500, 502, 503, 504) or attempt == RETRIES - 1:
+                raise
+        except urllib.error.URLError:
+            if attempt == RETRIES - 1:
+                raise
+        time.sleep(5 * (attempt + 1))
 
 
 def _pages(url: str, token: str | None, limit: int = 10):
@@ -167,19 +181,29 @@ def _parse_time(value: str) -> datetime:
 
 def fetch(repo: str, number: int, token: str | None) -> tuple[PullRequest, list[PullRequest], list[tuple[str, str]]]:
     def files(n: int) -> list[str]:
-        return [f["filename"] for f in _pages(f"{API}/repos/{repo}/pulls/{n}/files", token, limit=30)]
+        paths: list[str] = []
+        for f in _pages(f"{API}/repos/{repo}/pulls/{n}/files", token, limit=30):
+            paths.append(f["filename"])
+            if f.get("previous_filename"):  # A rename changes the old path too, e.g. moving a migration away.
+                paths.append(f["previous_filename"])
+        return paths
+
+    def commits(n: int) -> list[dict]:
+        return [c for c in _pages(f"{API}/repos/{repo}/pulls/{n}/commits", token, limit=3)
+                if len(c.get("parents", [])) < 2]
 
     def as_pr(raw: dict) -> PullRequest:
-        return PullRequest(raw["number"], raw["title"] or "", raw["body"] or "", bool(raw.get("draft")),
-                           _parse_time(raw["updated_at"]), files(raw["number"]))
+        n = raw["number"]
+        return PullRequest(n, raw["title"] or "", raw["body"] or "", bool(raw.get("draft")),
+                           _parse_time(raw["updated_at"]), files(n), [c["commit"]["message"] for c in commits(n)])
 
-    pr = as_pr(_get(f"{API}/repos/{repo}/pulls/{number}", token))
-    commits = [c for c in _pages(f"{API}/repos/{repo}/pulls/{number}/commits", token, limit=3)
-               if len(c.get("parents", [])) < 2]
-    pr.commit_messages = [c["commit"]["message"] for c in commits]
-    shas_and_messages = [(c["sha"], c["commit"]["message"]) for c in commits]
+    raw_pr = _get(f"{API}/repos/{repo}/pulls/{number}", token)
+    pr = as_pr(raw_pr)
+    shas_and_messages = [(c["sha"], c["commit"]["message"]) for c in commits(number)]
+    # Only pull requests into the same branch compete: a stacked PR or a release backport is a different queue.
+    base = raw_pr["base"]["ref"]
     others = [as_pr(raw) for raw in _pages(f"{API}/repos/{repo}/pulls?state=open", token, limit=3)
-              if raw["number"] != number]
+              if raw["number"] != number and raw["base"]["ref"] == base]
     return pr, others, shas_and_messages
 
 
@@ -212,7 +236,14 @@ def main() -> int:
     if not (args.repo and number):
         print("::error::Need --repo and --pr, or a pull_request event.")
         return 2
-    pr, others, shas_and_messages = fetch(args.repo, number, token)
+    try:
+        pr, others, shas_and_messages = fetch(args.repo, number, token)
+    except (urllib.error.URLError, TimeoutError) as error:
+        # Fail open on a GitHub outage: these are coordination checks, and blocking every open pull request on an
+        # API hiccup would cost more than a rare duplicate. The tests and build in the same job still gate the code.
+        print(f"::warning::Agent coordination checks skipped: could not reach the GitHub API ({error}). "
+              f"Push again or re-run the job to check this pull request.")
+        return 0
     return report(check(pr, others, shas_and_messages, load_hot_patterns(), datetime.now(timezone.utc)))
 
 

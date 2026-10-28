@@ -1,0 +1,29 @@
+name: Agent checks
+
+# The required `verify` job (ci.yml) runs tools/agents/pr_checks.py on every push. Editing a pull request's title or
+# description, or marking a draft ready, changes what that script reads (issue references, the Handoff block) without
+# a push, so this re-runs only the script for those events instead of the whole build. Not a required check: a red X
+# here means the next push will fail `verify` the same way.
+on:
+  pull_request:
+    types: [edited, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: agent-checks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  agent-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Agent coordination checks
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 tools/agents/pr_checks.py
