@@ -88,9 +88,9 @@ New controller API: `PlaybackController.setStopAfterCurrentItem` and `PlaybackCo
    - the fade on real hardware;
    - whether the Bluetooth suggestion is detected on A2DP and LE Audio devices;
    - the new launcher mark at 48 px and in themed-icon mode.
-2. **Sleep timer gaps against FR-CTRL-009:**
-   - no 10 / 20 min presets and no custom duration;
-   - the timer does not offer an extend option after it has fired.
+2. **Sleep timer gaps against FR-CTRL-009.** Closed on `agent/opencode/sleep-timer-and-review-fixes` (PR #4): the
+   full 10/15/20/30/45/60 ladder, a 1-720 minute custom duration, and a `+5 min` offer that resumes playback after
+   the timer has fired.
 3. **Global audio sync.** There is no "apply this audio sync to every video" option. Per-video storage cannot tell "0" apart from "unset", so this needs a schema decision first.
 4. **Gallery limits.** Sheets do not scroll under Robolectric, and non-default picture adjustments cannot be rendered (TextureView). See DESIGN.md §6.4.
 

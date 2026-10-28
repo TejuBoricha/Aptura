@@ -15,6 +15,8 @@ All notable changes to Aptura are recorded here. The format follows [Keep a Chan
 
 ### Changed
 
+- The sleep timer now keeps one absolute deadline instead of subtracting ticks (no drift), derives its countdown only while a screen shows it, and offers the full 10/15/20/30/45/60 minute ladder plus a custom duration. After it fires, `+5 min` resumes playback with a fresh five minutes.
+- A/V sync previews instantly but waits for the drag to stop before editing the audio stream or writing the database; a pending edit is cancelled when the video changes or the preferences are reset.
 - Delete dialogs now make **Move to trash** the primary action and **Delete permanently** a red, explicitly secondary choice. When the platform cannot trash a file, permanent deletion remains the only, destructive action.
 - `ApturaDialog` accepts an independent `iconTone`; `DialogAlternative` accepts a tone, so a non-destructive primary action can still show a red warning icon.
 - README rewritten around the product, privacy guarantees and verification evidence.
@@ -22,6 +24,7 @@ All notable changes to Aptura are recorded here. The format follows [Keep a Chan
 
 ### Fixed
 
+- The sleep timer's fade is exactly 10 seconds in ten equal steps; `SectionTitle` no longer halves a long title when a trailing action is present; decimal separators in sync offsets no longer follow the device locale; the player sheet tabs form a selectable group for TalkBack.
 - Stale player-sheet and delete-dialog evidence replaced with renders from the current code, including after-only evidence where the old "before" state no longer exists.
 
 ## 1.0.0 - 2026-10-28

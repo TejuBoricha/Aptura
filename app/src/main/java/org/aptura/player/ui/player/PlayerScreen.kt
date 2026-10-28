@@ -1140,12 +1140,16 @@ fun PlayerScreen(
                     val sleepLeft = rememberSleepTimerRemainingMs(uiState.sleepTimerEndsAtElapsedRealtime)
                     val looping = uiState.abRepeat.isLooping
                     val sleepAtEnd = uiState.sleepAtEndOfVideo
-                    if (sleepLeft != null || sleepAtEnd || looping) {
+                    val sleepExpired = uiState.sleepTimerExpired
+                    if (sleepLeft != null || sleepAtEnd || sleepExpired || looping) {
                         Row(
                             modifier = Modifier
                                 .padding(start = 56.dp)
                                 .clip(RoundedCornerShape(8.dp))
-                                .clickable(role = Role.Button) { onAdvancedSheetVisible(true) }
+                                // After a fired timer the useful action is the offer, not another settings detour.
+                                .clickable(role = Role.Button) {
+                                    if (sleepExpired) onExtendSleepTimer(5) else onAdvancedSheetVisible(true)
+                                }
                                 .padding(vertical = 2.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -1154,6 +1158,8 @@ fun PlayerScreen(
                                 PlaybackStatusLabel(Icons.Filled.Bedtime, "Sleep in ${MediaFormatters.formatDuration(sleepLeft)}")
                             } else if (sleepAtEnd) {
                                 PlaybackStatusLabel(Icons.Filled.Bedtime, "Sleep at end")
+                            } else if (sleepExpired) {
+                                PlaybackStatusLabel(Icons.Filled.Bedtime, "Sleep ended \u00b7 +5 min")
                             }
                             if (looping) {
                                 PlaybackStatusLabel(Icons.Filled.Repeat, "A\u2013B loop")
@@ -1623,7 +1629,7 @@ fun PlayerScreen(
                                     Icon(
                                         imageVector = Icons.Filled.Tune,
                                         contentDescription = "Advanced Settings",
-                                        tint = if (uiState.subtitleDelayMs != 0L || uiState.audioDelayMs != 0L || uiState.sleepTimerEndsAtElapsedRealtime != null || uiState.sleepAtEndOfVideo)
+                                        tint = if (uiState.subtitleDelayMs != 0L || uiState.audioDelayMs != 0L || uiState.sleepTimerEndsAtElapsedRealtime != null || uiState.sleepTimerExpired || uiState.sleepAtEndOfVideo)
                                             ApturaColors.AccentPrimary
                                         else
                                             ApturaColors.TextMediumEmphasis

@@ -181,6 +181,7 @@ class PlayerGalleryTest : GalleryBase() {
     @Test fun upNext() { player(base.copy(isEnded = true, isPlaying = false, autoAdvanceCountdownSeconds = 6)); shoot("player_up_next") }
     @Test fun compatNotice() { player(base.copy(isCompatibilityMode = true, compatibilityNotice = "Playing with software decoding")); shoot("player_compat_notice") }
     @Test fun abLoop() { player(base.copy(abRepeat = AbRepeatState(1_800_000, 2_400_000, true), sleepTimerEndsAtElapsedRealtime = SystemClock.elapsedRealtime() + 1_200_000)); shoot("player_ab_sleep") }
+    @Test fun sleepExpired() { player(base.copy(isPlaying = false, sleepTimerExpired = true)); shoot("player_sleep_expired") }
 
     @Test fun speed() { player(base.copy(activeSheet = PlayerSheet.Speed)); shoot("sheet_speed") }
     @Test fun audio() { player(base.copy(activeSheet = PlayerSheet.Audio)); shoot("sheet_audio") }

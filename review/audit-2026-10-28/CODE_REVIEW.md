@@ -181,7 +181,46 @@ mechanical one.
 ## Coverage gaps
 
 - No test asserts that the pause fires at the deadline under *real* elapsed time; virtual time hides F1 by design.
-  Extracting `remainingAt(deadline, now)` as a pure function would make it testable.
+  (Addressed: `remainingAt` now exists as the pure `sleepTimerRemainingMs(deadline, now)`, see the addendum.)
 - No test covers `extendSleepTimer` when the timer is off (it returns silently) or the picker's deselected state.
 - `TimingOffsetControlUiTest` covers tap and hold-to-repeat well, but nothing asserts the slider's accessibility
   semantics (`setProgress`), which is the part the device pass is meant to exercise.
+
+---
+
+## Addendum - fixes landed in `3844c44` and the FR-CTRL-009 follow-up
+
+F1-F6, F9 and F10 are fixed in code; F7 and F8 stay open pending real hardware. FR-CTRL-009 (the documented preset
+ladder, a custom duration, and an offer after the timer fires) is complete in the same branch.
+
+- **F1 (drift) + F2 (polling):** the ViewModel now keeps one absolute deadline,
+  `PlayerUiState.sleepTimerEndsAtElapsedRealtime`, sampled from an injected monotonic `clock`
+  (`SystemClock.elapsedRealtime()` by default). `runSleepCountdown` is gone. The fade re-anchors each of its ten
+  one-second steps to the same deadline, so a late wake-up is caught up instead of added. The countdown itself is
+  derived in the UI by `rememberSleepTimerRemainingMs`, which ticks only while a screen displays it; playback state
+  no longer changes every second. The pure `sleepTimerRemainingMs(deadline, now)` closes the first coverage gap
+  above (`SleepTimerRemainingTest`, 3 cases).
+- **F3 (a write per frame) + F4 (audible drag):** `setAudioDelay` / `setSubtitleDelay` update the label immediately,
+  then wait `SYNC_APPLY_DEBOUNCE_MS` (200 ms) of stillness before telling the controller and persisting. A pending
+  edit is cancelled in `applyItemPreferences` (video change) and `resetVideoPreferences`, so it cannot land on the
+  next video or reappear after a reset. One test drives twenty 50 ms steps and asserts zero writes during the drag
+  and exactly one write at the end.
+  - The track-selection collector no longer copies `audioDelayMs` / `subtitleDelayMs` back from the controller.
+    While the edit is pending the controller still holds the old value, so an unrelated emission would have
+    reverted the label mid-drag. The ViewModel owns those two values; everything else in the collector is unchanged.
+- **F5:** the fade is exactly 10 s - ten equal steps, the first at 9 s remaining (`SLEEP_FADE_STEPS`,
+  `SLEEP_FADE_STEP_MS`), pinned by `sleepTimer_fadeStartsExactlyTenSecondsBeforeTheDeadline`.
+- **F6:** `SectionTitle` gives the title the free width (`fill = trailing == null`), so a long title is measured
+  against the whole row instead of half of it.
+- **F9:** `formatOffset` uses `Locale.ROOT`, so the decimal separator stays a dot in English copy.
+- **F10:** the sheet tab row is a `selectableGroup()`.
+- **F7 (Bluetooth hint) and F8 (16-bit PCM):** untouched; both need a real device and are part of the physical
+  checklist in `docs/DEVICE_CHECKLIST.md`.
+- **FR-CTRL-009 (sleep timer spec):** the sheet now offers the documented 10/15/20/30/45/60 ladder and a 1-720 minute
+  custom duration (wrapped chips, 48 dp targets), and expiry pauses with a `+5 min` offer in both the HUD and the
+  sheet. Accepting the offer resumes playback and starts a fresh five minutes; resuming manually dismisses it.
+  `SleepTimerOptionsTest` pins the ladder and the custom bounds, `SleepTimerOptionsUiTest` pins the visible chips.
+- **CI hang guard:** the unit-test task timeout moved from 120 s to 300 s after a cold GitHub runner exceeded the old
+  value at ~680 tests. It remains a guard, not a disabled check (`app/build.gradle.kts`).
+- **Gate after the fixes:** 679 tests / 100 suites, 0 failures, 0 errors, 78 opt-in gallery renders skipped; lint 0;
+  `assembleRelease` + `verifyReleaseApk` clean.

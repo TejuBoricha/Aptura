@@ -97,6 +97,8 @@ data class PlayerUiState(
      * countdown from this while it is on screen; the ViewModel never ticks just to refresh the UI.
      */
     val sleepTimerEndsAtElapsedRealtime: Long? = null,
+    /** The timed sleep timer has fired: playback is paused, and the UI offers five more minutes instead of a dead end. */
+    val sleepTimerExpired: Boolean = false,
     /** The sleep timer is set to pause when this video ends rather than after a time. */
     val sleepAtEndOfVideo: Boolean = false,
     val volumePercent: Int? = null,

@@ -98,7 +98,7 @@ export APTURA_GALLERY_DIR=/tmp/aptura-gallery
 ./gradlew :app:testDebugUnitTest --tests "org.aptura.player.ui.visual.LibraryGalleryTest"
 ```
 
-Run each gallery class separately if the 120-second task timeout trips:
+Run each gallery class separately if the 300-second task timeout trips:
 
 - `LibraryGalleryTest`
 - `PlayerGalleryTest`
