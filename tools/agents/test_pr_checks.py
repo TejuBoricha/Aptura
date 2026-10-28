@@ -2,6 +2,7 @@
 
 import unittest
 import unittest.mock
+import urllib.error
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -135,6 +136,24 @@ class FetchTest(unittest.TestCase):
         pr6, others, _ = pr_checks.fetch("o/r", 6, None)
         self.assertEqual([o.number for o in others], [4])
         self.assertIn("app/src/main/java/org/aptura/player/data/database/ApturaDatabase.kt", others[0].files)
+
+
+class OutageTest(unittest.TestCase):
+    """Only a GitHub outage or rate limit may skip the checks; a permission or token problem must fail."""
+
+    @staticmethod
+    def http(code, remaining=None):
+        headers = {"X-RateLimit-Remaining": remaining} if remaining is not None else {}
+        return urllib.error.HTTPError("https://api.github.com/x", code, "msg", headers, None)
+
+    def test_outages_and_rate_limits_skip(self):
+        for error in (self.http(502), self.http(503), self.http(429), self.http(403, "0"),
+                      urllib.error.URLError("unreachable"), TimeoutError()):
+            self.assertTrue(pr_checks.is_outage(error), error)
+
+    def test_permission_token_and_missing_pr_errors_fail(self):
+        for error in (self.http(401), self.http(403, "4999"), self.http(403), self.http(404)):
+            self.assertFalse(pr_checks.is_outage(error), error)
 
 
 class HandoffTest(unittest.TestCase):

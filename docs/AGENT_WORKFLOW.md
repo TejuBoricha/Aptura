@@ -143,8 +143,14 @@ same base branch are compared, and a renamed file counts under its old path too.
 If a blocking PR closes without merging, push again or re-run the job to clear the check.
 
 Editing a PR's title or description, or marking a draft ready, re-runs only this script (the **Agent checks**
-workflow) rather than the whole build. If GitHub's API is unreachable after three tries, the check is skipped with a
-warning instead of blocking every open PR; the tests and build in the same job still gate the code.
+workflow) rather than the whole build. That re-run is **not a required check**: a red X there is a visible warning,
+and it becomes blocking at the next push, when `verify` runs the same script. To make edits block immediately, add
+`agent-checks` to the ruleset's required status checks.
+
+If GitHub is down or rate-limiting after three tries, the check is skipped with a warning instead of blocking every
+open PR; the tests and build in the same job still gate the code. A permission or token error is not skipped: it
+fails, so a misconfiguration cannot silently switch the checks off. GitHub lists at most 250 commits per pull
+request, so commits beyond that are not checked.
 
 To check a PR before pushing more work: `python3 tools/agents/pr_checks.py --repo TejuBoricha/Aptura --pr <n>`. It
 needs no token for this public repository. Its tests run with `python3 -m unittest discover -s tools/agents`.
