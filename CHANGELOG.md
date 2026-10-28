@@ -25,6 +25,7 @@ All notable changes to Aptura are recorded here. The format follows [Keep a Chan
 ### Fixed
 
 - The sleep timer's fade is exactly 10 seconds in ten equal steps; `SectionTitle` no longer halves a long title when a trailing action is present (the Library count stays next to its title, and a trailing action sits at the row's end); decimal separators in sync offsets no longer follow the device locale; the player sheet tabs form a selectable group for TalkBack; a sync drag that ends just before the player closes is still applied and saved.
+- `inbox.py` no longer dies mid-wait on a message the console cannot encode: output is forced to UTF-8 with lossy substitution, so a Windows cp1252 console prints a replacement character instead of exiting 1 (which a waiting agent would read as "the script is broken", not "a message is waiting").
 - Stale player-sheet and delete-dialog evidence replaced with renders from the current code, including after-only evidence where the old "before" state no longer exists.
 
 ## 1.0.0 - 2026-10-28
