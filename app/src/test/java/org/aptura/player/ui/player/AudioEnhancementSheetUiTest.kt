@@ -71,7 +71,7 @@ class AudioEnhancementSheetUiTest {
         }
 
         composeTestRule.onNodeWithText("Audio").assertExists()
-        composeTestRule.onNodeWithText("Tracks & sync").assertExists()
+        composeTestRule.onNodeWithText("Tracks").assertExists()
         composeTestRule.onNodeWithText("Equalizer").assertExists()
         composeTestRule.onNodeWithText("Effects").assertExists()
     }

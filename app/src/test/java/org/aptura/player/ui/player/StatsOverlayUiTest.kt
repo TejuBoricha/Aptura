@@ -96,7 +96,7 @@ class StatsOverlayUiTest {
         }
 
         // Header & Questions
-        composeTestRule.onNodeWithText("Compatibility Mode").assertExists()
+        composeTestRule.onNodeWithText("Software decoding").assertExists()
         composeTestRule.onNodeWithText("Why is this video using software decoding?").assertExists()
 
         // Factual points
@@ -113,7 +113,7 @@ class StatsOverlayUiTest {
         assertEquals(2, selectedStrategy)
 
         // Dismiss action (with scroll)
-        composeTestRule.onNodeWithText("Got It").performScrollTo().performClick()
+        composeTestRule.onNodeWithText("Got it").performScrollTo().performClick()
         assertTrue(dismissed)
     }
 }

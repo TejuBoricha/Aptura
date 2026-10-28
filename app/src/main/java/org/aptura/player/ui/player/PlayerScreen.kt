@@ -1132,6 +1132,29 @@ fun PlayerScreen(
                             }
                         }
                     }
+                    // A running sleep timer or A-B loop changes what playback will do next, so it stays visible with the
+                    // controls instead of living only inside the tools sheet. It sits under the title (past the back
+                    // button) on its own line, so it never takes width from the title itself.
+                    val sleepLeft = uiState.sleepTimerRemainingMs
+                    val looping = uiState.abRepeat.isLooping
+                    if (sleepLeft != null || looping) {
+                        Row(
+                            modifier = Modifier
+                                .padding(start = 56.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable(role = Role.Button) { onAdvancedSheetVisible(true) }
+                                .padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            if (sleepLeft != null) {
+                                PlaybackStatusLabel(Icons.Filled.Bedtime, "Sleep in ${MediaFormatters.formatDuration(sleepLeft)}")
+                            }
+                            if (looping) {
+                                PlaybackStatusLabel(Icons.Filled.Repeat, "A\u2013B loop")
+                            }
+                        }
+                    }
                     }
                 }
 
@@ -2824,6 +2847,19 @@ private fun OverflowMenuItem(
         onClick = onClick,
         modifier = Modifier.heightIn(min = 48.dp)
     )
+}
+
+@Composable
+private fun PlaybackStatusLabel(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(imageVector = icon, contentDescription = null, tint = ApturaColors.AccentPrimary, modifier = Modifier.size(14.dp))
+        Spacer(Modifier.width(4.dp))
+        Text(
+            text = text,
+            style = ApturaTypography.labelMedium,
+            color = ApturaColors.TextOnScrim
+        )
+    }
 }
 
 /**

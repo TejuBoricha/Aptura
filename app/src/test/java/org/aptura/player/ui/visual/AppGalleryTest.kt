@@ -57,6 +57,30 @@ class SettingsGalleryTest : GalleryBase() {
 
     @Config(qualifiers = "w1280dp-h800dp-xhdpi")
     @Test fun tablet() { settings(ThemeMode.LIGHT); shoot("settings_tablet") }
+
+    @Config(qualifiers = "w411dp-h5200dp-xhdpi")
+    @Test fun dialogs() {
+        settings(ThemeMode.LIGHT)
+        composeRule.onNodeWithText("Reset").performClick()
+        settle()
+        shoot("settings_reset_dialog")
+    }
+
+    @Config(qualifiers = "w411dp-h5200dp-xhdpi")
+    @Test fun deleteDiagnosticsDialog() {
+        settings(ThemeMode.DARK)
+        composeRule.onNodeWithText("Delete diagnostic data").performClick()
+        settle()
+        shoot("settings_delete_diag_dialog")
+    }
+
+    @Config(qualifiers = "w411dp-h5200dp-xhdpi")
+    @Test fun codecDialog() {
+        settings(ThemeMode.LIGHT)
+        composeRule.onNodeWithText("Codec support").performClick()
+        settle()
+        shoot("settings_codec_dialog")
+    }
 }
 
 @RunWith(RobolectricTestRunner::class)
@@ -119,6 +143,7 @@ class PlayerGalleryTest : GalleryBase() {
         abRepeat = AbRepeatState(),
         nextItemTitle = "Arrival",
         nextItemDurationMs = 6_960_000L,
+        nextItemUri = sampleItems[1].uri,
         queueItems = sampleItems.take(5),
         currentQueueIndex = 0
     )
@@ -135,7 +160,8 @@ class PlayerGalleryTest : GalleryBase() {
 
     @Test fun hud() { player(base); shoot("player_hud") }
     @Test fun paused() { player(base.copy(isPlaying = false)); shoot("player_paused") }
-    @Test fun buffering() { player(base.copy(isBuffering = true, isControlsVisible = false)); shoot("player_buffering") }
+    @Test fun buffering() { player(base.copy(isBuffering = true, isPlaying = false, isControlsVisible = false)); shoot("player_buffering") }
+    @Test fun stats() { player(base.copy(isStatsOverlayVisible = true, isControlsVisible = false)); shoot("player_stats") }
     @Test fun locked() { player(base.copy(isLocked = true, isLockHintVisible = true)); shoot("player_locked") }
     @Test fun volume() { player(base.copy(isControlsVisible = false, volumePercent = 64)); shoot("player_volume") }
     @Test fun brightness() { player(base.copy(isControlsVisible = false, brightnessPercent = 30)); shoot("player_brightness") }
@@ -153,10 +179,7 @@ class PlayerGalleryTest : GalleryBase() {
     @Test fun audio() { player(base.copy(activeSheet = PlayerSheet.Audio)); shoot("sheet_audio") }
     @Test fun subtitle() { player(base.copy(activeSheet = PlayerSheet.Subtitle)); shoot("sheet_subtitle") }
     @Test fun advanced() { player(base.copy(activeSheet = PlayerSheet.Advanced)); shoot("sheet_advanced") }
-    @Test fun equalizer() { player(base.copy(activeSheet = PlayerSheet.Equalizer)); shoot("sheet_equalizer") }
-    @Test fun picture() { player(base.copy(activeSheet = PlayerSheet.Picture)); shoot("sheet_picture") }
     @Test fun queue() { player(base.copy(activeSheet = PlayerSheet.Queue)); shoot("sheet_queue") }
-    @Test fun playMode() { player(base.copy(activeSheet = PlayerSheet.PlayMode)); shoot("sheet_playmode") }
     @Test fun why() { player(base.copy(activeSheet = PlayerSheet.WhyCompatibility)); shoot("sheet_why") }
     @Test fun web() { player(base.copy(activeSheet = PlayerSheet.WebSearch, cleanSearchQuery = "Blade Runner 2049")); shoot("sheet_websearch") }
 
@@ -168,6 +191,15 @@ class PlayerGalleryTest : GalleryBase() {
 
     @Config(qualifiers = "w411dp-h891dp-xhdpi")
     @Test fun portraitAdvanced() { player(base.copy(activeSheet = PlayerSheet.Advanced)); shoot("sheet_advanced_portrait") }
+
+    @Config(qualifiers = "w411dp-h891dp-xhdpi")
+    @Test fun portraitWhy() { player(base.copy(activeSheet = PlayerSheet.WhyCompatibility, isCompatibilityMode = true)); shoot("sheet_why_portrait") }
+
+    @Config(qualifiers = "w411dp-h891dp-xhdpi")
+    @Test fun portraitQueue() { player(base.copy(activeSheet = PlayerSheet.Queue)); shoot("sheet_queue_portrait") }
+
+    @Config(qualifiers = "w411dp-h891dp-xhdpi")
+    @Test fun portraitSpeed() { player(base.copy(activeSheet = PlayerSheet.Speed, playbackSpeed = 1.5f)); shoot("sheet_speed_portrait") }
 
     @Config(qualifiers = "w411dp-h891dp-xhdpi")
     @Test fun portraitAudio() { player(base.copy(activeSheet = PlayerSheet.Audio)); shoot("sheet_audio_portrait") }

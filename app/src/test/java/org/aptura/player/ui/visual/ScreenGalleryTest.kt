@@ -162,6 +162,7 @@ abstract class GalleryBase {
         fileSizeFormatted = MediaFormatters.formatFileSize(item.sizeBytes),
         folderName = item.folderPath.substringAfterLast('/'),
         progressFraction = MediaFormatters.calculateProgressFraction(item.playbackPositionMs, item.durationMs),
+        isCompleted = item.isCompleted,
         isMissing = item.isMissing,
         rawItem = item
     )

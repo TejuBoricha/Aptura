@@ -134,7 +134,7 @@ fun AudioEnhancementSheet(
 
             PlayerSheetTabs(
                 tabs = listOf(
-                    "Tracks & sync" to Icons.Default.Sync,
+                    "Tracks" to Icons.Default.Sync,
                     "Equalizer" to Icons.Default.GraphicEq,
                     "Effects" to Icons.Default.SurroundSound
                 ),

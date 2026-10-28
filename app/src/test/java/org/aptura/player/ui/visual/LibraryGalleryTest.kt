@@ -159,4 +159,35 @@ class LibraryGalleryTest : GalleryBase() {
 
     @Config(qualifiers = FOLDABLE)
     @Test fun foldable() { library(librarySuccess()); shoot("library_foldable") }
+
+    // No rename-dialog shot: under Robolectric's native graphics any dialog with a text field never goes idle
+    // (the original AlertDialog version hangs the same way), so it is reviewed on a device instead.
+
+    @Test fun phoneMoveDialogAndClipboard() {
+        library(librarySuccess(continueWatching = false))
+        composeRule.onNode(hasText("Blade Runner 2049")).performTouchInput { longClick() }
+        settle()
+        composeRule.onAllNodesWithContentDescription("More actions for selected videos").onFirst().performClick()
+        settle()
+        shoot("library_phone_selection_menu")
+        composeRule.onNodeWithText("Copy").performClick()
+        settle()
+        shoot("library_phone_clipboard")
+        composeRule.onNodeWithText("Move").performClick()
+        settle()
+        shoot("library_phone_move_dialog")
+    }
+
+    @Test fun phoneMissingAndSearch() {
+        val items = sampleItems.mapIndexed { i, it -> if (i == 1) it.copy(isMissing = true) else if (i == 3) it.copy(isCompleted = true, playbackPositionMs = it.durationMs) else it }
+        library(librarySuccess(items = items.take(4), query = "s", continueWatching = false))
+        shoot("library_phone_search_missing")
+    }
+
+    @Test fun detailsMissing() {
+        themed(ThemeMode.DARK) {
+            MediaDetailsSheet(item = sampleItems[1].copy(isMissing = true), onDismiss = {}, onPlayClick = {}, onShareClick = {})
+        }
+        shoot("details_sheet_missing")
+    }
 }

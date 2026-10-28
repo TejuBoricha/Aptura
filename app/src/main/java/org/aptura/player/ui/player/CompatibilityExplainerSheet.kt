@@ -98,39 +98,13 @@ fun CompatibilityExplainerContent(
             .padding(horizontal = 24.dp)
             .padding(bottom = 32.dp)
     ) {
-        // Header
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.padding(bottom = 16.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .background(ApturaColors.StatusWarning.copy(alpha = 0.15f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Tune,
-                        contentDescription = null,
-                        tint = ApturaColors.StatusWarning,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-                Column {
-                    Text(
-                        text = "Compatibility Mode",
-                        style = ApturaTypography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = ApturaColors.TextHighEmphasis
-                    )
-                    Text(
-                        text = "Why is this video using software decoding?",
-                        style = ApturaTypography.bodySmall,
-                        color = ApturaColors.TextMediumEmphasis
-                    )
-                }
-            }
+        PlayerSheetHeader(
+            icon = Icons.Filled.Tune,
+            title = "Software decoding",
+            subtitle = "Why is this video using software decoding?",
+            onClose = onDismissRequest,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
 
             // Factual Section 1: What Happened
             ExplainerFactCard(
@@ -150,7 +124,7 @@ fun CompatibilityExplainerContent(
             ExplainerFactCard(
                 icon = Icons.Filled.Info,
                 title = "What is being used instead",
-                description = "Aptura automatically engaged the platform software decoder ($activeDecoderPath) so playback can continue without crashing.",
+                description = "Aptura switched to Android's software decoder so the video keeps playing.",
                 detail = null
             )
 
@@ -175,9 +149,9 @@ fun CompatibilityExplainerContent(
             )
 
             val strategies = listOf(
-                Triple(0, "Auto", "Hardware first, then Android's platform software decoder"),
-                Triple(1, "Hardware", "GPU/ISP decoders only; fails instead of falling back"),
-                Triple(2, "Software", "Android's CPU decoders; slower, but rescues broken hardware paths")
+                Triple(0, "Auto", "Hardware first, then software if the hardware decoder fails"),
+                Triple(1, "Hardware", "Fastest and coolest, but some formats won't play"),
+                Triple(2, "Software", "Slower and uses more battery, but can rescue a garbled video")
             )
 
             strategies.forEach { (strategy, title, description) ->
@@ -244,7 +218,7 @@ fun CompatibilityExplainerContent(
                     .height(48.dp)
             ) {
                 Text(
-                    text = "Got It",
+                    text = "Got it",
                     style = ApturaTypography.labelMedium,
                     fontWeight = FontWeight.SemiBold
                 )

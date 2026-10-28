@@ -665,104 +665,40 @@ private fun folderDisplayName(folderUri: String): String = try {
 private fun CodecSupportDialog(report: CodecSupportReport?, onDismiss: () -> Unit) {
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            shape = RoundedCornerShape(24.dp),
-            color = ApturaColors.SurfaceElevated2
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 600.dp)
-                    .padding(20.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Codec support",
-                            style = ApturaTypography.titleLarge,
-                            color = ApturaColors.TextHighEmphasis
-                        )
-                        Text(
-                            text = report?.deviceLabel ?: "Reading decoder list\u2026",
-                            style = ApturaTypography.labelSmall,
-                            color = ApturaColors.TextMediumEmphasis,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(40.dp)) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Close",
-                            tint = ApturaColors.TextMediumEmphasis,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = "Aptura uses this device's built-in decoders and bundles no software video " +
-                        "decoders. If a codec is missing below, the player offers an external-player hand-off.",
-                    style = ApturaTypography.bodySmall,
-                    color = ApturaColors.TextMediumEmphasis
-                )
-                Spacer(modifier = Modifier.height(14.dp))
-
-                Column(
-                    modifier = Modifier
-                        .weight(1f, fill = false)
-                        .verticalScroll(rememberScrollState())
-                ) {
-                    if (report == null) {
-                        Text(
-                            text = "Reading decoder list\u2026",
-                            style = ApturaTypography.bodySmall,
-                            color = ApturaColors.TextLowEmphasis
-                        )
-                    } else {
-                        CodecSection(title = "Video", entries = report.video)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        CodecSection(title = "Audio", entries = report.audio)
-                        Spacer(modifier = Modifier.height(14.dp))
-                        Text(
-                            text = CodecSupportReport.FFMPEG_NOTE,
-                            style = ApturaTypography.labelSmall,
-                            color = ApturaColors.TextLowEmphasis
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    TextButton(
-                        onClick = {
-                            report?.let {
-                                clipboard.setText(AnnotatedString(it.toPlainText()))
-                                Toast.makeText(context, "Codec report copied", Toast.LENGTH_SHORT).show()
-                            }
-                        },
-                        enabled = report != null
-                    ) {
-                        Text(
-                            text = "Copy report",
-                            color = if (report != null) ApturaColors.AccentPrimary else ApturaColors.TextLowEmphasis
-                        )
-                    }
-                    TextButton(onClick = onDismiss) {
-                        Text(text = "Close", color = ApturaColors.TextMediumEmphasis)
-                    }
-                }
+    ApturaDialog(
+        onDismissRequest = onDismiss,
+        icon = Icons.Default.Memory,
+        title = "Codec support",
+        message = "Aptura plays video with this device's own decoders. If a format is missing below, the player " +
+            "offers to open the video in another app.",
+        confirmLabel = "Copy report",
+        confirmEnabled = report != null,
+        onConfirm = {
+            report?.let {
+                clipboard.setText(AnnotatedString(it.toPlainText()))
+                Toast.makeText(context, "Codec report copied", Toast.LENGTH_SHORT).show()
             }
+        },
+        dismissLabel = "Close"
+    ) {
+        Text(
+            text = report?.deviceLabel ?: "Reading decoder list\u2026",
+            style = ApturaTypography.labelMedium,
+            color = ApturaColors.TextLowEmphasis,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Spacer(modifier = Modifier.height(14.dp))
+        if (report != null) {
+            CodecSection(title = "Video", entries = report.video)
+            Spacer(modifier = Modifier.height(16.dp))
+            CodecSection(title = "Audio", entries = report.audio)
+            Spacer(modifier = Modifier.height(14.dp))
+            Text(
+                text = CodecSupportReport.FFMPEG_NOTE,
+                style = ApturaTypography.bodySmall,
+                color = ApturaColors.TextLowEmphasis
+            )
         }
     }
 }
