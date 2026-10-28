@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security report
+    url: https://github.com/TejuBoricha/Aptura/security/policy
+    about: Report a vulnerability privately. Do not open a public issue.
+  - name: Build and testing guide
+    url: https://github.com/TejuBoricha/Aptura/blob/main/docs/BUILDING.md
+    about: Setup, signing, gallery renders and the quality gate.
+  - name: Contributing guide
+    url: https://github.com/TejuBoricha/Aptura/blob/main/CONTRIBUTING.md
+    about: Read this before opening a pull request.

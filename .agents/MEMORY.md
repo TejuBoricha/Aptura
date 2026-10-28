@@ -8,8 +8,8 @@
 ## 1. Project Identity & Pinned Constants
 - **Product Name:** Aptura Video Player
 - **Package ID:** `org.aptura.player`
-- **Current Phase:** B0.0 Instrumentation & Scaffolding Entry (Spec Phase 0–6 Complete; Part 42 Committed)
-- **Git Branch:** `main`
+- **Current Phase:** 1.0 pre-release polish. Public repository, merged UI/UX pass, flagship documentation. Hardware verification is the remaining gate.
+- **Git Branch:** `main` (public: `TejuBoricha/Aptura`)
 
 ---
 
@@ -215,7 +215,18 @@
 - **Part 79: Release-Variant E2E Rejected, Skill Issue MCP Policy (2026-10-27, no production code change):**
   - **Release-variant instrumentation attempt:** `gradlew -Paptura.testBuildType=release :app:connectedReleaseAndroidTest` created the task, compiled/minified/installed both APKs, and got past `AndroidJUnitRunner.onCreate`. It then failed on four successive test-only symbols: `kotlin/LazyKt` (`TestDirCalculator`), `kotlin/time/Duration$Companion` (Compose test rule), `kotlinx/coroutines/JobKt` (`IdlingResourceRegistry`), and `Job.complete()` after keeping `JobKt`. Cause: the app's R8 pass removes/rewrites stdlib and coroutine members that only the runner uses; the minified test APK links against the app mapping, so each keep uncovers the next dangling symbol, and broad keeps (or disabling app shrinking) would stop the test from exercising the shipped artifact. Test-APK minification cannot carry its own stdlib because those classes come from the app classloader. **Decision:** rejected; debug E2E remains the behavioral check (CI `connected` job), release verification stays `assembleRelease` + `verifyReleaseApk` + lint plus the signed manual smoke. All experiment changes were reverted; debug connected suite re-run 5/5; gate re-run **582/92, 0 failures, 0 skipped**, lint 0, release invariants clean. AUDIT_REPORT 4.3, 6.8 and 7.5 now record the evidence.
   - **Skill Issue MCP:** added globally (`C:\Users\tejas\.config\opencode\opencode.jsonc`, not the repo), connected at `https://skill-issue.in/api/mcp`; 313 skills in 9 domains. `recommend_skills` returned no Android/Kotlin/Compose/Media3/SAF match (top matches were video generation, React Native, Flutter, Godot and Postgres). **Decision:** keep it as a catalogue and optional design second opinion (`material-3-skill`, `design-system-patterns`, `appllama-skills` are the only plausible references); do not install skills into the repo or treat them as project instructions. `DESIGN.md`, ADRs, and `tools/gate.ps1` remain the source of truth. Re-evaluate if an Android-specific skill appears.
-- **Mandatory Quality Gate:** Every commit and review must pass `tools/gate.ps1` (582 unit/UI tests green, 0 lint errors, `assembleRelease` + `verifyReleaseApk` clean). Last re-verified 2026-10-27 after the release-E2E experiment was reverted.
+- **Part 80: Public Repository and UI/UX Merge (2026-10-28):**
+  - **Public repo:** `TejuBoricha/Aptura` created. `main` at `943abe9` passed CI run #1: `verify` and the API 35 tablet `connected` job both green.
+  - **Claude branch merged:** fast-forwarded five commits (`77176eb`, `7148892`, `95231ca`, `08a41fb`, `392616a`). The visual-identity and documentation work is published on top of that range.
+  - **Gate:** 666 tests / 97 suites, 0 failures, 0 errors, 77 skipped (opt-in gallery); lint 0; release invariants clean.
+  - **UI/UX review:** `review/audit-2026-10-28/UI_UX_REVIEW.md` now records the merged range, the full gate, the trash-first delete hierarchy, `iconTone`, and the current evidence index. Stale `03`/`05`-`08` composites were replaced.
+  - **Visual identity:** final logo/banner built from the aperture mark; the AI draft was rejected for unequal blades, a broken outer circle, soft triangle edges and a floating tick. `ic_launcher_foreground.xml` uses the same geometry; `:app:processDebugResources` passes.
+  - **Public docs:** README, Apache-2.0 LICENSE, NOTICE, CONTRIBUTING, SECURITY, CODE_OF_CONDUCT, CHANGELOG, `docs/ARCHITECTURE.md`, `docs/BUILDING.md`, `docs/TESTING.md`, `docs/PRIVACY.md`, GitHub issue forms and PR template.
+  - **Still open:** set repository description/topics if not already done, watch the CI run for the publication commits, then the hardware-bound audit items.
+- **Mandatory Quality Gate:** Every commit and review must pass `tools/gate.ps1` (666 tests / 97 suites, 0 failures, 0 errors, 77 opt-in gallery tests skipped; 0 lint issues; `assembleRelease` + `verifyReleaseApk` clean). Last re-verified 2026-10-28 on merged `main` (`392616a`) plus the icon/dialog changes.
+- **No stale evidence:** After the delete hierarchy and player-sheet rebuild, `03` and `05`-`08` are after-only renders or regenerated tab renders. Do not restore the old `*_before_after.png` composites for those numbers.
+- **Brand mark:** Cyan aperture disc with a play-triangle opening and three curved iris seams; geometry is 120-degree symmetric and circular at 48 px. Canonical assets: `docs/assets/logo.png`, `docs/assets/logo-mark.png`, `docs/assets/banner.png`; launcher foreground matches. No AI-draft blades, no floating tick.
+- **Delete semantics:** "Move to trash" is the filled primary action; "Delete permanently" is a red outlined alternative. Permanent deletion is primary only when the platform cannot trash the file. `ApturaDialog.iconTone` is independent of `confirmTone`; `DialogAlternative` carries a tone.
 
 
 

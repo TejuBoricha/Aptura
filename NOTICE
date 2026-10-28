@@ -1,0 +1,51 @@
+Aptura
+Copyright 2026 Teju Boricha
+
+This product is licensed under the Apache License, Version 2.0. See LICENSE.
+
+Aptura is built on open-source libraries. The release runtime classpath is
+checked by the build (see app/build.gradle.kts and DependencyInvariantsTest);
+the significant components are listed below. Test-only libraries are marked.
+
+AndroidX / Jetpack (Core, Activity, Lifecycle, Compose, Material 3,
+Navigation 3, Adaptive, Media3, Room, WorkManager, DataStore)
+  Copyright The Android Open Source Project
+  Licensed under the Apache License, Version 2.0.
+
+Kotlin, kotlinx.coroutines, kotlinx.serialization
+  Copyright JetBrains s.r.o. and Kotlin Programming Language contributors
+  Licensed under the Apache License, Version 2.0.
+
+Coil 3 (image and video thumbnail loading)
+  Copyright Coil Contributors
+  Licensed under the Apache License, Version 2.0.
+  Aptura uses Coil without any coil-network artifact.
+
+Jellyfin Media3 FFmpeg decoder (FFmpeg audio extension)
+  Copyright Jellyfin contributors and FFmpeg developers
+  Licensed under the GNU Lesser General Public License, version 2.1.
+  Source: https://github.com/jellyfin/jellyfin-media3-ffmpeg-decoder
+  FFmpeg: https://ffmpeg.org
+  The extension decodes audio only. Aptura ships no software video decoder
+  (ADR-010). The native library is built separately and loaded at runtime.
+
+Robolectric (unit tests only)
+  Copyright Robolectric Contributors
+  Licensed under the MIT License.
+
+JUnit 4 (unit tests only)
+  Copyright JUnit contributors
+  Licensed under the Eclipse Public License 1.0.
+
+Turbine (unit tests only)
+  Copyright Cash App
+  Licensed under the Apache License, Version 2.0.
+
+AndroidX Test, Compose UI Test, Espresso and UI Automator
+(instrumented tests only)
+  Copyright The Android Open Source Project
+  Licensed under the Apache License, Version 2.0.
+
+The application name, logo and banner are original works created for this
+project. No third-party icon set or font file is bundled; the interface uses
+the platform's default font family and vector icons from Material Icons.

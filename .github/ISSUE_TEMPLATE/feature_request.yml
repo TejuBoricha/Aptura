@@ -1,0 +1,70 @@
+name: Feature request
+description: Suggest a capability or a change in behavior.
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Aptura is deliberately local-only. Requests that require a network permission, a cloud account or telemetry are out of scope.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the situation, not only the proposed control.
+      placeholder: I have a folder of concert recordings with chapter files, and I cannot...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: What should the app do? Where should it live?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Existing workarounds, other apps, or a smaller version of the idea.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Library and scanning
+        - Playback
+        - Audio and subtitles
+        - Settings and appearance
+        - File actions
+        - Accessibility
+        - Documentation and tooling
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: This works fully offline and does not require an INTERNET permission.
+          required: true
+        - label: This does not require MANAGE_EXTERNAL_STORAGE or all-files access.
+          required: true
+        - label: This is not a request to bundle a software video decoder.
+          required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and did not find the same request.
+          required: true

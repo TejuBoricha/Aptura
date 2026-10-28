@@ -48,7 +48,8 @@ fixtures/meta_bombs/tags/
 fixtures/meta_bombs/artwork/
 fixtures/meta_bombs/paths/
 
-# IDE
+# IDE / local tooling
 .idea/
 *.iml
 .vscode/
+opencode.jsonc

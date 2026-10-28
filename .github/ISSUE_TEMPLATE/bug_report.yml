@@ -1,0 +1,122 @@
+name: Bug report
+description: Something in Aptura is broken or behaves differently than described.
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please do not paste full file paths, personal file names or unredacted diagnostic reports into a public issue.
+
+        For security problems, stop here and follow [SECURITY.md](https://github.com/TejuBoricha/Aptura/blob/main/SECURITY.md).
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the actual behavior.
+      placeholder: I opened a 4K MKV, tapped the subtitles button, and...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+      placeholder: The subtitle sheet should open with the track list.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Number every step. Include whether the file is on internal storage, an SD card, or a SAF folder.
+      placeholder: |
+        1. Open the library
+        2. Tap ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: Device
+      description: Model and form factor (phone, tablet, foldable, TV, emulator).
+      placeholder: Pixel 8, phone
+    validations:
+      required: true
+
+  - type: input
+    id: android
+    attributes:
+      label: Android version
+      placeholder: Android 15 (API 35)
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Aptura version and build
+      description: Settings → About shows the version and build hash.
+      placeholder: 1.0.0 (a1b2c3d4)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: source
+    attributes:
+      label: How did you install it?
+      options:
+        - Built from source
+        - GitHub release APK
+        - Other (explain below)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Library and scanning
+        - Playback
+        - Audio and subtitles
+        - Settings and appearance
+        - File actions (rename, move, delete)
+        - Privacy and diagnostics
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: media
+    attributes:
+      label: Media details
+      description: Container, video codec, audio codec, resolution, and whether the file plays in another player. Do not include the full path.
+      placeholder: MKV, HEVC 10-bit, E-AC3 5.1, 3840x2160. Plays in VLC.
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Diagnostic report
+      description: Optional. Export from Settings → Diagnostics, review it, then attach or paste it. It is redacted but may still contain information you consider private.
+      render: markdown
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and did not find the same problem.
+          required: true
+        - label: I removed personal paths and file names from anything I pasted.
+          required: true
+        - label: This is not a security vulnerability (those go through SECURITY.md).
+          required: true
