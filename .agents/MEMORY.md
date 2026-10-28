@@ -1,7 +1,7 @@
 # Aptura — Persistent Agent Memory (`MEMORY.md`)
 
 > **Location:** `.agents/MEMORY.md`  
-> **Purpose:** Persistent memory across conversation compaction turns. Summarizes current phase, locked decisions, verified facts, and critical operational rules.
+> **Purpose:** History log of milestones and the reasons behind them. **For the current truth, read [`STATE.md`](STATE.md) first**; where this log and STATE.md disagree, STATE.md wins. Entries here are not corrected after the fact, so older parts can describe behavior that has since changed.
 
 ---
 
@@ -62,7 +62,7 @@
 - **Pixel-Perfect Concentric Scrubber & Commercial Information Architecture (Part 62):**
   - **Scrubber Concentric Alignment (0.0px Error):** Diagnosed 2.67px vertical offset and black void gap in Material 3's `Slider`. Replaced with custom Compose `Canvas` video scrubber where both track and thumb calculate from unified midline `cy = size.height / 2f`. Verified on Pixel 8 framebuffer: Thumb Y = 2142.0, Track Y = 2142.0 (0.0px offset). Edge clamping prevents clipping at 0% and 100%.
   - **Commercial Information Architecture (IA):** Deconstructed 2,500px developer debug dumping ground into clean, context-driven sheets:
-    1. **`AudioSheet`:** Audio Track list + Lip-Sync Audio Delay Stepper (with Bluetooth presets +150ms/+250ms/-100ms) + Equalizer presets (Flat, Bass Boost, Vocal, Rock) & 5-band EQ + Bass Boost, Virtualizer, Loudness Boost.
+    1. **`AudioSheet`:** Audio Track list + Lip-Sync Audio Delay Stepper (with Bluetooth presets +150ms/+250ms/-100ms; **superseded:** those presets pointed the wrong way and were removed in `95231ca`, see STATE.md) + Equalizer presets (Flat, Bass Boost, Vocal, Rock) & 5-band EQ + Bass Boost, Virtualizer, Loudness Boost.
     2. **`SubtitleSheet`:** Subtitle Track list + Subtitle Delay Stepper with 1-tap "Reset (0ms)" and step size chips. Removed duplicate audio delays.
     3. **`PlaybackSettingsSheet` (Segmented Tab Bar):**
        - **Tab 0 (Playback Tools):** Speed pills (0.5x–2.0x), Sleep Timer (15/30/45/60m with live countdown & cancel), A-B Repeat Loop, Frame-by-Frame Stepper (~42ms).

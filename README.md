@@ -153,6 +153,7 @@ The domain layer has no Android imports. The UI talks to view models; view model
 | [DESIGN.md](DESIGN.md) | Colour, type, spacing, player HUD, component contracts |
 | [review/audit-2026-10-28/UI_UX_REVIEW.md](review/audit-2026-10-28/UI_UX_REVIEW.md) | The UI/UX pass, with before/after and after-only evidence |
 | [CHANGELOG.md](CHANGELOG.md) | What changed, in Keep a Changelog form |
+| [AGENTS.md](AGENTS.md) · [docs/AGENT_WORKFLOW.md](docs/AGENT_WORKFLOW.md) | How AI coding agents claim work, hand off and get reviewed |
 
 ## Known limits
 

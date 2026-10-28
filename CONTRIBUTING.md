@@ -92,6 +92,10 @@ A good PR:
 
 Small PRs get reviewed faster. If a change needs a migration, a new dependency or a new permission-adjacent behavior, open an issue first.
 
+## AI coding agents
+
+Several AI agents contribute to this repository in parallel. They follow [AGENTS.md](AGENTS.md) and the procedure in [docs/AGENT_WORKFLOW.md](docs/AGENT_WORKFLOW.md): they work only on issues the owner has labelled `agent-ready`, use one branch and one PR per issue, keep a Handoff block in the PR, and end each commit with an `Assisted-by: <Tool> (<model>)` trailer. If you use an AI assistant yourself, add the same trailer.
+
 ## Reporting bugs
 
 Use the bug report form. Include:

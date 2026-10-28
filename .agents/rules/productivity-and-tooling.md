@@ -24,4 +24,4 @@ This rule is a permanent project invariant. At all times, the developer must pro
 ## 3. High-Leverage Development Discipline
 - **Tabular & Structured Figures:** Always use tabular digits (`tnum`) for changing values to eliminate layout jitter.
 - **UDF & Architectural Purity:** Strictly separate UI, Presentation, Domain, and Data layers. Domain logic must remain 100% pure Kotlin.
-- **Memory & Context Continuity:** Keep `.agents/MEMORY.md` updated after major milestones to preserve project state across session boundaries.
+- **Memory & Context Continuity:** Correct `.agents/STATE.md` in place whenever a change makes it false, and keep the PR's Handoff block current (see `AGENTS.md`). Append to `.agents/MEMORY.md` after major milestones to preserve project state across session boundaries.
