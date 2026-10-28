@@ -1,5 +1,6 @@
 package org.aptura.player.ui.player
 
+import android.os.SystemClock
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -34,6 +35,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -61,6 +63,7 @@ import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
 import org.aptura.player.ui.components.ApturaTextButton
 import org.aptura.player.ui.components.ApturaTone
+import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.roundToLong
@@ -272,11 +275,36 @@ internal fun formatOffset(ms: Long): String {
     val magnitude = abs(ms)
     return if (magnitude >= 1000L) {
         val seconds = magnitude / 1000.0
-        "$sign${"%.2f".format(seconds).trimEnd('0').trimEnd('.')} s"
+        // Locale.ROOT: a French phone must not show "+1,2 s" inside an English sentence.
+        "$sign${String.format(Locale.ROOT, "%.2f", seconds).trimEnd('0').trimEnd('.')} s"
     } else {
         "$sign$magnitude ms"
     }
 }
+
+/**
+ * Time left on the sleep timer, refreshed twice a second only while this composable is on screen. The ViewModel
+ * keeps the deadline and nothing else; counting down is the job of the view that displays it, so playback state
+ * stays event-driven and no coroutine polls in the background.
+ */
+@Composable
+internal fun rememberSleepTimerRemainingMs(endsAtElapsedRealtime: Long?): Long? {
+    var nowElapsedRealtime by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
+    LaunchedEffect(endsAtElapsedRealtime) {
+        if (endsAtElapsedRealtime == null) return@LaunchedEffect
+        while (true) {
+            nowElapsedRealtime = SystemClock.elapsedRealtime()
+            delay(SLEEP_TIMER_TICK_MS)
+        }
+    }
+    return sleepTimerRemainingMs(endsAtElapsedRealtime, nowElapsedRealtime)
+}
+
+/** Pure: both values come from the same monotonic clock. Null when no timer is set. */
+internal fun sleepTimerRemainingMs(endsAtElapsedRealtime: Long?, nowElapsedRealtime: Long): Long? =
+    endsAtElapsedRealtime?.let { (it - nowElapsedRealtime).coerceAtLeast(0L) }
+
+private const val SLEEP_TIMER_TICK_MS = 500L
 
 /**
  * Timing for audio or subtitles. The old controls showed a number and two "+50ms/−50ms" buttons and left the user

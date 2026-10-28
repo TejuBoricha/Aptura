@@ -90,7 +90,7 @@ internal fun PlaybackToolsTab(
             )
         }
 
-        val remaining = uiState.sleepTimerRemainingMs
+        val remaining = rememberSleepTimerRemainingMs(uiState.sleepTimerEndsAtElapsedRealtime)
         val atEnd = uiState.sleepAtEndOfVideo
         SheetSection(
             "Sleep timer",
