@@ -156,7 +156,8 @@ class OutageTest(unittest.TestCase):
         return urllib.error.HTTPError("https://api.github.com/x", code, "msg", headers, None)
 
     def test_outages_and_rate_limits_skip(self):
-        for error in (self.http(502), self.http(503), self.http(429), self.http(403, "0"),
+        secondary = urllib.error.HTTPError("https://api.github.com/x", 403, "msg", {"Retry-After": "60"}, None)
+        for error in (self.http(502), self.http(503), self.http(429), self.http(403, "0"), secondary,
                       urllib.error.URLError("unreachable"), TimeoutError()):
             self.assertTrue(pr_checks.is_outage(error), error)
 
@@ -186,6 +187,22 @@ class MainFailureModeTest(unittest.TestCase):
     def test_outage_and_rate_limit_skip_without_blocking(self):
         self.assertEqual(self.run_main(503, {}), 0)
         self.assertEqual(self.run_main(403, {"X-RateLimit-Remaining": "0"}), 0)
+        self.assertEqual(self.run_main(403, {"X-RateLimit-Remaining": "4000", "Retry-After": "60"}), 0)
+
+    def test_permission_errors_are_not_retried(self):
+        calls = []
+
+        def fake_urlopen(request, timeout=30):
+            calls.append(request.full_url)
+            # A permission 403: no exhausted counter, no Retry-After. The old code retried every 403.
+            raise urllib.error.HTTPError(request.full_url, 403, "msg", {"X-RateLimit-Remaining": "4999"},
+                                         io.BytesIO(b"{}"))
+
+        with unittest.mock.patch.object(pr_checks.urllib.request, "urlopen", fake_urlopen), \
+                unittest.mock.patch.object(pr_checks.time, "sleep", lambda seconds: calls.append("sleep")):
+            with self.assertRaises(urllib.error.HTTPError):
+                pr_checks._get("https://api.github.com/x", None)
+        self.assertEqual(calls, ["https://api.github.com/x"])
 
 
 class HandoffTest(unittest.TestCase):

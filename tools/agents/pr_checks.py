@@ -163,12 +163,9 @@ def _get(url: str, token: str | None):
         try:
             with urllib.request.urlopen(request, timeout=30) as response:
                 return json.load(response)
-        except urllib.error.HTTPError as error:
-            # 403/429 cover GitHub's rate limits; 5xx is a GitHub outage. Anything else is a real error.
-            if error.code not in (403, 429, 500, 502, 503, 504) or attempt == RETRIES - 1:
-                raise
-        except (urllib.error.URLError, TimeoutError):
-            if attempt == RETRIES - 1:
+        except (urllib.error.URLError, TimeoutError) as error:
+            # Retry only what can recover: an outage or a rate limit. A missing permission fails at once.
+            if not is_outage(error) or attempt == RETRIES - 1:
                 raise
         time.sleep(5 * (attempt + 1))
 
@@ -195,7 +192,10 @@ def is_outage(error: Exception) -> bool:
     if isinstance(error, urllib.error.HTTPError):
         if error.code in (429, 500, 502, 503, 504):
             return True
-        return error.code == 403 and (error.headers or {}).get("X-RateLimit-Remaining") == "0"
+        headers = error.headers or {}
+        # Primary rate limit: the counter reaches 0. Secondary rate limits often leave the counter non-zero and send
+        # Retry-After instead.
+        return error.code == 403 and (headers.get("X-RateLimit-Remaining") == "0" or bool(headers.get("Retry-After")))
     return isinstance(error, (urllib.error.URLError, TimeoutError))
 
 
