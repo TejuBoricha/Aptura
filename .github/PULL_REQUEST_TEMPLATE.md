@@ -1,3 +1,11 @@
+## Task
+
+<!-- Closes #N. AI agents: name the tool and model that wrote this, and the reviewer model if a second review was required (see AGENTS.md). -->
+
+- Issue:
+- Written by: <!-- human, or Tool (model) -->
+- Independent review: <!-- not required / Tool (model), link -->
+
 ## What changed
 
 <!-- A short description of the behavior change, not a list of files. -->
@@ -35,3 +43,14 @@
 - [ ] No software video decoder was bundled.
 - [ ] User-visible copy is sentence case and states the consequence of destructive actions.
 - [ ] Documentation was updated when a contract, screen or workflow changed.
+
+## Handoff
+
+<!-- Keep this current while the PR is in progress, so another agent can continue from here alone. Delete it when the PR is ready. See docs/AGENT_WORKFLOW.md. -->
+
+- **Goal:**
+- **Done:**
+- **Next:**
+- **Decisions:**
+- **Verified:**
+- **Gotchas:**

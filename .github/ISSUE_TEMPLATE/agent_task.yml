@@ -1,0 +1,58 @@
+name: Agent task
+description: A scoped task for an AI coding agent (the owner adds the agent-ready label when it can start).
+title: "[Task]: "
+labels: ["task"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Agents only start issues that carry the `agent-ready` label, which only the owner applies. See [AGENTS.md](https://github.com/TejuBoricha/Aptura/blob/main/AGENTS.md) and [docs/AGENT_WORKFLOW.md](https://github.com/TejuBoricha/Aptura/blob/main/docs/AGENT_WORKFLOW.md).
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What should be true when this is done, and why it matters.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Checkable conditions, including the tests or evidence expected.
+      placeholder: |
+        - [ ] Presets 10 and 20 min appear in the sleep timer
+        - [ ] ViewModel test covers both
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Expected scope
+      description: Files or areas the change should touch. List any hot files (AGENTS.md) explicitly.
+      placeholder: |
+        app/src/main/java/org/aptura/player/ui/player/PlayerToolsTabs.kt
+        app/src/main/java/org/aptura/player/ui/player/PlayerViewModel.kt
+    validations:
+      required: true
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Blocked by
+      description: Issues that must merge first, if any.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: review
+    attributes:
+      label: Independent review needed?
+      description: Required for playback, file operations, Room schema or migrations, privacy invariants, or large changes.
+      options:
+        - "No"
+        - "Yes, by a different model than the author"
+    validations:
+      required: true
