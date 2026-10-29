@@ -174,10 +174,10 @@ theme is tested at the resource level; the activity wiring itself is not under t
 
 ## Verification
 
-- Full unit suite: 851 tests, 0 failures, 162 skipped (the galleries, which run only when `APTURA_GALLERY_DIR` is set).
+- Full unit suite: 904 tests, 0 failures, 162 skipped (the galleries, which run only when `APTURA_GALLERY_DIR` is set).
 - Guide gallery renders reviewed at: phone, small phone (320 dp), 200% font, landscape, tablet, light and dark, and the
   replay with a library. The library layouts are rendered by `LibraryLayoutGalleryTest` at its listed sizes.
-- `lintDebug`: 0 errors, 91 warnings (the same count as before the sideways and first-scan work), none in the guide files (a first run flagged two uses of `Configuration.screenHeightDp` there; they now use the window-size API). `assembleRelease` with `verifyReleaseApk`
+- `lintDebug`: 0 errors, 91 warnings (the same count as before the sideways, first-scan and later work), none in the guide files (a first run flagged two uses of `Configuration.screenHeightDp` there; they now use the window-size API). `assembleRelease` with `verifyReleaseApk`
   (which fails if the APK gains the INTERNET permission or a bundled software decoder): passes. Both ran online, because
   lint's instrumented-test model cannot resolve offline. CI runs them again on the PR.
 

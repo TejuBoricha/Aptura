@@ -19,7 +19,11 @@ object MediaFolderKey {
     private const val PRIMARY_VOLUME = "external_primary"
     private const val PRIMARY_ROOT = "/storage/emulated/0"
 
-    /** Other names for the phone's own storage, as older file paths spell it. */
+    /**
+     * Other names for the phone's own storage, as older file paths spell it. They are only recognised here, to give one
+     * folder one key, never used to reach a file, so the hard-coded path lint warns about is the point.
+     */
+    @Suppress("SdCardPath")
     private val primaryAliases = listOf("/storage/self/primary", "/storage/emulated/legacy", "/mnt/sdcard", "/sdcard")
 
     fun of(volumeName: String?, relativePath: String?, filePath: String?, bucketName: String?): String =
