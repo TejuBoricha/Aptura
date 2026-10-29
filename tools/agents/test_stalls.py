@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 
 import stalls
 from inbox import Message
-from stalls import Item, current_hold, debate, find, nudge_body, unanswered
+from stalls import Item, current_hold, debate, find, next_deadline, nudge_body, unanswered
 
 T0 = datetime(2026, 10, 29, 9, tzinfo=timezone.utc)
 WINDOW = timedelta(minutes=30)
@@ -150,6 +150,44 @@ class UnansweredTest(unittest.TestCase):
 
     def test_only_the_oldest_waiting_message_per_addressee_is_reported(self):
         self.assertEqual(len(stalls_of([msg(ASK), msg(ASK, 10)], 600)), 1)
+
+
+class NextDeadlineTest(unittest.TestCase):
+    """A run that sees a deadline soon waits for it, so a wait that nobody answers is still announced."""
+
+    def deadline(self, messages, minutes, within=35):
+        return next_deadline([item(messages)], at(minutes), WINDOW, timedelta(minutes=within))
+
+    def test_finds_when_the_oldest_live_wait_falls_due(self):
+        self.assertEqual(self.deadline([msg(ASK)], 5), at(30))
+
+    def test_ignores_one_that_is_already_overdue(self):
+        # This run reports it; there is nothing left to wait for.
+        self.assertIsNone(self.deadline([msg(ASK)], 30))
+
+    def test_ignores_one_that_was_answered(self):
+        replied = [msg(ASK), msg("To: all\nDone.\nFrom: opencode", 5)]
+        self.assertIsNone(self.deadline(replied, 6))
+
+    def test_ignores_one_further_away_than_the_run_waits(self):
+        self.assertIsNone(self.deadline([msg(ASK)], 0, within=29))
+        self.assertEqual(self.deadline([msg(ASK)], 0, within=30), at(30))
+
+    def test_a_working_note_moves_the_deadline_to_when_it_runs_out(self):
+        # `by 10:00` posted at 09:05 holds until 10:00, plus the 30-minute window: 10:30.
+        held = [msg(ASK), msg("To: claude\nWorking: on it, done by 10:00 UTC.\nFrom: opencode", 5)]
+        self.assertEqual(self.deadline(held, 10, within=120), at(90))
+
+    def test_ignores_a_held_item_and_a_closed_one(self):
+        held = [msg("To: all\nOwner said: \"wait\"\nHold: owner\nFrom: claude"), msg(ASK, 1)]
+        self.assertIsNone(self.deadline(held, 10))
+        closed = item([msg(ASK)])
+        closed.is_open = False
+        self.assertIsNone(next_deadline([closed], at(10), WINDOW, timedelta(minutes=35)))
+
+    def test_takes_the_earliest_of_several_items(self):
+        other = Item(10, "Other", "https://example/10", False, [msg(ASK, 10)])
+        self.assertEqual(next_deadline([other, item([msg(ASK)])], at(0), WINDOW, timedelta(minutes=35)), at(30))
 
 
 class AuditParsingTest(unittest.TestCase):
@@ -814,7 +852,7 @@ class MainFailureModeTest(unittest.TestCase):
 
     @staticmethod
     def http_error(code):
-        def fail(repo, token, extra=None):
+        def fail(repo, token, extra=None, now=None):
             raise urllib.error.HTTPError("https://api.github.com/x", code, "error", {}, None)
         return fail
 
@@ -829,7 +867,7 @@ class MainFailureModeTest(unittest.TestCase):
         self.assertIn("::warning::", out)
 
     def test_nudging_without_a_token_is_refused(self):
-        code, _ = self.run_main(lambda repo, token, extra=None: [], argv=["--nudge"])
+        code, _ = self.run_main(lambda repo, token, extra=None, now=None: [], argv=["--nudge"])
         self.assertEqual(code, 2)
 
     def test_event_runs_are_throttled_by_the_status_pages_own_time(self):
@@ -850,10 +888,95 @@ class MainFailureModeTest(unittest.TestCase):
         ask = Message("comment", datetime.now(timezone.utc) - timedelta(hours=5), "https://example/old", ASK,
                       "TejuBoricha")
         with unittest.mock.patch.object(stalls, "_send") as send:
-            code, out = self.run_main(lambda repo, token, extra=None: [item([ask])])
+            code, out = self.run_main(lambda repo, token, extra=None, now=None: [item([ask])])
         self.assertEqual(code, 0)
         self.assertIn("**stalled**", out)
         send.assert_not_called()
+
+
+class DeadlineWaitTest(unittest.TestCase):
+    """Issue #14: a run that sees a deadline soon waits for it, so a deadline that passes in silence is announced."""
+
+    def run_waiting_main(self, argv, clock, fetch, page=()):
+        slept, sent = [], []
+
+        def sleep(seconds):
+            slept.append(seconds)
+            clock[0] += timedelta(seconds=seconds)  # the fake clock moves instead of the test sleeping
+
+        def send(method, url, token, payload):
+            sent.append((method, url, payload))
+
+        with unittest.mock.patch.object(stalls, "utcnow", lambda: clock[0]), \
+                unittest.mock.patch.object(stalls.time, "sleep", sleep), \
+                unittest.mock.patch.object(stalls, "fetch", fetch), \
+                unittest.mock.patch.object(stalls, "_send", send), \
+                unittest.mock.patch.object(stalls, "every", lambda url, token: iter(page)), \
+                unittest.mock.patch.object(stalls.sys, "argv", ["stalls.py", *argv]), \
+                unittest.mock.patch.dict(stalls.os.environ, {"GITHUB_TOKEN": "t"}, clear=True), \
+                unittest.mock.patch.object(stalls.sys, "stdout", io.StringIO()):
+            return stalls.main(), slept, sent
+
+    def test_waits_for_the_deadline_and_nudges_when_it_passes(self):
+        clock = [at(5)]
+        fetches = []
+
+        def fetch(repo, token, extra=None, now=None):
+            fetches.append(now)
+            return [item([msg(ASK)])]
+
+        code, slept, sent = self.run_waiting_main(["--nudge", "--wait-for-deadline"], clock, fetch)
+        self.assertEqual(code, 0)
+        self.assertEqual(fetches, [at(5), at(31)], "reads again at the deadline, not the stale copy")
+        self.assertEqual(slept, [26 * 60], "09:30 deadline plus the one-minute slack")
+        nudges = [payload["body"] for _, url, payload in sent if url.endswith("/issues/9/comments")]
+        self.assertEqual(len(nudges), 1)
+        self.assertIn("Overdue", nudges[0])
+
+    def test_an_answer_during_the_wait_suppresses_the_nudge(self):
+        # The second read is fresh on purpose: an answer posted while the run sleeps must not be nudged over.
+        clock = [at(5)]
+        fetches = []
+
+        def fetch(repo, token, extra=None, now=None):
+            fetches.append(now)
+            answered = [msg(ASK), msg("To: all\nDone.\nFrom: opencode", 20)]
+            return [item(answered if len(fetches) > 1 else [msg(ASK)])]
+
+        code, slept, sent = self.run_waiting_main(["--nudge", "--wait-for-deadline"], clock, fetch)
+        self.assertEqual((code, len(fetches), len(slept)), (0, 2, 1))
+        self.assertEqual([p for _, url, p in sent if url.endswith("/issues/9/comments")], [])
+
+    def test_does_not_hold_a_run_when_no_deadline_is_near(self):
+        clock = [at(0)]
+        code, slept, _ = self.run_waiting_main(["--wait-for-deadline"], clock,
+                                               lambda repo, token, extra=None, now=None: [])
+        self.assertEqual((code, slept), (0, []))
+
+    def test_waits_once_per_run_and_only_with_the_flag(self):
+        clock = [at(5)]
+        code, slept, _ = self.run_waiting_main([], clock,
+                                               lambda repo, token, extra=None, now=None: [item([msg(ASK)])])
+        self.assertEqual((code, slept), (0, []), "plain runs (the clocks, a local report) never sleep")
+        code, slept, _ = self.run_waiting_main(["--wait-for-deadline"], clock,
+                                               lambda repo, token, extra=None, now=None: [item([msg(ASK)])])
+        self.assertEqual((code, slept), (0, []), "a dry run has nobody to wake")
+
+    def test_a_throttled_run_waits_out_the_gap_instead_of_missing_the_deadline(self):
+        # A burst can have a run skip as throttled, and the comment that made the wait may be its only event.
+        clock = [at(2)]
+        page = [{"number": 50, "body": f"### Agent status ({at(0):%Y-%m-%d %H:%M} UTC)"}]
+        fetches = []
+
+        def fetch(repo, token, extra=None, now=None):
+            fetches.append(now)
+            return [item([msg(ASK)])]
+
+        code, slept, _ = self.run_waiting_main(["--nudge", "--wait-for-deadline", "--min-gap", "5"],
+                                               clock, fetch, page)
+        self.assertEqual(code, 0)
+        self.assertEqual(slept, [3 * 60, 26 * 60], "the rest of the 5-minute gap, then the deadline")
+        self.assertEqual(fetches, [at(5), at(31)])
 
 
 class DriftTest(unittest.TestCase):
@@ -893,6 +1016,7 @@ class DriftTest(unittest.TestCase):
         docs = self.text("docs/AGENT_WORKFLOW.md")
         self.assertIn(f"**Proposal** (at most {stalls.PROPOSAL_WORDS} words)", docs)
         self.assertIn(f"**Critiques** (at most {stalls.CRITIQUE_WORDS} words", docs)
+        self.assertIn(f"within the next {int(defaults['wait_max'])} minutes", docs)
 
     def test_the_status_workflow_runs_only_mains_copy(self):
         # For pull_request and pull_request_review GitHub runs the pull request's own copy of the workflow, with a
@@ -910,6 +1034,14 @@ class DriftTest(unittest.TestCase):
         clock, activity = re.search(r"then\n(.*?)\n\s*else\n(.*?)\n\s*fi", workflow, re.S).groups()
         self.assertNotIn("--min-gap", clock)
         self.assertIn("--min-gap", activity)
+        # Issue #14: an activity run waits for the next deadline; the clocks already run every 15 minutes.
+        self.assertNotIn("--wait-for-deadline", clock)
+        self.assertIn("--wait-for-deadline", activity)
+        # The job must outlast the 5-minute gap, the longest documented wait, and the slack.
+        defaults = {a.dest: a.default for a in stalls_parser()._actions if a.dest != "help"}
+        timeout = int(re.search(r"timeout-minutes: (\d+)", workflow).group(1))
+        self.assertGreater(timeout, 5 + defaults["wait_max"] + 1)
+        self.assertIn(f"within the next {int(defaults['wait_max'])} minutes", workflow)
 
     def test_every_documented_agent_name_has_a_claim_label(self):
         labels = re.search(r"for tool in ([a-z ]+); do", self.text(".github/workflows/labels.yml")).group(1).split()

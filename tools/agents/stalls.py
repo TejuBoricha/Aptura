@@ -27,7 +27,10 @@ an item until a later `Hold lifted:` line; holds older than a day are listed for
 The **Agent status** workflow runs it with --nudge whenever the owner's account comments or opens, labels or closes an issue
 (throttled with --min-gap) and on a 15-minute schedule, and keeps the report in the issue labelled
 `agent-status`. A nudge is addressed to all, so local agents waiting in inbox.py and cloud agents subscribed to the
-pull request wake up on it. Only comments by the owner's account count (inbox.trusted). Exit code: 0 (stalls are
+pull request wake up on it. A run that finds a `To:` deadline within --wait-max minutes (default 35) waits for it and
+checks again: the comment that created the wait is the activity that started the run, so that run is the clock for a
+stretch in which nobody acts again. A run the throttle would skip waits out the gap rather than miss that deadline.
+Only comments by the owner's account count (inbox.trusted). Exit code: 0 (stalls are
 reported, not failures), 1 when GitHub refuses the request (a missing permission must not turn the watch off
 unnoticed), 0 with a warning during a GitHub outage. Standard library only.
 """
@@ -39,8 +42,10 @@ import json
 import os
 import re
 import sys
+import time
 import urllib.error
 import urllib.request
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
@@ -62,6 +67,12 @@ IDLE = timedelta(hours=4)
 CLAIM_WITHOUT_PR = timedelta(hours=2)
 ESCALATE = timedelta(days=1)
 BODY_LIMIT = 60_000      # GitHub rejects issue bodies over 65,536 characters
+WAIT_SLACK = timedelta(minutes=1)  # check just after a deadline, never on it
+
+
+def utcnow() -> datetime:
+    """Now, in UTC. One seam, so a test can move the clock instead of sleeping."""
+    return datetime.now(timezone.utc)
 
 
 def own_lines(body: str) -> list[str]:
@@ -189,9 +200,23 @@ def working_until(body: str, posted: datetime, window: timedelta) -> datetime:
     return posted + timedelta(hours=2)
 
 
-def unanswered(item: Item, now: datetime, window: timedelta) -> list[Stall]:
-    """The oldest overdue `To:` message per addressee (see the module docstring for the rules)."""
-    stalls, seen = [], set()
+@dataclass
+class Wait:
+    """One `To:` message that still waits on one agent, and when it falls due."""
+    item: Item
+    message: Message             # the waiting message
+    agent: str                   # the addressee it waits on
+    due: datetime                # when it is overdue
+    note: Message | None = None   # the `Working:` note that holds it
+    paused: Message | None = None  # the agent's latest `Pausing:` note, which makes it overdue at once
+
+
+def waits(item: Item, window: timedelta) -> Iterator[Wait]:
+    """Every `To:` message on an item that still waits on someone, with its deadline.
+
+    `unanswered` reports the overdue ones and `next_deadline` finds the next to fall due. Both read the rules through
+    this one generator, so the report and the clock can never disagree about what a live wait is (see the module
+    docstring for the rules)."""
     ordered = sorted(item.messages, key=lambda m: m.created_at)
     for m in ordered:
         author = sender(m.body)
@@ -199,8 +224,6 @@ def unanswered(item: Item, now: datetime, window: timedelta) -> list[Stall]:
             continue
         # The owner is not on a clock (an owner decision has no deadline), so `To: owner` is never a wait.
         for agent in sorted(recipients(m.body) - {"all", "owner", author}):
-            if agent in seen:
-                continue
             later = [x for x in ordered if x.created_at > m.created_at]
             if any(sender(x.body) == author and agent in withdrawn(x.body) for x in later):
                 continue
@@ -215,24 +238,51 @@ def unanswered(item: Item, now: datetime, window: timedelta) -> list[Stall]:
                        and (author in recipients(x.body) or "all" in recipients(x.body))]
             if replies:
                 continue  # answered; a later pause concerns later waits only
-            paused = bool(from_agent) and has_line(from_agent[-1].body, "pausing")
-            working = not paused and bool(notes)
-            due = working_until(notes[-1].body, notes[-1].created_at, window) if working else m.created_at + window
-            if not paused and now < due:
-                continue
-            seen.add(agent)
-            anchor = notes[-1].created_at if working else m.created_at
-            if paused:
-                why = f"{agent} posted `Pausing` ({from_agent[-1].url})"
-            elif working:
-                why = f"{agent}'s `Working:` note ran out {_age(now - due)} ago with no answer since"
-            else:
-                why = f"no reply from {agent} for {_age(now - m.created_at)}"
-            stalls.append(Stall(item, f"{m.url}#{agent}#{anchor:%Y%m%dT%H%M}",
-                                f"{author}'s message to {agent} ({m.url}) is waiting: {why}. Another agent may take "
-                                f"over after posting `Taking over ... from {agent}` (AGENTS.md rule 9); for a review, "
-                                f"use the fallback reviewer and post `Withdrawn: {agent}` (docs/AGENT_WORKFLOW.md)."))
+            paused = from_agent[-1] if from_agent and has_line(from_agent[-1].body, "pausing") else None
+            note = None if paused else (notes[-1] if notes else None)
+            due = working_until(note.body, note.created_at, window) if note else m.created_at + window
+            yield Wait(item, m, agent, due, note, paused)
+
+
+def unanswered(item: Item, now: datetime, window: timedelta) -> list[Stall]:
+    """The oldest overdue `To:` message per addressee (see the module docstring for the rules)."""
+    stalls, seen = [], set()
+    for wait in waits(item, window):
+        if wait.agent in seen:
+            continue
+        if not wait.paused and now < wait.due:
+            continue
+        seen.add(wait.agent)
+        m, agent = wait.message, wait.agent
+        anchor = wait.note.created_at if wait.note else m.created_at
+        if wait.paused:
+            why = f"{agent} posted `Pausing` ({wait.paused.url})"
+        elif wait.note:
+            why = f"{agent}'s `Working:` note ran out {_age(now - wait.due)} ago with no answer since"
+        else:
+            why = f"no reply from {agent} for {_age(now - m.created_at)}"
+        stalls.append(Stall(item, f"{m.url}#{agent}#{anchor:%Y%m%dT%H%M}",
+                            f"{sender(m.body)}'s message to {agent} ({m.url}) is waiting: {why}. Another agent may "
+                            f"take over after posting `Taking over ... from {agent}` (AGENTS.md rule 9); for a review, "
+                            f"use the fallback reviewer and post `Withdrawn: {agent}` (docs/AGENT_WORKFLOW.md)."))
     return stalls
+
+
+def next_deadline(items: list[Item], now: datetime, window: timedelta, within: timedelta) -> datetime | None:
+    """The first moment a live wait falls due, if it is within `within`; None when there is none.
+
+    A run that finds one waits for it and checks again. The comment that created the wait is itself the activity that
+    started the run, so a run can be the clock for a stretch in which every agent goes quiet."""
+    soonest = None
+    for item in items:
+        if not item.is_open or current_hold(item.messages):
+            continue  # a closed item is read for its overrides, and a hold stops every deadline on its item
+        for wait in waits(item, window):
+            if wait.paused or wait.due <= now:
+                continue  # already overdue (this run reports it), or stopped by a pause, not a deadline ahead
+            if soonest is None or wait.due < soonest:
+                soonest = wait.due
+    return soonest if soonest is not None and soonest - now <= within else None
 
 
 def verdict(body: str) -> str:
@@ -565,7 +615,7 @@ def fetch(repo: str, token: str | None, extra_trusted: list[str] | None = None,
     in the last READ_DAYS days, instead of three calls per item: every run must fit, with room to spare, in the
     1,000 requests an hour GitHub gives the workflow token, shared with CI.
     """
-    now = now or datetime.now(timezone.utc)
+    now = now or utcnow()
     base = f"{pr_checks.API}/repos/{repo}"
     authors = trusted_authors(repo, extra_trusted)
     cutoff = now - timedelta(days=CLOSED_DAYS)
@@ -733,15 +783,13 @@ def _age(delta: timedelta) -> str:
     return f"{minutes // 60} h {minutes % 60:02d} min"
 
 
-def recently_updated(repo: str, token: str | None, now: datetime, gap: timedelta) -> bool:
-    """Whether the status issue's own timestamp is within `gap`: event-driven runs come in bursts (a review with
-    several comments), and one run per few minutes keeps the hourly request budget safe. One request."""
+def status_updated(repo: str, token: str | None) -> datetime | None:
+    """The status issue's own timestamp, or None when there is no page yet. One request."""
     for issue in every(f"{pr_checks.API}/repos/{repo}/issues?state=open&labels={STATUS_LABEL}", token):
         match = re.search(r"### Agent status \((\d{4}-\d{2}-\d{2} \d{2}:\d{2}) UTC\)", issue.get("body") or "")
         if match:
-            stamp = datetime.strptime(match.group(1), "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)
-            return now - stamp < gap
-    return False
+            return datetime.strptime(match.group(1), "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)
+    return None
 
 
 def explain(body: str) -> int:
@@ -761,6 +809,27 @@ def explain(body: str) -> int:
     return 1 if problem else 0
 
 
+def run_once(args, token: str | None) -> tuple[int, list[Item], datetime]:
+    """One full pass: fetch, find, report, and publish with --nudge. Returns the exit code and what it read."""
+    now = utcnow()
+    items = fetch(args.repo, token, args.trust, now=now)
+    found = find(items, now, timedelta(minutes=args.minutes), timedelta(hours=args.debate_hours),
+                 timedelta(hours=args.timebox_hours))
+    text = report(items, found, now)
+    print(text)
+    if summary := os.environ.get("GITHUB_STEP_SUMMARY"):
+        with open(summary, "a", encoding="utf-8") as handle:
+            handle.write(text)
+    if args.nudge:
+        posted, failures = publish(args.repo, token, items, found, text)
+        print(f"Posted {posted} new nudge(s).")
+        for failure in failures:
+            print(f"::error::Agent status could not write: {failure}")
+        if failures:
+            return 1, items, now
+    return 0, items, now
+
+
 def main() -> int:
     force_utf8_output()
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -772,7 +841,13 @@ def main() -> int:
     parser.add_argument("--nudge", action="store_true", help="post the nudges and update the status issue")
     parser.add_argument("--min-gap", type=float, default=0,
                         help="skip the run if the status issue was updated less than this many minutes ago (its time "
-                             "is to the minute, so 5 means 4 to 6 minutes)")
+                             "is to the minute, so 5 means 4 to 6 minutes); with --wait-for-deadline it waits out the "
+                             "gap instead")
+    parser.add_argument("--wait-for-deadline", action="store_true",
+                        help="after publishing, wait for the next To: deadline within --wait-max minutes and check "
+                             "again, so a stretch in which nobody acts is still announced")
+    parser.add_argument("--wait-max", type=float, default=35,
+                        help="the furthest deadline a run waits for, in minutes (default 35); one wait per run")
     parser.add_argument("--explain", action="store_true",
                         help="read one message from standard input and show how the checks read it")
     args = parser.parse_args()
@@ -782,32 +857,40 @@ def main() -> int:
     if args.nudge and not token:
         print("::error::--nudge needs GITHUB_TOKEN or GH_TOKEN with issues and pull-requests write access.")
         return 2
-    now = datetime.now(timezone.utc)
+    window = timedelta(minutes=args.minutes)
+    waiting = args.wait_for_deadline and args.nudge  # a local report has nobody to wake, so it never sleeps
+    code = 0
     try:
-        if args.min_gap and recently_updated(args.repo, token, now, timedelta(minutes=args.min_gap)):
-            print(f"The status issue was updated less than {args.min_gap:g} minutes ago; skipping this run.")
-            return 0
-        items = fetch(args.repo, token, args.trust)
-        found = find(items, now, timedelta(minutes=args.minutes), timedelta(hours=args.debate_hours),
-                     timedelta(hours=args.timebox_hours))
-        text = report(items, found, now)
-        print(text)
-        if summary := os.environ.get("GITHUB_STEP_SUMMARY"):
-            with open(summary, "a", encoding="utf-8") as handle:
-                handle.write(text)
-        if args.nudge:
-            posted, failures = publish(args.repo, token, items, found, text)
-            print(f"Posted {posted} new nudge(s).")
-            for failure in failures:
-                print(f"::error::Agent status could not write: {failure}")
-            if failures:
-                return 1
+        if args.min_gap:
+            now = utcnow()
+            stamp = status_updated(args.repo, token)
+            if stamp is not None and now - stamp < timedelta(minutes=args.min_gap):
+                rest = timedelta(minutes=args.min_gap) - (now - stamp)
+                if not waiting:
+                    print(f"The status issue was updated less than {args.min_gap:g} minutes ago; skipping this run.")
+                    return 0
+                # A skipped run may be the only one before a deadline, and the event that started it may not come
+                # again. Waiting out the gap costs one check; missing the deadline costs the wait its announcement.
+                print(f"The status issue was updated less than {args.min_gap:g} minutes ago; waiting "
+                      f"{rest.total_seconds() / 60:.1f} min before checking, so a deadline is not missed.")
+                time.sleep(rest.total_seconds())
+        code, items, now = run_once(args, token)
+        if code or not waiting:
+            return code
+        deadline = next_deadline(items, now, window, timedelta(minutes=args.wait_max))
+        if deadline is None:
+            return code
+        pause = deadline + WAIT_SLACK - now
+        minutes = pause.total_seconds() / 60
+        print(f"Next deadline at {deadline:%H:%M} UTC ({minutes:.0f} min away); waiting for it, then checking again.")
+        time.sleep(pause.total_seconds())
+        code, _, _ = run_once(args, token)
     except (urllib.error.URLError, TimeoutError) as error:
         if not pr_checks.is_outage(error):
             print(f"::error::Agent status could not use the GitHub API ({error}). Check the workflow's permissions.")
             return 1
         print(f"::warning::Agent status skipped: GitHub API unavailable ({error}). The next scheduled run retries.")
-    return 0
+    return code
 
 
 if __name__ == "__main__":

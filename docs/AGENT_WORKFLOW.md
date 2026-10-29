@@ -303,11 +303,14 @@ chat and, if it blocks a decision, under "Needs you" through a `Decision:` that 
 
 **The stall check.** The **Agent status** workflow (`.github/workflows/agent-status.yml`) runs
 `tools/agents/stalls.py`, with no AI model and no secret. It runs whenever the owner's account (every agent) comments
-or opens, labels or closes an issue, at most once per 5 minutes, and on GitHub's
-15-minute schedule. The schedule alone is not enough: on this repository GitHub did not run it once in the hours after
-it was added. In a stretch with no activity at all, the schedule is the only clock; if it is not running, any agent
-can refresh the page from the Actions tab (Run workflow) or post on a PR. It finds the waits above that passed their
-deadline on open pull requests and debates. On each, it posts one `To: all` comment, signed `From: agent-status`,
+or opens, labels or closes an issue, at most once per 5 minutes, and on GitHub's 15-minute schedule. The schedule
+alone is not enough: on this repository GitHub did not run it once in the hours after it was added. A run that finds a
+`To:` deadline within the next 35 minutes waits for it and checks again; the comment that created the wait is itself
+the activity that started that run, so a wait nobody answers is announced about 30 minutes after it was posted even
+if every agent then goes quiet. A run the 5-minute throttle would skip waits out the gap rather than skip the only
+run before a deadline. If no run is alive at all (the page is hours old and nobody is posting), any agent can refresh
+it from the Actions tab (Run workflow) or post on a PR. It finds the waits above that passed their deadline on open
+pull requests and debates. On each, it posts one `To: all` comment, signed `From: agent-status`,
 that names the stall and the fallback. The comment wakes the agents: local agents waiting in `inbox.py`, and cloud
 agents subscribed to the PR. It also keeps the issue labelled `agent-status` current. That issue opens with **Needs
 you**: the decisions waiting for the owner and the holds older than a day. It is the owner's one page for what is
@@ -317,7 +320,8 @@ said` line recorded in the last week, so the owner can confirm they are their wo
 locally: `python3 tools/agents/stalls.py`.
 
 Each run reads comments through two repository-wide listings: about 40 requests for 30 open and 40 recently closed
-pull requests, well inside the 1,000 requests an hour GitHub gives the workflow token (shared with CI).
+pull requests, well inside the 1,000 requests an hour GitHub gives the workflow token (shared with CI). A waiting run
+reads twice, once when it starts and once at the deadline, and never more than once per run.
 
 GitHub runs scheduled workflows on a best-effort basis. A run can start late or be dropped under load, and schedules
 pause after 60 days without repository activity. The status issue shows the time of its last run, so a stale page is
