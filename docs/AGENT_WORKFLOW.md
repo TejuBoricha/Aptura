@@ -342,7 +342,9 @@ followed up, so the other agents know it was intended and nothing skipped is for
 3. **The follow-up is done** by whoever it names, who then posts `Follow-up done: <result>` on the same PR or issue
    (it closes the overrides recorded there before it). Findings from a post-merge review become a fix PR first in
    that agent's queue. Until then the status issue lists the override under "Overrides in effect", also after the PR
-   merges: pull requests closed in the last 14 days are read for their overrides.
+   merges. The stall check gives an item with a pending follow-up the `follow-up` label, keeps reading labelled items
+   however long ago they closed, and removes the label once every follow-up on the item is done. A single
+   `Follow-up done:` note closes all the overrides recorded before it on that item.
 4. **What an override cannot do.**
    - The checks GitHub enforces (the ruleset's required checks, branch protection) can't be skipped by an agent. Only
      the owner can do that, in GitHub's settings.
@@ -491,7 +493,8 @@ These settings live in GitHub, not in the repository, so only the owner can appl
    - Require status checks to pass: `verify` and `connected`, with **Require branches to be up to date before
      merging** turned on.
 2. **Labels:** created automatically by the **Labels** workflow (`.github/workflows/labels.yml`) when it reaches
-   `main`: `agent-ready` (owner-only signal), `task`, `debate`, `agent-status`, and `claimed:<tool>` for each tool.
+   `main`: `agent-ready` (owner-only signal), `task`, `debate`, `agent-status`, `follow-up` (set by the stall check),
+   and `claimed:<tool>` for each tool.
    To add a tool, edit that file.
 3. **Secret protection:** Settings → Code security → enable secret scanning and push protection.
 4. **Agent tokens:** give each tool its own fine-grained token, scoped to this repository, with contents, pull
