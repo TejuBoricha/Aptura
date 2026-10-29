@@ -59,7 +59,7 @@ Started 2026-10-29. Written while testing, updated as items finish.
 | Item | Result | Evidence |
 |---|---|---|
 | HDR playback | PARTIAL PASS | HDR10 test clip (HEVC Main10, BT.2020/PQ, mastering metadata, 1080p) played with 0 crashes, 0 dropped frames. Stats overlay: **"HDR10 (PQ)"**, "Hardware Accelerated", `c2.exynos.hevc.decoder`, `hvc1.2.4.L120.90`. NOT judged: tone-mapping quality / panel HDR brightness (needs eyes), and the compositor dump did not show a clear BT.2020/PQ layer dataspace, so I cannot say the panel switched to HDR mode. |
-| 30-minute 4K thermal run | IN PROGRESS (data notes below) | 4K HEVC clip looped for 30 min from 12:55:06 local; 0 dropped frames and 0 underruns in the first samples; thermal status 0. Read "Thermal run data notes" before using the CSV. |
+| 30-minute 4K thermal run | PASS (no throttling; no A/V desync measurable) | 3840x2160 HEVC looped for 30.2 min (12:55:06 to 13:25:19) with the phone on USB power. 0 dropped frames (0.0%) in all seven stats crops, 0 audio underruns in all 61 samples, thermal status 0 (None) throughout. Live HAL temperatures (13:11:33 to 13:27:12): AP 39.5 to 42.2, CP/PA 38.4 to 40.4, skin 37.4 to 38.1, battery 36.2 to 36.8, USB 34.8 to 35.1 degrees C. Playback clock drift 0 to -401 ms over 30 min (about -13 ms/min, loop restarts); A/V desync itself is not measurable over adb. |
 | PiP unavailable | CANNOT BE TESTED FULLY | The S24 supports PiP. With the PiP app-op denied for Aptura: Home no longer made a PiP window (normal background), and tapping "Picture in picture" in More options did nothing (no crash, no message). The menu entry is still shown, so "PiP button absent" is not met by this approximation. Note: with PiP allowed, pressing Home during playback auto-enters PiP. |
 | Kill the app during a large SAF copy | NOT YET RUN | Built a 2.5 GB valid MP4 (`bigtest.mp4`) to move with the library's "Move to folder" action. |
 
@@ -127,7 +127,8 @@ Testability (would make on-device and instrumented tests cheaper)
 
 - Run: 12:55:06 to about 13:25:06 local, `uhd-sdr` (3840x2160, 30 fps, HEVC, hardware decode) looping with Repeat one,
   stats overlay on, screen on. **The phone was plugged into USB and charging the whole time** (`USB powered: true`,
-  status 2, battery 94% to 96%). That adds heat and means this is not an on-battery thermal test.
+  status 2, battery 94% to 100%; it hit full at 13:16:40 and reported status 5 after that). That adds heat and means
+  this is not an on-battery thermal test.
 - **`ap_c` and `skin_c` in `thermal-run.csv` are wrong.** The sampler read the "Cached temperatures" section of
   `dumpsys thermalservice` (constant 47.5 and 37.8 in every row). The repo copy of `tools/device/thermal-run.ps1` is
   fixed to read "Current temperatures from HAL"; the copy that produced the CSV was not.
@@ -143,6 +144,19 @@ Testability (would make on-device and instrumented tests cheaper)
   desync measurement (adb cannot measure that).
 - The media session `position` shown by `dumpsys media_session` is a base value; clients add
   `(now - updated) * speed`. A value that looks frozen (3 ms for 90 s on the 4K clip) is normal, not a defect.
+
+### Final result (opencode)
+
+- The run completed cleanly: 61/61 samples `PLAYING`, `DONE 13:25:19`; the live logger wrote `DONE` at 13:27.
+- Temperatures never reached the first skin threshold for long: skin touched 38.1 degrees C twice (13:15:34 and
+  13:25:06), AP peaked at 42.2 at 13:15:34, and the thermal status stayed 0 the whole time. No throttle event, no
+  frame drops, no underruns.
+- The post-run reading at 13:27:12, while the phone was still hot, was AP 39.7, CP 38.6, PA 38.7, skin 37.6,
+  battery 36.5, USB 35.0, status 0, battery 100% (status 5, full).
+- Battery temperature rose from 34.1 to 36.8 degrees C over the run; that is mostly charging plus decoding, so it
+  cannot be split between the two with this data.
+- Limitation: the screen was on at a fixed brightness on USB power, and the clip is a 30 fps test pattern rather than
+  a high-bitrate movie. A hotter, on-battery, higher-bitrate run could still throttle; this run did not.
 
 ## Observations added after the first version of this file
 
