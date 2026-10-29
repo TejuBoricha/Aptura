@@ -7,20 +7,23 @@ name: Agent status
 #
 # Two clocks drive it. GitHub's schedule is best effort: on this repository it did not fire once in the first hours
 # after it was added, and GitHub may delay or drop scheduled runs and pauses them after 60 days without activity. So
-# the check also runs whenever the owner's account, which every agent posts through, acts: a comment, a review, a
-# push to one of its branches, an issue opened, labelled or closed. Those runs are throttled to one per 5 minutes.
-# A stranger's activity never triggers it. The status issue shows when it last ran; run it from the Actions tab to
-# refresh it by hand.
+# the check also runs whenever the owner's account, which every agent posts through, comments or opens, labels or
+# closes an issue. Those runs are throttled to one per 5 minutes. A stranger's activity never triggers it. The status
+# issue shows when it last ran; run it from the Actions tab to refresh it by hand.
+#
+# There is deliberately no pull_request or pull_request_review trigger: for those events GitHub runs the pull
+# request's own copy of this file, so a pull request could change what runs with a write token before anyone reviews
+# it. Every trigger below runs main's copy of this file against main's script.
+#
+# The comments this posts use GITHUB_TOKEN, and GitHub starts no workflow from GITHUB_TOKEN's own events, so it cannot
+# trigger itself. If it ever posts with another token (a personal one, or the owner's), every nudge would start a new
+# run: only the 5-minute throttle would then stop the loop, so add an explicit guard before making that change.
 on:
   schedule:
     - cron: "7,22,37,52 * * * *"
   workflow_dispatch:
   issue_comment:
     types: [created]
-  pull_request_review:
-    types: [submitted]
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review, closed]
   issues:
     types: [opened, labeled, closed]
 
@@ -29,23 +32,21 @@ permissions:
   issues: write
   pull-requests: write
 
-concurrency:
-  group: agent-status
-  cancel-in-progress: false
-
 jobs:
   status:
-    # Only the owner's account (every agent) and the clocks start a run. Pull requests from forks are excluded too:
-    # their token cannot write, so the run could only fail.
+    # Only the owner's account (every agent) and the clocks start a run. If the repository moves to an organisation,
+    # repository_owner becomes the organisation and these event runs stop: change it to the owner's login then.
     if: >-
       github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
-      (github.actor == github.repository_owner &&
-       (github.event_name != 'pull_request' ||
-        github.event.pull_request.head.repo.full_name == github.repository))
+      github.actor == github.repository_owner
+    # At job level, so a stranger's comment, whose job is skipped, never takes a waiting run's place in the queue.
+    concurrency:
+      group: agent-status
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      # Always main's code, whatever event started the run: a pull request must not run its own copy with write access.
+      # Main's code, whatever event started the run.
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.repository.default_branch }}
@@ -54,12 +55,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           EVENT: ${{ github.event_name }}
-        # On a pull_request event GitHub runs the pull request's copy of this file against main's script, so a new
-        # option is passed only if the script that was checked out already has it.
+        # The clocks always run; activity runs skip if the status page was updated in the last 5 minutes.
         run: |
-          set -- --nudge
-          if [ "$EVENT" != schedule ] && [ "$EVENT" != workflow_dispatch ] &&
-             python3 tools/agents/stalls.py --help | grep -q -- --min-gap; then
-            set -- "$@" --min-gap 5
+          if [ "$EVENT" = schedule ] || [ "$EVENT" = workflow_dispatch ]; then
+            python3 tools/agents/stalls.py --nudge
+          else
+            python3 tools/agents/stalls.py --nudge --min-gap 5
           fi
-          python3 tools/agents/stalls.py "$@"
