@@ -8,6 +8,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -17,9 +18,12 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.width
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.theme.ApturaTheme
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -126,6 +130,47 @@ class LibrarySidewaysTest {
         val button = composeRule.onNode(hasClickAction() and hasText("Allow access")).getUnclippedBoundsInRoot()
         // In view with room under it for the second choice ("Add a folder"), not at the very edge of a 360 dp window.
         assertTrue("\"Allow access\" ends at ${button.bottom}, too low in a 360dp window", button.bottom.value <= 300f)
+    }
+
+    private fun stateWithAShelf(): MediaLibraryUiState.Success {
+        val base = state()
+        val resumable = base.videos.take(2).map { card ->
+            card.copy(progressFraction = 0.2f, rawItem = card.rawItem.copy(playbackPositionMs = 600_000L))
+        }
+        return base.copy(continueWatching = resumable)
+    }
+
+    private fun shelfCardWidth(): Dp =
+        composeRule.onAllNodes(hasContentDescription("Resume", substring = true))[0].getUnclippedBoundsInRoot().width
+
+    // The shelf's cards are 248 dp wide, which makes a 140 dp tall picture: nearly half a sideways phone's screen,
+    // leaving the library under it out of sight. On a short window they are smaller.
+    @Config(qualifiers = "w891dp-h411dp-xhdpi")
+    @Test
+    fun theContinueWatchingCards_areSmaller_onASidewaysPhone() {
+        show(stateWithAShelf())
+        assertEquals(168f, shelfCardWidth().value, 0.5f)
+    }
+
+    @Config(qualifiers = "w740dp-h360dp-xhdpi")
+    @Test
+    fun theContinueWatchingCards_areSmaller_onASmallSidewaysPhone() {
+        show(stateWithAShelf())
+        assertEquals(168f, shelfCardWidth().value, 0.5f)
+    }
+
+    @Config(qualifiers = "w411dp-h891dp-xhdpi")
+    @Test
+    fun theContinueWatchingCards_keepTheirSize_onAnUprightPhone() {
+        show(stateWithAShelf())
+        assertEquals(248f, shelfCardWidth().value, 0.5f)
+    }
+
+    @Config(qualifiers = "w1280dp-h800dp-xhdpi")
+    @Test
+    fun theContinueWatchingCards_keepTheirSize_onATablet() {
+        show(stateWithAShelf())
+        assertEquals(248f, shelfCardWidth().value, 0.5f)
     }
 
     @Config(qualifiers = "w891dp-h411dp-xhdpi")

@@ -179,6 +179,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -391,6 +392,14 @@ fun PlayerScreen(
             .background(Color.Black)
     ) {
         val screenWidth = maxWidth
+        val transport = TransportSizing(screenWidth)
+        // The stats panel hangs from the top right and the transport buttons are centred, so in a landscape window that
+        // is too narrow for both side by side (every phone held sideways, and small tablets) the panel covered the
+        // forward and next buttons and swallowed their taps. While the panel is open there the buttons move to the
+        // left. In a tall window the panel is kept above the buttons instead.
+        val isLandscape = screenWidth > maxHeight
+        val statsDocked = uiState.isStatsOverlayVisible && !isPipMode && isLandscape &&
+            screenWidth / 2 + transport.clusterWidth / 2 + STATS_CLUSTER_GAP > screenWidth - STATS_OVERLAY_MAX_WIDTH - STATS_END_MARGIN
         // 1. Video Surface (Media3 PlayerView isolated from position ticks)
         PlayerVideoSurface(
             player = player,
@@ -1193,18 +1202,26 @@ fun PlayerScreen(
                 // Center Transport Cluster (⏮ Prev • ⏪10s • ⏯ • ⏩10s • ⏭ Next)
                 // Window-aware adaptive cluster sizing (R-B09, R-A10):
                 // Protects gesture seek zones from being swallowed on narrow split windows (< 340dp).
-                val isNarrowWindow = screenWidth < 340.dp
-                val isCompactCluster = screenWidth < 480.dp
-                val clusterSpacing = if (isNarrowWindow) 6.dp else if (isCompactCluster) 10.dp else 16.dp
-                val playSize = if (isNarrowWindow) 52.dp else if (isCompactCluster) 62.dp else 72.dp
-                val playIconSize = if (isNarrowWindow) 28.dp else if (isCompactCluster) 34.dp else 40.dp
-                val seekSize = if (isNarrowWindow) 48.dp else if (isCompactCluster) 48.dp else 52.dp
-                val seekIconSize = if (isNarrowWindow) 22.dp else if (isCompactCluster) 26.dp else 30.dp
-                val skipSize = 48.dp // never below the 48 dp touch-target minimum, even in narrow split windows
-                val skipIconSize = if (isNarrowWindow) 20.dp else if (isCompactCluster) 24.dp else 28.dp
+                val clusterSpacing = transport.spacing
+                val playSize = transport.play
+                val playIconSize = transport.playIcon
+                val seekSize = transport.seek
+                val seekIconSize = transport.seekIcon
+                val skipSize = transport.skip
+                val skipIconSize = transport.skipIcon
 
                 Row(
-                    modifier = Modifier.align(Alignment.Center),
+                    modifier = Modifier
+                        .align(if (statsDocked) Alignment.CenterStart else Alignment.Center)
+                        .then(
+                            if (statsDocked) {
+                                Modifier
+                                    .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Start))
+                                    .padding(start = STATS_DOCK_CLUSTER_MARGIN)
+                            } else {
+                                Modifier
+                            }
+                        ),
                     horizontalArrangement = Arrangement.spacedBy(clusterSpacing),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -1670,13 +1687,22 @@ fun PlayerScreen(
 
         // 5b. Playback Stats Studio HUD Overlay (SCR-010e, FR-DIAG-001)
         if (uiState.isStatsOverlayVisible && !isPipMode) {
+            // Never taller than the room it has (it scrolls inside): above the seek bar in a wide window, above the
+            // buttons in a tall one. When the buttons have moved aside it is never wider than the room to their right;
+            // a window too narrow even for that keeps a readable width rather than a sliver.
+            val dockedMaxWidth = (screenWidth - STATS_DOCK_CLUSTER_MARGIN - transport.clusterWidth - STATS_CLUSTER_GAP - STATS_END_MARGIN)
+                .coerceAtLeast(STATS_MIN_DOCKED_WIDTH)
+            val bottomClearance = if (isLandscape) STATS_BOTTOM_CLEARANCE else maxHeight / 2 + transport.play / 2 + STATS_CLUSTER_GAP
             StatsOverlay(
                 stats = uiState.playbackStats,
                 onCloseClick = onToggleStatsOverlay,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .windowInsetsPadding(WindowInsets.statusBars)
-                    .padding(top = 64.dp, end = 16.dp)
+                    .windowInsetsPadding(WindowInsets.navigationBars)
+                    .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.End))
+                    .padding(top = 64.dp, end = STATS_END_MARGIN, bottom = bottomClearance)
+                    .then(if (statsDocked) Modifier.widthIn(max = dockedMaxWidth) else Modifier)
             )
         }
 
@@ -2104,6 +2130,37 @@ private val TOP_BAR_INLINE_MIN_WIDTH = 560.dp
 
 // The audio-only panel's region (see the panel's call site): clear of the top bar above and of the centred transport
 // cluster below (half of its largest button, 36 dp, plus a gap).
+/** Where the transport buttons sit from the left edge while the stats panel is open on a short window. */
+private val STATS_DOCK_CLUSTER_MARGIN = 24.dp
+
+/** The seek bar and the bottom row of buttons (two 48 dp rows and their padding), which the stats panel must stay above. */
+private val STATS_BOTTOM_CLEARANCE = 120.dp
+
+private val STATS_MIN_DOCKED_WIDTH = 240.dp
+private val STATS_END_MARGIN = 16.dp
+
+/** The breathing room kept between the stats panel and the transport buttons. */
+private val STATS_CLUSTER_GAP = 12.dp
+
+/**
+ * The sizes of the centre transport buttons for a window this wide (R-B09, R-A10): smaller on a narrow split window so
+ * the gesture seek zones are not swallowed, but never below the 48 dp touch-target minimum.
+ */
+private class TransportSizing(width: Dp) {
+    private val narrow = width < 340.dp
+    private val compact = width < 480.dp
+    val spacing = if (narrow) 6.dp else if (compact) 10.dp else 16.dp
+    val play = if (narrow) 52.dp else if (compact) 62.dp else 72.dp
+    val playIcon = if (narrow) 28.dp else if (compact) 34.dp else 40.dp
+    val seek = if (narrow) 48.dp else if (compact) 48.dp else 52.dp
+    val seekIcon = if (narrow) 22.dp else if (compact) 26.dp else 30.dp
+    val skip = 48.dp
+    val skipIcon = if (narrow) 20.dp else if (compact) 24.dp else 28.dp
+
+    /** The whole row: previous, rewind, play, forward, next, and the gaps between them. */
+    val clusterWidth = play + seek * 2 + skip * 2 + spacing * 4
+}
+
 private val AUDIO_PANEL_TOP_CLEARANCE = 72.dp
 private val AUDIO_PANEL_CLUSTER_CLEARANCE = 44.dp
 

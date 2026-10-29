@@ -42,6 +42,11 @@ import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
 import java.util.Locale
 
+internal const val STATS_TAG = "stats_overlay"
+
+/** The widest the panel gets; the player uses it to tell whether the panel and the transport buttons fit side by side. */
+internal val STATS_OVERLAY_MAX_WIDTH = 380.dp
+
 /**
  * Playback stats studio HUD overlay (SCR-010e, FR-DIAG-001).
  * Features a compact 2-column live telemetry readout, selectable text
@@ -61,8 +66,8 @@ fun StatsOverlay(
         shape = RoundedCornerShape(16.dp),
         border = BorderStroke(1.dp, ApturaColors.AccentPrimary.copy(alpha = 0.35f)),
         modifier = modifier
-            .widthIn(min = 280.dp, max = 380.dp)
-            .testTag("stats_overlay")
+            .widthIn(min = 280.dp, max = STATS_OVERLAY_MAX_WIDTH)
+            .testTag(STATS_TAG)
     ) {
         Column(
             modifier = Modifier

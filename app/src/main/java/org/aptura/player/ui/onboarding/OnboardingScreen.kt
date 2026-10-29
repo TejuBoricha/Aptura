@@ -67,6 +67,7 @@ import kotlin.math.min
 import kotlinx.coroutines.launch
 import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
+import org.aptura.player.ui.components.windowSizeDp
 import org.aptura.player.ui.library.MediaLibraryUiState
 
 private const val PAGE_COUNT = 5

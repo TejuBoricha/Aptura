@@ -60,7 +60,11 @@ PR's Verification section and in CI, not here, so most pull requests never need 
 - **Short windows:** layouts depend on height as well as width. The collection index needs 600 dp of height, the rail
   drops its labels below 480 dp, and a phone held sideways (891 x 411 and 740 x 360 dp) gets the rail with the folder bar
   (DESIGN.md §4). `LandscapePhoneGalleryTest` renders the screens at both sizes; do not measure a size inside a
-  scrolling box (it is given unlimited height and never reads as short).
+  scrolling box (it is given unlimited height and never reads as short). Below 480 dp (`SHORT_WINDOW_HEIGHT`) Settings
+  has no large title and the Continue watching cards shrink; the stats panel and the transport buttons are kept apart
+  at every window shape (§5.3c).
+- **Cold start:** the launch colour follows day/night and the first frame waits for the saved theme (`FirstFrameGate`,
+  §4.3). Not checked on a real phone.
 - **Delete:** "Move to trash" is the primary action where the platform supports it; "Delete permanently" is a red
   outlined alternative.
 - **Merge queue is unavailable** (it needs an organization-owned repo). `main` has a ruleset (active since

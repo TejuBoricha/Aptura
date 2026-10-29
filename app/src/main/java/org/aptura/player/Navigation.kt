@@ -26,6 +26,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -150,6 +151,8 @@ internal fun StartDestinationGate(
 
 @Composable
 fun MainNavigation(
+    // Called once the saved theme is the one on screen (see FirstFrameGate).
+    onThemeApplied: () -> Unit = {},
     initialLaunchUri: String? = null,
     onLaunchUriConsumed: () -> Unit = {},
     isPipMode: Boolean = false,
@@ -168,6 +171,9 @@ fun MainNavigation(
     // player can be on screen together during a transition and each keeps its own colours.
     val themeSettings by settingsRepository.settingsFlow
         .collectAsStateWithLifecycle<ApturaSettings?>(initialValue = null)
+
+    // Runs after the composition that has the saved theme is applied, so the frame that follows is drawn with it.
+    if (themeSettings != null) SideEffect(onThemeApplied)
 
     ApturaTheme(
         themeMode = themeSettings?.themeMode ?: ThemeMode.SYSTEM,

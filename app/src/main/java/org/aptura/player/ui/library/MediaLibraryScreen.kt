@@ -39,6 +39,7 @@ import androidx.compose.ui.semantics.contentDescription
 import org.aptura.player.ui.components.ApturaMenuCaption
 import org.aptura.player.ui.components.ApturaTextButton
 import org.aptura.player.ui.components.NoticeBanner
+import org.aptura.player.ui.components.SHORT_WINDOW_HEIGHT
 import org.aptura.player.ui.components.SectionTitle
 import org.aptura.player.ui.components.SkeletonBlock
 import androidx.compose.animation.AnimatedContent
@@ -198,19 +199,14 @@ internal sealed interface LibraryActiveModal {
     ) : LibraryActiveModal
 }
 
-/**
- * Media Library Grid Screen (SCR-001, FR-LIB-001..015).
- * Built with Jetpack Compose following anti-slop taste guidelines and adaptive breakpoints.
- */
-/** Below this much height a screen is a phone held sideways, and its spacing is tightened. */
-private val SHORT_WINDOW_HEIGHT = 480.dp
-
 /** The collection index needs at least this much height: below it the rail is used, however wide the window is. */
 private val SIDEBAR_MIN_HEIGHT = 600.dp
 
-/** Below this much height the rail drops its text labels (its icons keep their names for TalkBack) so it fits. */
-private val RAIL_LABELS_MIN_HEIGHT = 480.dp
-
+/**
+ * Media Library Grid Screen (SCR-001, FR-LIB-001..015).
+ * Built with Jetpack Compose following anti-slop taste guidelines and adaptive breakpoints. In a short window
+ * ([SHORT_WINDOW_HEIGHT]) the rail drops its text labels, the shelf's cards shrink and the spacing tightens.
+ */
 @Composable
 fun MediaLibraryScreen(
     uiState: MediaLibraryUiState,
@@ -716,7 +712,7 @@ private fun MediaLibraryContentView(
         val tallEnoughForSidebar = maxHeight >= SIDEBAR_MIN_HEIGHT
         val canExpandSidebar = isWideScreen && containerWidth >= 700.dp && tallEnoughForSidebar && LocalDensity.current.fontScale < 1.5f
         val isExpandedSidebar = canExpandSidebar && sidebarExpanded
-        val shortWindow = maxHeight < RAIL_LABELS_MIN_HEIGHT
+        val shortWindow = maxHeight < SHORT_WINDOW_HEIGHT
 
         Row(modifier = Modifier.fillMaxSize()) {
             if (isWideScreen) {
@@ -1074,7 +1070,8 @@ private fun MediaLibraryContentView(
                             onSelect = { selectedUris = selectedUris + card.uri }
                         )
                     },
-                    modifier = paneModifier
+                    modifier = paneModifier,
+                    shortWindow = shortWindow
                 )
             }
             // At the bottom, where the thumb is and nothing is being read: it must not cover the folder's title.

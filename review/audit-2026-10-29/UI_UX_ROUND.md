@@ -53,8 +53,7 @@ the player.
 `VideoThumbnailTest`, the palette-read probes in the settings and guide pixel tests.
 
 **Not verified:** a physical device, and 60/90/120 Hz displays (every animation here is time-based, so it follows the
-display). **Not fixed:** a cold start where the pinned theme differs from the system theme can show one frame of the
-system theme before settings load; fixing it needs a synchronous settings read at start-up.
+display). The cold start where the pinned theme differs from the system theme, left open here, is fixed below ("The items left open").
 
 ## Point 1. Folder navigation, visibility and organisation
 
@@ -144,9 +143,37 @@ it is called empty; the skeleton appears only after 300 ms. `MediaLibraryViewMod
 screen, an instant skeleton) each failed the intended test. Which symbol the owner meant is inferred from the code, not
 seen on a device: if it is a different one, a screenshot will say.
 
-**Seen sideways and left as they are:** the stats panel covers the right half of the controls when both are showing (it
-is an opt-in diagnostic panel with a close button; moving it is the owner's call); Settings' large title takes a third of
-the height until scrolled; the Continue watching cards are large on a short screen, so the grid starts below the fold.
+**Seen sideways and first left open** (fixed below): the stats panel covers the right half of the controls when both are
+showing; Settings' large title takes a third of the height until scrolled; the Continue watching cards are large on a
+short screen, so the grid starts below the fold.
+
+## The items left open, fixed afterwards (the owner asked for them)
+
+Every one has a render from the code before and after at the same size and state, and a test that fails when the fix is
+removed (each mutation was run and caught).
+
+| Item | Cause | Fix | Tests |
+|---|---|---|---|
+| Search hint cut to "Search vi…" at 360 dp | The field shares a row with three 48 dp buttons, leaving about 80 dp for the hint, and the hint was one fixed string | The hint steps down to the longest wording that fits (full, "Search", nothing), measured with the real font | `LibrarySearchHintTest` (7) |
+| Stats panel over the transport buttons, the seek bar and the bottom row | The panel hangs from the top right at up to 380 dp; the buttons are centred; the panel had no height limit and consumed taps | Landscape windows too narrow for both: the buttons move left and the panel is width- and height-limited; portrait: the panel stops above the buttons. It scrolls inside | `StatsOverlayLayoutTest` (7 window shapes; every pressable control and the seek bar are checked against the panel) |
+| Settings' large title (a third of 360 dp) | A 64 dp gap and 36 sp title above the first setting, for a collapse effect a short screen has no room for | Below 480 dp there is no large title; the compact bar is always shown and is the heading | `SettingsShortWindowTest` |
+| Continue watching cards large on a short screen | 248 dp wide cards are 140 dp tall pictures | 168 dp cards below 480 dp | `LibrarySidewaysTest` (sideways, small sideways, upright, tablet) |
+| Cold-start theme flash | The launch colour was always dark whatever the phone's mode; and the first frame was drawn in the system theme before the saved theme was read | The launch colour follows day/night; the first frame is held until the saved theme is composed, 700 ms at most | `FirstFrameGateTest` (6), `LaunchBackgroundTest` (3) |
+
+Renders at the same sizes before and after are byte-identical where the screen has room (the 411 dp hint, an upright
+Settings, an upright shelf, the stats panel on a 1280 x 800 tablet), which is the evidence that nothing else moved. While
+testing the sideways stats panel the upright one was found to touch the play button too; it is fixed and tested.
+
+**Not verified:** the cold-start change on a real phone, and the system's own launch screen (it draws an app icon over the
+launch colour, which the renders do not include). The first-frame hold is tested as logic and as a view listener, and the
+theme is tested at the resource level; the activity wiring itself is not under test.
+
+**Not done, and why:** folders with the same name in different places still merge. `MediaStore` groups by the folder's
+name (`BUCKET_DISPLAY_NAME`), and that name is stored as the folder key in Room (`folderPath`) and used by the folder bar,
+the sidebar, counts and the saved folder choice. Telling two "Camera" folders apart means a new key, a Room migration of
+every existing library, and a decision on what the person sees (the parent folder in the name? the volume?). That is a
+schema change that AGENTS.md reserves for one open pull request at a time and an independent review, so it is a separate
+piece of work.
 
 ## Verification
 
@@ -160,12 +187,11 @@ the height until scrolled; the Continue watching cards are large on a short scre
 ## Known limitations and remaining issues
 
 1. Not verified on a physical device or at 60/90/120 Hz (on hold at the owner's request).
-2. Cold-start theme flash when the pinned theme differs from the system theme (above).
-3. **At 360 dp wide the search field's hint truncates** ("Search vi…") because the refresh and settings buttons share the
-   row. It is the real library header, seen when the guide's picture was first laid out at 360 dp. Not changed: a copy or
-   layout decision for the owner (shorter hint, or move Refresh into the View sheet).
-4. Folders with the same name in different places merge into one bucket (`MediaStore` groups by bucket name); older
-   behaviour, not changed.
+2. The cold-start change is not checked on a real phone (above).
+3. On the smallest sideways window (740 x 360 dp) the stats panel shows its first rows and scrolls for the rest, because
+   the room above the seek bar is about 175 dp.
+4. Folders with the same name in different places merge into one bucket (`MediaStore` groups by bucket name). Fixing it
+   needs a Room migration and a decision on what is shown (see above); not started.
 5. In landscape the guide is still one column that scrolls; a two-column layout (picture beside the text) would suit it
    better and was left out as decoration without a measured need.
 6. The replay shows the person's own video titles and frames on the library page. It is on-device only and nothing is

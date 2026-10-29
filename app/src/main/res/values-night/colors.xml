@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Matches ApturaPalettes.dark().surfaceBase; a test holds the two together. -->
+    <color name="aptura_surface_base">#0D0E11</color>
+</resources>

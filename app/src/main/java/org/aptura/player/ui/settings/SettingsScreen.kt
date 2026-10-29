@@ -100,6 +100,7 @@ import org.aptura.player.ui.components.ApturaDialog
 import org.aptura.player.ui.components.ApturaTone
 import org.aptura.player.theme.ThemeMode
 import org.aptura.player.ui.components.SpeedRail
+import org.aptura.player.ui.components.isShortWindowHeight
 import org.aptura.player.ui.library.MediaFormatters
 
 private val ResizeModeChoices = listOf("Fit", "Fill", "Zoom", "16:9", "4:3")
@@ -216,12 +217,19 @@ fun SettingsScreen(
 
     // The compact title bar fades in as the large title scrolls away. The scroll position is read inside the
     // graphicsLayer lambdas, so scrolling redraws the bar but never recomposes the screen.
+    // On a short window (a phone held sideways) the large title would take a third of the screen above the first
+    // setting, so there is no large title: the compact bar is simply always there, and the list starts under it.
+    val shortWindow = isShortWindowHeight()
     val listState = rememberLazyListState()
     val collapseTravelPx = with(LocalDensity.current) { TITLE_COLLAPSE_DP.dp.toPx() }
-    val collapse = remember(listState, collapseTravelPx) {
+    val collapse = remember(listState, collapseTravelPx, shortWindow) {
         {
-            val scrolled = if (listState.firstVisibleItemIndex == 0) listState.firstVisibleItemScrollOffset.toFloat() else Float.MAX_VALUE
-            (scrolled / collapseTravelPx).coerceIn(0f, 1f)
+            if (shortWindow) {
+                1f
+            } else {
+                val scrolled = if (listState.firstVisibleItemIndex == 0) listState.firstVisibleItemScrollOffset.toFloat() else Float.MAX_VALUE
+                (scrolled / collapseTravelPx).coerceIn(0f, 1f)
+            }
         }
     }
 
@@ -243,20 +251,22 @@ fun SettingsScreen(
             contentPadding = PaddingValues(
                 start = 16.dp,
                 end = 16.dp,
-                top = statusTop,
+                top = if (shortWindow) statusTop + SETTINGS_TOP_BAR_HEIGHT_DP.dp + 8.dp else statusTop,
                 bottom = navigationBottom + 32.dp
             ),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            item(key = "title", contentType = "title") {
-                Text(
-                    text = "Settings",
-                    style = ApturaTypography.displayLarge.copy(fontSize = 36.sp, lineHeight = 42.sp),
-                    color = ApturaColors.TextHighEmphasis,
-                    modifier = Modifier
-                        .padding(top = 64.dp, start = 4.dp)
-                        .semantics { heading() }
-                )
+            if (!shortWindow) {
+                item(key = "title", contentType = "title") {
+                    Text(
+                        text = "Settings",
+                        style = ApturaTypography.displayLarge.copy(fontSize = 36.sp, lineHeight = 42.sp),
+                        color = ApturaColors.TextHighEmphasis,
+                        modifier = Modifier
+                            .padding(top = 64.dp, start = 4.dp)
+                            .semantics { heading() }
+                    )
+                }
             }
 
             item(key = "stats", contentType = "panel") {
@@ -604,8 +614,9 @@ fun SettingsScreen(
                 modifier = Modifier
                     .align(Alignment.Center)
                     .graphicsLayer { alpha = collapse() }
-                    // The large title is the heading; this one only appears visually, so TalkBack skips it.
-                    .clearAndSetSemantics { }
+                    // Normally the large title is the heading and this one only appears visually, so TalkBack skips it.
+                    // With no large title (a short window) this is the heading.
+                    .then(if (shortWindow) Modifier.semantics { heading() } else Modifier.clearAndSetSemantics { })
             )
         }
     }

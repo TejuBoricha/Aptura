@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -68,6 +69,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
@@ -117,15 +119,7 @@ internal fun LibraryHeader(
         OutlinedTextField(
             value = query,
             onValueChange = onQueryChange,
-            placeholder = {
-                Text(
-                    text = if (scopeName != null) "Search $scopeName" else "Search videos",
-                    style = ApturaTypography.bodyLarge,
-                    color = ApturaColors.TextLowEmphasis,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            },
+            placeholder = { SearchHint(if (scopeName != null) "Search $scopeName" else "Search videos") },
             leadingIcon = {
                 Icon(
                     imageVector = Icons.Default.Search,
@@ -197,6 +191,34 @@ internal fun LibraryHeader(
                     tint = ApturaColors.TextMediumEmphasis
                 )
             }
+        }
+    }
+}
+
+internal const val SEARCH_HINT_SHORT = "Search"
+
+/**
+ * The search field's hint. On a narrow phone the field shares its row with three buttons, and "Search videos" or
+ * "Search Documentaries" used to be cut to "Search vi…". A cut word reads as a fault, so the hint steps down to the
+ * longest wording that fits whole: the full text, then just "Search", then nothing (the magnifier beside it already says
+ * it). The measurement uses the real font size, so a larger system font is handled too.
+ */
+@Composable
+private fun SearchHint(full: String) {
+    val measurer = rememberTextMeasurer()
+    val style = ApturaTypography.bodyLarge
+    BoxWithConstraints {
+        fun fits(text: String) =
+            !constraints.hasBoundedWidth || measurer.measure(text, style, maxLines = 1, softWrap = false).size.width <= constraints.maxWidth
+        val shown = listOf(full, SEARCH_HINT_SHORT).firstOrNull(::fits)
+        if (shown != null) {
+            Text(
+                text = shown,
+                style = style,
+                color = ApturaColors.TextLowEmphasis,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
@@ -309,7 +331,8 @@ internal fun LibraryVideoPane(
     onToggleLayout: () -> Unit,
     isSelected: (VideoCardUiModel) -> Boolean,
     callbacksFor: (VideoCardUiModel) -> VideoCardCallbacks,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    shortWindow: Boolean = false
 ) {
     val fontScale = LocalDensity.current.fontScale
     val isList = prefs.layout == LibraryLayout.LIST
@@ -346,7 +369,8 @@ internal fun LibraryVideoPane(
                 ContinueWatchingRow(
                     cards = state.continueWatching,
                     onResume = onResumeContinueWatching,
-                    modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
+                    modifier = Modifier.padding(top = 4.dp, bottom = if (shortWindow) 4.dp else 12.dp),
+                    compact = shortWindow
                 )
             }
         }

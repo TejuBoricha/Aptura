@@ -19,16 +19,15 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTheme
 import org.aptura.player.theme.LocalApturaAccent
 import org.aptura.player.theme.ThemeMode
+import org.aptura.player.ui.components.windowSizeDp
 
 /*
  * Helpers shared by the guide's pages.
@@ -86,14 +85,6 @@ internal fun rememberGuideMotionEnabled(): Boolean {
  */
 @Composable
 internal fun isShortWindow(): Boolean = windowSizeDp().height < 520.dp
-
-/** The size of the window the guide is in, which in split-screen or a freeform window is not the size of the display. */
-@Composable
-internal fun windowSizeDp(): DpSize {
-    val size = LocalWindowInfo.current.containerSize
-    val density = LocalDensity.current
-    return with(density) { DpSize(size.width.toDp(), size.height.toDp()) }
-}
 
 /**
  * The player and its controls are always dark, whatever the app theme is. The guide's player scenes are drawn in the
