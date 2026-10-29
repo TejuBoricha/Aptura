@@ -675,13 +675,11 @@ private fun railItemColors(selected: Boolean) = NavigationRailItemDefaults.color
     unselectedTextColor = ApturaColors.TextMediumEmphasis
 )
 
-/** Paths arrive as SAF tree identifiers; show the last segment, not a wall of percent-encoded path. */
-internal fun friendlyFolderName(folder: String): String =
-    if (folder.contains('/')) {
-        folder.trimEnd('/').substringAfterLast('/').ifBlank { "Internal Storage" }
-    } else {
-        folder.ifBlank { "Internal Storage" }
-    }
+/** A folder's own name: the last segment of its key, or the storage's name for a storage's top level. */
+internal fun friendlyFolderName(folder: String): String {
+    val place = folderPlace(folder)
+    return place.segments.lastOrNull() ?: place.storage ?: "Internal Storage"
+}
 
 /**
  * Scrolls just far enough to show the item at [index], with some context around it, and not at all when it is already

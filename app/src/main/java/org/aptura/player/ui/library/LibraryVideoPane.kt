@@ -13,6 +13,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -80,7 +89,8 @@ import org.aptura.player.domain.model.LibraryLayout
 import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
 import org.aptura.player.ui.components.SectionTitle
-import org.aptura.player.ui.settings.SegmentedPicker
+import org.aptura.player.ui.components.ChoiceCard
+import org.aptura.player.ui.components.TonalSegmentedPicker
 import org.aptura.player.ui.settings.SectionLabel
 
 /*
@@ -455,7 +465,7 @@ internal fun LibraryViewSheetContent(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
             .padding(bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
+        verticalArrangement = Arrangement.spacedBy(22.dp)
     ) {
         Text(
             text = "View",
@@ -464,15 +474,22 @@ internal fun LibraryViewSheetContent(
         )
 
         ViewSection("Layout") {
-            SegmentedPicker(
-                options = listOf("Grid", "List"),
-                selectedIndex = prefs.layout.ordinal,
-                onSelect = { onPrefsChange(prefs.copy(layout = LibraryLayout.entries[it])) },
-                label = "Layout"
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth().selectableGroup().semantics { contentDescription = "Layout" },
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                LibraryLayout.entries.forEach { layout ->
+                    ChoiceCard(
+                        label = if (layout == LibraryLayout.GRID) "Grid" else "List",
+                        selected = prefs.layout == layout,
+                        onClick = { onPrefsChange(prefs.copy(layout = layout)) },
+                        modifier = Modifier.weight(1f)
+                    ) { tint -> LayoutGlyph(layout, tint) }
+                }
+            }
         }
         ViewSection("Size") {
-            SegmentedPicker(
+            TonalSegmentedPicker(
                 options = listOf("Compact", "Comfortable", "Large"),
                 selectedIndex = prefs.density.ordinal,
                 onSelect = { onPrefsChange(prefs.copy(density = LibraryDensity.entries[it])) },
@@ -480,7 +497,7 @@ internal fun LibraryViewSheetContent(
             )
         }
         ViewSection("Details") {
-            SegmentedPicker(
+            TonalSegmentedPicker(
                 options = listOf("Title only", "Standard", "Detailed"),
                 selectedIndex = prefs.detail.ordinal,
                 onSelect = { onPrefsChange(prefs.copy(detail = LibraryDetail.entries[it])) },
@@ -494,11 +511,11 @@ internal fun LibraryViewSheetContent(
                 },
                 style = ApturaTypography.bodySmall,
                 color = ApturaColors.TextMediumEmphasis,
-                modifier = Modifier.padding(top = 6.dp)
+                modifier = Modifier.padding(start = 4.dp, top = 8.dp)
             )
         }
         ViewSection("Sort by") {
-            Column {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 LibrarySortOrder.entries.forEach { order ->
                     SortOptionRow(order.displayName, selected = order == sortOrder) { onSortChange(order) }
                 }
@@ -511,25 +528,31 @@ internal fun LibraryViewSheetContent(
 private fun ViewSection(title: String, content: @Composable () -> Unit) {
     Column {
         SectionLabel(title)
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(10.dp))
         content()
     }
 }
 
 @Composable
 private fun SortOptionRow(label: String, selected: Boolean, onClick: () -> Unit) {
+    // The chosen row takes the same tint as the chosen chip and card, so the sheet reads as one set of choices.
+    val shape = RoundedCornerShape(12.dp)
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(48.dp)
+            .clip(shape)
+            .background(if (selected) ApturaColors.AccentPrimary.copy(alpha = 0.12f) else Color.Transparent)
             .clickable(onClick = onClick, role = Role.RadioButton)
-            .semantics { this.selected = selected },
+            .semantics { this.selected = selected }
+            .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = label,
             style = ApturaTypography.bodyLarge,
             color = if (selected) ApturaColors.AccentPrimary else ApturaColors.TextHighEmphasis,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
             modifier = Modifier.weight(1f)
         )
         if (selected) {
@@ -539,6 +562,40 @@ private fun SortOptionRow(label: String, selected: Boolean, onClick: () -> Unit)
                 tint = ApturaColors.AccentPrimary,
                 modifier = Modifier.size(20.dp)
             )
+        }
+    }
+}
+
+/** The two layouts, drawn small: four tiles in a grid, or three rows of a picture and its name. */
+@Composable
+private fun LayoutGlyph(layout: LibraryLayout, tint: Color) {
+    Canvas(Modifier.fillMaxSize()) {
+        val gap = 5.dp.toPx()
+        val corner = CornerRadius(4.dp.toPx())
+        if (layout == LibraryLayout.GRID) {
+            val tileWidth = (size.width - gap) / 2
+            val tileHeight = (size.height - gap) / 2
+            for (row in 0..1) for (column in 0..1) {
+                drawRoundRect(
+                    color = tint.copy(alpha = 0.85f),
+                    topLeft = Offset(column * (tileWidth + gap), row * (tileHeight + gap)),
+                    size = Size(tileWidth, tileHeight),
+                    cornerRadius = corner
+                )
+            }
+        } else {
+            val rowHeight = (size.height - gap * 2) / 3
+            val pictureWidth = rowHeight * 1.5f
+            for (row in 0..2) {
+                val top = row * (rowHeight + gap)
+                drawRoundRect(tint.copy(alpha = 0.85f), Offset(0f, top), Size(pictureWidth, rowHeight), corner)
+                drawRoundRect(
+                    color = tint.copy(alpha = 0.5f),
+                    topLeft = Offset(pictureWidth + gap, top + rowHeight * 0.3f),
+                    size = Size(size.width - pictureWidth - gap, rowHeight * 0.4f),
+                    cornerRadius = CornerRadius(2.dp.toPx())
+                )
+            }
         }
     }
 }

@@ -63,6 +63,9 @@ PR's Verification section and in CI, not here, so most pull requests never need 
   scrolling box (it is given unlimited height and never reads as short). Below 480 dp (`SHORT_WINDOW_HEIGHT`) Settings
   has no large title and the Continue watching cards shrink; the stats panel and the transport buttons are kept apart
   at every window shape (§5.3c).
+- **Folder identity:** the folder key (`folderPath` in Room) is the folder's path on its storage volume, from `MediaFolderKey`;
+  labels add the parent and then the storage only when two names collide (`folderLabels`). No schema change: a rescan
+  rewrites the value. A SAF folder the person added keeps its own relative key. DESIGN.md §4.2.
 - **Cold start:** the launch colour follows day/night and the first frame waits for the saved theme (`FirstFrameGate`,
   §4.3). Not checked on a real phone.
 - **Delete:** "Move to trash" is the primary action where the platform supports it; "Delete permanently" is a red

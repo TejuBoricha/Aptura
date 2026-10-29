@@ -158,6 +158,8 @@ removed (each mutation was run and caught).
 | Stats panel over the transport buttons, the seek bar and the bottom row | The panel hangs from the top right at up to 380 dp; the buttons are centred; the panel had no height limit and consumed taps | Landscape windows too narrow for both: the buttons move left and the panel is width- and height-limited; portrait: the panel stops above the buttons. It scrolls inside | `StatsOverlayLayoutTest` (7 window shapes; every pressable control and the seek bar are checked against the panel) |
 | Settings' large title (a third of 360 dp) | A 64 dp gap and 36 sp title above the first setting, for a collapse effect a short screen has no room for | Below 480 dp there is no large title; the compact bar is always shown and is the heading | `SettingsShortWindowTest` |
 | Continue watching cards large on a short screen | 248 dp wide cards are 140 dp tall pictures | 168 dp cards below 480 dp | `LibrarySidewaysTest` (sideways, small sideways, upright, tablet) |
+| Same-named folders merged | `MediaStoreScanner` stored the bucket name (the folder's own name) as the folder key | The key is the folder's path on its volume (`RELATIVE_PATH` + `VOLUME_NAME` on Android 10+, the file path before); labels add the parent, then the storage, only on a collision; search matches the shown name. No schema change: the startup scan rewrites the value and keeps user data | `MediaFolderKeyTest`, `MediaStoreScannerFoldersTest` (through the real scanner and a fake provider), `FolderLabelsTest`, `MediaLibraryViewModelTest` |
+| View options toggles looked heavy (the owner's report) | Three identical stacked bars with the chosen option filled with the full accent, and a Grid/List choice that was only words | Picture cards for Layout, tonal switches for Size and Details, tinted sort row; the guide's switch matches | `ChoiceControlsTest` (radio semantics, 48 dp targets), the existing sheet, guide and touch-target tests |
 | Cold-start theme flash | The launch colour was always dark whatever the phone's mode; and the first frame was drawn in the system theme before the saved theme was read | The launch colour follows day/night; the first frame is held until the saved theme is composed, 700 ms at most | `FirstFrameGateTest` (6), `LaunchBackgroundTest` (3) |
 
 Renders at the same sizes before and after are byte-identical where the screen has room (the 411 dp hint, an upright
@@ -168,12 +170,7 @@ testing the sideways stats panel the upright one was found to touch the play but
 launch colour, which the renders do not include). The first-frame hold is tested as logic and as a view listener, and the
 theme is tested at the resource level; the activity wiring itself is not under test.
 
-**Not done, and why:** folders with the same name in different places still merge. `MediaStore` groups by the folder's
-name (`BUCKET_DISPLAY_NAME`), and that name is stored as the folder key in Room (`folderPath`) and used by the folder bar,
-the sidebar, counts and the saved folder choice. Telling two "Camera" folders apart means a new key, a Room migration of
-every existing library, and a decision on what the person sees (the parent folder in the name? the volume?). That is a
-schema change that AGENTS.md reserves for one open pull request at a time and an independent review, so it is a separate
-piece of work.
+**Decision on same-named folders (the owner asked for it to be taken on industry practice):** the library now identifies a folder by its volume and path, the way Photos, Files and the common gallery apps do (their `BUCKET_ID` is a hash of the directory), using the documented `RELATIVE_PATH` and `VOLUME_NAME` columns and the file path only before Android 10. Because the folder key is already a text column that the UI treats as a path (a folder the person added is one), this needed no Room schema change and no migration: the startup scan runs on every launch and rewrites the key on each video while keeping progress, per-video choices and hidden state. Not verified on a device with an SD card; the Android 10+ path is tested through the real scanner with a fake provider, and the older path through the key builder and the projection, because the Android 9 simulator is not available offline.
 
 ## Verification
 
@@ -190,8 +187,7 @@ piece of work.
 2. The cold-start change is not checked on a real phone (above).
 3. On the smallest sideways window (740 x 360 dp) the stats panel shows its first rows and scrolls for the rest, because
    the room above the seek bar is about 175 dp.
-4. Folders with the same name in different places merge into one bucket (`MediaStore` groups by bucket name). Fixing it
-   needs a Room migration and a decision on what is shown (see above); not started.
+4. Same-named folders: fixed (above). Until the first scan after the update finishes, a video can still sit under its old folder name for a moment.
 5. In landscape the guide is still one column that scrolls; a two-column layout (picture beside the text) would suit it
    better and was left out as decoration without a measured need.
 6. The replay shows the person's own video titles and frames on the library page. It is on-device only and nothing is

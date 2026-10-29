@@ -80,7 +80,7 @@ import org.aptura.player.ui.player.DoubleTapSeekRippleOverlay
 import org.aptura.player.ui.player.HorizontalSwipeSeekHud
 import org.aptura.player.ui.player.SeekTapSide
 import org.aptura.player.ui.player.VerticalLevelGaugeHud
-import org.aptura.player.ui.settings.SegmentedPicker
+import org.aptura.player.ui.components.TonalSegmentedPicker
 
 /*
  * The guide's demonstrations. Each one is built from the app's own composables, so the guide cannot describe a screen
@@ -107,7 +107,7 @@ internal fun LibraryDemo(modifier: Modifier = Modifier, library: GuideLibrary = 
     val labels = remember(library) { folderLabels(library.folders) }
 
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        SegmentedPicker(
+        TonalSegmentedPicker(
             options = listOf("Grid", "List"),
             selectedIndex = if (layout == LibraryLayout.GRID) 0 else 1,
             onSelect = { layout = if (it == 0) LibraryLayout.GRID else LibraryLayout.LIST },

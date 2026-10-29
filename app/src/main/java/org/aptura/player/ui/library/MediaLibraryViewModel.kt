@@ -133,7 +133,7 @@ class MediaLibraryViewModel(
                 val trimmedQuery = filter.query.trim()
                 filtered = filtered.filter { item ->
                     item.title.contains(trimmedQuery, ignoreCase = true) ||
-                        item.folderPath.contains(trimmedQuery, ignoreCase = true)
+                        friendlyFolderName(item.folderPath).contains(trimmedQuery, ignoreCase = true)
                 }
             }
 
@@ -301,11 +301,7 @@ class MediaLibraryViewModel(
 
     private fun DomainMediaItem.toCardUiModel(): VideoCardUiModel {
         val progress = MediaFormatters.calculateProgressFraction(playbackPositionMs, durationMs)
-        val folderDisplay = if (folderPath.contains('/')) {
-            folderPath.trimEnd('/').substringAfterLast('/').ifBlank { "Internal Storage" }
-        } else {
-            folderPath.ifBlank { "Internal Storage" }
-        }
+        val folderDisplay = friendlyFolderName(folderPath)
 
         return VideoCardUiModel(
             uri = uri,

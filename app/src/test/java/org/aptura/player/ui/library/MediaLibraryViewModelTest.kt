@@ -5,6 +5,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.aptura.player.domain.model.DomainMediaItem
@@ -402,6 +403,73 @@ class MediaLibraryViewModelTest {
         }
     }
 
+
+    // ---- folders that share a name ----------------------------------------------------------------------------------------
+
+    private val phoneCameraClip = item1.copy(uri = "content://media/10", title = "Birthday", folderPath = "/storage/emulated/0/DCIM/Camera")
+    private val cardCameraClip = item2.copy(uri = "content://media/11", title = "Holiday", folderPath = "/storage/1A2B-3C4D/DCIM/Camera")
+
+    @Test
+    fun twoFoldersCalledCamera_areTwoFolders_eachWithItsOwnVideos() = runTest(testDispatcher) {
+        val repo = FakeMediaRepository()
+        repo.videosFlow.value = listOf(phoneCameraClip, cardCameraClip)
+        repo.foldersFlow.value = listOf(phoneCameraClip.folderPath, cardCameraClip.folderPath)
+        val viewModel = MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 0L)
+
+        viewModel.uiState.test {
+            assertEquals(MediaLibraryUiState.Loading, awaitItem())
+            val all = awaitItem() as MediaLibraryUiState.Success
+            assertEquals(2, all.folders.size)
+            assertEquals(mapOf(phoneCameraClip.folderPath to 1, cardCameraClip.folderPath to 1), all.folderCounts)
+
+            viewModel.onFolderSelected(cardCameraClip.folderPath)
+            val card = awaitItem() as MediaLibraryUiState.Success
+            assertEquals(listOf("Holiday"), card.videos.map { it.title })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun searching_matchesTheFolderNameYouSee_notThePathItIsStoredUnder() = runTest(testDispatcher) {
+        val repo = FakeMediaRepository()
+        repo.videosFlow.value = listOf(phoneCameraClip, cardCameraClip)
+        val viewModel = MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 0L)
+
+        viewModel.uiState.test {
+            assertEquals(MediaLibraryUiState.Loading, awaitItem())
+            awaitItem()
+
+            // "storage" is in every path and in no folder's name: it must not match everything.
+            viewModel.onSearchQueryChanged("storage")
+            awaitState("no results for a word that is only in the storage path") { it is MediaLibraryUiState.Empty && it.isFiltered }
+
+            viewModel.onSearchQueryChanged("Camera")
+            awaitState("both videos, found by the name of their folder") {
+                it is MediaLibraryUiState.Success && it.searchQuery == "Camera" && it.videos.size == 2
+            }
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    /**
+     * The results of a search are computed off the test scheduler (the pipeline's debounce runs on the wall clock), so the
+     * state is waited for rather than read: items are taken until one fits, and the test fails naming the last one seen.
+     */
+    private suspend fun app.cash.turbine.ReceiveTurbine<MediaLibraryUiState>.awaitState(
+        expected: String,
+        matches: (MediaLibraryUiState) -> Boolean
+    ) {
+        var last: MediaLibraryUiState? = null
+        try {
+            while (true) {
+                val item = awaitItem()
+                last = item
+                if (matches(item)) return
+            }
+        } catch (error: AssertionError) {
+            throw AssertionError("expected $expected; the last state was $last", error)
+        }
+    }
 
     @Test
     fun mediaFormatters_formatDurationAccurately() {

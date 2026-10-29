@@ -33,4 +33,51 @@ class FolderLabelsTest {
     fun aTrailingSlashDoesNotChangeTheName() {
         assertEquals("Movies", folderLabels(listOf("storage/Movies/")).getValue("storage/Movies/"))
     }
+
+    // ---- keys from the device's media library are absolute paths on a storage volume -------------------------------------
+
+    private val phoneCamera = "/storage/emulated/0/DCIM/Camera"
+    private val cardCamera = "/storage/1A2B-3C4D/DCIM/Camera"
+
+    @Test
+    fun theSameNameOnThePhoneAndOnAnSdCard_isToldApartByTheStorage() {
+        val labels = folderLabels(listOf(phoneCamera, cardCamera))
+
+        assertEquals("Camera (DCIM, Internal)", labels.getValue(phoneCamera))
+        assertEquals("Camera (DCIM, SD card)", labels.getValue(cardCamera))
+    }
+
+    @Test
+    fun aTopLevelFolderOnEachStorage_isToldApartByTheStorageToo() {
+        val labels = folderLabels(listOf("/storage/emulated/0/Download", "/storage/1A2B-3C4D/Download"))
+
+        assertEquals("Download (Internal)", labels.getValue("/storage/emulated/0/Download"))
+        assertEquals("Download (SD card)", labels.getValue("/storage/1A2B-3C4D/Download"))
+    }
+
+    @Test
+    fun aNameThatIsNotShared_isJustTheName() {
+        val labels = folderLabels(listOf(phoneCamera, "/storage/emulated/0/Movies", "/storage/1A2B-3C4D/Music videos"))
+
+        assertEquals("Camera", labels.getValue(phoneCamera))
+        assertEquals("Movies", labels.getValue("/storage/emulated/0/Movies"))
+        assertEquals("Music videos", labels.getValue("/storage/1A2B-3C4D/Music videos"))
+    }
+
+    @Test
+    fun theTopOfAStorage_isNamedAfterTheStorage_notAfterAPathSegment() {
+        assertEquals("Internal Storage", friendlyFolderName("/storage/emulated/0"))
+        assertEquals("SD card", friendlyFolderName("/storage/1A2B-3C4D"))
+        assertEquals("Camera", friendlyFolderName("/storage/emulated/0/DCIM/Camera"))
+    }
+
+    @Test
+    fun noTwoFoldersEverShareALabel() {
+        val folders = listOf(
+            phoneCamera, cardCamera, "/storage/5E6F-7A8B/DCIM/Camera", "/storage/emulated/0/Movies/Camera",
+            "/storage/emulated/0/Download", "/storage/1A2B-3C4D/Download", "Season 1", "Show/Season 1", "Other/Season 1"
+        )
+        val labels = folderLabels(folders)
+        assertEquals("every label is different: $labels", folders.size, labels.values.toSet().size)
+    }
 }
