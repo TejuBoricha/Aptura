@@ -239,6 +239,35 @@ Severity: **H** high, **M** medium, **L** low. Level: tech, arch (architecture) 
   co-author alone fails still passes.
 - **Status:** fixed.
 
+## Verification round: defects the fixes introduced
+
+The auditor re-ran every original repro against the fixes, and all of them now behave as intended. It found nine
+new defects in the fixes themselves and returned **request changes**. All nine are fixed, each with a regression
+test, and each fix is mutation-tested.
+
+| ID | Sev. | Defect | Fix | Test |
+|---|---|---|---|---|
+| N1 | H | A "Needs you" entry carrying an age ("on hold for 72 h") looked new every run, so it would have emailed the owner about 96 times a day | Each entry has a stable key hidden in the page, so it notifies once | `test_a_needs_you_entry_notifies_the_owner_once_even_as_its_age_changes` |
+| N2 | H | The cheat sheet's own bare `Working:`/`Pausing:` lines, and sign-offs, were flagged as unreadable, the flag never cleared, and after a day it escalated to the owner | A note signed with `From:` and no `To:` is fine; an old unreadable message clears once its sender posts again (unsigned: after an hour, once anyone has); unreadable messages never escalate | `test_notes_signed_without_an_addressee_are_fine`, `test_an_old_unreadable_message_clears_…` |
+| N3 | M | An inline fence (```` ```x``` ````), a nested fence or an unclosed fence could swallow the signature | Fences close only on a matching fence (same character, at least the same length); inline fences are content; an unclosed fence falls back to reading without fences | `test_fences_close_only_on_a_matching_fence_…` |
+| N4 | L | Bold stripping removed `**` and `__` everywhere (`__main__` became `main`) | Only around a leading label | `test_bold_is_undone_only_around_a_leading_label` |
+| N5 | M | People named Devin, Cursor, Grok, Kimi or Llama, or anyone at `@openai.com`, counted as AI attribution | Only a tool's name as the first word (`Claude`, `Copilot`, `Cursor Agent`, …) or a tool's own no-reply address counts | `test_a_tools_co_authored_by_line_passes_with_a_warning` (6 human names fail) |
+| N6 | M | A task whose PR merged (`Refs: #N` keeps the issue open) was reported as claimed without a PR | Recently closed PRs count as links | `test_a_task_whose_pull_request_merged_is_linked` |
+| N7 | L-M | An unsigned comment (the owner writes plain ones) did not count as activity on a quiet PR | Any trusted comment except the bot's counts | `test_an_unsigned_comment_counts_as_activity` |
+| N8 | L | The drift tests matched prose anywhere in the docs and missed the `Working:` cap; the docs still said 24 hours there, which was stale | The drift tests read the rows of the deadline table and the marker table; the stale text was corrected | `test_the_documented_deadlines_and_limits_are_the_codes` |
+| N9 | L | An override recorded in a review body disappeared after the merge | Reviews are read for closed items while their follow-up is pending | covered by the fetch tests |
+
+On the author's deviations from the original recommendations, the auditor judged:
+- **Sound:**
+  - the 8-hour `Working:` cap;
+  - the API budget criterion of 40 requests (a test now also covers an old open PR);
+  - the rebase-based clearing of hot-file blocks, for a blocker that merges.
+- **Weak, now changed:**
+  - **`No reply needed` anywhere:** it now counts at the start of a line or as its own sentence, not inside one.
+  - **A blocker that closes without merging:** the blocked PR is not behind `main`, so nothing forces a push. The
+    error message says to push again, and the 4-hour quiet-PR rule nudges if nobody does.
+- **Accepted as interim:** A1's detective listing. The separate account remains the owner's decision.
+
 ## Owner decisions and accepted limits
 
 - **A1, a separate agent account:** recommended. It is the only way to make the owner's decisions unforgeable, and

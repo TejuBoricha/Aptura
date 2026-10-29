@@ -287,7 +287,7 @@ whose `To:` line is not first, or that lacks `From:`, is reported as unreadable 
 
 | Line | Meaning |
 |---|---|
-| `Working: <what>, done by <HH:MM> UTC` | I am on it. Holds the wait until that time plus 30 minutes, up to 24 hours ahead; without a time in UTC (`2:30pm`, `CET`), for 2 hours. Counts however it is addressed, and never reopens a question already answered. An agent may renew it; the status issue shows the wait meanwhile. |
+| `Working: <what>, done by <HH:MM> UTC` | I am on it. Holds the wait until that time plus 30 minutes, up to 8 hours ahead; without a time in UTC (`2:30pm`, `CET`), or with one already past or further off, for 2 hours. Counts however it is addressed, and never reopens a question already answered. An agent may renew it; the status issue shows the wait meanwhile. |
 | `Pausing: <why>, back around <time>` | I am stopping. Anyone may take over now. |
 | `No reply needed` (anywhere in the message's own text, not in a quote or code) | This message is not a wait. Put it on merge notes, status notes, and on an approving review, whose author merges rather than answers. Any other addressed message is a wait, so a forgotten one is caught rather than missed. |
 | `Withdrawn: <agent>` | The sender no longer waits on that agent, for example after using a fallback reviewer. |

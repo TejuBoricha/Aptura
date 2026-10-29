@@ -219,6 +219,79 @@ class AuditParsingTest(unittest.TestCase):
             self.assertEqual(stalls.explain("To: opencode\nno signature"), 1)
 
 
+class VerificationRoundTest(unittest.TestCase):
+    """Defects the auditor found in the first round of fixes (N2-N9)."""
+
+    def test_notes_signed_without_an_addressee_are_fine(self):
+        # N2: the cheat sheet's bare `Working:` and `Pausing:` lines, and sign-offs, were flagged as unreadable.
+        for body in ("Working: reviewing, done by 15:00 UTC\nFrom: opencode", "Thanks!\nFrom: claude"):
+            self.assertIsNone(stalls.malformed(body), body)
+            self.assertEqual(find([item([msg(body)])], at(10), WINDOW, STEP, TIMEBOX).stalls, [])
+
+    def test_an_old_unreadable_message_clears_once_its_sender_posts_again_and_never_reaches_the_owner(self):
+        bad = msg("To: opencode\nPlease review.")
+        found = find([item([bad])], at(10), WINDOW, STEP, TIMEBOX)
+        self.assertEqual(len(found.stalls), 1)
+        later = msg("To: all\nStatus.\nNo reply needed.\nFrom: claude", 5)
+        self.assertEqual(len(find([item([bad, later])], at(30), WINDOW, STEP, TIMEBOX).stalls), 1, "flagged a while")
+        self.assertEqual(find([item([bad, later])], at(61), WINDOW, STEP, TIMEBOX).stalls, [])
+        signed = msg("Hi\nTo: opencode\nPlease review.\nFrom: claude")
+        self.assertEqual(find([item([signed, later])], at(10), WINDOW, STEP, TIMEBOX).stalls, [],
+                         "a signed sender who posted again is past it")
+        pr = item([bad])
+        [stall] = find([pr], at(10), WINDOW, STEP, TIMEBOX).stalls
+        pr.messages.append(msg(nudge_body(stall), 10))
+        self.assertEqual(find([pr], at(3 * 24 * 60), WINDOW, STEP, TIMEBOX).needs_owner, [])
+
+    def test_fences_close_only_on_a_matching_fence_and_never_swallow_the_signature(self):
+        # N3.
+        for body in ("To: claude\n```x``` inline\nFrom: opencode",
+                     "To: claude\n````\n```\nFrom: fake\n```\n````\nFrom: opencode",
+                     "To: claude\n```\nunclosed example\nFrom: opencode"):
+            self.assertEqual(stalls.sender(body), "opencode", body)
+        self.assertIn("```x``` inline", stalls.message_lines("To: claude\n```x``` inline\nFrom: opencode"))
+        nested = stalls.message_lines("To: claude\n````\n```\nFrom: fake\n```\n````\nFrom: opencode")
+        self.assertNotIn("From: fake", nested)
+
+    def test_bold_is_undone_only_around_a_leading_label(self):
+        # N4.
+        self.assertEqual(stalls.message_lines("run __main__ with a**b**c"), ["run __main__ with a**b**c"])
+        self.assertEqual(stalls.message_lines("**To: opencode**"), ["To: opencode"])
+
+    def test_a_task_whose_pull_request_merged_is_linked(self):
+        # N6: `Refs: #N` does not close the issue, so a merged PR must count as the link.
+        claimed = {**pr_entry(30, "Task"), "labels": [{"name": "claimed:opencode"}]}
+        merged = {**pr_entry(31, body="Refs: #30"), "updated_at": "2026-10-29T08:30:00Z"}
+        routes = FetchTest().routes(**{"/issues?state=open": [claimed],
+                                       "/pulls?state=closed&sort=updated&direction=desc": [merged]})
+        items, _ = FetchTest().fetch(routes)
+        self.assertTrue(next(i for i in items if i.number == 30).linked)
+
+    def test_an_unsigned_comment_counts_as_activity(self):
+        # N7: the owner writes plain comments.
+        routes = FetchTest().routes(**{"/pulls?state=open": [pr_entry(9, created="2026-10-29T03:00:00Z")],
+                                       "/pulls/9/reviews": [],
+                                       "/issues/comments": [gh_comment(1, "TejuBoricha", "Looks good to me.", 9,
+                                                                       created="2026-10-29T08:00:00Z")]})
+        items, fake = FetchTest().fetch(routes, now=at(0))
+        self.assertEqual(items[0].idle_since, datetime(2026, 10, 29, 8, tzinfo=timezone.utc))
+        self.assertNotIn("/commits/sha9", fake.calls)
+
+    def test_no_reply_needed_counts_on_its_own_not_inside_a_sentence(self):
+        self.assertTrue(stalls.no_reply_needed("Merged #4. No reply needed."))
+        self.assertTrue(stalls.no_reply_needed("No reply needed"))
+        self.assertFalse(stalls.no_reply_needed("This is not a no reply needed case: please answer."))
+
+    def test_an_old_open_pull_request_does_not_blow_the_budget(self):
+        # The repository-wide read reaches back to the oldest open item, at most READ_DAYS.
+        old = pr_entry(9, created="2026-08-30T00:00:00Z")
+        routes = FetchTest().routes(**{"/pulls?state=open": [old], "/pulls/9/reviews": [],
+                                       "/issues/9/comments": [], "/pulls/9/comments": [],
+                                       "/commits/sha9": {"commit": {"committer": {"date": "2026-10-29T08:00:00Z"}}}})
+        _, fake = FetchTest().fetch(routes, now=at(0))
+        self.assertLessEqual(len(fake.calls), 12, fake.calls)
+
+
 class HoldTest(unittest.TestCase):
     def test_a_hold_pauses_the_item_until_it_is_lifted(self):
         hold = msg("To: all\nOwner said: wait.\nHold: owner, until the release question is settled\nFrom: claude", 5)
@@ -627,24 +700,24 @@ class PublishTest(unittest.TestCase):
         self.assertIn(("POST", "https://api.github.com/repos/o/r/issues/9/labels"), sent)
         self.assertIn(("DELETE", "https://api.github.com/repos/o/r/issues/4/labels/follow-up"), sent)
 
-    def test_a_new_needs_you_entry_notifies_the_owner_once(self):
-        # Audit U2: editing the status page sends no notification.
-        found = stalls.Findings(needs_owner=["[#20](u) decision waiting for your approval: v"])
+    def test_a_needs_you_entry_notifies_the_owner_once_even_as_its_age_changes(self):
+        # Audit U2 (editing the page notifies nobody) and verification N1 (an age in the text made every run "new").
+        hold = msg("To: all\nOwner said: \"wait\"\nHold: owner\nFrom: claude")
         sent = []
         def send(method, url, token, payload):
             sent.append((method, url, payload))
-        with unittest.mock.patch.object(stalls, "_send", send), \
-                unittest.mock.patch.object(stalls, "every", lambda url, token: iter([{"number": 50, "body": "old"}])):
-            stalls.publish("o/r", "token", [], found, "report")
-        comments = [p for m, u, p in sent if u.endswith("/issues/50/comments")]
-        self.assertEqual(len(comments), 1)
-        self.assertIn("decision waiting for your approval", comments[0]["body"])
+        def run(minutes, page):
+            found = find([item([hold])], at(minutes), WINDOW, STEP, TIMEBOX)
+            with unittest.mock.patch.object(stalls, "_send", send), \
+                    unittest.mock.patch.object(stalls, "every", lambda url, token: iter([{"number": 50, "body": page}])):
+                stalls.publish("o/r", "token", [], found, stalls.report([item([hold])], found, at(minutes)))
+            return [p for m, u, p in sent if u.endswith("/issues/50/comments")]
+        first = run(25 * 60, "old page")
+        self.assertEqual(len(first), 1)
+        self.assertIn("on hold for 25 h", first[0]["body"])
+        page = [p for m, u, p in sent if m == "PATCH"][-1]["body"]
         sent.clear()
-        already = {"number": 50, "body": "- [#20](u) decision waiting for your approval: v"}
-        with unittest.mock.patch.object(stalls, "_send", send), \
-                unittest.mock.patch.object(stalls, "every", lambda url, token: iter([already])):
-            stalls.publish("o/r", "token", [], found, "report")
-        self.assertFalse([u for m, u, p in sent if u.endswith("/comments")])
+        self.assertEqual(run(25 * 60 + 15, page), [], "same entry, 15 minutes older: no second email")
 
     def test_creates_the_status_issue_when_there_is_none(self):
         _, sent, _ = self.publish([], [])
@@ -706,16 +779,34 @@ class DriftTest(unittest.TestCase):
     def text(self, name):
         return (self.root / name).read_text(encoding="utf-8")
 
+    def row(self, label):
+        """The deadline cell of the row in the "Nothing waits without a deadline" table that starts with label."""
+        table = self.text("docs/AGENT_WORKFLOW.md").split("## Nothing waits without a deadline", 1)[1].split("\n## ")[0]
+        rows = [line for line in table.splitlines() if line.startswith(f"| {label}")]
+        self.assertEqual(len(rows), 1, label)
+        return rows[0].split("|")[2]
+
+    def marker(self, name):
+        table = self.text("docs/AGENT_WORKFLOW.md").split("**The words the stall check reads.**", 1)[1]
+        return next(line for line in table.splitlines() if line.startswith(f"| `{name}"))
+
     def test_the_documented_deadlines_and_limits_are_the_codes(self):
-        docs = self.text("docs/AGENT_WORKFLOW.md")
         defaults = {a.dest: a.default for a in stalls_parser()._actions if a.dest != "help"}
-        self.assertIn(f"{int(defaults['minutes'])} min", docs)
-        self.assertIn(f"{int(defaults['debate_hours'])} h after the proposal", docs)
-        self.assertIn(f"{int(defaults['timebox_hours'])} h, and two rounds", docs)
-        self.assertIn(f"at most {stalls.PROPOSAL_WORDS} words", docs)
-        self.assertIn(f"at most {stalls.CRITIQUE_WORDS} words", docs)
-        self.assertIn(f"{int(stalls.CLAIM_WITHOUT_PR.total_seconds() // 3600)} h after the `claim:` comment", docs)
-        self.assertIn(f"{int(stalls.IDLE.total_seconds() // 3600)} h without a message or commit", docs)
+        hours = lambda delta: int(delta.total_seconds() // 3600)
+        self.assertIn(f"{int(defaults['minutes'])} min", self.row("A reply to a `To:` message"))
+        self.assertIn(f"{int(defaults['minutes'])} min", self.row("An independent review"))
+        self.assertIn(f"{int(defaults['debate_hours'])} h", self.row("Critiques in a debate"))
+        self.assertIn(f"{int(defaults['debate_hours'])} h", self.row("The proposer's answer to critiques"))
+        self.assertIn(f"{int(defaults['timebox_hours'])} h", self.row("A whole debate"))
+        self.assertIn(f"{hours(stalls.CLAIM_WITHOUT_PR)} h", self.row("A claimed task"))
+        self.assertIn(f"{hours(stalls.IDLE)} h", self.row("Any sign of life"))
+        self.assertIn(f"{stalls.ESCALATE.days} day", self.row("Anything above"))
+        working = self.marker("Working")
+        self.assertIn(f"up to {hours(stalls.WORKING_CAP)} hours ahead", working)
+        self.assertIn(f"plus {int(defaults['minutes'])} minutes", working)
+        docs = self.text("docs/AGENT_WORKFLOW.md")
+        self.assertIn(f"**Proposal** (at most {stalls.PROPOSAL_WORDS} words)", docs)
+        self.assertIn(f"**Critiques** (at most {stalls.CRITIQUE_WORDS} words", docs)
 
     def test_every_documented_agent_name_has_a_claim_label(self):
         labels = re.search(r"for tool in ([a-z ]+); do", self.text(".github/workflows/labels.yml")).group(1).split()

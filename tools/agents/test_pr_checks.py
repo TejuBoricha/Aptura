@@ -58,6 +58,11 @@ class CoAuthoredTest(unittest.TestCase):
         commits = [("abc1234", "Fix\n\nCo-Authored-By: Claude <noreply@anthropic.com>")]
         findings = check(pr(6, ["README.md"]), [], commits, PATTERNS, NOW)
         self.assertEqual(levels(findings), ["warning"])
+        # Verification N5: people whose names match a model or tool do not count.
+        for person in ("Devin Smith <d@x.com>", "Cursor Lee <c@x>", "Grok Jones <g@x>", "Kimi Tanaka <k@x>",
+                       "Llama Dev <l@x>", "Someone <a@openai.com>"):
+            self.assertEqual(levels(check(pr(6, ["README.md"]), [], [("abc1234", f"Fix\n\nCo-authored-by: {person}")],
+                                          PATTERNS, NOW)), ["error"], person)
         nothing = check(pr(6, ["README.md"]), [], [("abc1234", "Fix")], PATTERNS, NOW)
         self.assertIn("git rebase -i origin/main", nothing[0].message)
 

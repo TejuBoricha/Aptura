@@ -86,9 +86,13 @@ def is_bot_commit(commit: dict) -> bool:
 
 # A Co-Authored-By line that names an AI tool, as several tools add on their own. A person as co-author says nothing
 # about AI help, so it does not count.
-CO_AUTHORED = re.compile(r"^co-authored-by:.*\b(claude|anthropic|copilot|codex|openai|chatgpt|gpt|gemini|cursor|"
-                         r"opencode|aider|devin|deepseek|qwen|kimi|glm|mistral|llama|grok|windsurf|antigravity)\b",
-                         re.IGNORECASE | re.MULTILINE)
+CO_AUTHORED = re.compile(
+    r"^co-authored-by:\s*("
+    # the name tools write, as the first word of the name (so "Cursor Lee" or "Devin Smith" do not count)
+    r"(claude|copilot|codex|chatgpt|gemini|opencode|aider|cursor\s+agent|antigravity)\b"
+    # or a tool's own no-reply address
+    r"|[^<\n]*<(noreply@anthropic\.com|[^>]*copilot@users\.noreply\.github\.com|cursoragent@cursor\.com|"
+    r"noreply@aider\.chat)>)", re.IGNORECASE | re.MULTILINE)
 
 
 def unattributed(messages: list[tuple[str, str]]) -> list[str]:

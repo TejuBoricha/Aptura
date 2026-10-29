@@ -33,7 +33,7 @@ import pr_checks
 
 TO_LINE = re.compile(r"^\s*to:\s*(.+?)\s*$", re.IGNORECASE)
 FROM_LINE = re.compile(r"^\s*from:\s*(.+?)\s*$", re.IGNORECASE)
-FENCE = re.compile(r"^\s*(```|~~~)")
+FENCE = re.compile(r"^\s*(`{3,}|~{3,})")
 
 
 def message_lines(body: str) -> list[str]:
@@ -43,15 +43,28 @@ def message_lines(body: str) -> list[str]:
     never counts. Common formatting is undone, so `**To:** opencode` and `- Working: ...` read as `To: opencode` and
     `Working: ...`.
     """
-    lines, fenced = [], False
-    for line in (body or "").splitlines():
-        if FENCE.match(line):
-            fenced = not fenced
-            continue
-        if fenced or line.lstrip().startswith(">"):
+    raw = (body or "").splitlines()
+    lines, fence = [], None  # the open fence: its character and length, as CommonMark closes only on a match
+    for line in raw:
+        match = FENCE.match(line)
+        if match:
+            mark = match.group(1)
+            if fence is None and mark[0] not in line.strip()[len(mark):]:  # ```x``` on one line is inline code
+                fence = (mark[0], len(mark))
+                continue
+            if fence and mark[0] == fence[0] and len(mark) >= fence[1] and not line.strip()[len(mark):].strip():
+                fence = None
+                continue
+        if fence or line.lstrip().startswith(">"):
             continue
         line = re.sub(r"^\s*[-*+]\s+", "", line)  # a list bullet
-        lines.append(line.replace("**", "").replace("__", ""))
+        # Bold around a leading label only (`**To:** x`, `**To: x**`), so content such as `__main__` stays intact.
+        line = re.sub(r"^(\s*)(\*\*|__)(.+?)\2", r"\1\3", line, count=1)
+        lines.append(line)
+    if fence is not None:
+        # A fence that never closes would swallow the signature: read the message as if it had no code block.
+        return [re.sub(r"^(\s*)(\*\*|__)(.+?)\2", r"\1\3", re.sub(r"^\s*[-*+]\s+", "", line), count=1)
+                for line in raw if not FENCE.match(line) and not line.lstrip().startswith(">")]
     return lines
 
 
@@ -154,12 +167,11 @@ def malformed(body: str) -> str | None:
     lines = [line for line in message_lines(body) if line.strip()]
     has_to = any(TO_LINE.match(line) for line in lines)
     has_from = any(FROM_LINE.match(line) for line in lines)
-    if has_to and not TO_LINE.match(lines[0]):
+    # A note signed `From:` with no `To:` (a pause, a status) is fine: it addresses nobody, so nobody waits on it.
+    if has_to and not TO_LINE.match(lines[0]) and has_from:
         return "its `To:` line is not the first line"
-    if has_to and not has_from:
+    if has_to and TO_LINE.match(lines[0]) and not has_from:
         return "it has a `To:` line but no `From:` line"
-    if has_from and not has_to:
-        return "it has a `From:` line but no `To:` line"
     return None
 
 
