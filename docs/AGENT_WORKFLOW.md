@@ -143,9 +143,13 @@ From: claude
 
 - **First line** `To:` names one or more agents, comma-separated, or `all`.
 - **Last line** `From:` names the sender. Do not use `@name`: it notifies real GitHub users with those names.
-- **Waiting for a reply:** run `python3 tools/agents/inbox.py --pr <n> --me <your agent>`. It checks once a minute,
-  prints new messages addressed to you and exits 0. It exits 3 if the PR is merged or closed and 2 after the
-  `--timeout` (default four hours), so a local agent can wait for hours without anyone relaying.
+- **Answer on the PR, not only with a push.** A wait ends when the addressee replies to the sender (or to `all`). A
+  push alone does not answer anything; say what the push did.
+- **Waiting for a reply:** run `python3 tools/agents/inbox.py --pr <n> --me <your agent>`. `<n>` can be a pull request
+  or a debate issue. It reads from your own latest message there, so a reply that arrived before you started waiting
+  is not lost. It checks once a minute, prints new messages addressed to you (or to `all`, which includes the stall
+  check's nudges) and exits 0. It exits 3 if the PR is merged or closed and 2 after the `--timeout` (default four
+  hours), so a local agent can wait for hours without anyone relaying.
 - **Cloud agents** that already receive GitHub events (Claude Code on the web, subscribed to the PR) wake up on the
   comment by themselves and do not need `inbox.py`.
 
@@ -202,16 +206,19 @@ apply to any tool and model.
   From: opencode
   ```
 
-- **If an agent goes silent,** a `To:` message addressed to it that gets no reply and no push from it for **2 hours**
-  lets another agent take over. CI running is not silence. An agent that needs longer acknowledges with a line starting
-  `Working:` ("Working: reviewing, done by 15:00 UTC"), which restarts the 2 hours but does not end the wait. Use
-  `inbox.py --timeout 7200` so a local agent's wait ends when this rule starts to apply. The hourly stall check
-  announces the overdue wait on the PR (see "Nothing waits without a deadline").
+- **If an agent goes silent,** a `To:` message addressed to it that gets no reply from it within **30 minutes** lets
+  another agent take over. An agent that is running answers within minutes, so 30 minutes of silence means it is away.
+  Long work is not silence: acknowledge it with a line starting `Working:` ("Working: reviewing, done by 15:00 UTC"),
+  which restarts the 30 minutes without ending the wait. A pause note makes the wait overdue at once, even one posted
+  before the message. The stall check announces an overdue wait on the PR within about 15 minutes (see "Nothing
+  waits without a deadline").
+- **Never wait idle.** While one step waits on someone, work on your next task. Only the step that needs the answer
+  pauses, never the agent.
 - **Taking over** starts with a comment, before any push:
 
   ```markdown
   To: all
-  Taking over #4 from opencode: no reply to the 14:05 message for 2 hours. Continuing from the Handoff's "Next".
+  Taking over #4 from opencode: no reply to the 14:05 message for 30 minutes. Continuing from the Handoff's "Next".
   From: claude
   ```
 
@@ -228,16 +235,18 @@ apply to any tool and model.
 
 Agents do not all have the same permissions. On this repository, for example, re-running a failed CI job needs Actions
 write access, which the cloud Claude session has and OpenCode's local token does not. When the driver is blocked on
-such a step, it posts `To: all` naming the step, and any agent that has the permission does it. If none does, the
-owner is asked, as for any setting or secret. A step that only one agent can do should be written down here, so the
-others know whom to ask.
+such a step, it addresses the message to an agent that has the permission (`To: claude`), not to `all`, so the stall
+check holds it to the 30-minute deadline. If nobody can do it, the owner is asked once, as for any setting or secret.
+Better still, give every agent's token the permissions in the owner setup checklist below, so no step depends on one
+agent. A step that only one agent can do is written down here, so the others know whom to ask.
 
 ### When every agent is stopped
 
 The work waits on GitHub: the branch, the Handoff and the `Status:` line. Nothing is lost that was pushed, and the
 owner has nothing to do. The first agent to come back reads the PR and continues. A third tool (any agent that reads
-this file) can pick it up the same way. Only an agent running in GitHub Actions, which needs a paid model key (see
-"Talking to each other"), would remove this pause.
+this file) can pick it up the same way. The status issue keeps showing the stall, and it is the only signal while
+every agent is away. Only an agent running in GitHub Actions, which needs a paid model key (see "Talking to each
+other"), would remove this pause.
 
 ## Nothing waits without a deadline
 
@@ -246,89 +255,137 @@ is the general rule; the table lists the waits known so far.
 
 | Waiting for | Deadline | Then |
 |---|---|---|
-| A reply to a `To:` message | 2 h, restarted by a `Working:` note; at once after `Pausing` | Another agent may take over (rule 9) |
-| An independent review | 2 h after the request | The fallback reviewer (below) |
+| A reply to a `To:` message | 30 min, restarted by a `Working:` note; at once after `Pausing` | Another agent may take over (rule 9) |
+| An independent review | 30 min for the reviewer to answer or post `Working:`; at once when it is known to be away | The fallback reviewer (below), then `Withdrawn: <reviewer>` |
 | Critiques in a debate | 2 h after the proposal | Fallback critics, the same way |
 | The proposer's answer to critiques | 2 h after the last critique | Another agent may take the debate over |
-| A step only some agents can do | 2 h after asking | The owner, once (a setting or a permission) |
+| A whole debate | 24 h, and two rounds | The owner gets a one-screen summary and picks |
+| A step only some agents can do | 30 min after asking | The owner, once (a setting or a permission) |
 | CI | the job's own timeout | An infrastructure failure gets one re-run by an agent with the permission |
-| An owner decision | none: the owner is not on a clock | The question stays at the top of the status issue; agents work on something else meanwhile, and never take a product decision by default |
+| An owner decision | none: the owner is not on a clock | It stays under "Needs you" in the status issue; agents work on something else meanwhile, and never take a product decision by default |
 
 **When you create a new kind of wait,** say in the same message what happens if nobody answers, and by when. A wait
-with no stated fallback falls back to the 2-hour rule.
+with no stated fallback falls back to the 30-minute rule.
 
-**A message that needs no answer** (a merge note, an approval with nothing left to do) says `No reply needed`, so it
-does not count as a wait.
+**The words the stall check reads.** They count only at the start of one of the comment's own lines, never inside
+quoted (`>`) text:
 
-**The owner's "wait" or "stop"** is recorded as a line `Hold: <reason>` in the agent's `Owner said` comment, and
-lifted with `Hold lifted: <reason>`. While a hold stands, no deadline on that PR or debate runs out.
+| Line | Meaning |
+|---|---|
+| `Working: <what>, done by <time>` | I am on it. Restarts the deadline; does not end the wait. |
+| `Pausing: <why>, back around <time>` | I am stopping. Anyone may take over now. |
+| `No reply needed` | This message is not a wait (a merge note, an approval with nothing left to do). Any other addressed message is a wait, so a forgotten one is caught rather than missed. |
+| `Withdrawn: <agent>` | The sender no longer waits on that agent, for example after using a fallback reviewer. |
+| `Taking over #<n> from <agent>: <why>` | Ends the waits on that agent, when another agent posts it. |
+| `Hold: <reason>` / `Hold lifted: <reason>` | The owner's "wait" and "go", recorded by the agent that heard it. While a hold stands, no deadline on that PR or debate runs out. A hold older than a day is listed for the owner. |
 
-**The hourly stall check.** The **Agent status** workflow (`.github/workflows/agent-status.yml`) runs
-`tools/agents/stalls.py` every hour, with no AI model and no secret. It finds the waits above that passed their
+**The stall check.** The **Agent status** workflow (`.github/workflows/agent-status.yml`) runs
+`tools/agents/stalls.py` every 15 minutes, with no AI model and no secret. It finds the waits above that passed their
 deadline on open pull requests and debates. On each, it posts one `To: all` comment, signed `From: agent-status`,
 that names the stall and the fallback. The comment wakes the agents: local agents waiting in `inbox.py`, and cloud
-agents subscribed to the PR. It also keeps a one-page summary in the issue labelled `agent-status`, which is the
-owner's view of what is moving and what is stuck. To see the same report locally:
-`python3 tools/agents/stalls.py`.
+agents subscribed to the PR. It also keeps the issue labelled `agent-status` current. That issue opens with **Needs
+you**: the decisions waiting for the owner and the holds older than a day. It is the owner's one page for what is
+moving and what is stuck. To see the same report locally: `python3 tools/agents/stalls.py`.
+
+GitHub runs scheduled workflows on a best-effort basis. A run can start late or be dropped under load, and schedules
+pause after 60 days without repository activity. The status issue shows the time of its last run, so a stale page is
+visible; run the workflow from the Actions tab to restart it.
 
 **Only the owner's account counts.** Every agent posts through the owner's GitHub account. On this public
-repository anyone else can comment, so `inbox.py` and the stall check ignore every other author except
-`github-actions[bot]`, the stall check's own account. A stranger can't address an agent, fake a `Hold:`, or close a
-wait. Debates opened by anyone but the owner are not work.
+repository anyone else can comment, so `inbox.py` and the stall check ignore every other author. The one exception
+is `github-actions[bot]`, and only for the stall check's own nudges, which carry its marker. A stranger can't address
+an agent, fake a `Hold:`, or close a wait. Debates opened by anyone but the owner are not work. Titles shown in the
+status issue are escaped, so a title can't mention people or inject links.
 
 ## Reviews when the reviewer is away
 
 The independent reviewer is a role, not a particular agent. Take the first of these that is possible:
 
-1. The agent that was asked, if it answers within 2 hours (or posts `Working:`).
+1. The agent that was asked, if it answers within 30 minutes (a review, or `Working:`).
 2. Any other running agent whose model differs from the author's.
-3. A review the author obtains itself from a different model, with the model recorded on the PR. Any of these will
-   do:
+3. A review the author obtains from a different model:
    - a review subagent on another model;
    - a one-off session in another tool (Gemini CLI, Codex, OpenCode with another provider);
    - GitHub's Copilot code review on the PR.
-
-   Give that reviewer only the diff, the PR description, `AGENTS.md` and
-   [`.agents/rules/qa-and-code-review.md`](../.agents/rules/qa-and-code-review.md), not the author's reasoning, so it
-   judges the work rather than the story. Post its full verdict on the PR, so anyone can check it.
 4. If none of these is possible, the PR waits and the status issue shows it. The owner is never asked to review code.
 
-A model from a **different vendor** is preferred, because two models from one family tend to share blind spots. For
-privacy invariants, Room migrations and file deletion, a same-vendor fallback is not enough: wait for a different
-vendor through steps 1–3. When the original reviewer comes back, it may still review after the merge. Its must-fix
-findings become a follow-up PR, which goes first in its queue.
+Then post `Withdrawn: <the reviewer you first asked>` so the original request stops counting as a wait.
+
+A review the author obtains (step 3) can be skewed by how it was asked, so it must be checkable:
+
+- Give the reviewer only the diff, the PR description, `AGENTS.md` and
+  [`.agents/rules/qa-and-code-review.md`](../.agents/rules/qa-and-code-review.md). Leave out the author's reasoning,
+  so it judges the work rather than the story.
+- Post on the PR, as one comment:
+  - the exact instructions you gave it;
+  - its model;
+  - the commit it reviewed;
+  - its full, unedited verdict.
+- Fix its must-fix findings, then have a different model from yours re-check them on the new commit. That can be the
+  same reviewer again.
+
+A model from a **different vendor** is preferred. Two models from one family tend to share blind spots, and in
+debate research, same-family agents copied each other's answers most of the time. For privacy invariants, Room
+migrations and file deletion, the reviewer must be from a different vendor and run in its own session or tool, not
+as the author's subagent. If none is available, those PRs wait. When the original reviewer comes back, it may still
+review after the merge; its must-fix findings become a follow-up PR, first in its queue.
 
 ## Debates
 
 A debate is how the agents decide something that has more than one reasonable answer and is expensive to get wrong.
 Examples are an architecture or data-model choice, a change to this workflow, or anything touching hot files. Routine
-fixes don't need one.
+fixes don't need one, and neither does a question that a test or a measurement can settle: run that instead.
+
+The rules come from what goes wrong when language models debate:
+- they drift toward the majority answer;
+- long threads destabilize correct reasoning;
+- accuracy often drops as rounds go on;
+- majority votes discard correct minority answers.
+
+See "Why Do Multi-Agent LLM Systems Fail?" (arXiv 2503.13657), "The Cost of Consensus" (arXiv 2605.00914) and
+"Understanding Failure Modes in Multi-Agent Debate" (arXiv 2509.05396). So debates here are short, blind, mixed-model
+and decided by evidence, never by vote.
 
 1. **Open it.** Use an issue made with the **Debate** form and labelled `debate`. The owner opens it, or an agent opens
    it on the owner's request in its chat and says so in the issue.
-2. **Proposal.** One agent posts a comment with a line starting `Proposal:`. It covers the problem, two or three
-   options, a recommendation, and the risks. Its evidence is concrete: `file:line`, test output, measurements, or
-   linked sources. A claim without evidence counts as an opinion.
-3. **Critiques.** At least **two** agents running models other than the proposer's each post a comment with a line
-   starting `Critique:`. Prefer at least one from a different vendor. Write your critique before reading the other
-   critiques, so the second is independent of the first. Each critique ends with a verdict: agree, agree with
-   changes, or object. A critique that agrees still names at least one risk or missing scenario, so agreement is
-   never a rubber stamp. One model fills one critic slot, and the proposer cannot critique its own proposal. If
-   critics are missing after 2 hours, use the fallback ladder above.
-4. **Rebuttal.** The proposer answers once, in a comment with a line starting `Rebuttal:`. For each must-fix point,
-   it accepts the change or gives the evidence against it, then states the revised plan.
-5. **Decision.** If no critic still objects, the proposer posts a line starting `Decision:` with:
+2. **Proposal** (at most 500 words). One agent posts a comment with a line starting `Proposal:`. It covers:
+   - the problem;
+   - two or three options;
+   - a recommendation, and the risks;
+   - **what evidence would change its mind**.
+
+   Its evidence is concrete: `file:line`, test output, measurements, or linked sources. Details go in links, not in
+   the comment. A claim without evidence counts as an opinion.
+3. **Critiques** (at most 350 words and three must-fix points each). At least **two** agents running models other
+   than the proposer's each post a comment with a line starting `Critique:` that names the critic's model. At least
+   one should be from a different vendor.
+   - **Write your critique before reading the other critiques.** Independence is the point.
+   - End with a verdict: agree, agree with changes, or object.
+   - A critique that agrees still names at least one risk or missing scenario, so agreement is never a rubber stamp.
+   - One model fills one critic slot, and the proposer cannot critique its own proposal.
+   - Critiques are due 2 hours after the proposal; after that, use the fallback ladder above.
+4. **Rebuttal.** The proposer answers once, in a comment with a line starting `Rebuttal:`, within 2 hours of the last
+   critique.
+   - For each must-fix point, it accepts the change or gives the evidence against it.
+   - It states the revised plan.
+   - It ends with a three-line summary of where the debate stands, so nobody (including the owner) has to read the
+     whole thread.
+5. **Decision.** Only the proposer, or an agent that took the debate over, posts a line starting `Decision:` with:
    - the plan;
    - the task list;
    - what was rejected, and why;
    - `Owner approval needed: yes/no`.
 
+   Objections are weighed by their evidence, not counted. A single must-fix objection backed by evidence blocks the
+   decision, and two agreements don't override it. An objection without evidence is recorded and does not block.
    Approval is needed when the plan changes what the user sees or does, or takes more than about a day of agent work.
-   If an objection survives the rebuttal, there is one more round of critique and rebuttal. If it still stands, the
-   owner gets a one-screen summary of the options with a recommendation, and picks.
-6. **Approval.** The owner answers in any agent's chat ("approve", or a choice). That agent posts it on the issue as
-   `Owner said …`.
-7. **Build.** Each task in the decision becomes an issue or a checklist item. Agents claim and merge them under the
+6. **Limits.** A debate has two rounds of critique and rebuttal at most, and 24 hours in total. If an evidenced
+   objection still stands after that, the proposer sends the owner a one-screen summary: the options, the strongest
+   argument for each, and a recommendation. The owner picks, and that is final. The stall check flags a debate that
+   passes its time box or its rounds, and proposals or critiques over their word limits.
+7. **Approval.** The owner answers in any agent's chat ("approve", or a choice). That agent posts it on the issue as
+   `Owner said …`. Until then the decision is listed under "Needs you" in the status issue.
+8. **Build.** Each task in the decision becomes an issue or a checklist item. Agents claim and merge them under the
    usual rules. The proposer records a durable decision in the DEC register
    ([`spec/17`](../spec/17_RISKS_ASSUMPTIONS_AND_DECISIONS.md)) in the first task's PR.
 

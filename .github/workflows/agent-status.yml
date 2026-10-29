@@ -1,13 +1,14 @@
 name: Agent status
 
-# Every wait between agents has a deadline (docs/AGENT_WORKFLOW.md, "Nothing waits without a deadline"). Once an
-# hour this finds the waits that passed it and posts one `To: all` comment on each, which wakes the agents waiting on
-# that pull request or debate, and keeps a one-page summary in the issue labelled `agent-status` for the owner. It
-# runs no AI model and needs no secret. GitHub pauses scheduled workflows in a repository with no activity for 60
-# days; run it from the Actions tab to restart it.
+# Every wait between agents has a deadline (docs/AGENT_WORKFLOW.md, "Nothing waits without a deadline"). Every 15
+# minutes this finds the waits that passed it and posts one `To: all` comment on each, which wakes the agents waiting
+# on that pull request or debate, and keeps a one-page summary in the issue labelled `agent-status` for the owner. It
+# runs no AI model and needs no secret. Scheduled runs are best effort: GitHub may start them late or drop one under
+# load (odd minutes avoid the busy top of the hour), and pauses them in a repository with no activity for 60 days.
+# The status issue shows when it last ran; run the workflow from the Actions tab to restart it.
 on:
   schedule:
-    - cron: "23 * * * *"
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch:
 
 permissions:
