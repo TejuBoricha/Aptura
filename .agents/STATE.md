@@ -4,7 +4,7 @@
 > change makes them false; do not append contradicting notes. History lives in [`MEMORY.md`](MEMORY.md); decisions in
 > [`spec/17`](../spec/17_RISKS_ASSUMPTIONS_AND_DECISIONS.md) (DEC) and [`spec/08`](../spec/08_TECHNOLOGY_EVALUATION_AND_ADRS.md) (ADR).
 
-**Last verified against:** `main` @ `0d99e1f` plus PR #4 on `agent/opencode/sleep-timer-and-review-fixes` (2026-10-28)
+**Last verified against:** `main` @ `03faf29`, PR #4's tree as merged (2026-10-29)
 
 ## Project
 
@@ -28,13 +28,11 @@
 
 ## Open work (highest first)
 
-1. **PR #4 review:** the 2026-10-28 review findings F1-F6, F9 and F10 and the FR-CTRL-009 gaps are fixed on
-   `agent/opencode/sleep-timer-and-review-fixes`. Playback changes need one independent review by a different model
-   before merge.
-2. **Hardware verification:** physical-device playback, TalkBack, Bluetooth latency and detection, HDR, thermal,
-   process-kill during a SAF copy. Run [DEVICE_CHECKLIST.md](../docs/DEVICE_CHECKLIST.md) before tagging 1.0.
-3. **Release:** signed 1.0 tag when a signing key exists.
-4. **Undecided:** one audio sync value for every video needs a storage decision first (per-video storage cannot tell 0
+1. **Hardware verification:** physical-device playback, TalkBack, Bluetooth latency and detection, HDR, thermal,
+   process-kill during a SAF copy (and a running sleep timer, FR-CTRL-009). Run
+   [DEVICE_CHECKLIST.md](../docs/DEVICE_CHECKLIST.md) before tagging 1.0.
+2. **Release:** signed 1.0 tag when a signing key exists.
+3. **Undecided:** one audio sync value for every video needs a storage decision first (per-video storage cannot tell 0
    from "never set").
 
 ## Facts that older notes get wrong
