@@ -77,7 +77,7 @@ def has_line(body: str, word: str) -> bool:
 def no_reply_needed(body: str) -> bool:
     """`No reply needed` at the start of a line or as its own sentence ("Merged. No reply needed."), not inside one
     ("this rule is not a no reply needed case"), which would silence a real wait."""
-    return any(re.search(r"(^|[.!?:]\s+)no reply needed\b", line.strip(), re.IGNORECASE) for line in own_lines(body))
+    return any(re.search(r"(^|[.!?]\s+)no reply needed\b", line.strip(), re.IGNORECASE) for line in own_lines(body))
 
 
 NEEDS = "<!-- needs:{key} -->"
@@ -617,9 +617,10 @@ def fetch(repo: str, token: str | None, extra_trusted: list[str] | None = None,
         if any(override_step(m) for m in found):
             items.append(Item(number, entry["title"], entry["html_url"], False, found, is_open=False,
                               labels=_labels(entry)))
-    # A task is linked when an open pull request, or one closed recently (merged), mentions it.
+    # A task is linked when an open pull request, or a recently merged one, mentions it. A PR closed without merging
+    # does not count: an abandoned PR must not hide a dead claim.
     pr_text = " ".join(f"{pr.get('title') or ''} {pr.get('body') or ''}" for pr in
-                       [*open_prs, *(e for e in closed.values() if "pull_request" in e)])
+                       [*open_prs, *(e for e in closed.values() if e.get("merged_at"))])
     for pr in open_prs:
         found = messages(pr, True, True)
         item = Item(pr["number"], pr["title"], pr["html_url"], False, found, labels=_labels(pr))
@@ -641,7 +642,21 @@ def fetch(repo: str, token: str | None, extra_trusted: list[str] | None = None,
         items.append(Item(issue["number"], issue["title"], issue["html_url"], False, found, labels=_labels(issue),
                           kind="Task", claimed_at=max(claims, default=pr_checks._parse_time(issue["updated_at"])),
                           linked=re.search(rf"#{issue['number']}\b", pr_text) is not None))
+    for task in (i for i in items if i.kind == "Task" and not i.linked and i.claimed_at
+                 and now - i.claimed_at >= CLAIM_WITHOUT_PR):
+        task.linked = referenced_by_pr(base, task.number, token)  # a merge older than the closed listing reaches
     return items
+
+
+def referenced_by_pr(base: str, number: int, token: str | None) -> bool:
+    """Whether an open or merged pull request mentions the issue, at any age, from its timeline. Read only for a
+    claim about to be reported, so it costs a request only when it matters."""
+    for event in every(f"{base}/issues/{number}/timeline", token):
+        source = (event.get("source") or {}).get("issue") or {}
+        pr = source.get("pull_request")
+        if event.get("event") == "cross-referenced" and pr and (source.get("state") == "open" or pr.get("merged_at")):
+            return True
+    return False
 
 
 def _labels(entry: dict) -> set[str]:
@@ -687,15 +702,16 @@ def publish(repo: str, token: str, items: list[Item], found: Findings, text: str
               "Stalled items also get a `To: all` comment, which wakes the agents waiting on them._\n")
     body = text if len(text) + len(footer) <= BODY_LIMIT else text[:BODY_LIMIT - len(footer) - 40] + "\n\n(cut short)\n"
     if status:
-        write("PATCH", f"{base}/issues/{status[0]['number']}", {"body": body + footer})
         # Editing the page notifies nobody. A new "Needs you" entry gets one comment, which GitHub sends the owner;
         # agent-only stalls never do, so the owner's notifications are only the things only the owner can settle.
+        # The comment goes first: the page records an entry as told, so it is updated only once the telling worked.
         old = status[0].get("body") or ""
         new = [n for n in found.needs_owner
                if (key := re.search(r"<!-- needs:.+? -->", n)) is None or key.group(0) not in old]
-        if new:
-            write("POST", f"{base}/issues/{status[0]['number']}/comments",
-                  {"body": "The agents need you for:\n\n" + "\n".join(f"- {n}" for n in new)})
+        told = not new or write("POST", f"{base}/issues/{status[0]['number']}/comments",
+                                {"body": "The agents need you for:\n\n" + "\n".join(f"- {n}" for n in new)})
+        if told:
+            write("PATCH", f"{base}/issues/{status[0]['number']}", {"body": body + footer})
     else:
         write("POST", f"{base}/issues", {"title": "Agent status", "body": body + footer, "labels": [STATUS_LABEL]})
     return posted, failures

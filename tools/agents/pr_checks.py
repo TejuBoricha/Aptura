@@ -89,7 +89,8 @@ def is_bot_commit(commit: dict) -> bool:
 CO_AUTHORED = re.compile(
     r"^co-authored-by:\s*("
     # the name tools write, as the first word of the name (so "Cursor Lee" or "Devin Smith" do not count)
-    r"(claude|copilot|codex|chatgpt|gemini|opencode|aider|cursor\s+agent|antigravity)\b"
+    # (Claude and Gemini are also people's first names: for those tools only their no-reply address counts.)
+    r"(copilot|codex|chatgpt|opencode|aider|cursor\s+agent|antigravity)\b"
     # or a tool's own no-reply address
     r"|[^<\n]*<(noreply@anthropic\.com|[^>]*copilot@users\.noreply\.github\.com|cursoragent@cursor\.com|"
     r"noreply@aider\.chat)>)", re.IGNORECASE | re.MULTILINE)

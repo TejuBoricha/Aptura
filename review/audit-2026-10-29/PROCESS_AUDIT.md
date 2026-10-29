@@ -268,6 +268,19 @@ On the author's deviations from the original recommendations, the auditor judged
     error message says to push again, and the 4-hour quiet-PR rule nudges if nobody does.
 - **Accepted as interim:** A1's detective listing. The separate account remains the owner's decision.
 
+### Re-verification
+
+The auditor confirmed N1–N9 (N6 only partly), approved with changes, and found three new should-fix defects and two
+low ones. All five are fixed, each with a regression test, and each fix is mutation-tested:
+
+| ID | Sev. | Defect | Fix |
+|---|---|---|---|
+| NEW-1 | M | A greeting before `To:` with no signature was silently dropped again (a side effect of N2) | Flagged whenever `To:` is not the first line |
+| NEW-2 | M | If posting the owner's notification failed, the page already recorded it as told, so it was never retried | The comment is posted first; the page is updated only if that worked |
+| NEW-3 | M | A merged task counted as linked only for 14 days, and a PR closed without merging hid a dead claim | Only open or merged PRs link; a claim about to be reported checks the issue's timeline for a merge at any age; the merging agent closes or unlabels the task |
+| NEW-4 | L | Claude and Gemini are also people's first names | For those two tools only their no-reply address counts |
+| NEW-5 | L | `Note: no reply needed if …` silenced a conditional wait | A colon no longer starts the phrase |
+
 ## Owner decisions and accepted limits
 
 - **A1, a separate agent account:** recommended. It is the only way to make the owner's decisions unforgeable, and

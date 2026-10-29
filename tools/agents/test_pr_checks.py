@@ -60,7 +60,7 @@ class CoAuthoredTest(unittest.TestCase):
         self.assertEqual(levels(findings), ["warning"])
         # Verification N5: people whose names match a model or tool do not count.
         for person in ("Devin Smith <d@x.com>", "Cursor Lee <c@x>", "Grok Jones <g@x>", "Kimi Tanaka <k@x>",
-                       "Llama Dev <l@x>", "Someone <a@openai.com>"):
+                       "Llama Dev <l@x>", "Someone <a@openai.com>", "Claude Dupont <c@x.fr>", "Gemini Rao <g@x>"):
             self.assertEqual(levels(check(pr(6, ["README.md"]), [], [("abc1234", f"Fix\n\nCo-authored-by: {person}")],
                                           PATTERNS, NOW)), ["error"], person)
         nothing = check(pr(6, ["README.md"]), [], [("abc1234", "Fix")], PATTERNS, NOW)
