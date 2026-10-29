@@ -60,6 +60,8 @@ In flight when claude stopped:
    `tools\device\thermal-run.ps1 -Minutes 30`. Then summarise: max and min of `ap_c`, `skin_c`, `battery_c`,
    `cpu_big_khz`, the thermal status values, `underruns`, the `drift_ms` range, and read the dropped-frames number in the
    stats crops. Caveat: audio/video desync cannot be measured over adb, only playback-clock drift against wall time.
+   **The `ap_c` and `skin_c` columns of that CSV are stale** (cached values); use `thermal-live.csv` for temperatures and
+   read the new section "Thermal run data notes" in the findings file. The phone was also charging over USB.
 
 ## What is left, in this order
 

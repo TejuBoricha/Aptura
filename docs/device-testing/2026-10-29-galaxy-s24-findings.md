@@ -59,7 +59,7 @@ Started 2026-10-29. Written while testing, updated as items finish.
 | Item | Result | Evidence |
 |---|---|---|
 | HDR playback | PARTIAL PASS | HDR10 test clip (HEVC Main10, BT.2020/PQ, mastering metadata, 1080p) played with 0 crashes, 0 dropped frames. Stats overlay: **"HDR10 (PQ)"**, "Hardware Accelerated", `c2.exynos.hevc.decoder`, `hvc1.2.4.L120.90`. NOT judged: tone-mapping quality / panel HDR brightness (needs eyes), and the compositor dump did not show a clear BT.2020/PQ layer dataspace, so I cannot say the panel switched to HDR mode. |
-| 30-minute 4K thermal run | IN PROGRESS | See the section below. |
+| 30-minute 4K thermal run | IN PROGRESS (data notes below) | 4K HEVC clip looped for 30 min from 12:55:06 local; 0 dropped frames and 0 underruns in the first samples; thermal status 0. Read "Thermal run data notes" before using the CSV. |
 | PiP unavailable | CANNOT BE TESTED FULLY | The S24 supports PiP. With the PiP app-op denied for Aptura: Home no longer made a PiP window (normal background), and tapping "Picture in picture" in More options did nothing (no crash, no message). The menu entry is still shown, so "PiP button absent" is not met by this approximation. Note: with PiP allowed, pressing Home during playback auto-enters PiP. |
 | Kill the app during a large SAF copy | NOT YET RUN | Built a 2.5 GB valid MP4 (`bigtest.mp4`) to move with the library's "Move to folder" action. |
 
@@ -122,3 +122,69 @@ Testability (would make on-device and instrumented tests cheaper)
 - Test files in `Movies/AptureTest/` (sleep-test.mp4/.srt, other-test.mp4, pcm24/pcmf32/pcm51.mkv, hdr10.mp4, uhd-sdr.mp4).
 - Playback stats overlay switched on in the player (turn off). Saved per-video offsets on the test files.
 - Font scale: changed to 2.0 and restored to 1.0.
+
+## Thermal run data notes (read before using the CSV)
+
+- Run: 12:55:06 to about 13:25:06 local, `uhd-sdr` (3840x2160, 30 fps, HEVC, hardware decode) looping with Repeat one,
+  stats overlay on, screen on. **The phone was plugged into USB and charging the whole time** (`USB powered: true`,
+  status 2, battery 94% to 96%). That adds heat and means this is not an on-battery thermal test.
+- **`ap_c` and `skin_c` in `thermal-run.csv` are wrong.** The sampler read the "Cached temperatures" section of
+  `dumpsys thermalservice` (constant 47.5 and 37.8 in every row). The repo copy of `tools/device/thermal-run.ps1` is
+  fixed to read "Current temperatures from HAL"; the copy that produced the CSV was not.
+- Valid columns: `state`, `pos_ms`, `expected_pos_ms`, `drift_ms`, `thermal_status`, `battery_c`, `battery_pct`,
+  `underruns`, `cpu_big_khz` (one core, one sample, so sparse).
+- A second logger, `thermal-live.csv` (same temporary folder as `thermal-run.csv`), records the live HAL temperatures
+  every 30 s from 13:11:33 to about 13:27: AP, CP, PA, SKIN, BAT, USB and the thermal status. First rows: AP 39.6 to
+  39.9, SKIN 37.4 to 37.5, BAT 36.2 to 36.3 degrees C, status 0. Idle reading before the run: AP 38.9 degrees C.
+  Skin throttling thresholds on this phone (from `dumpsys thermalservice`): 38, 40, 42, 45, 47, 60, 90 degrees C.
+  Take one more live reading right after the run ends, while the phone is still hot.
+- `drift_ms` (real position against the wall clock) went from -50 ms at 30 s to about -250 ms after 15 min, roughly
+  -13 ms per minute. The clip loops every 60 s, so loop-restart gaps are the likely cause. It is not an audio/video
+  desync measurement (adb cannot measure that).
+- The media session `position` shown by `dumpsys media_session` is a base value; clients add
+  `(now - updated) * speed`. A value that looks frozen (3 ms for 90 s on the 4K clip) is normal, not a defect.
+
+## Observations added after the first version of this file
+
+1. The play-mode setting persists across restarts (Repeat one was still on after the app was killed and relaunched);
+   the Playback stats switch does not (it resets on restart).
+2. HDR render: the yellow bar of the test pattern looked orange in the screenshot. This is a BT.2020 clip with
+   SDR-level content, so a colour conversion is plausible; not judged.
+3. After the task-removal test, the audio was paused by something I did not do at about 12:44:3x (the owner may have).
+   No crash.
+4. One loose tap pattern (`^More`) opened the ⋮ menu of a personal video in the library. I closed it with Back without
+   choosing anything; the library was unchanged and no dialog appeared. Taps are by exact label from then on.
+5. Another app has its own media session on this phone. My play key was routed to Aptura (the media-button session at
+   that moment), and the other session's state was PAUSED afterwards. One earlier read showed it as CONNECTING right
+   after my key, so I cannot fully rule out that the key briefly touched it.
+6. While Aptura plays with the task removed, the status bar shows a media indicator and Android's recents screen shows
+   "1 active app"; the playback service notification is a media notification (no `POST_NOTIFICATIONS` request seen).
+
+## Exact list of phone settings and files I changed
+
+Written with `settings put` or `cmd appops set`: only two things, both restored and checked.
+- `system font_scale`: 1.0 to 2.0 and back to 1.0.
+- App-op `PICTURE_IN_PICTURE` for `org.aptura.player`: default to deny and back to default.
+
+Not written by me, and read back unchanged against what I saw at the start: `stay_on_while_plugged_in` 0,
+`screen_off_timeout` 600000, `screen_brightness` 55 (mode 0), `accelerometer_rotation` 1, `user_rotation` 0, animation
+scales 1.0, display density override 420, `enabled_accessibility_services` (one screen-mirroring entry),
+`touch_exploration_enabled` 0. Developer options and USB debugging were already on (the owner turned USB debugging on).
+The phone rotated to portrait on its own once (auto-rotate is on).
+
+Other changes: the app was freshly installed with `adb install` (and `installDebug` was tried once and refused, which
+changed nothing); the welcome flow was completed and "Allow all" media access granted; app settings changed and
+restored (theme System, play mode still on Repeat one); per-video offsets were saved on the test files only; files were
+pushed to `Movies/AptureTest/`; `/sdcard/ui.xml` (16 KB, a UI-dump temp file) is still on the phone; `logcat -c` was run
+many times (the log buffers are cleared); the app process was force-stopped and its task removed from recents several
+times; media-scanner broadcasts were sent for the test files.
+
+## TalkBack (not attempted)
+
+I did not try to enable TalkBack, so I have no blocker to report. Facts gathered read-only: both builds are installed
+(`com.google.android.marvin.talkback`, service `com.google.android.marvin.talkback.TalkBackService`, and
+`com.samsung.android.accessibility.talkback`, whose service name was not captured); the only enabled accessibility
+service is the screen-mirroring one; there is a lock credential and a 5 s lock-after-timeout. Safe way in and out, not
+yet tried: save the exact `enabled_accessibility_services` string first; append one TalkBack component (never both
+builds) with `settings put secure enabled_accessibility_services "<saved>:<component>"`; to leave, write the saved
+string back over adb (this works even when TalkBack has taken over the touch screen).

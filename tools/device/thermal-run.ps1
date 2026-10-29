@@ -8,8 +8,10 @@ function Thermal {
     $t = & $adb shell dumpsys thermalservice
     $status = ($t | Select-String "Thermal Status: (\d+)" | Select-Object -First 1)
     $st = if ($status) { $status.Matches[0].Groups[1].Value } else { "?" }
+    $hi = ($t | Select-String "Current temperatures from HAL" | Select-Object -First 1).LineNumber
+    $sec = if ($hi) { $t[$hi..([Math]::Min($hi + 10, $t.Count - 1))] } else { @() }
     $temps = @{}
-    $t | Select-String "Temperature\{mValue=([\d\.\-]+), mType=\d+, mName=([A-Za-z0-9_\-]+)" -AllMatches | ForEach-Object { $_.Matches } | ForEach-Object { if (-not $temps.ContainsKey($_.Groups[2].Value)) { $temps[$_.Groups[2].Value] = $_.Groups[1].Value } }
+    $sec | Select-String "Temperature\{mValue=([\d\.\-]+), mType=\d+, mName=([A-Za-z0-9_\-]+)" -AllMatches | ForEach-Object { $_.Matches } | ForEach-Object { if (-not $temps.ContainsKey($_.Groups[2].Value)) { $temps[$_.Groups[2].Value] = $_.Groups[1].Value } }
     [pscustomobject]@{ Status = $st; AP = $temps["AP"]; Skin = ($temps["SKIN"], $temps["skin"], $temps["BACK"] | Where-Object { $_ } | Select-Object -First 1) }
 }
 
