@@ -1,6 +1,7 @@
 """Tests for stalls.py. Run with: python3 -m unittest discover -s tools/agents"""
 
 import io
+import re
 import unittest
 import unittest.mock
 import urllib.error
@@ -148,6 +149,73 @@ class UnansweredTest(unittest.TestCase):
 
     def test_only_the_oldest_waiting_message_per_addressee_is_reported(self):
         self.assertEqual(len(stalls_of([msg(ASK), msg(ASK, 10)], 600)), 1)
+
+
+class AuditParsingTest(unittest.TestCase):
+    """Audit T3, T4 and T6: what the checks read, and edge cases in the wait rules."""
+
+    def test_markers_in_code_blocks_never_count(self):
+        example = "To: all\nThe format is:\n```\nHold: example\nOverride: review on #9\nFrom: opencode\n```\nFrom: claude"
+        self.assertIsNone(current_hold([msg(example)]))
+        self.assertIsNone(stalls.override_step(msg(example)))
+        self.assertEqual(stalls.sender(example), "claude")
+
+    def test_common_formatting_is_understood(self):
+        self.assertEqual(stalls.recipients("**To:** opencode\nhi\n**From:** claude"), {"opencode"})
+        self.assertEqual(stalls.sender("**To:** opencode\nhi\n**From:** claude"), "claude")
+        self.assertTrue(stalls.has_line("- Working: on it, done by 11:00 UTC", "working"))
+        self.assertEqual(stalls.recipients("To: claude and opencode\nhi\nFrom: gemini"), {"claude", "opencode"})
+
+    def test_an_unreadable_message_is_reported_once(self):
+        greeting = msg("Hi opencode!\nTo: opencode\nPlease review.\nFrom: claude")
+        unsigned = msg("To: opencode\nPlease review.", 1)
+        found = find([item([greeting, unsigned])], at(5), WINDOW, STEP, TIMEBOX)
+        texts = " ".join(s.text for s in found.stalls)
+        self.assertIn("`To:` line is not the first line", texts)
+        self.assertIn("no `From:` line", texts)
+        self.assertNotIn("cannot be read", " ".join(
+            s.text for s in find([item([msg(ASK)])], at(5), WINDOW, STEP, TIMEBOX).stalls))
+
+    def test_a_pause_after_an_answer_does_not_reopen_it(self):
+        answer = msg("To: claude\nDone.\nNo reply needed.\nFrom: opencode", 5)
+        pause = msg("To: all\nPausing: usage limit.\nFrom: opencode", 20)
+        self.assertEqual(stalls_of([msg(ASK), answer, pause], 25), [])
+
+    def test_a_working_time_already_past_or_too_far_falls_back_to_two_hours(self):
+        # 10:01 "by 09:00 UTC" would otherwise hold until 09:30 tomorrow.
+        posted = T0.replace(hour=10, minute=1)
+        self.assertEqual(stalls.working_until("Working: x, by 09:00 UTC", posted, WINDOW), posted + timedelta(hours=2))
+        self.assertEqual(stalls.working_until("Working: x, by 11:00 UTC", posted, WINDOW),
+                         T0.replace(hour=11, minute=30))
+
+    def test_agreed_is_agreement(self):
+        self.assertEqual(stalls.verdict("Verdict: agreed"), "agree")
+        self.assertEqual(stalls.verdict("Critique: agreed, nothing to add."), "agree")
+
+    def test_a_stall_nobody_resolves_for_a_day_goes_to_the_owner(self):
+        pr = item([msg(ASK)])
+        [stall] = find([pr], at(60), WINDOW, STEP, TIMEBOX).stalls
+        pr.messages.append(msg(nudge_body(stall), 60))
+        self.assertEqual(find([pr], at(60 + 23 * 60), WINDOW, STEP, TIMEBOX).needs_owner, [])
+        self.assertIn("stalled for 24 h", find([pr], at(60 + 24 * 60), WINDOW, STEP, TIMEBOX).needs_owner[0])
+
+    def test_words_recorded_in_the_owners_name_are_listed_for_the_owner(self):
+        # Audit A1: every agent posts as the owner, so the owner sees what was recorded in their name.
+        said = msg('To: all\nOwner said (in my session): "approve"\nNo reply needed.\nFrom: claude')
+        found = find([item([said])], at(10), WINDOW, STEP, TIMEBOX)
+        self.assertIn("by claude", found.owner_words[0])
+        self.assertIn("Recorded as your words", stalls.report([item([said])], found, at(10)))
+
+    def test_explain_shows_how_a_message_is_read(self):
+        out = io.StringIO()
+        with unittest.mock.patch.object(stalls.sys, "stdout", out):
+            code = stalls.explain("To: opencode\nWorking: reviewing, done by 11:00 UTC\nFrom: claude")
+        self.assertEqual(code, 0)
+        self.assertIn("to:       opencode", out.getvalue())
+        self.assertIn("markers:  working", out.getvalue())
+        self.assertIn("is a wait: False", out.getvalue())
+        with unittest.mock.patch.object(stalls.sys, "stdout", io.StringIO()):
+            self.assertEqual(stalls.explain("To: opencode\nno signature"), 1)
 
 
 class HoldTest(unittest.TestCase):
@@ -366,79 +434,184 @@ class ReportTest(unittest.TestCase):
         self.assertIn("**Needs you:** nothing.", stalls.report([], stalls.Findings(), at(0)))
 
 
+class FakeGitHub:
+    """A fake of the GitHub REST API the scripts use: answers by path, counts calls."""
+
+    def __init__(self, routes):
+        self.routes, self.calls = routes, []
+
+    def get(self, url, token):
+        path = url.split("/repos/TejuBoricha/Aptura", 1)[1]
+        self.calls.append(path)
+        path = re.sub(r"[?&]per_page=100&page=\d+", "", path)
+        path = re.sub(r"[?&]since=[^&]+", "", path).replace("&sort=created&direction=asc", "").replace(
+            "?sort=created&direction=asc", "")
+        if path not in self.routes:
+            raise AssertionError(f"unexpected request {path}")
+        return self.routes[path]
+
+
+def gh_comment(n, author, body, number, kind="issue", created="2026-10-29T09:00:00Z"):
+    key = "issue_url" if kind == "issue" else "pull_request_url"
+    path = "issues" if kind == "issue" else "pulls"
+    return {"created_at": created, "html_url": f"https://example/c{n}", "body": body, "user": {"login": author},
+            key: f"https://api.github.com/repos/TejuBoricha/Aptura/{path}/{number}"}
+
+
+def pr_entry(n, title="PR", created="2026-10-29T08:00:00Z", body=""):
+    return {"number": n, "title": title, "html_url": f"https://example/{n}", "created_at": created,
+            "updated_at": created, "body": body, "head": {"sha": f"sha{n}"}, "labels": []}
+
+
 class FetchTest(unittest.TestCase):
-    """The GitHub side, with a fake API: strangers can neither create waits nor open debates."""
+    """The GitHub side, with a fake API."""
+
+    def routes(self, **extra):
+        base = {
+            "/pulls?state=open": [],
+            "/issues?state=open": [],
+            "/pulls?state=closed&sort=updated&direction=desc": [],
+            "/issues?state=closed&labels=debate&sort=updated&direction=desc": [],
+            "/issues?state=closed&labels=follow-up": [],
+            "/issues/comments": [],
+            "/pulls/comments": [],
+        }
+        base.update(extra)
+        return base
+
+    def fetch(self, routes, now=None):
+        fake = FakeGitHub(routes)
+        with unittest.mock.patch.object(stalls.pr_checks, "_get", fake.get):
+            items = stalls.fetch("TejuBoricha/Aptura", None, now=now or at(0))
+        return items, fake
 
     def test_only_the_owners_comments_and_debates_count(self):
-        def comment(n, author, body):
-            return {"created_at": "2026-10-29T09:00:00Z", "html_url": f"https://example/c{n}", "body": body,
-                    "user": {"login": author}}
-        pages = {
-            "/pulls?state=open": [{"number": 9, "title": "PR", "html_url": "https://example/9"}],
-            "/issues/9/comments": [comment(1, "TejuBoricha", ASK),
-                                   comment(2, "stranger", "To: all\nHold: forever\nFrom: claude"),
-                                   comment(3, "github-actions[bot]", "To: all\nHold: echoed\nFrom: claude")],
+        routes = self.routes(**{
+            "/pulls?state=open": [pr_entry(9)],
             "/pulls/9/reviews": [],
-            "/pulls/9/comments": [],
-            "/issues?state=open&labels=debate": [
-                {"number": 20, "title": "Owner's", "html_url": "https://example/20", "user": {"login": "tejuboricha"}},
-                {"number": 21, "title": "Stranger's", "html_url": "https://example/21", "user": {"login": "stranger"}}],
-            "/issues/20/comments": [],
-            "/pulls?state=closed&sort=updated&direction=desc": [
-                {"number": 8, "title": "Merged", "html_url": "https://example/8", "updated_at": "2026-10-29T08:00:00Z"},
-                {"number": 7, "title": "Old", "html_url": "https://example/7", "updated_at": "2026-09-01T08:00:00Z"}],
-            "/issues/8/comments": [comment(4, "TejuBoricha", 'To: all\nOwner said: "merge"\nOverride: review on #8\n'
-                                                             'Follow-up: review later\nFrom: claude')],
-            "/pulls/8/reviews": [],
-            "/pulls/8/comments": [],
-            "/issues?state=closed&labels=debate&sort=updated&direction=desc": [
-                {"number": 22, "title": "Decided", "html_url": "https://example/22", "updated_at": "2026-10-28T08:00:00Z"}],
-            "/issues/22/comments": [comment(6, "TejuBoricha", 'To: all\nOwner said: "decide now"\n'
-                                                              'Override: debate critiques on #22\n'
-                                                              'Follow-up: critiques of the decision\nFrom: claude')],
-            "/issues?state=closed&labels=follow-up": [
-                {"number": 5, "title": "Ancient", "html_url": "https://example/5", "updated_at": "2026-01-01T00:00:00Z",
-                 "pull_request": {}, "labels": [{"name": "follow-up"}]}],
-            "/issues/5/comments": [comment(5, "TejuBoricha", 'To: all\nOwner said: "merge"\nOverride: review on #5\n'
-                                                             'Follow-up: review later\nFrom: claude')],
-            "/pulls/5/reviews": [],
-            "/pulls/5/comments": [],
-        }
-
-        def fake_get(url, token):
-            path = url.split("/repos/TejuBoricha/Aptura", 1)[1].replace("&per_page=100&page=1", "")
-            return pages[path.replace("?per_page=100&page=1", "")]
-
-        with unittest.mock.patch.object(stalls.pr_checks, "_get", fake_get):
-            items = stalls.fetch("TejuBoricha/Aptura", None, now=at(0))
-        self.assertEqual([(i.number, i.is_open) for i in items],
-                         [(5, False), (8, False), (22, False), (9, True), (20, True)],
-                         "#8 and debate #22 closed recently; #5, however old, carries the follow-up label; #7 is neither")
-        items = [i for i in items if i.is_open]
+            "/issues?state=open": [
+                {**pr_entry(20, "Owner's"), "user": {"login": "tejuboricha"}, "labels": [{"name": "debate"}]},
+                {**pr_entry(21, "Stranger's"), "user": {"login": "stranger"}, "labels": [{"name": "debate"}]}],
+            "/issues/comments": [gh_comment(1, "TejuBoricha", ASK, 9),
+                                 gh_comment(2, "stranger", "To: all\nHold: forever\nFrom: claude", 9),
+                                 gh_comment(3, "github-actions[bot]", "To: all\nHold: echoed\nFrom: claude", 9)],
+        })
+        items, _ = self.fetch(routes)
+        self.assertEqual([(i.number, i.kind) for i in items], [(9, "PR"), (20, "Debate")])
         self.assertEqual([m.url for m in items[0].messages], ["https://example/c1"])
         self.assertEqual(len(find(items, at(300), WINDOW, STEP, TIMEBOX).stalls), 1,
                          "neither the stranger's nor another workflow's Hold may stop the check")
 
+    def test_closed_items_are_read_for_overrides_recent_or_labelled(self):
+        override = 'To: all\nOwner said: "merge"\nOverride: review on #{n}\nFollow-up: review later\nFrom: claude'
+        routes = self.routes(**{
+            "/pulls?state=closed&sort=updated&direction=desc": [
+                {**pr_entry(8, "Merged"), "updated_at": "2026-10-29T08:00:00Z"},
+                {**pr_entry(7, "Old", created="2026-08-01T00:00:00Z"), "updated_at": "2026-09-01T08:00:00Z"}],
+            "/issues?state=closed&labels=debate&sort=updated&direction=desc": [
+                {**pr_entry(22, "Decided"), "updated_at": "2026-10-28T08:00:00Z"}],
+            "/issues?state=closed&labels=follow-up": [
+                {**pr_entry(5, "Ancient", created="2026-01-01T00:00:00Z"), "updated_at": "2026-01-02T00:00:00Z",
+                 "pull_request": {}, "labels": [{"name": "follow-up"}]}],
+            "/issues/comments": [gh_comment(4, "TejuBoricha", override.format(n=8), 8),
+                                 gh_comment(6, "TejuBoricha", override.format(n=22), 22)],
+            # #5 is older than the repository-wide read, so it is read on its own
+            "/issues/5/comments": [gh_comment(5, "TejuBoricha", override.format(n=5), 5)],
+            "/pulls/5/reviews": [],
+            "/pulls/5/comments": [],
+        })
+        items, _ = self.fetch(routes)
+        self.assertEqual([(i.number, i.is_open) for i in items], [(5, False), (8, False), (22, False)],
+                         "#8 and debate #22 closed recently; #5, however old, carries the follow-up label")
+
+    def test_a_claimed_task_without_a_pull_request_is_a_stall_after_two_hours(self):
+        # Audit A3: an agent that claims a task and stops left a permanent claim nobody noticed.
+        claimed = {**pr_entry(30, "Sleep timer presets"), "labels": [{"name": "claimed:opencode"}]}
+        claim = gh_comment(7, "TejuBoricha", "claim: opencode (deepseek)", 30, created="2026-10-29T09:00:00Z")
+        items, _ = self.fetch(self.routes(**{"/issues?state=open": [claimed], "/issues/comments": [claim]}))
+        [task] = items
+        self.assertEqual((task.kind, task.linked), ("Task", False))
+        self.assertEqual(find(items, at(119), WINDOW, STEP, TIMEBOX).stalls, [])
+        [stall] = find(items, at(121), WINDOW, STEP, TIMEBOX).stalls
+        self.assertIn("no open pull request mentions it", stall.text)
+        linked, _ = self.fetch(self.routes(**{"/issues?state=open": [claimed], "/issues/comments": [claim],
+                                              "/pulls?state=open": [pr_entry(31, body="Refs: #30")],
+                                              "/pulls/31/reviews": []}))
+        self.assertTrue(next(i for i in linked if i.number == 30).linked)
+
+    def test_a_quiet_pull_request_is_a_stall_after_four_hours_counting_commits(self):
+        # Audit A3: a driver that stops without a message left a PR marked "moving".
+        routes = self.routes(**{"/pulls?state=open": [pr_entry(9, created="2026-10-29T03:00:00Z")],
+                                "/pulls/9/reviews": [],
+                                "/commits/sha9": {"commit": {"committer": {"date": "2026-10-29T06:00:00Z"}}}})
+        items, fake = self.fetch(routes, now=at(0))
+        self.assertIn("/commits/sha9", fake.calls)
+        self.assertEqual(items[0].idle_since, datetime(2026, 10, 29, 6, tzinfo=timezone.utc))
+        self.assertEqual(find(items, at(0), WINDOW, STEP, TIMEBOX).stalls, [])  # 3 h quiet
+        [stall] = find(items, at(61), WINDOW, STEP, TIMEBOX).stalls
+        self.assertIn("no message or commit for 4 h 01 min", stall.text)
+
+    def test_the_api_budget_fits_at_scale(self):
+        # Audit T1: 30 open and 40 recently closed pull requests cost 215 requests a run before; the workflow token
+        # has 1,000 an hour, shared with CI, and the check runs four times an hour.
+        open_prs = [pr_entry(n) for n in range(100, 130)]
+        closed = [{**pr_entry(n), "updated_at": "2026-10-28T00:00:00Z"} for n in range(200, 240)]
+        routes = self.routes(**{"/pulls?state=open": open_prs,
+                                "/pulls?state=closed&sort=updated&direction=desc": closed,
+                                **{f"/pulls/{n}/reviews": [] for n in range(100, 130)}})
+        _, fake = self.fetch(routes, now=at(0))
+        self.assertLessEqual(len(fake.calls), 40, fake.calls)
+
 
 class PublishTest(unittest.TestCase):
-    def publish(self, items, status_issues):
+    def publish(self, items, status_issues, send=None):
         sent = []
-        with unittest.mock.patch.object(stalls, "_send", lambda method, url, token, payload: sent.append((method, url))), \
+        def default_send(method, url, token, payload):
+            sent.append((method, url))
+        with unittest.mock.patch.object(stalls, "_send", send or default_send), \
                 unittest.mock.patch.object(stalls, "every", lambda url, token: iter(status_issues)):
-            posted = stalls.publish("o/r", "token", items, find(items, at(300), WINDOW, STEP, TIMEBOX), "report")
-        return posted, sent
+            posted, failures = stalls.publish("o/r", "token", items, find(items, at(300), WINDOW, STEP, TIMEBOX),
+                                              "report")
+        return posted, sent, failures
 
     def test_posts_each_stall_once_and_updates_the_status_issue(self):
         pr = item([msg(ASK)])
-        posted, sent = self.publish([pr], [{"number": 50}])
+        posted, sent, _ = self.publish([pr], [{"number": 50}])
         self.assertEqual(posted, 1)
         self.assertEqual(sent, [("POST", "https://api.github.com/repos/o/r/issues/9/comments"),
                                 ("PATCH", "https://api.github.com/repos/o/r/issues/50")])
-        [stall] = find([pr], at(300), WINDOW, STEP, TIMEBOX).stalls
-        pr.messages.append(msg(nudge_body(stall), 200))
-        posted, sent = self.publish([pr], [{"number": 50}])
+        stalls_now = find([pr], at(300), WINDOW, STEP, TIMEBOX).stalls
+        pr.messages.append(msg(nudge_body(stalls_now), 200))
+        posted, sent, _ = self.publish([pr], [{"number": 50}])
         self.assertEqual(posted, 0)
         self.assertEqual(sent, [("PATCH", "https://api.github.com/repos/o/r/issues/50")])
+
+    def test_several_new_stalls_on_one_item_make_one_comment(self):
+        # Audit U3: one notification per item, not one per stall.
+        two = item([msg(ASK), msg("To: gemini\nAlso review.\nFrom: claude", 1)])
+        posted, sent, _ = self.publish([two], [{"number": 50}])
+        self.assertEqual(posted, 1)
+        self.assertEqual(sum(1 for method, url in sent if url.endswith("/comments")), 1)
+
+    def test_a_failed_write_does_not_stop_the_others(self):
+        # Audit T5: a locked conversation used to freeze the whole status page.
+        sent = []
+        def send(method, url, token, payload):
+            if url.endswith("/issues/9/comments"):
+                raise urllib.error.HTTPError(url, 403, "locked", {}, None)
+            sent.append((method, url))
+        a, b = item([msg(ASK)]), Item(10, "Other", "https://example/10", False, [msg(ASK)])
+        posted, _, failures = self.publish([a, b], [{"number": 50}], send)
+        self.assertEqual(posted, 1)
+        self.assertEqual(len(failures), 1)
+        self.assertIn(("PATCH", "https://api.github.com/repos/o/r/issues/50"), sent)
+
+    def test_the_status_body_stays_under_githubs_limit(self):
+        sent = []
+        with unittest.mock.patch.object(stalls, "_send", lambda m, u, t, p: sent.append(p)), \
+                unittest.mock.patch.object(stalls, "every", lambda url, token: iter([{"number": 50}])):
+            stalls.publish("o/r", "token", [], stalls.Findings(), "x" * 100_000)
+        self.assertLessEqual(len(sent[-1]["body"]), 65_536)
 
     def test_applies_and_removes_the_follow_up_label(self):
         override = msg('To: all\nOwner said: "merge now"\nOverride: review on #9\nFollow-up: review\nFrom: claude')
@@ -452,7 +625,7 @@ class PublishTest(unittest.TestCase):
         self.assertIn(("DELETE", "https://api.github.com/repos/o/r/issues/4/labels/follow-up"), sent)
 
     def test_creates_the_status_issue_when_there_is_none(self):
-        posted, sent = self.publish([], [])
+        _, sent, _ = self.publish([], [])
         self.assertEqual(sent, [("POST", "https://api.github.com/repos/o/r/issues")])
 
     def test_a_nudge_wakes_every_agent_and_is_not_itself_a_wait(self):

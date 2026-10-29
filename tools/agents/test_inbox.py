@@ -30,6 +30,37 @@ class AddressingTest(unittest.TestCase):
         self.assertIsNone(sender("To: opencode\nno signature"))
 
 
+class TokenTest(unittest.TestCase):
+    """Audit T2: without a token GitHub allows 60 requests an hour, which a waiting agent used up in 15 minutes."""
+
+    def test_falls_back_to_the_github_cli_login(self):
+        done = unittest.mock.Mock(returncode=0, stdout="gho_cli\n")
+        with unittest.mock.patch.dict(inbox.os.environ, {}, clear=True), \
+                unittest.mock.patch.object(inbox.subprocess, "run", return_value=done):
+            self.assertEqual(inbox.github_token(), "gho_cli")
+        with unittest.mock.patch.dict(inbox.os.environ, {"GH_TOKEN": "env"}, clear=True):
+            self.assertEqual(inbox.github_token(), "env")
+        with unittest.mock.patch.dict(inbox.os.environ, {}, clear=True), \
+                unittest.mock.patch.object(inbox.subprocess, "run", side_effect=FileNotFoundError):
+            self.assertIsNone(inbox.github_token())
+
+    def test_without_a_token_it_checks_slowly_enough_to_stay_within_the_limit(self):
+        slept = []
+        argv = ["inbox.py", "--repo", "TejuBoricha/Aptura", "--pr", "4", "--me", "opencode", "--interval", "60",
+                "--timeout", "1", "--since", "2026-10-28T15:00:00Z"]
+        ticks = iter([0, 0, 0, 5, 5, 5])
+        with unittest.mock.patch.object(inbox, "github_token", lambda: None), \
+                unittest.mock.patch.object(inbox, "fetch_messages", lambda *a: []), \
+                unittest.mock.patch.object(inbox.pr_checks, "_get", lambda url, token: {"state": "open"}), \
+                unittest.mock.patch.object(inbox.time, "monotonic", lambda: next(ticks)), \
+                unittest.mock.patch.object(inbox.time, "sleep", slept.append), \
+                unittest.mock.patch.object(inbox.sys, "argv", argv), \
+                unittest.mock.patch("builtins.print"):
+            inbox.main()
+        self.assertTrue(slept)
+        self.assertEqual(set(slept), {240})
+
+
 class SelectionTest(unittest.TestCase):
     def test_picks_new_messages_for_me_or_all_in_order(self):
         messages = [
