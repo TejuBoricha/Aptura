@@ -261,11 +261,36 @@ class VerificationRoundTest(unittest.TestCase):
     def test_a_task_whose_pull_request_merged_is_linked(self):
         # N6: `Refs: #N` does not close the issue, so a merged PR must count as the link.
         claimed = {**pr_entry(30, "Task"), "labels": [{"name": "claimed:opencode"}]}
-        merged = {**pr_entry(31, body="Refs: #30"), "updated_at": "2026-10-29T08:30:00Z"}
+        merged = {**pr_entry(31, body="Refs: #30"), "updated_at": "2026-10-29T08:30:00Z",
+                  "merged_at": "2026-10-29T08:30:00Z"}
         routes = FetchTest().routes(**{"/issues?state=open": [claimed],
                                        "/pulls?state=closed&sort=updated&direction=desc": [merged]})
         items, _ = FetchTest().fetch(routes)
         self.assertTrue(next(i for i in items if i.number == 30).linked)
+
+    def test_a_pull_request_closed_unmerged_does_not_hide_a_dead_claim(self):
+        # Re-verification NEW-3: an abandoned PR must not count as the link; the timeline is asked instead.
+        claimed = {**pr_entry(30, "Task", created="2026-10-29T05:00:00Z"), "labels": [{"name": "claimed:opencode"}],
+                   "updated_at": "2026-10-29T05:00:00Z"}
+        abandoned = {**pr_entry(31, body="Refs: #30"), "updated_at": "2026-10-29T08:30:00Z", "merged_at": None}
+        routes = FetchTest().routes(**{"/issues?state=open": [claimed],
+                                       "/pulls?state=closed&sort=updated&direction=desc": [abandoned],
+                                       "/issues/30/timeline": [{"event": "cross-referenced", "source": {"issue": {
+                                           "state": "closed", "pull_request": {"merged_at": None}}}}]})
+        items, fake = FetchTest().fetch(routes)
+        self.assertFalse(next(i for i in items if i.number == 30).linked)
+        self.assertIn("/issues/30/timeline?per_page=100&page=1", fake.calls)
+
+    def test_a_merge_older_than_the_closed_listing_still_links_the_task(self):
+        claimed = {**pr_entry(30, "Task", created="2026-09-01T05:00:00Z"), "labels": [{"name": "claimed:opencode"}],
+                   "updated_at": "2026-09-01T05:00:00Z"}
+        routes = FetchTest().routes(**{"/issues?state=open": [claimed],
+                                       "/issues/30/comments": [], "/issues/30/timeline": [
+                                           {"event": "cross-referenced", "source": {"issue": {
+                                               "state": "closed", "pull_request": {"merged_at": "2026-09-30T00:00:00Z"}}}}]})
+        items, _ = FetchTest().fetch(routes)
+        self.assertTrue(items[0].linked)
+        self.assertEqual(find(items, at(0), WINDOW, STEP, TIMEBOX).stalls, [])
 
     def test_an_unsigned_comment_counts_as_activity(self):
         # N7: the owner writes plain comments.
@@ -281,6 +306,11 @@ class VerificationRoundTest(unittest.TestCase):
         self.assertTrue(stalls.no_reply_needed("Merged #4. No reply needed."))
         self.assertTrue(stalls.no_reply_needed("No reply needed"))
         self.assertFalse(stalls.no_reply_needed("This is not a no reply needed case: please answer."))
+        self.assertFalse(stalls.no_reply_needed("Note: no reply needed if the tests pass."))  # NEW-5
+
+    def test_a_greeting_before_to_without_a_signature_is_reported(self):
+        # Re-verification NEW-1: the most common mis-format.
+        self.assertIn("not the first line", stalls.malformed("Hi\nTo: opencode\nplease review"))
 
     def test_an_old_open_pull_request_does_not_blow_the_budget(self):
         # The repository-wide read reaches back to the oldest open item, at most READ_DAYS.
@@ -718,6 +748,21 @@ class PublishTest(unittest.TestCase):
         page = [p for m, u, p in sent if m == "PATCH"][-1]["body"]
         sent.clear()
         self.assertEqual(run(25 * 60 + 15, page), [], "same entry, 15 minutes older: no second email")
+
+    def test_a_failed_owner_notification_is_retried_next_run(self):
+        # Re-verification NEW-2: the page records an entry as told, so it must not be updated when telling failed.
+        found = stalls.Findings(needs_owner=[stalls.needs("hold#u", "[#9](u) on hold for 25 h")])
+        calls = []
+        def failing(method, url, token, payload):
+            calls.append(method)
+            if url.endswith("/comments"):
+                raise urllib.error.HTTPError(url, 500, "boom", {}, None)
+        with unittest.mock.patch.object(stalls, "_send", failing), \
+                unittest.mock.patch.object(stalls.pr_checks.time, "sleep", lambda s: None), \
+                unittest.mock.patch.object(stalls, "every", lambda url, token: iter([{"number": 50, "body": "old"}])):
+            _, failures = stalls.publish("o/r", "token", [], found, "report " + found.needs_owner[0])
+        self.assertTrue(failures)
+        self.assertNotIn("PATCH", calls, "the page still says the owner was not told")
 
     def test_creates_the_status_issue_when_there_is_none(self):
         _, sent, _ = self.publish([], [])

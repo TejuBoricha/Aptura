@@ -168,9 +168,9 @@ def malformed(body: str) -> str | None:
     has_to = any(TO_LINE.match(line) for line in lines)
     has_from = any(FROM_LINE.match(line) for line in lines)
     # A note signed `From:` with no `To:` (a pause, a status) is fine: it addresses nobody, so nobody waits on it.
-    if has_to and not TO_LINE.match(lines[0]) and has_from:
+    if has_to and not TO_LINE.match(lines[0]):
         return "its `To:` line is not the first line"
-    if has_to and TO_LINE.match(lines[0]) and not has_from:
+    if has_to and not has_from:
         return "it has a `To:` line but no `From:` line"
     return None
 

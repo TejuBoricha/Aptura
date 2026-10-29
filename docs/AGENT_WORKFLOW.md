@@ -94,6 +94,9 @@ Use the same prompt in any tool:
 
 Check out the existing branch rather than starting a new one. Swap the `claimed:*` label to your tool.
 
+When the work for an issue is merged, the merging agent closes the issue (use `Closes #N` in the PR when the PR
+finishes the task) or removes its `claimed:*` label, so a finished task is not reported as a dead claim.
+
 ### 7. Commit trailers
 
 ```
