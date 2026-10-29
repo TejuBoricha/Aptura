@@ -17,7 +17,8 @@ instead of when the owner notices. The rules, in the order they apply to a `To:`
 A debate stalls when its critiques are overdue, the proposer's answer to them is overdue, it ran past its time box,
 it went past two rounds, or a proposal or critique is over its word limit. A `Decision:` posted before two critiques
 does not count unless the owner overrode that step. Owner overrides (`Override:` lines) are listed with their
-follow-up until a `Follow-up done:` line. A `Hold:` line (the owner said wait) pauses
+follow-up until a `Follow-up done:` line; an item with a pending follow-up gets the `follow-up` label, which keeps it
+read after it closes, at any age, and is removed when the follow-up is done. A `Hold:` line (the owner said wait) pauses
 an item until a later `Hold lifted:` line; holds older than a day are listed for the owner.
 
     python3 tools/agents/stalls.py                 # print the report
@@ -48,6 +49,7 @@ from inbox import Message, _login, every, force_utf8_output, recipients, sender,
 BOT = "agent-status"
 STATUS_LABEL = "agent-status"
 DEBATE_LABEL = "debate"
+FOLLOW_UP_LABEL = "follow-up"
 MARKER = "<!-- stall:{key} -->"
 PROPOSAL_WORDS = 500
 CRITIQUE_WORDS = 350
@@ -102,6 +104,7 @@ class Item:
     is_debate: bool
     messages: list[Message]
     is_open: bool = True
+    labels: set[str] = field(default_factory=set)
 
 
 @dataclass
@@ -122,6 +125,8 @@ class Findings:
     stalls: list[Stall] = field(default_factory=list)
     needs_owner: list[str] = field(default_factory=list)
     overrides: list[str] = field(default_factory=list)
+    label: set[int] = field(default_factory=set)    # items to give the follow-up label
+    unlabel: set[int] = field(default_factory=set)  # items whose follow-ups are all done
 
 
 def current_hold(messages: list[Message]) -> Hold | None:
@@ -201,9 +206,14 @@ def verdict(body: str) -> str:
     """A critique's verdict: `agree`, `changes` or `object`, read from a `Verdict:` line, else from the `Critique:`
     line. An unclear verdict counts as an objection, so nothing is waved through by accident."""
     lines = own_lines(body)
-    text = next((l for l in lines if re.match(r"^\s*verdict\s*:", l, re.IGNORECASE)),
-                next((l for l in lines if re.match(r"^\s*critique\s*:", l, re.IGNORECASE)), "")).lower()
-    if re.search(r"\b(object|objects|objection|disagree|disagrees)\b|\b(not|n't)\s+agree\b", text):
+    stated = next((l for l in lines if re.match(r"^\s*verdict\s*:", l, re.IGNORECASE)), None)
+    if stated is not None:  # the `Verdict:` line starts with the verdict itself
+        text = stated.split(":", 1)[1].strip().lower()
+        if re.match(r"agree with changes\b", text):
+            return "changes"
+        return "agree" if re.match(r"agree\b", text) else "object"
+    text = next((l for l in lines if re.match(r"^\s*critique\s*:", l, re.IGNORECASE)), "").lower()
+    if re.search(r"\b(object|objects|objection|disagree|disagrees)\b|(?:\bnot|n't)\s+agree\b", text):
         return "object"
     if re.search(r"\bagree with changes\b", text):
         return "changes"
@@ -315,10 +325,10 @@ def is_verified_override(m: Message) -> bool:
         re.match(r"^\s*owner said\b.*[\"“].+[\"”]", l, re.IGNORECASE) for l in own_lines(m.body))
 
 
-def overrides(item: Item) -> list[str]:
+def overrides(item: Item) -> tuple[list[str], bool]:
     """Overrides recorded on the item, open or recently closed, and whether their follow-up is done. A
     `Follow-up done:` line closes the overrides posted before it on the same item."""
-    notes = []
+    notes, pending = [], False
     for m in sorted(item.messages, key=lambda m: m.created_at):
         step = override_step(m)
         if step is None:
@@ -327,19 +337,27 @@ def overrides(item: Item) -> list[str]:
         follow = next((re.sub(r"^\s*follow-up\s*:\s*", "", l, flags=re.IGNORECASE) for l in lines
                        if re.match(r"^\s*follow-up\s*:", l, re.IGNORECASE)), None)
         done = any(x.created_at > m.created_at and has_line(x.body, "follow-up done") for x in item.messages)
-        if done and item.is_open is False:
-            continue  # finished and closed: nothing left to show
+        pending = pending or (bool(follow) and not done)
+        if done:
+            continue  # finished: nothing left to show
         state = "done" if done else ("**pending**" if follow else "**no follow-up stated**")
         verified = "" if is_verified_override(m) else " **unverified: no quoted owner words**"
         notes.append(f"[#{item.number}]({item.url}) skipped {safe(step)} ({m.url}){verified}; follow-up: "
                      f"{safe(follow or 'none')}, {state}")
-    return notes
+    return notes, pending
 
 
 def find(items: list[Item], now: datetime, window: timedelta, step: timedelta, timebox: timedelta) -> Findings:
     found = Findings()
     for item in items:
-        found.overrides += overrides(item)
+        notes, pending = overrides(item)
+        found.overrides += notes
+        # The label keeps a pending follow-up in view however long it takes: labelled items are read even when
+        # closed, at any age, and the label goes when every follow-up on the item is done.
+        if pending and FOLLOW_UP_LABEL not in item.labels:
+            found.label.add(item.number)
+        if not pending and FOLLOW_UP_LABEL in item.labels:
+            found.unlabel.add(item.number)
         if not item.is_open:
             continue  # a recently closed item is read only for its overrides' follow-ups
         hold = current_hold(item.messages)
@@ -389,8 +407,9 @@ def report(items: list[Item], found: Findings, now: datetime) -> str:
 
 # ---- GitHub I/O -------------------------------------------------------------------------------------------------
 
-def _send(method: str, url: str, token: str, payload: dict):
-    request = urllib.request.Request(url, method=method, data=json.dumps(payload).encode("utf-8"), headers={
+def _send(method: str, url: str, token: str, payload: dict | None):
+    data = None if payload is None else json.dumps(payload).encode("utf-8")
+    request = urllib.request.Request(url, method=method, data=data, headers={
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
         "User-Agent": "aptura-stalls",
@@ -431,22 +450,35 @@ def fetch(repo: str, token: str | None, extra_trusted: list[str] | None = None,
     base = f"{pr_checks.API}/repos/{repo}"
     authors = trusted_authors(repo, extra_trusted)
     cutoff = (now or datetime.now(timezone.utc)) - timedelta(days=CLOSED_DAYS)
-    items = []
-    # An override's follow-up usually comes after the merge ("skip the review, review afterwards"), so pull requests
-    # and debates closed in the last CLOSED_DAYS days are read too, for their overrides only.
-    for pr in recently_closed(f"{base}/pulls?state=closed", token, cutoff):
-        messages = _comments(base, pr["number"], token, True, authors)
+    items: list[Item] = []
+    # An override's follow-up usually comes after the merge ("skip the review, review afterwards"). Closed pull
+    # requests and debates are read for their overrides only: those closed in the last CLOSED_DAYS days, to find new
+    # overrides, and those labelled follow-up at any age, until their follow-up is done.
+    closed: dict[int, dict] = {}
+    for entry in recently_closed(f"{base}/pulls?state=closed", token, cutoff):
+        closed[entry["number"]] = {**entry, "pull_request": {}}
+    for entry in recently_closed(f"{base}/issues?state=closed&labels={DEBATE_LABEL}", token, cutoff):
+        closed.setdefault(entry["number"], entry)
+    for entry in every(f"{base}/issues?state=closed&labels={FOLLOW_UP_LABEL}", token):
+        closed.setdefault(entry["number"], entry)
+    for number, entry in sorted(closed.items()):
+        messages = _comments(base, number, token, "pull_request" in entry, authors)
         if any(override_step(m) for m in messages):
-            items.append(Item(pr["number"], pr["title"], pr["html_url"], False, messages, is_open=False))
+            items.append(Item(number, entry["title"], entry["html_url"], False, messages, is_open=False,
+                              labels=_labels(entry)))
     for pr in every(f"{base}/pulls?state=open", token):
         items.append(Item(pr["number"], pr["title"], pr["html_url"], False,
-                          _comments(base, pr["number"], token, True, authors)))
+                          _comments(base, pr["number"], token, True, authors), labels=_labels(pr)))
     for issue in every(f"{base}/issues?state=open&labels={DEBATE_LABEL}", token):
         # Anyone can open an issue with the Debate form; only the owner's (and so the agents') debates are work.
         if "pull_request" not in issue and _login(issue).lower() in authors:
             items.append(Item(issue["number"], issue["title"], issue["html_url"], True,
-                              _comments(base, issue["number"], token, False, authors)))
+                              _comments(base, issue["number"], token, False, authors), labels=_labels(issue)))
     return items
+
+
+def _labels(entry: dict) -> set[str]:
+    return {label["name"] for label in entry.get("labels") or []}
 
 
 def publish(repo: str, token: str, items: list[Item], found: Findings, text: str) -> int:
@@ -457,6 +489,10 @@ def publish(repo: str, token: str, items: list[Item], found: Findings, text: str
         if not already_announced(stall.item, stall):
             _send("POST", f"{base}/issues/{stall.item.number}/comments", token, {"body": nudge_body(stall)})
             posted += 1
+    for number in sorted(found.label):
+        _send("POST", f"{base}/issues/{number}/labels", token, {"labels": [FOLLOW_UP_LABEL]})
+    for number in sorted(found.unlabel):
+        _send("DELETE", f"{base}/issues/{number}/labels/{FOLLOW_UP_LABEL}", token, None)
     status = list(every(f"{base}/issues?state=open&labels={STATUS_LABEL}", token))
     body = (text + "\n_Updated by the Agent status workflow (`tools/agents/stalls.py`) about every 15 minutes; GitHub "
                    "may delay or skip a scheduled run. If the time above is hours old, run the workflow from the "

@@ -304,6 +304,7 @@ class VerdictTest(unittest.TestCase):
     def test_verdicts_are_read_as_whole_words(self):
         # Round-3 finding S4: "disagree" contains "agree".
         for text, expected in {"Verdict: disagree": "object", "Verdict: I do not agree": "object",
+                               "Verdict: I don't agree": "object", "Critique: I can't agree with this.": "object",
                                "Verdict: agree with changes": "changes", "Verdict: agree": "agree",
                                "Critique: unclear": "object"}.items():
             self.assertEqual(stalls.verdict(text), expected, text)
@@ -317,9 +318,20 @@ class OverrideTest(unittest.TestCase):
         found = find([item([override])], at(10), WINDOW, STEP, TIMEBOX)
         self.assertIn("skipped independent review on \\#9", found.overrides[0])
         self.assertIn("**pending**", found.overrides[0])
-        done = msg("To: all\nFollow-up done: reviewed after merge, no findings.\nNo reply needed.\nFrom: opencode", 60)
-        self.assertIn(", done", find([item([override, done])], at(70), WINDOW, STEP, TIMEBOX).overrides[0])
         self.assertIn("Overrides in effect", stalls.report([item([override])], found, at(10)))
+        done = msg("To: all\nFollow-up done: reviewed after merge, no findings.\nNo reply needed.\nFrom: opencode", 60)
+        self.assertEqual(find([item([override, done])], at(70), WINDOW, STEP, TIMEBOX).overrides, [])
+
+    def test_a_pending_follow_up_is_labelled_and_the_label_goes_when_it_is_done(self):
+        # Round-4 finding N1: the label keeps a closed item in view at any age.
+        override = msg('To: all\nOwner said: "merge now"\nOverride: review on #9\nFollow-up: post-merge review\n'
+                       'From: claude')
+        pr = item([override])
+        self.assertEqual(find([pr], at(10), WINDOW, STEP, TIMEBOX).label, {9})
+        pr.labels = {"follow-up"}
+        self.assertEqual(find([pr], at(10), WINDOW, STEP, TIMEBOX).label, set())
+        pr.messages.append(msg("To: all\nFollow-up done: fine.\nNo reply needed.\nFrom: opencode", 60))
+        self.assertEqual(find([pr], at(70), WINDOW, STEP, TIMEBOX).unlabel, {9})
 
     def test_an_override_without_the_owners_quoted_words_is_marked_unverified(self):
         unquoted = msg("To: all\nOwner said: skip the review.\nOverride: review on #9\nFollow-up: none\nFrom: claude")
@@ -379,6 +391,18 @@ class FetchTest(unittest.TestCase):
                                                              'Follow-up: review later\nFrom: claude')],
             "/pulls/8/reviews": [],
             "/pulls/8/comments": [],
+            "/issues?state=closed&labels=debate&sort=updated&direction=desc": [
+                {"number": 22, "title": "Decided", "html_url": "https://example/22", "updated_at": "2026-10-28T08:00:00Z"}],
+            "/issues/22/comments": [comment(6, "TejuBoricha", 'To: all\nOwner said: "decide now"\n'
+                                                              'Override: debate critiques on #22\n'
+                                                              'Follow-up: critiques of the decision\nFrom: claude')],
+            "/issues?state=closed&labels=follow-up": [
+                {"number": 5, "title": "Ancient", "html_url": "https://example/5", "updated_at": "2026-01-01T00:00:00Z",
+                 "pull_request": {}, "labels": [{"name": "follow-up"}]}],
+            "/issues/5/comments": [comment(5, "TejuBoricha", 'To: all\nOwner said: "merge"\nOverride: review on #5\n'
+                                                             'Follow-up: review later\nFrom: claude')],
+            "/pulls/5/reviews": [],
+            "/pulls/5/comments": [],
         }
 
         def fake_get(url, token):
@@ -387,8 +411,9 @@ class FetchTest(unittest.TestCase):
 
         with unittest.mock.patch.object(stalls.pr_checks, "_get", fake_get):
             items = stalls.fetch("TejuBoricha/Aptura", None, now=at(0))
-        self.assertEqual([(i.number, i.is_open) for i in items], [(8, False), (9, True), (20, True)],
-                         "the recently closed #8 is read for its override; #7 is too old")
+        self.assertEqual([(i.number, i.is_open) for i in items],
+                         [(5, False), (8, False), (22, False), (9, True), (20, True)],
+                         "#8 and debate #22 closed recently; #5, however old, carries the follow-up label; #7 is neither")
         items = [i for i in items if i.is_open]
         self.assertEqual([m.url for m in items[0].messages], ["https://example/c1"])
         self.assertEqual(len(find(items, at(300), WINDOW, STEP, TIMEBOX).stalls), 1,
@@ -414,6 +439,17 @@ class PublishTest(unittest.TestCase):
         posted, sent = self.publish([pr], [{"number": 50}])
         self.assertEqual(posted, 0)
         self.assertEqual(sent, [("PATCH", "https://api.github.com/repos/o/r/issues/50")])
+
+    def test_applies_and_removes_the_follow_up_label(self):
+        override = msg('To: all\nOwner said: "merge now"\nOverride: review on #9\nFollow-up: review\nFrom: claude')
+        sent = []
+        found = find([item([override])], at(300), WINDOW, STEP, TIMEBOX)
+        found.unlabel.add(4)
+        with unittest.mock.patch.object(stalls, "_send", lambda method, url, token, payload: sent.append((method, url))), \
+                unittest.mock.patch.object(stalls, "every", lambda url, token: iter([{"number": 50}])):
+            stalls.publish("o/r", "token", [], found, "report")
+        self.assertIn(("POST", "https://api.github.com/repos/o/r/issues/9/labels"), sent)
+        self.assertIn(("DELETE", "https://api.github.com/repos/o/r/issues/4/labels/follow-up"), sent)
 
     def test_creates_the_status_issue_when_there_is_none(self):
         posted, sent = self.publish([], [])
