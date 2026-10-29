@@ -52,6 +52,16 @@ class AttributionTest(unittest.TestCase):
         self.assertEqual(levels(findings), ["error"])
 
 
+class CoAuthoredTest(unittest.TestCase):
+    def test_a_tools_co_authored_by_line_passes_with_a_warning(self):
+        # Audit U4: several tools add Co-Authored-By on their own; rewording it is beyond a non-technical owner.
+        commits = [("abc1234", "Fix\n\nCo-Authored-By: Claude <noreply@anthropic.com>")]
+        findings = check(pr(6, ["README.md"]), [], commits, PATTERNS, NOW)
+        self.assertEqual(levels(findings), ["warning"])
+        nothing = check(pr(6, ["README.md"]), [], [("abc1234", "Fix")], PATTERNS, NOW)
+        self.assertIn("git rebase -i origin/main", nothing[0].message)
+
+
 class HotFileTest(unittest.TestCase):
     def test_patterns_cover_schema_database_and_ci(self):
         self.assertTrue(is_hot("app/schemas/org.aptura.player.data.database.ApturaDatabase/7.json", PATTERNS))
@@ -69,6 +79,15 @@ class HotFileTest(unittest.TestCase):
         older = pr(4, ["gradle/libs.versions.toml"], age_days=30)
         findings = check(pr(6, ["gradle/libs.versions.toml"]), [older], ATTRIBUTED, PATTERNS, NOW)
         self.assertEqual(levels(findings), ["warning"])
+
+    def test_a_strangers_older_pull_request_never_blocks(self):
+        # Audit A2: on a public repository, one stranger's PR touching a hot file or citing an issue froze agent work.
+        older = pr(4, [".github/workflows/ci.yml"], body="## Handoff\nFixes #41")
+        older.trusted = False
+        findings = check(pr(6, [".github/workflows/ci.yml"], body="## Handoff\nFixes #41"), [older], ATTRIBUTED,
+                         PATTERNS, NOW)
+        self.assertNotIn("error", levels(findings))
+        self.assertTrue(any("outside the project" in f.message for f in findings))
 
     def test_every_hot_pattern_is_named_in_agents_md(self):
         agents = (Path(pr_checks.__file__).parents[2] / "AGENTS.md").read_text(encoding="utf-8")

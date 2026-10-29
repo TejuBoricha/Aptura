@@ -26,4 +26,9 @@ jobs:
       - name: Agent coordination checks
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: python3 tools/agents/pr_checks.py
+        # The rules come from the base branch, not from this pull request (see ci.yml).
+        run: |
+          git fetch --no-tags --depth=1 origin "+refs/heads/${GITHUB_BASE_REF}:refs/remotes/origin/base"
+          mkdir -p "$RUNNER_TEMP/rules"
+          git archive origin/base tools/agents | tar -x -C "$RUNNER_TEMP/rules"
+          python3 "$RUNNER_TEMP/rules/tools/agents/pr_checks.py"
