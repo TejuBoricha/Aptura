@@ -14,10 +14,6 @@ All notable changes to Aptura are recorded here. The format follows [Keep a Chan
 - Agent coordination without waiting on any one agent: every wait has a deadline and a fallback, the independent reviewer is a role filled by any other model when the one asked is away, and an **Agent status** workflow (`tools/agents/stalls.py`, every 15 minutes, no AI model, no secret) announces overdue waits on the pull request and keeps a summary issue that opens with what needs the owner. A **Debate** issue form and procedure let agents propose, critique blind and decide by evidence, with word limits, two rounds and a 24-hour time box. Agent messages and stall checks now ignore comments from anyone but the owner's account. When the owner tells an agent to skip a step, an `Override:` record (the owner's words, reason, scope and follow-up) tells the other agents it was intended, and the status issue lists it until the follow-up is done.
 - New launcher mark: a cyan aperture disc with a play-triangle opening and three curved iris seams.
 
-### Security
-
-- Agent coordination: a stranger's pull request can no longer block agent work, comments are read only from the owner's account (plus the status check's own marked nudges), markers inside code blocks no longer count, and pull requests are judged by the base branch's copy of the coordination rules. See `review/audit-2026-10-29/PROCESS_AUDIT.md`.
-
 ### Changed
 
 - Agent coordination, after an end-to-end audit: the status check reads comments repository-wide (37 requests a run for 30 open and 40 closed pull requests, down from 215), flags claimed tasks without a pull request after 2 hours and quiet pull requests after 4, escalates any stall left a day to the owner, emails the owner only for new "Needs you" items, reports unreadable messages, and keeps working when one write fails. `inbox.py` falls back to the GitHub CLI's login and slows down without a token. `AGENTS.md` gains an everyday-messages cheat sheet, and drift tests keep the docs and the code in step.
@@ -34,6 +30,10 @@ All notable changes to Aptura are recorded here. The format follows [Keep a Chan
 - The sleep timer's fade is exactly 10 seconds in ten equal steps; `SectionTitle` no longer halves a long title when a trailing action is present (the Library count stays next to its title, and a trailing action sits at the row's end); decimal separators in sync offsets no longer follow the device locale; the player sheet tabs form a selectable group for TalkBack; a sync drag that ends just before the player closes is still applied and saved.
 - `inbox.py` no longer dies mid-wait on a message the console cannot encode: output is forced to UTF-8 with lossy substitution, so a Windows cp1252 console prints a replacement character instead of exiting 1 (which a waiting agent would read as "the script is broken", not "a message is waiting").
 - Stale player-sheet and delete-dialog evidence replaced with renders from the current code, including after-only evidence where the old "before" state no longer exists.
+
+### Security
+
+- Agent coordination: a stranger's pull request can no longer block agent work, comments are read only from the owner's account (plus the status check's own marked nudges), markers inside code blocks no longer count, and pull requests are judged by the base branch's copy of the coordination rules. See `review/audit-2026-10-29/PROCESS_AUDIT.md`.
 
 ## 1.0.0 - 2026-10-28
 
