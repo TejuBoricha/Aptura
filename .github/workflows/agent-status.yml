@@ -35,7 +35,8 @@ permissions:
 jobs:
   status:
     # Only the owner's account (every agent) and the clocks start a run. If the repository moves to an organisation,
-    # repository_owner becomes the organisation and these event runs stop: change it to the owner's login then.
+    # repository_owner becomes the organisation and these event runs stop: change it to the owner's login then. The
+    # same holds if agents post through a separate account: add that login here, or only the schedule is left.
     if: >-
       github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
       github.actor == github.repository_owner

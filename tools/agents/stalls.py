@@ -24,8 +24,8 @@ an item until a later `Hold lifted:` line; holds older than a day are listed for
     python3 tools/agents/stalls.py                 # print the report
     python3 tools/agents/stalls.py --nudge         # also post one `To: all` comment per stall (needs a write token)
 
-The **Agent status** workflow runs it with --nudge whenever the owner's account acts (throttled with --min-gap) and
-on a 15-minute schedule, and keeps the report in the issue labelled
+The **Agent status** workflow runs it with --nudge whenever the owner's account comments or opens, labels or closes an issue
+(throttled with --min-gap) and on a 15-minute schedule, and keeps the report in the issue labelled
 `agent-status`. A nudge is addressed to all, so local agents waiting in inbox.py and cloud agents subscribed to the
 pull request wake up on it. Only comments by the owner's account count (inbox.trusted). Exit code: 0 (stalls are
 reported, not failures), 1 when GitHub refuses the request (a missing permission must not turn the watch off
@@ -702,8 +702,8 @@ def publish(repo: str, token: str, items: list[Item], found: Findings, text: str
     for number in sorted(found.unlabel):
         write("DELETE", f"{base}/issues/{number}/labels/{FOLLOW_UP_LABEL}", None)
     status = list(every(f"{base}/issues?state=open&labels={STATUS_LABEL}", token))
-    footer = ("\n_Updated by the Agent status workflow (`tools/agents/stalls.py`) whenever an agent acts, and on a "
-              "15-minute schedule that GitHub runs best effort. If the time above is hours old, run the workflow from "
+    footer = ("\n_Updated by the Agent status workflow (`tools/agents/stalls.py`) whenever the owner's account comments or opens, labels or closes an issue, "
+              "and on a 15-minute schedule that GitHub runs best effort. If the time above is hours old, run the workflow from "
               "the Actions tab. "
               "Stalled items also get a `To: all` comment, which wakes the agents waiting on them._\n")
     body = text if len(text) + len(footer) <= BODY_LIMIT else text[:BODY_LIMIT - len(footer) - 40] + "\n\n(cut short)\n"
@@ -771,7 +771,8 @@ def main() -> int:
     parser.add_argument("--trust", nargs="*", default=[], help="extra GitHub logins whose comments count")
     parser.add_argument("--nudge", action="store_true", help="post the nudges and update the status issue")
     parser.add_argument("--min-gap", type=float, default=0,
-                        help="skip the run if the status issue was updated less than this many minutes ago")
+                        help="skip the run if the status issue was updated less than this many minutes ago (its time "
+                             "is to the minute, so 5 means 4 to 6 minutes)")
     parser.add_argument("--explain", action="store_true",
                         help="read one message from standard input and show how the checks read it")
     args = parser.parse_args()
