@@ -24,7 +24,8 @@ an item until a later `Hold lifted:` line; holds older than a day are listed for
     python3 tools/agents/stalls.py                 # print the report
     python3 tools/agents/stalls.py --nudge         # also post one `To: all` comment per stall (needs a write token)
 
-The **Agent status** workflow runs it with --nudge every 15 minutes and keeps the report in the issue labelled
+The **Agent status** workflow runs it with --nudge whenever the owner's account acts (throttled with --min-gap) and
+on a 15-minute schedule, and keeps the report in the issue labelled
 `agent-status`. A nudge is addressed to all, so local agents waiting in inbox.py and cloud agents subscribed to the
 pull request wake up on it. Only comments by the owner's account count (inbox.trusted). Exit code: 0 (stalls are
 reported, not failures), 1 when GitHub refuses the request (a missing permission must not turn the watch off
@@ -429,9 +430,9 @@ def find(items: list[Item], now: datetime, window: timedelta, step: timedelta, t
         hold = current_hold(item.messages)
         if hold:
             if now - hold.since > timedelta(days=1):
-                found.needs_owner.append(needs(f"hold#{hold.url}", f"[#{item.number}]({item.url}) has been on hold "
-                                                                   f"for {_age(now - hold.since)} ({hold.url}): lift it "
-                                                                   f"or close the item."))
+                text = (f"[#{item.number}]({item.url}) has been on hold for {_age(now - hold.since)} ({hold.url}): "
+                        f"lift it or close the item.")
+                found.needs_owner.append(needs(f"hold#{hold.url}", text))
             continue
         mine = unanswered(item, now, window)
         for m in item.messages:
@@ -462,10 +463,9 @@ def find(items: list[Item], now: datetime, window: timedelta, step: timedelta, t
             # A stall nobody resolved within a day needs the owner: perhaps no agent is running, or none can do it.
             first = next((m for m in item.messages if MARKER.format(key=stall.key) in (m.body or "")), None)
             if first and now - first.created_at >= ESCALATE:
-                found.needs_owner.append(needs(f"escalate#{stall.key}", f"[#{item.number}]({item.url}) stalled for "
-                                                                         f"{_age(now - first.created_at)} with no agent "
-                                                                         f"acting on it ({first.url}): start an agent "
-                                                                         f"on it, or close it."))
+                text = (f"[#{item.number}]({item.url}) stalled for {_age(now - first.created_at)} with no agent "
+                        f"acting on it ({first.url}): start an agent on it, or close it.")
+                found.needs_owner.append(needs(f"escalate#{stall.key}", text))
         found.stalls += mine
     return found
 
@@ -702,8 +702,9 @@ def publish(repo: str, token: str, items: list[Item], found: Findings, text: str
     for number in sorted(found.unlabel):
         write("DELETE", f"{base}/issues/{number}/labels/{FOLLOW_UP_LABEL}", None)
     status = list(every(f"{base}/issues?state=open&labels={STATUS_LABEL}", token))
-    footer = ("\n_Updated by the Agent status workflow (`tools/agents/stalls.py`) about every 15 minutes; GitHub may "
-              "delay or skip a scheduled run. If the time above is hours old, run the workflow from the Actions tab. "
+    footer = ("\n_Updated by the Agent status workflow (`tools/agents/stalls.py`) whenever an agent acts, and on a "
+              "15-minute schedule that GitHub runs best effort. If the time above is hours old, run the workflow from "
+              "the Actions tab. "
               "Stalled items also get a `To: all` comment, which wakes the agents waiting on them._\n")
     body = text if len(text) + len(footer) <= BODY_LIMIT else text[:BODY_LIMIT - len(footer) - 40] + "\n\n(cut short)\n"
     if status:
@@ -732,6 +733,17 @@ def _age(delta: timedelta) -> str:
     return f"{minutes // 60} h {minutes % 60:02d} min"
 
 
+def recently_updated(repo: str, token: str | None, now: datetime, gap: timedelta) -> bool:
+    """Whether the status issue's own timestamp is within `gap`: event-driven runs come in bursts (a review with
+    several comments), and one run per few minutes keeps the hourly request budget safe. One request."""
+    for issue in every(f"{pr_checks.API}/repos/{repo}/issues?state=open&labels={STATUS_LABEL}", token):
+        match = re.search(r"### Agent status \((\d{4}-\d{2}-\d{2} \d{2}:\d{2}) UTC\)", issue.get("body") or "")
+        if match:
+            stamp = datetime.strptime(match.group(1), "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)
+            return now - stamp < gap
+    return False
+
+
 def explain(body: str) -> int:
     """Show how the checks read a message, so an agent can check its format before posting."""
     markers = sorted({word for word in ("working", "pausing", "withdrawn", "hold lifted", "hold", "override",
@@ -758,6 +770,8 @@ def main() -> int:
     parser.add_argument("--timebox-hours", type=float, default=24, help="time box for a whole debate (default 24)")
     parser.add_argument("--trust", nargs="*", default=[], help="extra GitHub logins whose comments count")
     parser.add_argument("--nudge", action="store_true", help="post the nudges and update the status issue")
+    parser.add_argument("--min-gap", type=float, default=0,
+                        help="skip the run if the status issue was updated less than this many minutes ago")
     parser.add_argument("--explain", action="store_true",
                         help="read one message from standard input and show how the checks read it")
     args = parser.parse_args()
@@ -769,6 +783,9 @@ def main() -> int:
         return 2
     now = datetime.now(timezone.utc)
     try:
+        if args.min_gap and recently_updated(args.repo, token, now, timedelta(minutes=args.min_gap)):
+            print(f"The status issue was updated less than {args.min_gap:g} minutes ago; skipping this run.")
+            return 0
         items = fetch(args.repo, token, args.trust)
         found = find(items, now, timedelta(minutes=args.minutes), timedelta(hours=args.debate_hours),
                      timedelta(hours=args.timebox_hours))
