@@ -824,11 +824,32 @@ fun PlayerScreen(
         // 2b. Audio-only panel (the video view is not composed in this mode). It must sit ABOVE the gesture layer:
         // the full-screen gesture detector otherwise swallows the touch and "Show video" can never be pressed.
         if (uiState.isAudioOnly && !isPipMode) {
-            AudioOnlyPanel(
-                title = uiState.videoTitle,
-                onShowVideo = { onAudioOnlyChanged(false) },
-                modifier = Modifier.align(Alignment.Center)
-            )
+            // The transport cluster is centred on the screen and the top bar sits above, so the panel has its own region
+            // between them (the same whether the controls are showing or not, so it never jumps). Centring both on the
+            // screen drew the buttons over the artwork and the title. When the region is short (a phone held sideways, a
+            // small screen) the panel switches to one row, and if even that does not fit it scrolls rather than overlap.
+            BoxWithConstraints(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.5f)
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
+                    .padding(top = AUDIO_PANEL_TOP_CLEARANCE, bottom = AUDIO_PANEL_CLUSTER_CLEARANCE)
+            ) {
+                val compact = maxHeight < AUDIO_PANEL_COLUMN_HEIGHT
+                Column(
+                    modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    AudioOnlyPanel(
+                        title = uiState.videoTitle,
+                        onShowVideo = { onAudioOnlyChanged(false) },
+                        compact = compact
+                    )
+                }
+            }
         }
 
         // 3. Transient Feedback Overlays (Volume, Brightness, Double-Tap Seek, Horizontal Swipe Seek, Lock Hint)
@@ -2080,6 +2101,14 @@ fun PlayerScreen(
 
 /** Width below which the top bar keeps only the title and the most important chips and moves the rest to a menu. */
 private val TOP_BAR_INLINE_MIN_WIDTH = 560.dp
+
+// The audio-only panel's region (see the panel's call site): clear of the top bar above and of the centred transport
+// cluster below (half of its largest button, 36 dp, plus a gap).
+private val AUDIO_PANEL_TOP_CLEARANCE = 72.dp
+private val AUDIO_PANEL_CLUSTER_CLEARANCE = 44.dp
+
+/** Below this much height the panel is one row instead of a column; the column itself needs about 230 dp. */
+private val AUDIO_PANEL_COLUMN_HEIGHT = 250.dp
 
 /** A top-bar action with the full 48 dp touch target. */
 @Composable

@@ -220,6 +220,17 @@ class PlayerGalleryTest : GalleryBase() {
     @Test fun why() { player(base.copy(activeSheet = PlayerSheet.WhyCompatibility)); shoot("sheet_why") }
     @Test fun web() { player(base.copy(activeSheet = PlayerSheet.WebSearch, cleanSearchQuery = "Blade Runner 2049")); shoot("sheet_websearch") }
 
+    @Test fun audioOnly() { player(base.copy(isAudioOnly = true, videoTitle = "VID-20260928-WA0034")); shoot("player_audio_only") }
+
+    @Config(qualifiers = "w740dp-h360dp-xhdpi")
+    @Test fun audioOnlySmallSideways() { player(base.copy(isAudioOnly = true, videoTitle = "VID-20260928-WA0034")); shoot("player_audio_only_small_sideways") }
+
+    @Config(qualifiers = "w411dp-h891dp-xhdpi")
+    @Test fun portraitAudioOnly() { player(base.copy(isAudioOnly = true, videoTitle = "VID-20260928-WA0034")); shoot("player_audio_only_portrait") }
+
+    @Config(qualifiers = "w320dp-h640dp-xhdpi")
+    @Test fun smallPortraitAudioOnly() { player(base.copy(isAudioOnly = true, videoTitle = "VID-20260928-WA0034")); shoot("player_audio_only_small_portrait") }
+
     @Config(qualifiers = "w411dp-h891dp-xhdpi")
     @Test fun portraitHud() { player(base); shoot("player_portrait_hud") }
 
