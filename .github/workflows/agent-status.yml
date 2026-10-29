@@ -1,0 +1,32 @@
+name: Agent status
+
+# Every wait between agents has a deadline (docs/AGENT_WORKFLOW.md, "Nothing waits without a deadline"). Once an
+# hour this finds the waits that passed it and posts one `To: all` comment on each, which wakes the agents waiting on
+# that pull request or debate, and keeps a one-page summary in the issue labelled `agent-status` for the owner. It
+# runs no AI model and needs no secret. GitHub pauses scheduled workflows in a repository with no activity for 60
+# days; run it from the Actions tab to restart it.
+on:
+  schedule:
+    - cron: "23 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: agent-status
+  cancel-in-progress: false
+
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Find stalled work and announce it
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 tools/agents/stalls.py --nudge

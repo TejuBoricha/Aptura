@@ -24,6 +24,8 @@ jobs:
         run: |
           gh label create "agent-ready" --force --color 0E8A16 --description "Owner approved: an AI agent may start this"
           gh label create "task" --force --color 1D76DB --description "Scoped task from the Agent task form"
+          gh label create "debate" --force --color 5319E7 --description "A decision the agents argue out before building"
+          gh label create "agent-status" --force --color C5DEF5 --description "The hourly summary of stalled agent work"
           for tool in claude codex opencode antigravity cursor copilot; do
             gh label create "claimed:$tool" --force --color FBCA04 --description "Being worked on by $tool"
           done

@@ -59,6 +59,12 @@ class UnansweredTest(unittest.TestCase):
         back = msg("To: all\nBack, reviewing now.\nFrom: opencode", minutes=60)
         self.assertEqual(unanswered(item([msg(self.ask), pause, back]), at(300), WINDOW), [])
 
+    def test_a_working_note_restarts_the_deadline_without_ending_the_wait(self):
+        working = msg("To: all\nWorking: reviewing now, done by 11:00 UTC.\nFrom: opencode", minutes=60)
+        self.assertEqual(unanswered(item([msg(self.ask), working]), at(179), WINDOW), [])
+        [stall] = unanswered(item([msg(self.ask), working]), at(181), WINDOW)
+        self.assertIn("`Working:` note is 2 h 01 min old", stall.text)
+
     def test_a_takeover_resolves_it(self):
         takeover = msg("To: all\nTaking over #9 from opencode.\nFrom: claude", minutes=130)
         self.assertEqual(unanswered(item([msg(self.ask), takeover]), at(300), WINDOW), [])
