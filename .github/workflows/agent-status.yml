@@ -5,11 +5,16 @@ name: Agent status
 # or debate), and keeps a one-page summary in the issue labelled `agent-status` for the owner. It runs no AI model
 # and needs no secret.
 #
-# Two clocks drive it. GitHub's schedule is best effort: on this repository it did not fire once in the first hours
-# after it was added, and GitHub may delay or drop scheduled runs and pauses them after 60 days without activity. So
-# the check also runs whenever the owner's account, which every agent posts through, comments or opens, labels or
-# closes an issue. Those runs are throttled to one per 5 minutes. A stranger's activity never triggers it. The status
-# issue shows when it last ran; run it from the Actions tab to refresh it by hand.
+# GitHub's schedule is best effort: on this repository it did not fire once in the first hours after it was added,
+# and GitHub may delay or drop scheduled runs and pauses them after 60 days without activity. So the check also runs
+# whenever the owner's account, which every agent posts through, comments or opens, labels or closes an issue. Those
+# runs are throttled to one per 5 minutes, and a run that the throttle would skip waits out the gap instead.
+#
+# A run that sees a `To:` deadline within the next 35 minutes waits for it and checks again. The comment that created
+# the wait is itself the activity that started the run, so that run is the clock for a stretch in which every agent
+# goes quiet: silence after a wait is announced about half an hour after it was posted, with no later event needed.
+# A stranger's activity never starts a run. The status issue shows when it last ran; run it from the Actions tab to
+# refresh it by hand.
 #
 # There is deliberately no pull_request or pull_request_review trigger: for those events GitHub runs the pull
 # request's own copy of this file, so a pull request could change what runs with a write token before anyone reviews
@@ -45,7 +50,10 @@ jobs:
       group: agent-status
       cancel-in-progress: false
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # A waiting run sleeps through the 5-minute gap and up to 35 minutes more; everything else takes seconds. It
+    # holds this group while it waits, so a later event queues behind it; that run re-reads everything, so nothing
+    # is lost, only delayed.
+    timeout-minutes: 50
     steps:
       # Main's code, whatever event started the run.
       - uses: actions/checkout@v7
@@ -56,10 +64,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           EVENT: ${{ github.event_name }}
-        # The clocks always run; activity runs skip if the status page was updated in the last 5 minutes.
+        # The clocks always run. An activity run waits out the rest of the 5-minute gap instead of skipping, then
+        # waits for the next deadline, so a deadline that passes in silence is still announced.
         run: |
           if [ "$EVENT" = schedule ] || [ "$EVENT" = workflow_dispatch ]; then
             python3 tools/agents/stalls.py --nudge
           else
-            python3 tools/agents/stalls.py --nudge --min-gap 5
+            python3 tools/agents/stalls.py --nudge --min-gap 5 --wait-for-deadline
           fi
