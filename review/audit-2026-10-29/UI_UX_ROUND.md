@@ -114,7 +114,7 @@ system theme before settings load; fixing it needs a synchronous settings read a
 - Full unit suite: 776 tests, 0 failures, 104 skipped (the galleries, which run only when `APTURA_GALLERY_DIR` is set).
 - Guide gallery renders reviewed at: phone, small phone (320 dp), 200% font, landscape, tablet, light and dark, and the
   replay with a library. The library layouts are rendered by `LibraryLayoutGalleryTest` at its listed sizes.
-- `lintDebug`: 0 errors (95 warnings; the two this round added, on `Configuration.screenHeightDp`, were then switched to the window-size API). `assembleRelease` with `verifyReleaseApk`
+- `lintDebug`: 0 errors, 91 warnings, none in the guide files (a first run flagged two uses of `Configuration.screenHeightDp` there; they now use the window-size API). `assembleRelease` with `verifyReleaseApk`
   (which fails if the APK gains the INTERNET permission or a bundled software decoder): passes. Both ran online, because
   lint's instrumented-test model cannot resolve offline. CI runs them again on the PR.
 
