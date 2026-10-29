@@ -50,6 +50,13 @@ PR's Verification section and in CI, not here, so most pull requests never need 
   The player offers "Try −200 ms" only when Bluetooth output is connected and sync is at 0.
 - **Player sheets** are built from the shared controls in `ui/player/PlayerControls.kt` and
   `PlayerSheetChrome.kt` (DESIGN.md §5.6), not from per-sheet pills and steppers.
+- **Theme and navigation:** the palette is a `CompositionLocal` (`LocalApturaPalette`), never a global; the always-dark
+  player wraps itself in `ApturaTheme(DARK)`. The player route is never animated (its video is a `SurfaceView`): a cover
+  above the picture opens and closes it (`NavigationTransitions.kt`, DESIGN.md §4.3). A global palette flipped a frame
+  late was the cause of the back-navigation flicker; do not bring one back.
+- **Library view choices** (layout, size, details, sort, folder browser layout) live in DataStore, not Room. The welcome
+  guide's pictures are built from the library's and player's own composables, and tests check its claims against the
+  real menus (DESIGN.md §6.5): change a menu action and `GuideAccuracyTest` says so.
 - **Delete:** "Move to trash" is the primary action where the platform supports it; "Delete permanently" is a red
   outlined alternative.
 - **Merge queue is unavailable** (it needs an organization-owned repo). `main` has a ruleset (active since

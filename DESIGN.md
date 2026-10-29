@@ -158,7 +158,7 @@ val ApturaTypography = Typography(
 - **Large-text fallback:** At `fontScale >= 1.5`, force the 88dp icon rail at every width. The rail hides labels and keeps the icons' `contentDescription` as the accessible names. This is a layout decision, not a truncation: folder names must never be squeezed into unreadable fragments.
 - **Sidebar motion:** Expand/collapse animates over 220ms with size, fade and a small horizontal slide. The compact header is one **68 x 48dp** chip that combines the aperture mark and the chevron; do not separate the mark and the arrow into a stack. Every sidebar control keeps a 48dp target.
 - **Library selection bar:** Cap the selection action bar at **680dp** and center it under the search row at any width; do not let it stretch edge to edge on a tablet. It shows the count, Select all/Clear, Move, Share and the overflow; Back clears selection before leaving the library. Failed deletes stay selected.
-- **Folder swipe:** A horizontal drag of at least **64dp** on the video grid moves to the next/previous folder. Disable the gesture while a selection is active.
+- **Folder swipe:** A horizontal drag of at least **64dp** on the videos moves to the next/previous folder (see 4.2). Disable the gesture while a selection is active.
 - **System Gesture Zones:**
   - Honor `WindowInsets.systemGestures`.
   - Scrub bar thumb excludes bottom edge via `setSystemGestureExclusionRects` during immersive video playback.
@@ -179,6 +179,24 @@ val ApturaTypography = Typography(
 - **Folders:** A 64dp horizontal swipe moves between folders; disable it while selecting.
 
 ---
+
+### 4.2 Library Layout and Folder Navigation
+
+The library is shown the way the person chooses, and the folder they are in is never in doubt.
+
+- **View options** (the sliders button beside search) is one sheet with four choices, all kept in DataStore (never Room, so no schema change): **Layout** (Grid or List), **Size** (Compact, Comfortable, Large), **Details** (Title only, Standard, Detailed) and **Sort**. Choices apply at once, survive restarts, and read the same on every screen size. The measurements live in one object, `LibraryMetrics`, so the grid, the list and the guide's picture of them agree.
+- **Grid** is an adaptive grid with a minimum cell width per size, not a fixed column count: Compact 100dp, Comfortable 132dp, Large 190dp on a phone (so 3, 2 and 1 columns on a 360dp phone), wider on tablets. **List** is rows with a 96, 132 or 172dp picture; one column on a phone, as many as fit on a tablet. Details: Standard is `size · folder`; Detailed is one fact per line (quality and size, folder, when added), so a narrow card never cuts a date in half.
+- **Folder bar** (phone and medium widths): `Browse folders` (48dp, left) · scrolling chips · `Add folder` (48dp, accent, right). Both buttons are pinned outside the scrolling chips, so "Add folder" is always visible and never sits at the end of a long row. The chips scroll to keep the selected one centred, whichever way it was selected, and fade at an edge that continues.
+- **Folder browser sheet:** every folder at once as rows or cover cards (a frame from the folder's newest video), with video count and runtime, and "Add folder" at the top. It is the fast route when there are many folders.
+- **Swipe between folders:** a 64dp horizontal drag on the videos moves one folder along (All videos is the first stop). The chip bar, the sidebar row and a short **position pill** ("Movies, 3 of 6", bottom centre, a polite live region) follow it, with a light haptic tick. At the first or last folder it stays put (no wrap-around) and the pill still names the folder, so the end reads as the end. The pill sits at the bottom so it never covers a title.
+- **Sidebar list (≥700dp):** the selected folder's row is scrolled into view however it was selected. The list's top and bottom edges are the panel's own colour for 12dp and then fade, so a row sliding under the library summary dissolves instead of being cut through its text.
+
+### 4.3 Screen Transitions
+
+- **One palette per screen.** The palette is a `CompositionLocal`, never a global: the always-dark player wraps itself in `ApturaTheme(DARK)` while a Light-theme library may still be on screen beneath it during a transition, and each draws its own colours. A global palette flipped a frame after the route changed was the cause of the back-navigation flicker. One composable (`ApturaWindowChrome`) owns the status-bar icons and window background.
+- **The player is never animated.** Its picture is a `SurfaceView` behind the window, visible through a hole; sliding or fading the player leaves the hole misplaced or shows the page beneath through it. Navigation 3 always stacks the newer screen on top, so the screen beneath cannot be revealed by fading either. Instead a flat cover is drawn **above** the picture inside the player route: opening cuts to black and lifts over 160ms; closing rises to the page colour over 120ms and the player leaves when it has covered everything. Every other route keeps the default slide.
+- **Stable insets.** Screens that sit under the player's immersive bars use insets that do not change when the bars hide, so nothing jumps while a screen leaves.
+- **Thumbnails return in the first frame.** A size-bounded in-memory cache of decoded frames means a grid that comes back from the player paints its pictures immediately; it is trimmed on memory pressure.
 
 ## 5. Player HUD & Interaction States
 
@@ -296,6 +314,16 @@ APTURA_GALLERY_DIR=/tmp/gallery ./gradlew :app:testDebugUnitTest --tests '*Galle
 - Run the gallery classes one at a time if the suite timeout trips.
 - Picture adjustments stay at their defaults in gallery states, because a non-default adjustment switches the video to a `TextureView`, which cannot be drawn to a software canvas.
 - Sheets show only what fits on screen and do not scroll under Robolectric. For long tabs, render the tab content directly; `tPlaybackContent` is an example.
+
+### 6.5 Welcome Guide (`ui/onboarding/`)
+
+Five pages, each saying one thing: **Welcome** (what stays private), **Your library**, **In the player**, **Tools**, **Access**. It is shown on first launch and any time from Settings > Welcome guide.
+
+- **The pictures are the app's own parts.** The library page lays out the real `LibraryHeader`, `FolderStrip` and `VideoGridCard`/`VideoListRow` at a phone's design width and scales them to fit (`GuideScreenFrame`); the player page uses the player's own `VerticalLevelGaugeHud`, `DoubleTapSeekRippleOverlay` and `HorizontalSwipeSeekHud`; the tools page carries the real `SpeedRail`. The guide therefore cannot show a screen the app does not have. Touches stop at the library picture (nothing opens a keyboard or a menu); its Grid/List buttons are live.
+- **No stand-ins.** Before the first scan there are no videos of the person's own, so the guide draws six small film frames (`GuideStill`: sky, sun, three ridges) instead of a grey tile. When the guide is replayed from Settings and the library holds at least four playable videos, the library page shows **their own** videos, frames and folders. It falls back to the samples while the library is filtered, so a picture never contradicts its folder bar.
+- **Accuracy is tested, not promised.** Every action the guide names in the ⋮ menu comes from one list (`GuideMenuActions`) that a test checks against the real menu; the 12 tools, the gestures and the Settings labels were each checked against the code, and the names follow the UI's own capitalisation ("Continue watching", "Welcome guide", "Extra folders").
+- **Motion, with a reason.** Parts of a page fade and rise in as it is swiped to the centre (`reveal`, read in the draw phase, so a swipe recomposes nothing); an accent glow behind the pages drifts with the swipe, so the guide reads as one surface; the welcome rings spread outward; the player picture plays brightness, volume, double-tap and scrub in turn, only while its page is in view. With Android's animations off (animator scale 0) every picture rests on one frame that says the same thing, and a short window (a landscape phone) drops the decorative header so the headline comes first.
+- **Orientation and progress:** a step count ("2 / 5") beside **Skip** at the top, capsules at the bottom (announced once as "Page n of 5"), **Back** and **Continue** in a fixed footer. Back on the system gesture steps to the previous page. The pages' top and bottom edges fade to transparent (not to a flat band), so the glow behind is never cut.
 
 ---
 
