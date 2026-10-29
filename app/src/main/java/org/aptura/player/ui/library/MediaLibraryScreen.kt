@@ -199,6 +199,15 @@ internal sealed interface LibraryActiveModal {
  * Media Library Grid Screen (SCR-001, FR-LIB-001..015).
  * Built with Jetpack Compose following anti-slop taste guidelines and adaptive breakpoints.
  */
+/** Below this much height a screen is a phone held sideways, and its spacing is tightened. */
+private val SHORT_WINDOW_HEIGHT = 480.dp
+
+/** The collection index needs at least this much height: below it the rail is used, however wide the window is. */
+private val SIDEBAR_MIN_HEIGHT = 600.dp
+
+/** Below this much height the rail drops its text labels (its icons keep their names for TalkBack) so it fits. */
+private val RAIL_LABELS_MIN_HEIGHT = 480.dp
+
 @Composable
 fun MediaLibraryScreen(
     uiState: MediaLibraryUiState,
@@ -695,8 +704,13 @@ private fun MediaLibraryContentView(
         val isWideScreen = containerWidth >= 600.dp && windowAdaptiveInfo.windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND)
         // At 700 dp there is room for the full collection index. Above 150% font the labels cannot breathe in
         // 248 dp, so the rail compresses instead of truncating every folder name.
-        val canExpandSidebar = isWideScreen && containerWidth >= 700.dp && LocalDensity.current.fontScale < 1.5f
+        // The index's fixed parts (brand, summary, tools, the offline promise) take about 450 dp before a single folder
+        // row, so a phone held sideways (about 400 dp tall) has no room left for the folders: it gets the rail, with the
+        // folder bar in the content, whatever its width.
+        val tallEnoughForSidebar = maxHeight >= SIDEBAR_MIN_HEIGHT
+        val canExpandSidebar = isWideScreen && containerWidth >= 700.dp && tallEnoughForSidebar && LocalDensity.current.fontScale < 1.5f
         val isExpandedSidebar = canExpandSidebar && sidebarExpanded
+        val shortWindow = maxHeight < RAIL_LABELS_MIN_HEIGHT
 
         Row(modifier = Modifier.fillMaxSize()) {
             if (isWideScreen) {
@@ -732,6 +746,7 @@ private fun MediaLibraryContentView(
                             topPadding = topPadding,
                             bottomPadding = bottomPadding,
                             canExpand = canExpandSidebar,
+                            shortWindow = shortWindow,
                             onExpand = { sidebarExpanded = true },
                             onOpenFilePicker = onOpenFilePicker,
                             onRefresh = onRefresh,
@@ -1539,97 +1554,103 @@ private fun MediaLibraryEmptyView(
     onAddFolderClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState()),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
+    // Measured outside the scrolling box, which is given unlimited height and would never read as short.
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        // A phone held sideways has about 360 dp of height: the same spacing would push the main button to the edge of
+        // the screen, so everything is tighter there and the button is in view without scrolling.
+        val short = maxHeight < SHORT_WINDOW_HEIGHT
+        Box(
             modifier = Modifier
-                .widthIn(max = 440.dp)
-                .padding(horizontal = 32.dp, vertical = 48.dp)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState()),
+            contentAlignment = Alignment.Center
         ) {
-            Box(
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
-                    .size(88.dp)
-                    .background(ApturaColors.AccentSubtle, CircleShape),
-                contentAlignment = Alignment.Center
+                    .widthIn(max = 440.dp)
+                    .padding(horizontal = 32.dp, vertical = if (short) 12.dp else 48.dp)
             ) {
-                Icon(
-                    imageVector = when {
-                        isPermissionDenied -> Icons.Outlined.Lock
-                        isFiltered -> Icons.Outlined.SearchOff
-                        else -> Icons.Outlined.VideoLibrary
-                    },
-                    contentDescription = null,
-                    modifier = Modifier.size(40.dp),
-                    tint = ApturaColors.AccentPrimary
-                )
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Text(
-                text = when {
-                    isPermissionDenied -> "Allow access to your videos"
-                    isFiltered -> "No results for “$query”"
-                    else -> "No videos yet"
-                },
-                style = ApturaTypography.headlineMedium,
-                color = ApturaColors.TextHighEmphasis,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = when {
-                    isPermissionDenied -> "Aptura needs permission to list the videos on this device. You can also add only the folders you choose."
-                    isFiltered -> "Check the spelling, or try a shorter part of the title."
-                    else -> "Aptura lists the videos on this device and its SD card. Scan again after adding files, or add a folder it can't see yet."
-                },
-                style = ApturaTypography.bodyLarge,
-                color = ApturaColors.TextMediumEmphasis,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(28.dp))
-
-            when {
-                isPermissionDenied -> {
-                    ApturaButton(
-                        text = "Allow access",
-                        onClick = onRequestPermission,
-                        modifier = Modifier.fillMaxWidth()
+                Box(
+                    modifier = Modifier
+                        .size(if (short) 56.dp else 88.dp)
+                        .background(ApturaColors.AccentSubtle, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = when {
+                            isPermissionDenied -> Icons.Outlined.Lock
+                            isFiltered -> Icons.Outlined.SearchOff
+                            else -> Icons.Outlined.VideoLibrary
+                        },
+                        contentDescription = null,
+                        modifier = Modifier.size(if (short) 28.dp else 40.dp),
+                        tint = ApturaColors.AccentPrimary
                     )
-                    Spacer(Modifier.height(10.dp))
-                    ApturaOutlinedButton(
-                        text = "Add a folder",
-                        icon = Icons.Outlined.CreateNewFolder,
-                        onClick = onAddFolderClick,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    ApturaTextButton(text = "Open a single file", onClick = onOpenFilePicker)
                 }
 
-                isFiltered -> ApturaButton(text = "Clear search", onClick = onClearSearch)
+                Spacer(modifier = Modifier.height(if (short) 10.dp else 24.dp))
 
-                else -> {
-                    ApturaButton(
-                        text = "Scan device",
-                        icon = Icons.Default.Refresh,
-                        onClick = onRefresh,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    ApturaOutlinedButton(
-                        text = "Add a folder",
-                        icon = Icons.Outlined.CreateNewFolder,
-                        onClick = onAddFolderClick,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                Text(
+                    text = when {
+                        isPermissionDenied -> "Allow access to your videos"
+                        isFiltered -> "No results for “$query”"
+                        else -> "No videos yet"
+                    },
+                    style = ApturaTypography.headlineMedium,
+                    color = ApturaColors.TextHighEmphasis,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(if (short) 4.dp else 8.dp))
+
+                Text(
+                    text = when {
+                        isPermissionDenied -> "Aptura needs permission to list the videos on this device. You can also add only the folders you choose."
+                        isFiltered -> "Check the spelling, or try a shorter part of the title."
+                        else -> "Aptura lists the videos on this device and its SD card. Scan again after adding files, or add a folder it can't see yet."
+                    },
+                    style = ApturaTypography.bodyLarge,
+                    color = ApturaColors.TextMediumEmphasis,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(if (short) 12.dp else 28.dp))
+
+                when {
+                    isPermissionDenied -> {
+                        ApturaButton(
+                            text = "Allow access",
+                            onClick = onRequestPermission,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        ApturaOutlinedButton(
+                            text = "Add a folder",
+                            icon = Icons.Outlined.CreateNewFolder,
+                            onClick = onAddFolderClick,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        ApturaTextButton(text = "Open a single file", onClick = onOpenFilePicker)
+                    }
+
+                    isFiltered -> ApturaButton(text = "Clear search", onClick = onClearSearch)
+
+                    else -> {
+                        ApturaButton(
+                            text = "Scan device",
+                            icon = Icons.Default.Refresh,
+                            onClick = onRefresh,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        ApturaOutlinedButton(
+                            text = "Add a folder",
+                            icon = Icons.Outlined.CreateNewFolder,
+                            onClick = onAddFolderClick,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
             }
         }

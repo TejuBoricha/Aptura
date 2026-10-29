@@ -10,6 +10,8 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -421,9 +423,12 @@ internal fun LibraryViewSheetContent(
     onPrefsChange: (LibraryViewPrefs) -> Unit,
     onSortChange: (LibrarySortOrder) -> Unit
 ) {
+    // Scrolls: on a phone held sideways the four choices are taller than the window, and the sort order below the fold
+    // would otherwise be out of reach.
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
             .padding(bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)

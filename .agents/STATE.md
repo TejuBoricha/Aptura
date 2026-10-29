@@ -57,6 +57,10 @@ PR's Verification section and in CI, not here, so most pull requests never need 
 - **Library view choices** (layout, size, details, sort, folder browser layout) live in DataStore, not Room. The welcome
   guide's pictures are built from the library's and player's own composables, and tests check its claims against the
   real menus (DESIGN.md §6.5): change a menu action and `GuideAccuracyTest` says so.
+- **Short windows:** layouts depend on height as well as width. The collection index needs 600 dp of height, the rail
+  drops its labels below 480 dp, and a phone held sideways (891 x 411 and 740 x 360 dp) gets the rail with the folder bar
+  (DESIGN.md §4). `LandscapePhoneGalleryTest` renders the screens at both sizes; do not measure a size inside a
+  scrolling box (it is given unlimited height and never reads as short).
 - **Delete:** "Move to trash" is the primary action where the platform supports it; "Delete permanently" is a red
   outlined alternative.
 - **Merge queue is unavailable** (it needs an organization-owned repo). `main` has a ruleset (active since

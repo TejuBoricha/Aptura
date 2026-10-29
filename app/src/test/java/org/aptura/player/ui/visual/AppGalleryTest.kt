@@ -231,6 +231,36 @@ class PlayerGalleryTest : GalleryBase() {
     @Config(qualifiers = "w320dp-h640dp-xhdpi")
     @Test fun smallPortraitAudioOnly() { player(base.copy(isAudioOnly = true, videoTitle = "VID-20260928-WA0034")); shoot("player_audio_only_small_portrait") }
 
+    @Config(qualifiers = "w740dp-h360dp-xhdpi")
+    @Test fun smallSidewaysHud() { player(base); shoot("player_small_sideways_hud") }
+
+    @Config(qualifiers = "w740dp-h360dp-xhdpi")
+    @Test fun smallSidewaysSubtitle() { player(base.copy(activeSheet = PlayerSheet.Subtitle)); shoot("sheet_subtitle_small_sideways") }
+
+    @Config(qualifiers = "w740dp-h360dp-xhdpi")
+    @Test fun smallSidewaysAdvanced() { player(base.copy(activeSheet = PlayerSheet.Advanced)); shoot("sheet_advanced_small_sideways") }
+
+    @Config(qualifiers = "w740dp-h360dp-xhdpi")
+    @Test fun smallSidewaysQueue() { player(base.copy(activeSheet = PlayerSheet.Queue)); shoot("sheet_queue_small_sideways") }
+
+    @Config(qualifiers = "w740dp-h360dp-xhdpi")
+    @Test fun smallSidewaysAbLoop() { player(base.copy(abRepeat = AbRepeatState(1_800_000, 2_400_000, true), sleepTimerEndsAtElapsedRealtime = SystemClock.elapsedRealtime() + 1_200_000)); shoot("player_small_sideways_ab_sleep") }
+
+    @Config(qualifiers = "w740dp-h360dp-xhdpi")
+    @Test fun smallSidewaysUpNext() { player(base.copy(isEnded = true, isPlaying = false, autoAdvanceCountdownSeconds = 6)); shoot("player_small_sideways_up_next") }
+
+    @Config(qualifiers = "w740dp-h360dp-xhdpi")
+    @Test fun smallSidewaysStats() { player(base.copy(isStatsOverlayVisible = true, isControlsVisible = true)); shoot("player_small_sideways_stats") }
+
+    @Config(qualifiers = "w740dp-h360dp-xhdpi")
+    @Test fun smallSidewaysCompat() { player(base.copy(isCompatibilityMode = true, compatibilityNotice = "Playing with software decoding")); shoot("player_small_sideways_compat") }
+
+    @Config(qualifiers = "w740dp-h360dp-xhdpi")
+    @Test fun smallSidewaysLocked() { player(base.copy(isLocked = true, isLockHintVisible = true)); shoot("player_small_sideways_locked") }
+
+    @Config(qualifiers = "w740dp-h360dp-xhdpi")
+    @Test fun smallSidewaysSwipeSeek() { player(base.copy(swipeSeekTargetMs = 2_160_000, swipeSeekDeltaMs = 60_000, isControlsVisible = true)); shoot("player_small_sideways_swipe_seek") }
+
     @Config(qualifiers = "w411dp-h891dp-xhdpi")
     @Test fun portraitHud() { player(base); shoot("player_portrait_hud") }
 

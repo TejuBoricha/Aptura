@@ -109,6 +109,32 @@ system theme before settings load; fixing it needs a synchronous settings read a
   by the library's blank placeholder; the touch shield removed; the demo ignoring whether its page is in view; the menu
   line naming an action the menu lacks; the compact footer removed.
 
+## Added after the owner's questions: a phone held sideways, and the audio-only overlap
+
+The owner asked whether the whole app works flawlessly sideways on a phone (not a tablet) and sent a screenshot of the
+audio-only player with its buttons drawn over the artwork. Until then only the guide, the player and some library
+renders had been looked at sideways. Every screen was then rendered at 891 x 411 dp (a current phone) and 740 x 360 dp
+(a small one), `LandscapePhoneGalleryTest`.
+
+| Finding | Cause | Fix | Guard |
+|---|---|---|---|
+| Audio-only: transport buttons over the headphone artwork and the title (owner's screenshot, portrait; also sideways) | the panel and the button cluster were both centred on the screen | the panel has its own region between the top bar and the cluster; one row when that region is under 250 dp; scrolls rather than overlap | `AudioOnlyLayoutTest` failed at all five window shapes before the change |
+| Library sideways: no folder list, no way to add a folder | 891 dp wide gets the tablet sidebar, whose fixed parts need about 450 dp before the first folder row | the index needs 600 dp of height; below that the rail with the folder bar is used | `LibrarySidewaysTest` (fails if the height rule is removed) |
+| Rail at 360 dp tall: Settings cut off | four labelled items and the header are taller than 360 dp | labels dropped below 480 dp (icons keep their names) | same (fails if the labels stay) |
+| View options sheet could not reach "Sort by" on a short screen | my point 2 sheet had no scrolling | scrolls | same (fails if scrolling is removed) |
+| Permission and empty screens: main button at the very edge | tablet spacing | tighter spacing below 480 dp | same (fails if the spacing stays) |
+
+Two things about how the fixes were checked. First, the permission-screen guard did not fail when its fix was removed at
+first: the fix measured the window inside a scrolling box, which is given unlimited height, so it could never have taken
+effect. The mutation check showed it; the measurement now sits outside the scroll and the guard fails without the fix.
+Second, the renders also showed that the player's bottom sheets open as a strip on a 360 dp-tall window under
+Robolectric; the sheets scroll and use Material's own sizing, and under Robolectric sheets are known not to lay out as
+they do on a device, so this is **not verified** and belongs with the device checks.
+
+**Seen sideways and left as they are:** the stats panel covers the right half of the controls when both are showing (it
+is an opt-in diagnostic panel with a close button; moving it is the owner's call); Settings' large title takes a third of
+the height until scrolled; the Continue watching cards are large on a short screen, so the grid starts below the fold.
+
 ## Verification
 
 - Full unit suite: 776 tests, 0 failures, 104 skipped (the galleries, which run only when `APTURA_GALLERY_DIR` is set).

@@ -155,6 +155,7 @@ val ApturaTypography = Typography(
   - **Compact (<600dp, Phones portrait):** Single-column media list or 2-column card grid. No persistent sidebar; folder chips and the bottom navigation stay in the content column.
   - **Medium (600–699dp, Foldables / Small Tablets):** **88dp compact rail** with Videos, Open, Refresh and Settings, plus the film count. Expand is not offered because 248dp would leave too little grid; folder chips remain in the content top edge.
   - **Expanded (≥700dp, Tablets / Desktops):** **248dp collection index** with the library pulse (films, runtime, footprint), All videos, folder rows with counts, Add folder, Open a file, Rescan, Settings and the offline promise. It collapses to the 88dp rail on demand; the choice is remembered for the session.
+- **Short-window rule (a phone held sideways):** height decides as well as width. A current phone sideways is 891 x 411 dp and a small one 740 x 360 dp: wide enough for the tablet layout, a third of a tablet's height. The collection index needs about 450 dp before its first folder row, so it is used only at **600 dp of height or more**; below that the **88 dp rail** is used at every width, with the folder bar in the content (Browse folders, chips, Add folder). Below **480 dp** the rail drops its text labels (its icons keep their names for TalkBack), as it does at large text, so four buttons and the header fit in 360 dp. Spacing on the empty and permission screens tightens below 480 dp so the main button is in view. Any sheet whose content can be taller than 360 dp scrolls (the View sheet, the details sheet, dialog bodies).
 - **Large-text fallback:** At `fontScale >= 1.5`, force the 88dp icon rail at every width. The rail hides labels and keeps the icons' `contentDescription` as the accessible names. This is a layout decision, not a truncation: folder names must never be squeezed into unreadable fragments.
 - **Sidebar motion:** Expand/collapse animates over 220ms with size, fade and a small horizontal slide. The compact header is one **68 x 48dp** chip that combines the aperture mark and the chevron; do not separate the mark and the arrow into a stack. Every sidebar control keeps a 48dp target.
 - **Library selection bar:** Cap the selection action bar at **680dp** and center it under the search row at any width; do not let it stretch edge to edge on a tablet. It shows the count, Select all/Clear, Move, Share and the overflow; Back clears selection before leaving the library. Failed deletes stay selected.
@@ -224,6 +225,10 @@ The library is shown the way the person chooses, and the folder they are in is n
 - **Left Vertical Swipe:** Brightness adjustment (0% to 100% overlay pill).
 - **Right Vertical Swipe:** Media volume adjustment (0% to 100% overlay pill; hardware volume sync).
 - **Horizontal Swipe:** High-precision scrub with fine-grained time delta indicator (`+0:15`, `-1:02`).
+
+### 5.3b Audio-only Layout
+
+In audio-only mode the headphone panel (artwork, title, reason, **Show video**) and the centred transport buttons must never share space. The panel has its own region: the upper half of the screen, below the top bar (72dp) and 44dp clear of the button cluster, the same whether the controls are showing or not so it never jumps. When that region is shorter than 250dp (a phone held sideways, a small screen) the panel is one row: a 56dp artwork beside the title and a 36dp **Show video** button. If even that does not fit it scrolls rather than overlap. `AudioOnlyLayoutTest` checks this at portrait, small portrait, large text, sideways and small sideways.
 
 ### 5.4 Playback Speed Rail (Settings and Player)
 
@@ -352,3 +357,4 @@ Five pages, each saying one thing: **Welcome** (what stays private), **Your libr
 8. **Always persist the URI a provider returns from a rename.** Move the row, saved position and bookmarks with it; a stable MediaStore URI is the exception, not the rule.
 9. **Always make a long transfer observable, cancellable and durable.** Real byte progress, a named file, a working Cancel, no tap-outside dismissal, no originals deleted mid-copy, and a journaled WorkManager resume path.
 10. **Always show the consequence before removing a missing item.** No disk file is deleted; progress and bookmarks are; the row returns as a new video if the file comes back.
+11. **Always look at a new screen, sheet or dialog on a phone held sideways** (891 x 411 and 740 x 360 dp) as well as upright: nothing overlaps, every control is reachable, and anything taller than the window scrolls. `LandscapePhoneGalleryTest` renders the library, its sheets and dialogs, and Settings at both sizes.

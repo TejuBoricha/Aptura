@@ -214,13 +214,15 @@ internal fun LibraryCompactRail(
     onOpenFilePicker: () -> Unit,
     onRefresh: () -> Unit,
     onSettingsClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    shortWindow: Boolean = false
 ) {
     val total = state.libraryVideoCount.takeIf { it > 0 } ?: state.totalCount
     // 88 dp cannot hold a wordmark or navigational labels at 200% type: "APTURA" wraps to two lines and
     // "Refresh" touches both edges. Below 150% the labels are the friendlier affordance; above it the rail
-    // becomes icon-only and the icons' content descriptions carry the names for TalkBack.
-    val showLabels = LocalDensity.current.fontScale < 1.5f
+    // becomes icon-only and the icons' content descriptions carry the names for TalkBack. The same on a short
+    // window (a phone held sideways), where four labelled items and the header are taller than the screen.
+    val showLabels = LocalDensity.current.fontScale < 1.5f && !shortWindow
     NavigationRail(
         modifier = modifier.fillMaxHeight(),
         containerColor = ApturaColors.SurfaceElevated1,
