@@ -192,6 +192,14 @@ The library is shown the way the person chooses, and the folder they are in is n
 - **Swipe between folders:** a 64dp horizontal drag on the videos moves one folder along (All videos is the first stop). The chip bar, the sidebar row and a short **position pill** ("Movies, 3 of 6", bottom centre, a polite live region) follow it, with a light haptic tick. At the first or last folder it stays put (no wrap-around) and the pill still names the folder, so the end reads as the end. The pill sits at the bottom so it never covers a title.
 - **Sidebar list (≥700dp):** the selected folder's row is scrolled into view however it was selected. The list's top and bottom edges are the panel's own colour for 12dp and then fade, so a row sliding under the library summary dissolves instead of being cut through its text.
 
+### 4.2b First Scan
+
+On a fresh install the library is empty until the first scan ends (the scan saves its results in one transaction, so nothing appears gradually). The screen must say so plainly and must not flicker on the way:
+
+- While the library is empty **and a scan is queued or running** the state is *Looking for videos…*, never "No videos yet". "No videos yet" (with Scan device and Add a folder) appears only once the library has stayed empty for 600 ms with no scan under way, because the database answers "nothing" a few milliseconds before WorkManager reports the scan. Without storage access there is no scan to wait for, so the permission screen appears at once.
+- The loading skeleton fades in only after 300 ms, so a load that is over sooner (every normal start) shows nothing instead of a flash of grey blocks. It says "Looking for videos…" and "The first scan can take a little while."
+- Guarded by `MediaLibraryViewModelTest` (the first-scan group) and `MediaLibraryScreenUiTest`, each shown to fail when its code is removed.
+
 ### 4.3 Screen Transitions
 
 - **One palette per screen.** The palette is a `CompositionLocal`, never a global: the always-dark player wraps itself in `ApturaTheme(DARK)` while a Light-theme library may still be on screen beneath it during a transition, and each draws its own colours. A global palette flipped a frame after the route changed was the cause of the back-navigation flicker. One composable (`ApturaWindowChrome`) owns the status-bar icons and window background.

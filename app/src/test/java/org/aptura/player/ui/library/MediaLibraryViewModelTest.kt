@@ -5,6 +5,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.domain.repository.MediaRepository
@@ -613,6 +614,96 @@ class MediaLibraryViewModelTest {
 
             assertEquals(LibrarySortOrder.TITLE_ASC, success.sortOrder)
             assertEquals(listOf("Avatar", "Inception", "Vacation Clip"), success.videos.map { it.title })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    // ---- the first scan after an install -----------------------------------------------------------------------------
+    //
+    // These run on the wall clock, as the view model's pipeline does under test (its debounce is not on the test
+    // scheduler), with a short hold so they stay quick. `runCurrent()` lets the scan flag, which is collected on the
+    // test dispatcher, reach the view model.
+
+    private val hold = 150L
+
+    private fun viewModel(repo: FakeMediaRepository, scan: Flow<Boolean>, settleMs: Long = hold) =
+        MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 0L, scanActivity = scan, emptySettleMs = settleMs)
+
+    /**
+     * A fresh install has an empty database and a scan that is queued or running. The library used to say "No videos
+     * yet" (with a Scan device button) the moment the database answered, while the scan was about to fill it.
+     */
+    @Test
+    fun firstInstall_whileTheFirstScanRuns_staysLoading_andNeverSaysNoVideosYet() = runTest(testDispatcher) {
+        val repo = FakeMediaRepository()
+        val viewModel = viewModel(repo, MutableStateFlow(true))
+
+        viewModel.uiState.test {
+            assertEquals(MediaLibraryUiState.Loading, awaitItem())
+            runCurrent()
+            Thread.sleep(hold * 4) // the hold on "No videos yet" is long over
+            expectNoEvents()
+
+            repo.videosFlow.value = listOf(item1)
+            assertTrue(awaitItem() is MediaLibraryUiState.Success)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    /** The database is empty for a moment before WorkManager reports the scan: that moment must not show anything. */
+    @Test
+    fun anEmptyAnswerBeforeTheScanIsReported_doesNotFlashNoVideosYet() = runTest(testDispatcher) {
+        val repo = FakeMediaRepository()
+        val scan = MutableStateFlow(false)
+        val viewModel = viewModel(repo, scan)
+
+        viewModel.uiState.test {
+            assertEquals(MediaLibraryUiState.Loading, awaitItem())
+            runCurrent()
+            Thread.sleep(hold / 3) // the empty answer is in and is being held back
+            scan.value = true // the scan is reported before the hold is over
+            runCurrent()
+            Thread.sleep(hold * 4)
+            expectNoEvents()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun whenTheScanFindsNothing_noVideosYetAppears_afterTheHold() = runTest(testDispatcher) {
+        val repo = FakeMediaRepository()
+        val scan = MutableStateFlow(true)
+        val viewModel = viewModel(repo, scan)
+
+        viewModel.uiState.test {
+            assertEquals(MediaLibraryUiState.Loading, awaitItem())
+            runCurrent()
+            scan.value = false // the scan ended with nothing
+            runCurrent()
+            val startedAt = System.nanoTime()
+            val state = awaitItem()
+            val waitedMs = (System.nanoTime() - startedAt) / 1_000_000
+            assertTrue("Expected Empty but got $state", state is MediaLibraryUiState.Empty)
+            assertFalse((state as MediaLibraryUiState.Empty).isFiltered)
+            assertTrue("the empty screen came after only $waitedMs ms", waitedMs >= hold * 2 / 3)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    /** With no access there is no scan to wait for, so the permission screen is not held back. */
+    @Test
+    fun withoutAccess_thePermissionScreenAppearsAtOnce() = runTest(testDispatcher) {
+        val repo = FakeMediaRepository()
+        val viewModel = viewModel(repo, MutableStateFlow(false), settleMs = 2_000L)
+        viewModel.setPermissionDenied(true)
+
+        viewModel.uiState.test {
+            assertEquals(MediaLibraryUiState.Loading, awaitItem())
+            val startedAt = System.nanoTime()
+            val state = awaitItem()
+            val waitedMs = (System.nanoTime() - startedAt) / 1_000_000
+            assertTrue(state is MediaLibraryUiState.Empty && state.isPermissionDenied)
+            assertTrue("the permission screen was held back for $waitedMs ms", waitedMs < 1_000)
             cancelAndIgnoreRemainingEvents()
         }
     }

@@ -42,6 +42,8 @@ import org.aptura.player.ui.components.NoticeBanner
 import org.aptura.player.ui.components.SectionTitle
 import org.aptura.player.ui.components.SkeletonBlock
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -158,6 +160,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.work.WorkInfo
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import coil3.compose.AsyncImage
@@ -256,7 +259,10 @@ fun MediaLibraryScreen(
                             )
                     ) {
                         LibraryAppBar(onSettingsClick = onSettingsClick)
-                        MediaLibraryLoadingView(modifier = Modifier.weight(1f))
+                        Box(modifier = Modifier.weight(1f)) {
+                            // Loading that is over in a moment (every normal start) shows nothing, not a flash of skeleton.
+                            AfterDelay { MediaLibraryLoadingView() }
+                        }
                     }
                 }
 
@@ -1657,6 +1663,23 @@ private fun MediaLibraryEmptyView(
     }
 }
 
+/** How long loading has to last before the skeleton is worth showing. */
+internal const val SKELETON_DELAY_MS = 300L
+
+/**
+ * Shows [content] only if it is still wanted after [delayMs], fading in. Anything that loads faster never flashes a
+ * placeholder for a few milliseconds, which reads as a flicker rather than as progress.
+ */
+@Composable
+private fun AfterDelay(delayMs: Long = SKELETON_DELAY_MS, content: @Composable () -> Unit) {
+    var due by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(delayMs)
+        due = true
+    }
+    AnimatedVisibility(visible = due, enter = fadeIn(tween(220)), exit = ExitTransition.None) { content() }
+}
+
 /**
  * The first scan: the shape of the library, breathing, instead of a lone spinner. It tells the viewer what is about
  * to appear and where, so the grid does not "pop" into an empty screen.
@@ -1670,7 +1693,7 @@ private fun MediaLibraryLoadingView(modifier: Modifier = Modifier) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = pagePadding)
-                .semantics(mergeDescendants = true) { contentDescription = "Looking for videos" }
+                .semantics(mergeDescendants = true) { contentDescription = "Looking for videos. The first scan can take a little while." }
         ) {
             SkeletonBlock(
                 modifier = Modifier
@@ -1683,6 +1706,12 @@ private fun MediaLibraryLoadingView(modifier: Modifier = Modifier) {
                 text = "Looking for videos…",
                 style = ApturaTypography.bodyMedium,
                 color = ApturaColors.TextMediumEmphasis
+            )
+            // The scan saves everything in one go, so nothing appears until it ends: say so, once, calmly.
+            Text(
+                text = "The first scan can take a little while.",
+                style = ApturaTypography.bodySmall,
+                color = ApturaColors.TextLowEmphasis
             )
             Spacer(Modifier.height(14.dp))
             repeat(3) {

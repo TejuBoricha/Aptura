@@ -131,16 +131,29 @@ Second, the renders also showed that the player's bottom sheets open as a strip 
 Robolectric; the sheets scroll and use Material's own sizing, and under Robolectric sheets are known not to lay out as
 they do on a device, so this is **not verified** and belongs with the device checks.
 
+### First install: the scan indicator that flashed (owner's report)
+
+The owner said that on a first install the scan symbol appears for a few milliseconds and feels off. Traced in code: the
+library's state starts as *Loading* (a grey skeleton) and the first database answer, an empty list, turned it into *No
+videos yet* (with Scan device and Add a folder) at once, although the first scan was only then being queued; the scan
+saves everything in one transaction, so the videos arrive all at once at the end. That is three screens in quick
+succession: skeleton for milliseconds, an empty screen, then the library. The state is now *Looking for videos…* for as
+long as the library is empty and a scan is queued or running; an empty library must hold for 600 ms with no scan before
+it is called empty; the skeleton appears only after 300 ms. `MediaLibraryViewModelTest` (first-scan group) and
+`MediaLibraryScreenUiTest` guard each part; four mutations (no Loading while scanning, no hold, a held-back permission
+screen, an instant skeleton) each failed the intended test. Which symbol the owner meant is inferred from the code, not
+seen on a device: if it is a different one, a screenshot will say.
+
 **Seen sideways and left as they are:** the stats panel covers the right half of the controls when both are showing (it
 is an opt-in diagnostic panel with a close button; moving it is the owner's call); Settings' large title takes a third of
 the height until scrolled; the Continue watching cards are large on a short screen, so the grid starts below the fold.
 
 ## Verification
 
-- Full unit suite: 776 tests, 0 failures, 104 skipped (the galleries, which run only when `APTURA_GALLERY_DIR` is set).
+- Full unit suite: 851 tests, 0 failures, 162 skipped (the galleries, which run only when `APTURA_GALLERY_DIR` is set).
 - Guide gallery renders reviewed at: phone, small phone (320 dp), 200% font, landscape, tablet, light and dark, and the
   replay with a library. The library layouts are rendered by `LibraryLayoutGalleryTest` at its listed sizes.
-- `lintDebug`: 0 errors, 91 warnings, none in the guide files (a first run flagged two uses of `Configuration.screenHeightDp` there; they now use the window-size API). `assembleRelease` with `verifyReleaseApk`
+- `lintDebug`: 0 errors, 91 warnings (the same count as before the sideways and first-scan work), none in the guide files (a first run flagged two uses of `Configuration.screenHeightDp` there; they now use the window-size API). `assembleRelease` with `verifyReleaseApk`
   (which fails if the APK gains the INTERNET permission or a bundled software decoder): passes. Both ran online, because
   lint's instrumented-test model cannot resolve offline. CI runs them again on the PR.
 

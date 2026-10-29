@@ -87,8 +87,29 @@ class MediaLibraryScreenUiTest {
             }
         }
 
-        // Verify scanning indicator text is displayed
+        // The skeleton waits a moment before it appears (loading that is over sooner shows nothing at all, not a flash),
+        // then fades in and stays for as long as the first scan runs.
+        composeTestRule.mainClock.advanceTimeBy(SKELETON_DELAY_MS + 400)
         composeTestRule.onNodeWithText("Looking for videos\u2026").assertIsDisplayed()
+    }
+
+    @Test
+    fun mediaLibraryScreen_whenLoadingIsQuick_neverFlashesTheSkeleton() {
+        composeTestRule.mainClock.autoAdvance = false
+        composeTestRule.setContent {
+            ApturaTheme {
+                MediaLibraryScreen(
+                    uiState = MediaLibraryUiState.Loading,
+                    onVideoClick = { _, _ -> },
+                    onSearchQueryChanged = {},
+                    onFolderSelected = {},
+                    onSortOrderChanged = {},
+                    onRefresh = {}
+                )
+            }
+        }
+        composeTestRule.mainClock.advanceTimeBy(SKELETON_DELAY_MS - 100)
+        composeTestRule.onNodeWithText("Looking for videos\u2026").assertDoesNotExist()
     }
 
     @Test

@@ -36,11 +36,19 @@ class MediaLibraryViewModel(
     /** Emits true while a library scan is queued/running. Null keeps the legacy "enqueue only" behaviour. */
     private val scanActivity: kotlinx.coroutines.flow.Flow<Boolean>? = null,
     /** The sort the user picked in an earlier session, or null for the library's own choice by folder. */
-    initialSort: LibrarySortOrder? = null
+    initialSort: LibrarySortOrder? = null,
+    /** How long an empty library must stay empty, with no scan under way, before "No videos yet" is shown. */
+    private val emptySettleMs: Long = EMPTY_SETTLE_MS
 ) : ViewModel() {
 
     companion object {
         const val SEARCH_DEBOUNCE_MS = 250L
+
+        /**
+         * The database answers "nothing" a moment before the scan that fills it is reported as queued, so on a first
+         * install an empty library is not yet "No videos yet". It has to hold for this long first.
+         */
+        const val EMPTY_SETTLE_MS = 600L
     }
 
     /** Q-02: a failing repository call must never crash the process. */
@@ -105,7 +113,13 @@ class MediaLibraryViewModel(
         filterState
     ) { allVideos: List<DomainMediaItem>, folders: List<String>, filter: FilterState ->
         if (allVideos.isEmpty() && filter.query.isBlank() && filter.folder == null) {
-            MediaLibraryUiState.Empty(isFiltered = false, isPermissionDenied = filter.isPermissionDenied)
+            // A scan that is queued or running may be about to fill the library (the first one after an install always
+            // is), so this is "still looking", not "nothing found". Without access there is no scan to wait for.
+            if (filter.isRefreshing && !filter.isPermissionDenied) {
+                MediaLibraryUiState.Loading
+            } else {
+                MediaLibraryUiState.Empty(isFiltered = false, isPermissionDenied = filter.isPermissionDenied)
+            }
         } else {
             var filtered = allVideos
 
@@ -159,7 +173,11 @@ class MediaLibraryViewModel(
      * overlay runs per keystroke while the expensive [libraryContent] pass stays debounced.
      */
     val uiState: StateFlow<MediaLibraryUiState> = combine(
-        libraryContent,
+        // "No videos yet" has to hold for a moment before it is shown: on a first install the database is empty for a
+        // few milliseconds before the scan is reported, and showing it then flashed an empty screen in between.
+        libraryContent.debounce { state ->
+            if (state is MediaLibraryUiState.Empty && !state.isFiltered && !state.isPermissionDenied) emptySettleMs else 0L
+        },
         _searchQuery
     ) { content, rawQuery ->
         when (content) {
