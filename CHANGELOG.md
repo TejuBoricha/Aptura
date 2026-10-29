@@ -16,6 +16,7 @@ All notable changes to Aptura are recorded here. The format follows [Keep a Chan
 
 ### Changed
 
+- An independent review by a second model is now required only for security, privacy and database changes. Playback, file operations and large changes merge on the gate and green CI alone.
 - Agent coordination, after an end-to-end audit: the status check reads comments repository-wide (37 requests a run for 30 open and 40 closed pull requests, down from 215), flags claimed tasks without a pull request after 2 hours and quiet pull requests after 4, escalates any stall left a day to the owner, emails the owner only for new "Needs you" items, reports unreadable messages, and keeps working when one write fails. `inbox.py` falls back to the GitHub CLI's login and slows down without a token. `AGENTS.md` gains an everyday-messages cheat sheet, and drift tests keep the docs and the code in step.
 
 - The sleep timer now keeps one absolute deadline instead of subtracting ticks (no drift), derives its countdown only while a screen shows it, and offers the full 10/15/20/30/45/60 minute ladder plus a custom duration. After it fires, `+5 min` resumes playback with a fresh five minutes.
