@@ -644,18 +644,23 @@ def fetch(repo: str, token: str | None, extra_trusted: list[str] | None = None,
                           linked=re.search(rf"#{issue['number']}\b", pr_text) is not None))
     for task in (i for i in items if i.kind == "Task" and not i.linked and i.claimed_at
                  and now - i.claimed_at >= CLAIM_WITHOUT_PR):
-        task.linked = referenced_by_pr(base, task.number, token)  # a merge older than the closed listing reaches
+        task.linked = referenced_by_pr(base, task.number, token, authors)  # reaches merges older than the listing
     return items
 
 
-def referenced_by_pr(base: str, number: int, token: str | None) -> bool:
-    """Whether an open or merged pull request mentions the issue, at any age, from its timeline. Read only for a
-    claim about to be reported, so it costs a request only when it matters."""
-    for event in every(f"{base}/issues/{number}/timeline", token):
-        source = (event.get("source") or {}).get("issue") or {}
-        pr = source.get("pull_request")
-        if event.get("event") == "cross-referenced" and pr and (source.get("state") == "open" or pr.get("merged_at")):
-            return True
+def referenced_by_pr(base: str, number: int, token: str | None, authors: set[str]) -> bool:
+    """Whether an open or merged pull request by a trusted author mentions the issue, at any age, from its timeline.
+    Read only for a claim about to be reported, at most three pages. If the timeline cannot be read, the claim is
+    reported (a nudge too many), rather than the whole run failing and nothing being published."""
+    try:
+        for event in every(f"{base}/issues/{number}/timeline", token, max_pages=3):
+            source = (event.get("source") or {}).get("issue") or {}
+            pr = source.get("pull_request")
+            if (event.get("event") == "cross-referenced" and pr and _login(source).lower() in authors
+                    and (source.get("state") == "open" or pr.get("merged_at"))):
+                return True
+    except (urllib.error.URLError, TimeoutError, RuntimeError) as error:
+        print(f"::warning::Could not read the timeline of #{number} ({error}); reporting its claim as unlinked.")
     return False
 
 
@@ -710,8 +715,13 @@ def publish(repo: str, token: str, items: list[Item], found: Findings, text: str
                if (key := re.search(r"<!-- needs:.+? -->", n)) is None or key.group(0) not in old]
         told = not new or write("POST", f"{base}/issues/{status[0]['number']}/comments",
                                 {"body": "The agents need you for:\n\n" + "\n".join(f"- {n}" for n in new)})
-        if told:
-            write("PATCH", f"{base}/issues/{status[0]['number']}", {"body": body + footer})
+        if not told:
+            # Keep the page current, but without the keys of the entries the owner was not told about, so the next
+            # run sees them as new and tries again.
+            for entry in new:
+                key = re.search(r"<!-- needs:.+? -->", entry)
+                body = body.replace(key.group(0), "") if key else body
+        write("PATCH", f"{base}/issues/{status[0]['number']}", {"body": body + footer})
     else:
         write("POST", f"{base}/issues", {"title": "Agent status", "body": body + footer, "labels": [STATUS_LABEL]})
     return posted, failures

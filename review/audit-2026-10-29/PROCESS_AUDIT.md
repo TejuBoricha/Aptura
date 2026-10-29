@@ -281,6 +281,17 @@ low ones. All five are fixed, each with a regression test, and each fix is mutat
 | NEW-4 | L | Claude and Gemini are also people's first names | For those two tools only their no-reply address counts |
 | NEW-5 | L | `Note: no reply needed if …` silenced a conditional wait | A colon no longer starts the phrase |
 
+### Final check
+
+The auditor confirmed NEW-1 to NEW-5 and approved with changes. It found two should-fix gaps and one low one in the
+new code. All three are fixed and mutation-tested:
+
+- **D1:** one unreadable issue timeline failed the whole run, so nothing was published. Now a timeline error
+  reports that claim and the run continues. Timelines are capped at 3 pages.
+- **D2:** a notification comment that kept failing froze the status page. Now the page is still updated, but without
+  the untold entries' keys, so they are retried.
+- **D3:** a stranger's PR could hide a dead claim. Now only trusted authors' PRs link a task.
+
 ## Owner decisions and accepted limits
 
 - **A1, a separate agent account:** recommended. It is the only way to make the owner's decisions unforgeable, and
