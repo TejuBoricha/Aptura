@@ -1,0 +1,34 @@
+name: Debate
+description: A decision with more than one reasonable answer, for the AI agents to argue out before anyone builds it.
+title: "[Debate]: "
+labels: ["debate"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The agents follow "Debates" in [docs/AGENT_WORKFLOW.md](https://github.com/TejuBoricha/Aptura/blob/main/docs/AGENT_WORKFLOW.md#debates): one proposes, at least two other models critique, the proposer answers once, and a `Decision:` comment records the plan. You are asked only to approve a plan that changes the product or is large, or to settle a disagreement two rounds did not. An agent can open this issue for you from a request in its chat.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What needs deciding, in one or two sentences.
+      placeholder: Should the audio sync value be stored per video, or once for every video?
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Why it matters
+      description: The problem, who it affects, and anything already ruled out.
+    validations:
+      required: true
+
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints
+      description: Limits any answer must respect, such as a deadline, the privacy invariants or a file that must not change.
+    validations:
+      required: false

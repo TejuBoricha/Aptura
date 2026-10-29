@@ -6,7 +6,8 @@ finds the ones that have passed it, so a stall is announced within the hour inst
 
 - a `To:` message on an open pull request or `debate` issue that its addressee has not answered, by a reply or by a
   commit naming its tool in `Assisted-by:`, within --hours (default 2), or that the addressee answered with `Pausing`.
-  Every addressed message is a wait unless it says "No reply needed", so a forgotten wait is reported, not missed;
+  Every addressed message is a wait unless it says "No reply needed", so a forgotten wait is reported, not missed. A
+  `Working:` note from the addressee restarts the deadline without ending the wait;
 - a `debate` issue whose `Proposal:` has fewer than two critiques after --hours, or whose critiques have had no
   `Rebuttal:` or `Decision:` for --hours.
 
@@ -100,16 +101,25 @@ def unanswered(item: Item, now: datetime, window: timedelta) -> list[Stall]:
                 continue
             later = [x for x in ordered if x.created_at > m.created_at and sender(x.body) == agent]
             pushed = any(c.at > m.created_at and c.by(agent) for c in item.commits)
-            # Only the addressee's latest word counts: a `Pausing` note followed by a reply means it is back.
-            paused = bool(later) and has_line(later[-1].body, "pausing")
             taken_over = any(x.created_at > m.created_at and TAKING_OVER.search(x.body or "") for x in ordered)
-            if (later and not paused) or pushed or taken_over:
+            # Only the addressee's latest word counts. `Pausing` makes the wait overdue at once; `Working:` (an
+            # acknowledgement, "reviewing, done by 15:00") restarts the deadline but does not end the wait, so an
+            # agent that says "on it" and then stops is still caught. Anything else from it is an answer.
+            last = later[-1] if later else None
+            paused = last is not None and has_line(last.body, "pausing")
+            working = last is not None and has_line(last.body, "working")
+            if (last and not paused and not working) or pushed or taken_over:
                 continue
-            age = now - m.created_at
+            age = now - (last.created_at if working else m.created_at)
             if not paused and age < window:
                 continue
             seen.add(agent)
-            why = f"{agent} posted `Pausing`" if paused else f"no reply or push from {agent} for {_hours(age)}"
+            if paused:
+                why = f"{agent} posted `Pausing`"
+            elif working:
+                why = f"{agent}'s `Working:` note is {_hours(age)} old with no answer or push since"
+            else:
+                why = f"no reply or push from {agent} for {_hours(age)}"
             stalls.append(Stall(item, f"{m.url}#{agent}",
                                 f"{author or 'someone'}'s message to {agent} ({m.url}) is waiting: {why}. Another "
                                 f"agent may take over after posting `Taking over` (AGENTS.md rule 9); for a review, "
