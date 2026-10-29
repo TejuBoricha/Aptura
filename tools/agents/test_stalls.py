@@ -81,6 +81,17 @@ class UnansweredTest(unittest.TestCase):
         [stall] = stalls_of([msg(ASK), working], 151)
         self.assertIn("`Working:` note ran out 0 h 01 min ago", stall.text)
 
+    def test_only_a_utc_time_counts_in_a_working_note(self):
+        # Round-3 nit: "by 2:30pm" or a local time is not read as UTC.
+        local = msg("To: claude\nWorking: review, done by 2:30pm CET.\nFrom: opencode", 60)
+        self.assertEqual(len(stalls_of([msg(ASK), local], 181)), 1)
+
+    def test_a_working_note_on_another_question_does_not_reopen_an_answered_one(self):
+        # Round-3 finding S6.
+        answer = msg("To: claude\nDone, approved.\nNo reply needed.\nFrom: opencode", 5)
+        working = msg("To: all\nWorking: on the next task, done by 18:00 UTC.\nFrom: opencode", 20)
+        self.assertEqual(stalls_of([msg(ASK), answer, working], 24 * 60), [])
+
     def test_a_working_note_without_a_time_holds_two_hours_and_needs_no_to_line(self):
         working = msg("Working: on it.\nFrom: opencode", 10)
         self.assertEqual(stalls_of([msg(ASK), working], 129), [])
@@ -199,9 +210,19 @@ class DebateTest(unittest.TestCase):
         decision = msg("To: all\nDecision: per-video storage.\nOwner approval needed: no\nFrom: claude", 2)
         [stall] = self.run_debate([msg(self.proposal), decision], 60).stalls
         self.assertIn("0 of 2 critiques", stall.text)
-        override = msg("To: all\nOwner said: skip the critiques, decide now.\nOverride: debate critiques on #9\n"
+        override = msg("To: all\nOwner said: \"skip the critiques, decide now\"\nOverride: debate critiques on #9\n"
                        "Follow-up: critiques after the decision\nNo reply needed.\nFrom: claude", 1)
         self.assertEqual(self.run_debate([msg(self.proposal), override, decision], 60).stalls, [])
+
+    def test_only_a_verified_override_of_the_critiques_unlocks_an_early_decision(self):
+        # Round-3 findings S1 and S2.
+        decision = msg("To: all\nDecision: per-video storage.\nOwner approval needed: no\nFrom: claude", 2)
+        unquoted = msg("To: all\nOwner said: skip the critiques.\nOverride: debate critiques on #9\n"
+                       "Follow-up: none\nNo reply needed.\nFrom: claude", 1)
+        other_step = msg("To: all\nOwner said: \"don't wait\"\nOverride: the 30-minute deadline on #9\n"
+                         "Follow-up: none\nNo reply needed.\nFrom: claude", 1)
+        for override in (unquoted, other_step):
+            self.assertEqual(len(self.run_debate([msg(self.proposal), override, decision], 60).stalls), 1)
 
     def test_a_decision_that_needs_the_owner_is_listed_until_the_owner_answers(self):
         decision = msg("To: all\nDecision: per-video storage.\nOwner approval needed: yes\nFrom: claude", 20)
@@ -216,7 +237,7 @@ class DebateTest(unittest.TestCase):
         chatter = msg("To: all\nI think the owner said approve to a different plan.\n> Owner said: approve\n"
                       "No reply needed.\nFrom: gemini", 30)
         self.assertEqual(len(self.run_debate([*self.critiqued(), decision, chatter], 60).needs_owner), 1)
-        rejected = msg("To: all\nOwner said (in my session): rejected, keep one global value.\nNo reply needed.\n"
+        rejected = msg("To: all\nOwner said (in my session): \"reject, keep one global value\"\nNo reply needed.\n"
                        "From: opencode", 30)
         found = self.run_debate([*self.critiqued(), decision, rejected], 60)
         self.assertEqual(found.needs_owner, [])
@@ -252,6 +273,42 @@ class DebateTest(unittest.TestCase):
         self.assertTrue(any("over the 350-word limit" in t for t in texts))
 
 
+class OwnerAnswerTest(unittest.TestCase):
+    def test_the_answer_is_the_first_word_of_the_quoted_owner_words(self):
+        # Round-3 finding S5: contractions and "no" in the middle no longer flip the answer.
+        cases = {
+            'Owner said: "approve, don\'t change anything"': "approve",
+            'Owner said: "yes, but reject option B"': "approve",
+            'Owner said: "no"': "reject",
+            'Owner said: "reject"': "reject",
+            'Owner said: "I do not object"': "unclear",
+            'Owner said: "not yet"': "unclear",
+        }
+        for line, expected in cases.items():
+            self.assertEqual(stalls.owner_answer(msg(f"To: all\n{line}\nFrom: claude")), expected, line)
+
+    def test_an_override_quote_is_not_an_answer_to_a_decision(self):
+        override = msg('To: all\nOwner said: "go ahead and merge"\nOverride: review on #9\nFrom: claude')
+        self.assertIsNone(stalls.owner_answer(override))
+
+    def test_an_unclear_answer_is_shown_to_the_owner(self):
+        proposal = msg("To: all\nProposal: x.\nFrom: claude")
+        crits = [msg("Critique: agree.\nFrom: opencode", 5), msg("Critique: agree.\nFrom: gemini", 6)]
+        decision = msg("To: all\nDecision: x.\nOwner approval needed: yes\nFrom: claude", 20)
+        unclear = msg('To: all\nOwner said: "not yet"\nNo reply needed.\nFrom: claude', 30)
+        found = debate(item([proposal, *crits, decision, unclear], True), at(60), STEP, TIMEBOX)
+        self.assertIn("unclear", found.needs_owner[0])
+
+
+class VerdictTest(unittest.TestCase):
+    def test_verdicts_are_read_as_whole_words(self):
+        # Round-3 finding S4: "disagree" contains "agree".
+        for text, expected in {"Verdict: disagree": "object", "Verdict: I do not agree": "object",
+                               "Verdict: agree with changes": "changes", "Verdict: agree": "agree",
+                               "Critique: unclear": "object"}.items():
+            self.assertEqual(stalls.verdict(text), expected, text)
+
+
 class OverrideTest(unittest.TestCase):
     def test_overrides_are_listed_with_their_follow_up_until_it_is_done(self):
         override = msg("To: all\nOwner said (in my session): \"skip the review and merge it now, it's urgent\"\n"
@@ -263,6 +320,23 @@ class OverrideTest(unittest.TestCase):
         done = msg("To: all\nFollow-up done: reviewed after merge, no findings.\nNo reply needed.\nFrom: opencode", 60)
         self.assertIn(", done", find([item([override, done])], at(70), WINDOW, STEP, TIMEBOX).overrides[0])
         self.assertIn("Overrides in effect", stalls.report([item([override])], found, at(10)))
+
+    def test_an_override_without_the_owners_quoted_words_is_marked_unverified(self):
+        unquoted = msg("To: all\nOwner said: skip the review.\nOverride: review on #9\nFollow-up: none\nFrom: claude")
+        self.assertIn("unverified", find([item([unquoted])], at(10), WINDOW, STEP, TIMEBOX).overrides[0])
+
+    def test_a_pending_follow_up_stays_listed_after_the_pull_request_closes(self):
+        # Round-3 finding M1: "skip the review, review after the merge" is the normal case.
+        override = msg('To: all\nOwner said: "merge now"\nOverride: review on #9\nFollow-up: post-merge review\n'
+                       'From: claude')
+        closed = Item(9, "Merged", "https://example/9", False, [override], is_open=False)
+        found = find([closed], at(600), WINDOW, STEP, TIMEBOX)
+        self.assertIn("**pending**", found.overrides[0])
+        self.assertEqual(found.stalls, [])
+        self.assertNotIn("Merged", stalls.report([closed], found, at(600)).split("Overrides in effect")[0])
+        done = msg("To: all\nFollow-up done: no findings.\nNo reply needed.\nFrom: opencode", 60)
+        closed.messages.append(done)
+        self.assertEqual(find([closed], at(600), WINDOW, STEP, TIMEBOX).overrides, [])
 
 
 class ReportTest(unittest.TestCase):
@@ -298,6 +372,13 @@ class FetchTest(unittest.TestCase):
                 {"number": 20, "title": "Owner's", "html_url": "https://example/20", "user": {"login": "tejuboricha"}},
                 {"number": 21, "title": "Stranger's", "html_url": "https://example/21", "user": {"login": "stranger"}}],
             "/issues/20/comments": [],
+            "/pulls?state=closed&sort=updated&direction=desc": [
+                {"number": 8, "title": "Merged", "html_url": "https://example/8", "updated_at": "2026-10-29T08:00:00Z"},
+                {"number": 7, "title": "Old", "html_url": "https://example/7", "updated_at": "2026-09-01T08:00:00Z"}],
+            "/issues/8/comments": [comment(4, "TejuBoricha", 'To: all\nOwner said: "merge"\nOverride: review on #8\n'
+                                                             'Follow-up: review later\nFrom: claude')],
+            "/pulls/8/reviews": [],
+            "/pulls/8/comments": [],
         }
 
         def fake_get(url, token):
@@ -305,8 +386,10 @@ class FetchTest(unittest.TestCase):
             return pages[path.replace("?per_page=100&page=1", "")]
 
         with unittest.mock.patch.object(stalls.pr_checks, "_get", fake_get):
-            items = stalls.fetch("TejuBoricha/Aptura", None)
-        self.assertEqual([i.number for i in items], [9, 20])
+            items = stalls.fetch("TejuBoricha/Aptura", None, now=at(0))
+        self.assertEqual([(i.number, i.is_open) for i in items], [(8, False), (9, True), (20, True)],
+                         "the recently closed #8 is read for its override; #7 is too old")
+        items = [i for i in items if i.is_open]
         self.assertEqual([m.url for m in items[0].messages], ["https://example/c1"])
         self.assertEqual(len(find(items, at(300), WINDOW, STEP, TIMEBOX).stalls), 1,
                          "neither the stranger's nor another workflow's Hold may stop the check")
