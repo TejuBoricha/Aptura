@@ -35,7 +35,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 import pr_checks
-from inbox import Message, force_utf8_output, recipients, sender
+from inbox import Message, _login, force_utf8_output, recipients, sender, trusted, trusted_authors
 
 BOT = "agent-status"
 STATUS_LABEL = "agent-status"
@@ -202,29 +202,34 @@ def _send(method: str, url: str, token: str, payload: dict):
         return json.load(response)
 
 
-def _comments(base: str, number: int, token: str | None, is_pr: bool) -> list[Message]:
-    found = [Message("comment", pr_checks._parse_time(c["created_at"]), c["html_url"], c["body"] or "")
+def _comments(base: str, number: int, token: str | None, is_pr: bool, authors: set[str]) -> list[Message]:
+    found = [Message("comment", pr_checks._parse_time(c["created_at"]), c["html_url"], c["body"] or "", _login(c))
              for c in pr_checks._pages(f"{base}/issues/{number}/comments", token, limit=5)]
     if is_pr:
-        found += [Message("review", pr_checks._parse_time(r["submitted_at"]), r["html_url"], r["body"] or "")
+        found += [Message("review", pr_checks._parse_time(r["submitted_at"]), r["html_url"], r["body"] or "",
+                          _login(r))
                   for r in pr_checks._pages(f"{base}/pulls/{number}/reviews", token, limit=5) if r.get("submitted_at")]
-        found += [Message("review comment", pr_checks._parse_time(c["created_at"]), c["html_url"], c["body"] or "")
+        found += [Message("review comment", pr_checks._parse_time(c["created_at"]), c["html_url"], c["body"] or "",
+                          _login(c))
                   for c in pr_checks._pages(f"{base}/pulls/{number}/comments", token, limit=5)]
-    return found
+    # A stranger's comment on this public repository must not create a wait, fake a `Hold:` or resolve one.
+    return trusted(found, authors)
 
 
 def fetch(repo: str, token: str | None) -> list[Item]:
     base = f"{pr_checks.API}/repos/{repo}"
+    authors = trusted_authors(repo)
     items = []
     for pr in pr_checks._pages(f"{base}/pulls?state=open", token, limit=3):
         commits = [Commit(pr_checks._parse_time(c["commit"]["committer"]["date"]), c["commit"]["message"])
                    for c in pr_checks._pages(f"{base}/pulls/{pr['number']}/commits", token, limit=3)]
         items.append(Item(pr["number"], pr["title"], pr["html_url"], False,
-                          _comments(base, pr["number"], token, True), commits))
+                          _comments(base, pr["number"], token, True, authors), commits))
     for issue in pr_checks._pages(f"{base}/issues?state=open&labels={DEBATE_LABEL}", token, limit=3):
-        if "pull_request" not in issue:
+        # Anyone can open an issue with the Debate form; only the owner's (and so the agents') debates are work.
+        if "pull_request" not in issue and _login(issue).lower() in authors:
             items.append(Item(issue["number"], issue["title"], issue["html_url"], True,
-                              _comments(base, issue["number"], token, False), []))
+                              _comments(base, issue["number"], token, False, authors), []))
     return items
 
 
