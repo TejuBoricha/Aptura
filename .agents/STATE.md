@@ -18,8 +18,8 @@ PR's Verification section and in CI, not here, so most pull requests never need 
 - **Owner's machine:** Windows, PowerShell. Use `;` not `&&` in commands meant for it. Python is `py -3` there.
 - **Coordination status page:** the open issue labelled
   [`agent-status`](https://github.com/TejuBoricha/Aptura/issues?q=is%3Aissue+is%3Aopen+label%3Aagent-status), kept
-  current by the Agent status workflow whenever an agent acts and on a 15-minute schedule that GitHub runs best
-  effort; it opens with what needs the owner.
+  current by the Agent status workflow whenever the owner's account comments or opens, labels or closes an issue,
+  and on a 15-minute schedule that GitHub runs best effort; it opens with what needs the owner.
 
 ## Quality gate
 

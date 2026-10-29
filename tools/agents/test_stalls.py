@@ -894,6 +894,23 @@ class DriftTest(unittest.TestCase):
         self.assertIn(f"**Proposal** (at most {stalls.PROPOSAL_WORDS} words)", docs)
         self.assertIn(f"**Critiques** (at most {stalls.CRITIQUE_WORDS} words", docs)
 
+    def test_the_status_workflow_runs_only_mains_copy(self):
+        # For pull_request and pull_request_review GitHub runs the pull request's own copy of the workflow, with a
+        # write token (finding S1, found by a live run failing).
+        workflow = self.text(".github/workflows/agent-status.yml")
+        triggers = re.search(r"^on:\n(.*?)^\S", workflow, re.S | re.M).group(1)
+        names = re.findall(r"^  ([a-z_]+):", triggers, re.M)
+        self.assertNotIn("pull_request", names)
+        self.assertNotIn("pull_request_review", names)
+        self.assertNotIn("pull_request_review_comment", names)
+        self.assertNotIn("pull_request_target", names)
+        self.assertIn("issue_comment", names)
+        self.assertIn("issues", names)
+        self.assertIn("ref: ${{ github.event.repository.default_branch }}", workflow)
+        clock, activity = re.search(r"then\n(.*?)\n\s*else\n(.*?)\n\s*fi", workflow, re.S).groups()
+        self.assertNotIn("--min-gap", clock)
+        self.assertIn("--min-gap", activity)
+
     def test_every_documented_agent_name_has_a_claim_label(self):
         labels = re.search(r"for tool in ([a-z ]+); do", self.text(".github/workflows/labels.yml")).group(1).split()
         names = re.findall(r"`([a-z]+)`", re.search(r"one stable name each: (.+)\.", self.text(
