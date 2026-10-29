@@ -54,6 +54,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -157,35 +158,13 @@ internal fun LibrarySidebar(
                     }
                 }
             }
-            // On an 800 dp-tall tablet the list genuinely scrolls; the fades say so without a scrollbar, and stop rows
-            // from looking cut off by the panel above them.
+            // On an 800 dp-tall tablet the list genuinely scrolls. The edges say so without a scrollbar, and keep a row
+            // that has slid under the panel above (or the tools below) from being sliced through its text.
             if (listState.canScrollBackward) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .fillMaxWidth()
-                        .height(20.dp)
-                        .background(
-                            Brush.verticalGradient(
-                                0f to ApturaColors.SurfaceElevated1,
-                                1f to Color.Transparent
-                            )
-                        )
-                )
+                ListEdgeFade(top = true, modifier = Modifier.align(Alignment.TopCenter).testTag(SIDEBAR_TOP_EDGE_TAG))
             }
             if (listState.canScrollForward) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .height(28.dp)
-                        .background(
-                            Brush.verticalGradient(
-                                0f to Color.Transparent,
-                                1f to ApturaColors.SurfaceElevated1
-                            )
-                        )
-                )
+                ListEdgeFade(top = false, modifier = Modifier.align(Alignment.BottomCenter))
             }
         }
 
@@ -196,6 +175,32 @@ internal fun LibrarySidebar(
             onSettingsClick = onSettingsClick
         )
     }
+}
+
+internal const val SIDEBAR_TOP_EDGE_TAG = "sidebar_top_edge"
+
+/** How far a scrolling list's edge reaches into the list. */
+private val ListEdgeFadeHeight = 40.dp
+
+/**
+ * The edge of a list that continues beyond the panel it sits against. The first stretch is the panel's own colour, so a
+ * row that has scrolled under the edge is hidden rather than sliced through its text; the rest fades into the list so
+ * the edge reads as "more this way", not as a wall.
+ */
+@Composable
+private fun ListEdgeFade(top: Boolean, modifier: Modifier = Modifier) {
+    val panel = ApturaColors.SurfaceElevated1
+    val stops = if (top) {
+        arrayOf(0f to panel, 0.3f to panel, 1f to Color.Transparent)
+    } else {
+        arrayOf(0f to Color.Transparent, 0.7f to panel, 1f to panel)
+    }
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(ListEdgeFadeHeight)
+            .background(Brush.verticalGradient(colorStops = stops))
+    )
 }
 
 /** Collapsed fallback: the same information architecture, compressed to an icon rail. */
