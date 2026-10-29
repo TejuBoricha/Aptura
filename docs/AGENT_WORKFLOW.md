@@ -144,6 +144,8 @@ From: claude
 - **First line** `To:` names one or more agents, comma-separated, or `all`.
 - **Last line** `From:` names the sender. Do not use `@name`: it notifies real GitHub users with those names.
 - **A name is its first word**, so `From: OpenCode (DeepSeek V4)` and `To: Claude Code` mean opencode and claude.
+  The `To:` line holds names only: write `To: claude` and the request on the next line, not `To: claude, please
+  review`, which would address an agent called "please".
   Agents use one stable name each: `claude`, `opencode`, `codex`, `gemini`, `cursor`, `copilot`.
 - **Answer on the PR, not only with a push.** A wait ends when the addressee replies to the sender (or to `all`). A
   push alone does not answer anything; say what the push did.
@@ -274,7 +276,7 @@ quoted (`>`) text:
 
 | Line | Meaning |
 |---|---|
-| `Working: <what>, done by <HH:MM> UTC` | I am on it. Holds the wait until that time plus 30 minutes (2 hours if no time is given); does not end it. Counts however it is addressed. |
+| `Working: <what>, done by <HH:MM> UTC` | I am on it. Holds the wait until that time plus 30 minutes, up to 24 hours ahead; without a time in UTC (`2:30pm`, `CET`), for 2 hours. Counts however it is addressed, and never reopens a question already answered. An agent may renew it; the status issue shows the wait meanwhile. |
 | `Pausing: <why>, back around <time>` | I am stopping. Anyone may take over now. |
 | `No reply needed` | This message is not a wait. Put it on merge notes, status notes, and on an approving review, whose author merges rather than answers. Any other addressed message is a wait, so a forgotten one is caught rather than missed. |
 | `Withdrawn: <agent>` | The sender no longer waits on that agent, for example after using a fallback reviewer. |
@@ -318,29 +320,36 @@ followed up, so the other agents know it was intended and nothing skipped is for
    Reason: urgent fix (owner's priority)
    Scope: this PR only
    Follow-up: post-merge review by opencode
+   Withdrawn: opencode
    No reply needed.
    From: claude
    ```
 
-   - **The owner's words are quoted, not paraphrased.** Nobody can stretch an override beyond what was said.
+   - **The owner's words are quoted, not paraphrased,** in quotation marks on the `Owner said` line. Nobody can
+     stretch an override beyond what was said. Every agent posts through the owner's account, so the quote is what
+     makes an override checkable: one without it is listed as **unverified** and does not unlock anything.
+   - **`Withdrawn:`** names any agent the skipped step was waiting on, so that wait stops counting.
    - **`Override:` names the step skipped:** a review, a deadline, a debate's critiques, hot-file order, a hold.
    - **`Scope:` is one PR, issue or task.** An override never becomes a standing rule unless the owner says "from
      now on"; a standing rule is then written into this file in its own PR.
    - **`Follow-up:` says what replaces the skipped step later.** A skipped review becomes a post-merge review, and
      skipped critiques become critiques of the decision. If nothing replaces it, say "none, by the owner's
-     decision".
+     decision". An override without a `Follow-up:` line is listed as having none stated.
+   - **Only an override of the critiques** (its `Override:` line names the critiques, the debate or the decision)
+     lets a debate decide before two critiques; an override of something else does not.
 2. **The other agents accept it.** They do not undo, block or re-argue it. If they see a concrete risk, they post it
    once, with evidence, on the same PR, and carry on. An override is not a question to the owner.
-3. **The follow-up is done** by whoever it names, who then posts `Follow-up done: <result>`. Findings from a
-   post-merge review become a fix PR first in that agent's queue. Until then the status issue lists the override
-   under "Overrides in effect".
+3. **The follow-up is done** by whoever it names, who then posts `Follow-up done: <result>` on the same PR or issue
+   (it closes the overrides recorded there before it). Findings from a post-merge review become a fix PR first in
+   that agent's queue. Until then the status issue lists the override under "Overrides in effect", also after the PR
+   merges: pull requests closed in the last 14 days are read for their overrides.
 4. **What an override cannot do.**
    - The checks GitHub enforces (the ruleset's required checks, branch protection) can't be skipped by an agent. Only
      the owner can do that, in GitHub's settings.
    - The product invariants (no network, no telemetry, scoped storage, no bundled video decoder) can still be
      changed by the owner, but that is a product decision. It is recorded in the DEC register in the same PR, and
      the invariant tests are changed openly rather than skipped.
-   - Only the owner's account can record an override, so a stranger's comment cannot fake one.
+   - A stranger's comment cannot record one: only comments by the owner's account are read.
 
 ## Reviews when the reviewer is away
 
@@ -430,9 +439,11 @@ and decided by evidence, never by vote.
    objection still stands after that, the proposer sends the owner a one-screen summary: the options, the strongest
    argument for each, and a recommendation. The owner picks, and that is final. The stall check flags a debate that
    passes its time box or its rounds, and proposals or critiques over their word limits.
-7. **Approval.** The owner answers in any agent's chat ("approve", "reject", or a choice). That agent posts it on the
-   issue on a line starting `Owner said`, with the owner's words quoted. Until then the decision is listed under
-   "Needs you" in the status issue. A rejection sends it back to the proposer.
+7. **Approval.** The owner answers in any agent's chat. That agent posts it on the issue on a line starting
+   `Owner said`, with the owner's words in quotation marks. The answer is the quote's first word: `approve`, `yes`
+   or `go ahead` approves, while `reject` or `no` sends the decision back to the proposer. Anything else ("not
+   yet") is shown to the owner as unclear rather than guessed. Until then the decision is listed under "Needs you"
+   in the status issue.
 8. **Build.** Each task in the decision becomes an issue or a checklist item. Agents claim and merge them under the
    usual rules. The proposer records a durable decision in the DEC register
    ([`spec/17`](../spec/17_RISKS_ASSUMPTIONS_AND_DECISIONS.md)) in the first task's PR.

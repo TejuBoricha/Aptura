@@ -51,6 +51,7 @@ DEBATE_LABEL = "debate"
 MARKER = "<!-- stall:{key} -->"
 PROPOSAL_WORDS = 500
 CRITIQUE_WORDS = 350
+CLOSED_DAYS = 14
 
 
 def own_lines(body: str) -> list[str]:
@@ -100,6 +101,7 @@ class Item:
     url: str
     is_debate: bool
     messages: list[Message]
+    is_open: bool = True
 
 
 @dataclass
@@ -135,15 +137,15 @@ def current_hold(messages: list[Message]) -> Hold | None:
 
 
 def working_until(body: str, posted: datetime, window: timedelta) -> datetime:
-    """When a `Working:` note runs out: its `done by HH:MM` time (UTC, at most 12 hours away) plus the window, or
-    2 hours after it was posted when it names no time."""
+    """When a `Working:` note runs out: its `by HH:MM UTC` time (at most 24 hours away) plus the window, or 2 hours
+    after it was posted when it names no time in UTC. Other formats (2:30pm, CET) are ignored rather than misread."""
     for line in own_lines(body):
-        match = re.match(r"^\s*working\s*:.*?\bby\s+(\d{1,2}):(\d{2})", line, re.IGNORECASE)
+        match = re.match(r"^\s*working\s*:.*\bby\s+(\d{1,2}):(\d{2})\s*(?:utc|z)\b", line, re.IGNORECASE)
         if match and int(match.group(1)) < 24 and int(match.group(2)) < 60:
             due = posted.replace(hour=int(match.group(1)), minute=int(match.group(2)), second=0, microsecond=0)
             if due <= posted:
                 due += timedelta(days=1)
-            if due - posted <= timedelta(hours=12):
+            if due - posted <= timedelta(hours=24):
                 return due + window
     return posted + timedelta(hours=2)
 
@@ -167,18 +169,21 @@ def unanswered(item: Item, now: datetime, window: timedelta) -> list[Stall]:
             if any(sender(x.body) != agent and agent in taken_over_from(x.body) for x in later):
                 continue
             from_agent = [x for x in ordered if sender(x.body) == agent]
-            # A reply is addressed to the sender or to all; a `Working:` note counts however it is addressed.
-            replies = [x for x in from_agent if x.created_at > m.created_at
-                       and (author in recipients(x.body) or "all" in recipients(x.body) or has_line(x.body, "working"))]
+            after_m = [x for x in from_agent if x.created_at > m.created_at]
+            # A reply is addressed to the sender or to all. A `Working:` note counts however it is addressed, but only
+            # holds the wait; it never reopens one that a real reply already answered.
+            notes = [x for x in after_m if has_line(x.body, "working")]
+            replies = [x for x in after_m if x not in notes
+                       and (author in recipients(x.body) or "all" in recipients(x.body))]
             paused = bool(from_agent) and has_line(from_agent[-1].body, "pausing")
-            working = not paused and bool(replies) and has_line(replies[-1].body, "working")
-            if replies and not paused and not working:
+            if replies and not paused:
                 continue
-            due = working_until(replies[-1].body, replies[-1].created_at, window) if working else m.created_at + window
+            working = not paused and bool(notes)
+            due = working_until(notes[-1].body, notes[-1].created_at, window) if working else m.created_at + window
             if not paused and now < due:
                 continue
             seen.add(agent)
-            anchor = replies[-1].created_at if working else m.created_at
+            anchor = notes[-1].created_at if working else m.created_at
             if paused:
                 why = f"{agent} posted `Pausing` ({from_agent[-1].url})"
             elif working:
@@ -198,22 +203,30 @@ def verdict(body: str) -> str:
     lines = own_lines(body)
     text = next((l for l in lines if re.match(r"^\s*verdict\s*:", l, re.IGNORECASE)),
                 next((l for l in lines if re.match(r"^\s*critique\s*:", l, re.IGNORECASE)), "")).lower()
-    if "object" in text:
+    if re.search(r"\b(object|objects|objection|disagree|disagrees)\b|\b(not|n't)\s+agree\b", text):
         return "object"
-    if "with changes" in text:
+    if re.search(r"\bagree with changes\b", text):
         return "changes"
-    return "agree" if "agree" in text else "object"
+    return "agree" if re.search(r"\bagree\b", text) else "object"
 
 
 def owner_answer(m: Message) -> str | None:
-    """`approve` or `reject`, from a line starting `Owner said` recorded by the agent that heard the owner."""
-    for line in own_lines(m.body):
-        if re.match(r"^\s*owner said\b", line, re.IGNORECASE):
-            low = line.lower()
-            if re.search(r"\b(reject|rejected|don't|do not|not approved)\b", low):
-                return "reject"
-            if re.search(r"\b(approve|approved|go ahead|yes|agreed|pick|picks|choose|chose)\b", low):
-                return "approve"
+    """The owner's answer to a decision, from a line starting `Owner said` that quotes it: `approve` when the quote
+    starts with approve, approved, yes or go ahead; `reject` when it starts with reject, rejected or no; `unclear`
+    otherwise, which is shown to the owner instead of guessed. An override is not an answer to a decision."""
+    lines = own_lines(m.body)
+    if any(re.match(r"^\s*override\s*:", l, re.IGNORECASE) for l in lines):
+        return None
+    for line in lines:
+        if not re.match(r"^\s*owner said\b", line, re.IGNORECASE):
+            continue
+        quote = re.search(r"[\"“](.+?)[\"”]", line)
+        text = (quote.group(1) if quote else line.split(":", 1)[-1]).strip().lower()
+        if re.match(r"(approve|approved|yes|go ahead)\b", text):
+            return "approve"
+        if re.match(r"(reject|rejected|no)\b", text):
+            return "reject"
+        return "unclear"
     return None
 
 
@@ -235,9 +248,11 @@ def debate(item: Item, now: datetime, step: timedelta, timebox: timedelta) -> Fi
     deciders = {proposer} | ({sender(m.body) for m in after if taken_over_from(m.body)} if proposer in takeovers else set())
     critiques = [m for m in after if has_line(m.body, "critique") and sender(m.body) not in (proposer, None)]
     decisions = [m for m in after if has_line(m.body, "decision") and sender(m.body) in deciders]
-    overridden = any(has_line(m.body, "override") for m in ordered)
     if decisions:
         decision = decisions[-1]
+        overridden = any(m.created_at <= decision.created_at and is_verified_override(m)
+                         and re.search(r"\b(critique|critiques|debate|decision)\b", override_step(m) or "", re.IGNORECASE)
+                         for m in ordered)
         critics_before = {sender(c.body) for c in critiques if c.created_at < decision.created_at}
         if len(critics_before) < 2 and not overridden and decision.created_at - proposal.created_at < timebox:
             stall("skipped-critiques", f"a `Decision:` ({decision.url}) was posted with {len(critics_before)} of 2 "
@@ -249,6 +264,9 @@ def debate(item: Item, now: datetime, step: timedelta, timebox: timedelta) -> Fi
             if not answers:
                 found.needs_owner.append(f"[#{item.number}]({item.url}) decision waiting for your approval: "
                                          f"{decision.url}")
+            elif answers[-1] == "unclear":
+                found.needs_owner.append(f"[#{item.number}]({item.url}) your answer to the decision ({decision.url}) "
+                                         f"was recorded but is unclear: say approve or reject.")
             elif answers[-1] == "reject":
                 stall("rejected", f"the owner rejected the decision ({decision.url}): {proposer} revises the "
                                   f"proposal or closes the debate.")
@@ -285,20 +303,36 @@ def debate(item: Item, now: datetime, step: timedelta, timebox: timedelta) -> Fi
     return found
 
 
+def override_step(m: Message) -> str | None:
+    return next((re.sub(r"^\s*override\s*:\s*", "", l, flags=re.IGNORECASE) for l in own_lines(m.body)
+                 if re.match(r"^\s*override\s*:", l, re.IGNORECASE)), None)
+
+
+def is_verified_override(m: Message) -> bool:
+    """An override counts only with the owner's words quoted on an `Owner said` line in the same comment. Every
+    agent posts through the owner's account, so the quote is what makes an override checkable."""
+    return override_step(m) is not None and any(
+        re.match(r"^\s*owner said\b.*[\"“].+[\"”]", l, re.IGNORECASE) for l in own_lines(m.body))
+
+
 def overrides(item: Item) -> list[str]:
-    """Owner overrides recorded on the item (`Override:`), and whether their follow-up is done (`Follow-up done:`)."""
+    """Overrides recorded on the item, open or recently closed, and whether their follow-up is done. A
+    `Follow-up done:` line closes the overrides posted before it on the same item."""
     notes = []
     for m in sorted(item.messages, key=lambda m: m.created_at):
+        step = override_step(m)
+        if step is None:
+            continue
         lines = own_lines(m.body)
-        for line in lines:
-            match = re.match(r"^\s*override\s*:\s*(.+)$", line, re.IGNORECASE)
-            if not match:
-                continue
-            follow = next((re.sub(r"^\s*follow-up\s*:\s*", "", l, flags=re.IGNORECASE) for l in lines
-                           if re.match(r"^\s*follow-up\s*:", l, re.IGNORECASE)), "none stated")
-            done = any(x.created_at > m.created_at and has_line(x.body, "follow-up done") for x in item.messages)
-            notes.append(f"[#{item.number}]({item.url}) skipped {safe(match.group(1))} ({m.url}); follow-up: "
-                         f"{safe(follow)}, {'done' if done else '**pending**'}")
+        follow = next((re.sub(r"^\s*follow-up\s*:\s*", "", l, flags=re.IGNORECASE) for l in lines
+                       if re.match(r"^\s*follow-up\s*:", l, re.IGNORECASE)), None)
+        done = any(x.created_at > m.created_at and has_line(x.body, "follow-up done") for x in item.messages)
+        if done and item.is_open is False:
+            continue  # finished and closed: nothing left to show
+        state = "done" if done else ("**pending**" if follow else "**no follow-up stated**")
+        verified = "" if is_verified_override(m) else " **unverified: no quoted owner words**"
+        notes.append(f"[#{item.number}]({item.url}) skipped {safe(step)} ({m.url}){verified}; follow-up: "
+                     f"{safe(follow or 'none')}, {state}")
     return notes
 
 
@@ -306,6 +340,8 @@ def find(items: list[Item], now: datetime, window: timedelta, step: timedelta, t
     found = Findings()
     for item in items:
         found.overrides += overrides(item)
+        if not item.is_open:
+            continue  # a recently closed item is read only for its overrides' follow-ups
         hold = current_hold(item.messages)
         if hold:
             if now - hold.since > timedelta(days=1):
@@ -340,9 +376,9 @@ def report(items: list[Item], found: Findings, now: datetime) -> str:
     if found.overrides:
         lines += ["**Overrides in effect** (steps skipped on the owner's instruction):",
                   *[f"- {o}" for o in found.overrides], ""]
-    if not items:
+    if not any(i.is_open for i in items):
         lines.append("No open pull requests or debates.")
-    for item in items:
+    for item in (i for i in items if i.is_open):
         mine = [s for s in found.stalls if s.item is item]
         kind = "Debate" if item.is_debate else "PR"
         state = "on hold" if current_hold(item.messages) else ("**stalled**" if mine else "moving")
@@ -378,10 +414,30 @@ def _comments(base: str, number: int, token: str | None, is_pr: bool, authors: s
     return trusted(found, authors)
 
 
-def fetch(repo: str, token: str | None, extra_trusted: list[str] | None = None) -> list[Item]:
+def recently_closed(url: str, token: str | None, since: datetime):
+    """Closed entries updated after `since`, newest first, stopping at the first older one."""
+    for page in range(1, 11):
+        batch = pr_checks._get(f"{url}&sort=updated&direction=desc&per_page=100&page={page}", token)
+        for entry in batch:
+            if pr_checks._parse_time(entry["updated_at"]) < since:
+                return
+            yield entry
+        if len(batch) < 100:
+            return
+
+
+def fetch(repo: str, token: str | None, extra_trusted: list[str] | None = None,
+          now: datetime | None = None) -> list[Item]:
     base = f"{pr_checks.API}/repos/{repo}"
     authors = trusted_authors(repo, extra_trusted)
+    cutoff = (now or datetime.now(timezone.utc)) - timedelta(days=CLOSED_DAYS)
     items = []
+    # An override's follow-up usually comes after the merge ("skip the review, review afterwards"), so pull requests
+    # and debates closed in the last CLOSED_DAYS days are read too, for their overrides only.
+    for pr in recently_closed(f"{base}/pulls?state=closed", token, cutoff):
+        messages = _comments(base, pr["number"], token, True, authors)
+        if any(override_step(m) for m in messages):
+            items.append(Item(pr["number"], pr["title"], pr["html_url"], False, messages, is_open=False))
     for pr in every(f"{base}/pulls?state=open", token):
         items.append(Item(pr["number"], pr["title"], pr["html_url"], False,
                           _comments(base, pr["number"], token, True, authors)))
