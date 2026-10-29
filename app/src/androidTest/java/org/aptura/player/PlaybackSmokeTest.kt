@@ -8,6 +8,8 @@ import android.os.Environment
 import android.provider.MediaStore
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.performClick
 import androidx.media3.common.Player
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -71,7 +73,7 @@ class PlaybackSmokeTest {
         val values = ContentValues().apply {
             put(MediaStore.Video.Media.DISPLAY_NAME, CLIP_NAME)
             put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
-            put(MediaStore.Video.Media.RELATIVE_PATH, "${Environment.DIRECTORY_MOVIES}/AppturaSmoke")
+            put(MediaStore.Video.Media.RELATIVE_PATH, "${Environment.DIRECTORY_MOVIES}/Checks")
             put(MediaStore.Video.Media.IS_PENDING, 1)
         }
         val uri = resolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)
@@ -93,7 +95,7 @@ class PlaybackSmokeTest {
     fun theController_playsAVideo() {
         val item = DomainMediaItem(
             uri = clipUri.toString(),
-            title = "Smoke clip",
+            title = "zqprobe clip",
             durationMs = 4_000L,
             sizeBytes = 44_000L,
             mimeType = "video/mp4"
@@ -108,13 +110,33 @@ class PlaybackSmokeTest {
     fun aVideoPickedInTheLibrary_plays() {
         MediaScanScheduler.scheduleImmediateScan(context)
 
+        val card = hasText(CLIP_WORD, substring = true, ignoreCase = true)
         composeRule.waitUntil(timeoutMillis = 30_000) {
-            composeRule.onAllNodes(hasText("smoke", substring = true, ignoreCase = true)).fetchSemanticsNodes().isNotEmpty()
+            composeRule.onAllNodes(card).fetchSemanticsNodes().isNotEmpty()
         }
-        composeRule.onAllNodes(hasText("smoke", substring = true, ignoreCase = true))[0].performClick()
+        composeRule.onAllNodes(card)[0].performClick()
 
         val controller = PlayerManager.getOrCreate(context)
+        // First the queue has to reach the player at all; then it has to play. Two messages, because they are two bugs.
+        val queued = System.currentTimeMillis() + 10_000
+        while (onMain { controller.player.mediaItemCount } == 0 && System.currentTimeMillis() < queued) Thread.sleep(100)
+        if (onMain { controller.player.mediaItemCount } == 0) {
+            fail("Tapping the video in the library never gave the player a queue. ${screenAndLog()}")
+        }
         assertPlays(controller.player, "a tap on the card in the library")
+    }
+
+    /** What the screen and the app's own log said, for the failure message. */
+    private fun screenAndLog(): String {
+        val texts = composeRule.onAllNodes(hasText("", substring = true)).fetchSemanticsNodes()
+            .mapNotNull { node -> node.config.getOrNull(SemanticsProperties.Text)?.joinToString { it.text } }
+            .filter { it.isNotBlank() }.take(40)
+        val log = runCatching {
+            val pfd = InstrumentationRegistry.getInstrumentation().uiAutomation
+                .executeShellCommand("logcat -d -t 400 -s ApturaDiagnostics:* ExoPlayerImpl:* MediaCodec:* AndroidRuntime:E")
+            java.io.FileInputStream(pfd.fileDescriptor).bufferedReader().use { it.readText() }.takeLast(3_000)
+        }.getOrDefault("(no log)")
+        return "On screen: $texts. Log: $log"
     }
 
     /** Waits for the player to be playing with the position moving, and fails with what the player was doing. */
@@ -127,7 +149,7 @@ class PlaybackSmokeTest {
             if (snapshot.isPlaying && snapshot.positionMs >= MIN_POSITION_MS) return
             Thread.sleep(200)
         }
-        fail("No video started playing through $how within ${PLAY_TIMEOUT_MS / 1000} s. The player was: $last")
+        fail("No video started playing through $how within ${PLAY_TIMEOUT_MS / 1000} s. The player was: $last. ${screenAndLog()}")
     }
 
     private fun <T> onMain(block: () -> T): T {
@@ -172,7 +194,8 @@ class PlaybackSmokeTest {
     }
 
     private companion object {
-        const val CLIP_NAME = "smoke_clip.mp4"
+        const val CLIP_NAME = "zqprobe_clip.mp4"
+        const val CLIP_WORD = "zqprobe"
         const val PLAY_TIMEOUT_MS = 20_000L
         const val MIN_POSITION_MS = 700L
     }
