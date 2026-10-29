@@ -292,6 +292,24 @@ new code. All three are fixed and mutation-tested:
   the untold entries' keys, so they are retried.
 - **D3:** a stranger's PR could hide a dead claim. Now only trusted authors' PRs link a task.
 
+## Live finding after the merge
+
+**L1 · arch · H · GitHub never ran the schedule.**
+- **Evidence:** the Agent status workflow was `active` with cron `7,22,37,52 * * * *`, yet `GET
+  /actions/runs?event=schedule` returned **0 runs** in the 3½ hours after it reached `main`. Only the manual dispatch
+  ran. The live test proved it: a `To: opencode` request left open on #12 never got its nudge.
+- **Impact:** the stall system did not run at all, so no wait could ever be announced.
+- **Root cause:** GitHub's schedule is best effort, and is known to be delayed by hours or skipped on new
+  repositories. The design treated it as the only clock.
+- **Fix:** the workflow also runs on the owner's account's own activity (comments, reviews, pushes to its branches,
+  issues opened, labelled or closed), throttled to one run per 5 minutes by the status page's own timestamp. It
+  always checks out `main`, and never runs for strangers or forks. The schedule remains as the clock for silent
+  stretches.
+- **Acceptance:** `test_event_runs_are_throttled_by_the_status_pages_own_time`; after merge, an agent's comment
+  produces a run within a minute.
+- **Remaining limit:** with no activity and no scheduled run, nothing runs. Any agent, or the owner, can start it
+  from the Actions tab.
+
 ## Owner decisions and accepted limits
 
 - **A1, a separate agent account:** recommended. It is the only way to make the owner's decisions unforgeable, and

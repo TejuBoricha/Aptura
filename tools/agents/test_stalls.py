@@ -832,6 +832,20 @@ class MainFailureModeTest(unittest.TestCase):
         code, _ = self.run_main(lambda repo, token, extra=None: [], argv=["--nudge"])
         self.assertEqual(code, 2)
 
+    def test_event_runs_are_throttled_by_the_status_pages_own_time(self):
+        # A run started by activity skips if the page was updated within the gap; the clocks never pass --min-gap.
+        now = datetime.now(timezone.utc)
+        page = {"body": f"### Agent status ({now - timedelta(minutes=2):%Y-%m-%d %H:%M} UTC)"}
+        fetched = []
+        with unittest.mock.patch.object(stalls, "every", lambda url, token: iter([page])):
+            code, out = self.run_main(lambda *a, **k: fetched.append(1) or [], argv=["--min-gap", "5"])
+        self.assertEqual((code, fetched), (0, []))
+        self.assertIn("skipping this run", out)
+        old = {"body": f"### Agent status ({now - timedelta(minutes=9):%Y-%m-%d %H:%M} UTC)"}
+        with unittest.mock.patch.object(stalls, "every", lambda url, token: iter([old])):
+            self.run_main(lambda *a, **k: fetched.append(1) or [], argv=["--min-gap", "5"])
+        self.assertEqual(fetched, [1])
+
     def test_a_dry_run_reports_without_posting(self):
         ask = Message("comment", datetime.now(timezone.utc) - timedelta(hours=5), "https://example/old", ASK,
                       "TejuBoricha")
