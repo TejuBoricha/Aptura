@@ -281,13 +281,38 @@ class VerificationRoundTest(unittest.TestCase):
         self.assertFalse(next(i for i in items if i.number == 30).linked)
         self.assertIn("/issues/30/timeline?per_page=100&page=1", fake.calls)
 
+    def test_a_timeline_that_cannot_be_read_reports_the_claim_instead_of_failing_the_run(self):
+        # Final check D1.
+        claimed = {**pr_entry(30, "Task", created="2026-10-29T05:00:00Z"), "labels": [{"name": "claimed:opencode"}],
+                   "updated_at": "2026-10-29T05:00:00Z"}
+        fake = FakeGitHub(FetchTest().routes(**{"/issues?state=open": [claimed]}))
+        def get(url, token):
+            if "/timeline" in url:
+                raise urllib.error.HTTPError(url, 403, "forbidden", {}, None)
+            return fake.get(url, token)
+        with unittest.mock.patch.object(stalls.pr_checks, "_get", get), \
+                unittest.mock.patch("builtins.print"):
+            items = stalls.fetch("TejuBoricha/Aptura", None, now=at(0))
+        self.assertFalse(items[0].linked)
+
+    def test_a_strangers_pull_request_does_not_hide_a_dead_claim(self):
+        # Final check D3.
+        claimed = {**pr_entry(30, "Task", created="2026-10-29T05:00:00Z"), "labels": [{"name": "claimed:opencode"}],
+                   "updated_at": "2026-10-29T05:00:00Z"}
+        routes = FetchTest().routes(**{"/issues?state=open": [claimed], "/issues/30/timeline": [
+            {"event": "cross-referenced", "source": {"issue": {"state": "open", "user": {"login": "stranger"},
+                                                               "pull_request": {"url": "https://example/p"}}}}]})
+        items, _ = FetchTest().fetch(routes)
+        self.assertFalse(items[0].linked)
+
     def test_a_merge_older_than_the_closed_listing_still_links_the_task(self):
         claimed = {**pr_entry(30, "Task", created="2026-09-01T05:00:00Z"), "labels": [{"name": "claimed:opencode"}],
                    "updated_at": "2026-09-01T05:00:00Z"}
         routes = FetchTest().routes(**{"/issues?state=open": [claimed],
                                        "/issues/30/comments": [], "/issues/30/timeline": [
                                            {"event": "cross-referenced", "source": {"issue": {
-                                               "state": "closed", "pull_request": {"merged_at": "2026-09-30T00:00:00Z"}}}}]})
+                                               "state": "closed", "user": {"login": "TejuBoricha"},
+                                               "pull_request": {"merged_at": "2026-09-30T00:00:00Z"}}}}]})
         items, _ = FetchTest().fetch(routes)
         self.assertTrue(items[0].linked)
         self.assertEqual(find(items, at(0), WINDOW, STEP, TIMEBOX).stalls, [])
@@ -754,7 +779,7 @@ class PublishTest(unittest.TestCase):
         found = stalls.Findings(needs_owner=[stalls.needs("hold#u", "[#9](u) on hold for 25 h")])
         calls = []
         def failing(method, url, token, payload):
-            calls.append(method)
+            calls.append((method, payload))
             if url.endswith("/comments"):
                 raise urllib.error.HTTPError(url, 500, "boom", {}, None)
         with unittest.mock.patch.object(stalls, "_send", failing), \
@@ -762,7 +787,9 @@ class PublishTest(unittest.TestCase):
                 unittest.mock.patch.object(stalls, "every", lambda url, token: iter([{"number": 50, "body": "old"}])):
             _, failures = stalls.publish("o/r", "token", [], found, "report " + found.needs_owner[0])
         self.assertTrue(failures)
-        self.assertNotIn("PATCH", calls, "the page still says the owner was not told")
+        patches = [p for m, p in calls if m == "PATCH"]
+        self.assertEqual(len(patches), 1, "the page is still kept current")
+        self.assertNotIn("<!-- needs:hold#u -->", patches[0]["body"], "but does not record the untold entry")
 
     def test_creates_the_status_issue_when_there_is_none(self):
         _, sent, _ = self.publish([], [])
