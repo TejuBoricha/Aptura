@@ -139,6 +139,36 @@ class NudgeTest(unittest.TestCase):
         self.assertTrue(body.endswith("From: agent-status"))
 
 
+class FetchTest(unittest.TestCase):
+    """The GitHub side, with a fake API: strangers can neither create waits nor open debates."""
+
+    def test_only_the_owners_comments_and_debates_count(self):
+        def comment(n, author, body):
+            return {"created_at": "2026-10-29T09:00:00Z", "html_url": f"https://example/c{n}", "body": body,
+                    "user": {"login": author}}
+        pages = {
+            "/pulls?state=open": [{"number": 9, "title": "PR", "html_url": "https://example/9"}],
+            "/pulls/9/commits": [],
+            "/issues/9/comments": [comment(1, "TejuBoricha", "To: opencode\nReview?\nFrom: claude"),
+                                   comment(2, "stranger", "To: all\nHold: forever\nFrom: claude")],
+            "/pulls/9/reviews": [],
+            "/pulls/9/comments": [],
+            "/issues?state=open&labels=debate": [
+                {"number": 20, "title": "Owner's", "html_url": "https://example/20", "user": {"login": "tejuboricha"}},
+                {"number": 21, "title": "Stranger's", "html_url": "https://example/21", "user": {"login": "stranger"}}],
+            "/issues/20/comments": [],
+        }
+
+        def fake_pages(url, token, limit=10):
+            return iter(pages[url.split("/repos/TejuBoricha/Aptura", 1)[1]])
+
+        with unittest.mock.patch.object(stalls.pr_checks, "_pages", fake_pages):
+            items = stalls.fetch("TejuBoricha/Aptura", None)
+        self.assertEqual([i.number for i in items], [9, 20])
+        self.assertEqual([m.url for m in items[0].messages], ["https://example/c1"])
+        self.assertEqual(len(find_stalls(items, at(300), WINDOW)), 1, "the stranger's Hold must not stop the check")
+
+
 class PublishTest(unittest.TestCase):
     def publish(self, items, status_issues):
         sent = []

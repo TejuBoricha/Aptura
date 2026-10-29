@@ -4,7 +4,8 @@
 Agents talk on the pull request itself (docs/AGENT_WORKFLOW.md, "Talking to each other"). A message is any PR
 comment, review or review comment whose first line is `To: <agent>` (several names separated by commas, or `all`),
 signed at the end with `From: <agent>`. Everything posts through the owner's GitHub account, so these two lines,
-not the GitHub author, say who is talking to whom.
+not the GitHub author, say who is talking to whom. Only comments by the owner's account (and the Agent status bot)
+count: on a public repository anyone can comment, and a stranger must not be able to address an agent.
 
 After asking another agent something, run this and continue when it returns:
 
@@ -54,6 +55,21 @@ class Message:
     created_at: datetime
     url: str
     body: str
+    author: str = ""  # the GitHub login that posted it
+
+
+# Every agent posts through the owner's account, and the Agent status workflow as github-actions[bot]. Anyone else
+# can comment on a public repository, so their comments are never messages: a stranger must not be able to address an
+# agent, fake a `Hold:` or a `Taking over`, or answer for one.
+STATUS_BOT = "github-actions[bot]"
+
+
+def trusted_authors(repo: str, extra: list[str] | None = None) -> set[str]:
+    return {repo.split("/")[0].lower(), STATUS_BOT, *(name.lower() for name in extra or [])}
+
+
+def trusted(messages: list[Message], authors: set[str]) -> list[Message]:
+    return [m for m in messages if m.author.lower() in authors]
 
 
 def recipients(body: str) -> set[str]:
@@ -83,13 +99,20 @@ def fetch_messages(repo: str, number: int, token: str | None) -> list[Message]:
     base = f"{pr_checks.API}/repos/{repo}"
     found: list[Message] = []
     for c in pr_checks._pages(f"{base}/issues/{number}/comments", token, limit=5):
-        found.append(Message("comment", pr_checks._parse_time(c["created_at"]), c["html_url"], c["body"] or ""))
+        found.append(Message("comment", pr_checks._parse_time(c["created_at"]), c["html_url"], c["body"] or "",
+                             _login(c)))
     for r in pr_checks._pages(f"{base}/pulls/{number}/reviews", token, limit=5):
         if r.get("submitted_at"):
-            found.append(Message("review", pr_checks._parse_time(r["submitted_at"]), r["html_url"], r["body"] or ""))
+            found.append(Message("review", pr_checks._parse_time(r["submitted_at"]), r["html_url"], r["body"] or "",
+                                 _login(r)))
     for c in pr_checks._pages(f"{base}/pulls/{number}/comments", token, limit=5):
-        found.append(Message("review comment", pr_checks._parse_time(c["created_at"]), c["html_url"], c["body"] or ""))
+        found.append(Message("review comment", pr_checks._parse_time(c["created_at"]), c["html_url"], c["body"] or "",
+                             _login(c)))
     return found
+
+
+def _login(entry: dict) -> str:
+    return (entry.get("user") or {}).get("login") or ""
 
 
 def main() -> int:
@@ -101,7 +124,10 @@ def main() -> int:
     parser.add_argument("--since", help="ISO time to read from, e.g. 2026-10-28T15:00:00Z (default: now)")
     parser.add_argument("--interval", type=int, default=60)
     parser.add_argument("--timeout", type=int, default=4 * 3600)
+    parser.add_argument("--trust", nargs="*", default=[],
+                        help="extra GitHub logins whose comments count as messages (default: the owner and the bot)")
     args = parser.parse_args()
+    authors = trusted_authors(args.repo, args.trust)
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
     since = pr_checks._parse_time(args.since) if args.since else datetime.now(timezone.utc).replace(microsecond=0)
     deadline = time.monotonic() + args.timeout
@@ -109,7 +135,7 @@ def main() -> int:
 
     while True:
         try:
-            new = for_me(fetch_messages(args.repo, args.pr, token), args.me, since)
+            new = for_me(trusted(fetch_messages(args.repo, args.pr, token), authors), args.me, since)
             state = pr_checks._get(f"{pr_checks.API}/repos/{args.repo}/pulls/{args.pr}", token)
         except Exception as error:  # A network blip should not end a long wait; report it and keep going.
             print(f"(could not check GitHub: {error}; trying again)", flush=True)
