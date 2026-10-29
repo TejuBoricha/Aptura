@@ -1,14 +1,17 @@
 package org.aptura.player.theme
 
 import android.app.Activity
+import android.graphics.drawable.ColorDrawable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
@@ -24,8 +27,10 @@ fun themeModeForRoute(isPlayerRouteActive: Boolean, appThemeMode: ThemeMode): Th
  * Aptura Theme Definition
  * Source of truth: DESIGN.md §1 & §2
  *
- * Follows the system by default, can be pinned light or dark, and takes one of a curated set of accents. The player
- * route always resolves to dark so the picture is never framed by a bright control surface.
+ * Follows the system by default, can be pinned light or dark, and takes one of a curated set of accents. The theme is
+ * scoped to the composables inside it, so the always-dark player can wrap itself in `ApturaTheme(DARK)` while the
+ * light library is still on screen beneath it (a transition, a predictive back swipe) and each draws its own colours.
+ * The window itself (system bar icons, window background) is not touched here: see [ApturaWindowChrome].
  */
 @Composable
 fun ApturaTheme(
@@ -39,32 +44,42 @@ fun ApturaTheme(
         ThemeMode.DARK -> true
     }
     val palette = remember(dark, accentColor) { ApturaPalettes.forMode(dark, accentColor) }
-    // Swap the global tokens before the content composes. Doing it in a SideEffect would paint one frame with the
-    // previous mode on every cold start and every player transition. The remember returns the palette it applied so
-    // the lint rule against Unit-returning remember calls stays satisfied.
-    val activePalette = remember(palette) {
-        ApturaColors.apply(palette)
-        palette
-    }
-    val colorScheme = remember(activePalette) { activePalette.toColorScheme() }
+    val colorScheme = remember(palette) { palette.toColorScheme() }
 
+    CompositionLocalProvider(LocalApturaPalette provides palette) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = ApturaTypography,
+            content = content
+        )
+    }
+}
+
+/**
+ * Makes the parts of the window that no composable owns match the screen on top: the status and navigation bar icons,
+ * and the window background that shows wherever nothing is drawn (a fade, a gap between two screens).
+ *
+ * There is exactly one of these, placed where the navigation stack is known, because the window is shared by every
+ * screen. Letting each [ApturaTheme] set it would leave the icons of whichever theme composed last.
+ *
+ * @param darkScreen whether the screen on top is dark, so the bar icons must be light.
+ * @param background the colour of the screen on top.
+ */
+@Composable
+fun ApturaWindowChrome(darkScreen: Boolean, background: Color) {
     val view = LocalView.current
-    if (!view.isInEditMode) {
-        SideEffect {
-            val window = (view.context as? Activity)?.window ?: return@SideEffect
-            val insetsController = WindowCompat.getInsetsController(window, view)
-            // Light bars need dark icons; dark bars need light icons. This is what makes status/nav icons legible
-            // when the app overrides the system's own mode.
-            insetsController.isAppearanceLightStatusBars = !dark
-            insetsController.isAppearanceLightNavigationBars = !dark
-        }
+    if (view.isInEditMode) return
+    SideEffect {
+        val window = (view.context as? Activity)?.window ?: return@SideEffect
+        val insetsController = WindowCompat.getInsetsController(window, view)
+        // Light bars need dark icons; dark bars need light icons. This is what makes status/nav icons legible
+        // when the app overrides the system's own mode.
+        insetsController.isAppearanceLightStatusBars = !darkScreen
+        insetsController.isAppearanceLightNavigationBars = !darkScreen
+        // The manifest theme's window background is fixed dark; in the Light theme any frame that does not paint
+        // every pixel would flash it.
+        window.setBackgroundDrawable(ColorDrawable(background.toArgb()))
     }
-
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = ApturaTypography,
-        content = content
-    )
 }
 
 private fun ApturaPalette.toColorScheme() = if (isDark) {

@@ -14,6 +14,7 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.Composable
 import org.aptura.player.theme.ApturaColors
 import androidx.compose.foundation.background
@@ -29,7 +30,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
+import org.aptura.player.ui.components.StableStatusBars
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -75,6 +77,7 @@ import org.aptura.player.ui.player.PlayerViewModel
 import org.aptura.player.ui.settings.SettingsScreen
 import org.aptura.player.theme.AccentColor
 import org.aptura.player.theme.ApturaTheme
+import org.aptura.player.theme.ApturaWindowChrome
 import org.aptura.player.theme.ThemeMode
 import org.aptura.player.theme.themeModeForRoute
 
@@ -157,16 +160,15 @@ fun MainNavigation(
     val settingsRepository = remember { ApturaSettingsRepository(context) }
     val currentVersionCode = remember(context) { AppVersion.versionCode(context) }
 
-    // The theme is applied here, above the start-destination gate, so the loading frame and every screen share it.
-    // A null flow value means "settings not read yet": follow the system until the real choice arrives.
+    // The app theme is applied here, above the start-destination gate, so the loading frame and every screen share it.
+    // A null flow value means "settings not read yet": follow the system until the real choice arrives. The player
+    // is always dark, but it wraps itself in its own theme (see the PlayerKey entry), so a light library and the dark
+    // player can be on screen together during a transition and each keeps its own colours.
     val themeSettings by settingsRepository.settingsFlow
         .collectAsStateWithLifecycle<ApturaSettings?>(initialValue = null)
-    var isPlayerRouteActive by remember { mutableStateOf(false) }
 
     ApturaTheme(
-        // The player is always dark: it is a cinema, not a settings panel, and a bright control surface would
-        // compete with the picture.
-        themeMode = themeModeForRoute(isPlayerRouteActive, themeSettings?.themeMode ?: ThemeMode.SYSTEM),
+        themeMode = themeSettings?.themeMode ?: ThemeMode.SYSTEM,
         accentColor = themeSettings?.accentColor ?: AccentColor.CYAN
     ) {
         Surface(
@@ -187,10 +189,7 @@ fun MainNavigation(
                     isPipMode = isPipMode,
                     pipSupported = pipSupported,
                     onEnterPip = onEnterPip,
-                    onPlayerRouteActiveChanged = { active ->
-                        isPlayerRouteActive = active
-                        onPlayerRouteActiveChanged(active)
-                    }
+                    onPlayerRouteActiveChanged = onPlayerRouteActiveChanged
                 )
             }
         }
@@ -302,6 +301,14 @@ private fun AppNavHost(
 
     // Synchronize active route with MainActivity so PiP only triggers while Player is active (F-04)
     val isPlayerRouteActive = backStack.lastOrNull() is PlayerKey
+    // The bars' icons and the window background follow the screen on top. They are read here, in the same pass that
+    // reads the back stack, so they change with the route and not a frame later. This scope sits outside the
+    // player's own theme, so these colours are the app's.
+    val appBackground = ApturaColors.SurfaceBase
+    ApturaWindowChrome(
+        darkScreen = isPlayerRouteActive || ApturaColors.IsDark,
+        background = if (isPlayerRouteActive) Color.Black else appBackground
+    )
     LaunchedEffect(isPlayerRouteActive) {
         onPlayerRouteActiveChanged(isPlayerRouteActive)
     }
@@ -327,6 +334,9 @@ private fun AppNavHost(
     NavDisplay(
         backStack = backStack,
         onBack = { handleBack(backStack, dismissPlayerAndResetOrientation) },
+        transitionSpec = { appTransition() },
+        popTransitionSpec = { appPopTransition() },
+        predictivePopTransitionSpec = { swipeEdge -> appPredictivePopTransition(swipeEdge) },
         entryProvider = entryProvider {
             entry<Onboarding> {
                 // Leaves the guide: back to Settings when it was replayed from there, otherwise on to the library.
@@ -558,7 +568,8 @@ private fun AppNavHost(
                     },
                     showCloseButton = true,
                     modifier = Modifier
-                        .statusBarsPadding()
+                        // Stable while the player hides and restores the bars (see the library Scaffold).
+                        .windowInsetsPadding(StableStatusBars)
                         .padding(top = 8.dp)
                 )
 
@@ -716,172 +727,181 @@ private fun AppNavHost(
                 )
             }
 
-            entry<PlayerKey> { playerKey ->
-                LaunchedEffect(playerKey.videoUri) {
-                    if (playerViewModel.uiState.value.videoUri != playerKey.videoUri) {
-                        playerViewModel.loadAndPlay(playerKey.videoUri)
-                    }
-                    playerViewModel.setSubtitleFontSize(settings.subtitleFontSizeSp)
-                    playerViewModel.setSubtitleTextColor(settings.subtitleTextColorHex)
-                    playerViewModel.setSubtitleBackgroundEnabled(settings.subtitleBackgroundEnabled)
-                }
-
-                val uiState by playerViewModel.uiState.collectAsStateWithLifecycle()
-
-                // Check for recently downloaded subtitles when returning to the app from external search
-                val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-                androidx.compose.runtime.DisposableEffect(lifecycleOwner, uiState.cleanSearchQuery) {
-                    val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-                        if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
-                            // The process can be killed any time after this; make sure the position is on disk.
-                            playerViewModel.persistProgress()
+            entry<PlayerKey>(metadata = PlayerRouteMetadata) { playerKey ->
+                // Playback is a dark room whatever the app theme is. The theme is scoped to this entry, so the
+                // library beneath it (a transition, a predictive back swipe) keeps the app's own colours.
+                ApturaTheme(
+                    themeMode = themeModeForRoute(isPlayerRouteActive = true, appThemeMode = settings.themeMode),
+                    accentColor = settings.accentColor
+                ) {
+                    PlayerRouteFrame(closingColor = appBackground) {
+                        LaunchedEffect(playerKey.videoUri) {
+                            if (playerViewModel.uiState.value.videoUri != playerKey.videoUri) {
+                                playerViewModel.loadAndPlay(playerKey.videoUri)
+                            }
+                            playerViewModel.setSubtitleFontSize(settings.subtitleFontSizeSp)
+                            playerViewModel.setSubtitleTextColor(settings.subtitleTextColorHex)
+                            playerViewModel.setSubtitleBackgroundEnabled(settings.subtitleBackgroundEnabled)
                         }
-                        if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME && uiState.cleanSearchQuery.isNotBlank()) {
-                            coroutineScope.launch(Dispatchers.IO) {
-                                try {
-                                    val recent = org.aptura.player.data.repository.SidecarSubtitleDetector.findRecentDownloads(
-                                        context = context,
-                                        searchQuery = uiState.cleanSearchQuery
-                                    )
-                                    if (recent.isNotEmpty()) {
-                                        withContext(Dispatchers.Main) {
-                                            playerViewModel.setRecentDownloadedSubtitle(recent.first())
-                                        }
+
+                        val uiState by playerViewModel.uiState.collectAsStateWithLifecycle()
+
+                        // Check for recently downloaded subtitles when returning to the app from external search
+                        val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+                        androidx.compose.runtime.DisposableEffect(lifecycleOwner, uiState.cleanSearchQuery) {
+                            val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                                if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
+                                    // The process can be killed any time after this; make sure the position is on disk.
+                                    playerViewModel.persistProgress()
+                                }
+                                if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME && uiState.cleanSearchQuery.isNotBlank()) {
+                                    coroutineScope.launch(Dispatchers.IO) {
+                                        try {
+                                            val recent = org.aptura.player.data.repository.SidecarSubtitleDetector.findRecentDownloads(
+                                                context = context,
+                                                searchQuery = uiState.cleanSearchQuery
+                                            )
+                                            if (recent.isNotEmpty()) {
+                                                withContext(Dispatchers.Main) {
+                                                    playerViewModel.setRecentDownloadedSubtitle(recent.first())
+                                                }
+                                            }
+                                        } catch (_: Throwable) {}
                                     }
-                                } catch (_: Throwable) {}
+                                }
+                            }
+                            lifecycleOwner.lifecycle.addObserver(observer)
+                            onDispose {
+                                lifecycleOwner.lifecycle.removeObserver(observer)
                             }
                         }
-                    }
-                    lifecycleOwner.lifecycle.addObserver(observer)
-                    onDispose {
-                        lifecycleOwner.lifecycle.removeObserver(observer)
+
+                        PlayerScreen(
+                            uiState = uiState,
+                            player = playbackController.player,
+                            isPipMode = isPipMode,
+                            pipSupported = pipSupported,
+                            onEnterPip = onEnterPip,
+                            onBackClick = { handleBack(backStack, dismissPlayerAndResetOrientation) },
+                            onPlayPauseClick = playerViewModel::togglePlayPause,
+                            onSeekRelative = { delta -> playerViewModel.seekRelative(delta) },
+                            onSeekRelativeWithSide = playerViewModel::seekRelative,
+                            onHorizontalSwipeSeekStart = playerViewModel::onHorizontalSwipeSeekStart,
+                            onHorizontalSwipeSeek = playerViewModel::onHorizontalSwipeSeek,
+                            onHorizontalSwipeSeekCommit = playerViewModel::onHorizontalSwipeSeekCommit,
+                            onHorizontalSwipeSeekCancel = playerViewModel::onHorizontalSwipeSeekCancel,
+                            onTriggerLockHint = playerViewModel::triggerLockHint,
+                            onTwoFingerTap = playerViewModel::togglePlayPause,
+                            onScrubStart = playerViewModel::onScrubStart,
+                            onScrubMove = playerViewModel::onScrubMove,
+                            onScrubEnd = playerViewModel::onScrubEnd,
+                            onControlsVisibilityToggle = playerViewModel::toggleControlsVisibility,
+                            onLockToggle = playerViewModel::toggleLock,
+                            onSpeedSelected = playerViewModel::setPlaybackSpeed,
+                            onStartHoldSpeed = playerViewModel::startHoldSpeedBoost,
+                            onEndHoldSpeed = playerViewModel::endHoldSpeedBoost,
+                            onResizeModeToggle = playerViewModel::toggleResizeMode,
+                            onResizeModeSelected = playerViewModel::setResizeMode,
+                            onSpeedSheetVisible = playerViewModel::setSpeedSheetVisible,
+                            onAudioSheetVisible = playerViewModel::setAudioSheetVisible,
+                            onSubtitleSheetVisible = playerViewModel::setSubtitleSheetVisible,
+                            onAudioTrackSelected = playerViewModel::selectAudioTrack,
+                            onSubtitleTrackSelected = playerViewModel::selectSubtitleTrack,
+                            onVolumePercentChanged = playerViewModel::setVolumePercent,
+                            onBrightnessPercentChanged = playerViewModel::setBrightnessPercent,
+                            onRetryPlayback = playerViewModel::retryPlayback,
+                            onPlayModeToggle = playerViewModel::togglePlayMode,
+                            onSkipNext = playerViewModel::skipToNext,
+                            onSkipPrevious = playerViewModel::skipToPrevious,
+                            onAdvancedSheetVisible = playerViewModel::setAdvancedSheetVisible,
+                            onSubtitleDelayChanged = playerViewModel::setSubtitleDelay,
+                            onAudioDelayChanged = playerViewModel::setAudioDelay,
+                            onStartSleepTimer = playerViewModel::startSleepTimer,
+                            onCancelSleepTimer = playerViewModel::cancelSleepTimer,
+                            onExtendSleepTimer = playerViewModel::extendSleepTimer,
+                            onSleepAtEndOfVideo = playerViewModel::startSleepAtEndOfVideo,
+                            onDelayStepChanged = playerViewModel::setDelayStep,
+                            onEqualizerEnabledChanged = playerViewModel::setEqualizerEnabled,
+                            onEqualizerPresetSelected = playerViewModel::setEqualizerPreset,
+                            onEqualizerBandChanged = playerViewModel::setEqualizerBandLevel,
+                            onBassBoostChanged = playerViewModel::setBassBoost,
+                            onVirtualizerChanged = playerViewModel::setVirtualizer,
+                            onLoudnessBoostChanged = playerViewModel::setLoudnessBoost,
+                            onContrastChanged = playerViewModel::setContrast,
+                            onSaturationChanged = playerViewModel::setSaturation,
+                            onNightModeToggle = { enabled -> playerViewModel.setNightMode(enabled) },
+                            onNightModeWarmthChanged = { warmth -> playerViewModel.setNightMode(true, warmth) },
+                            onResetPictureAdjustment = playerViewModel::resetPictureAdjustments,
+                            onSetAbPointA = playerViewModel::setAbPointA,
+                            onSetAbPointB = playerViewModel::setAbPointB,
+                            onClearAbRepeat = playerViewModel::clearAbRepeat,
+                            onStepFrame = playerViewModel::stepFrame,
+                            onCancelAutoAdvance = playerViewModel::cancelAutoAdvance,
+                            onPlayNextImmediately = playerViewModel::playNextImmediately,
+                            onExternalSubtitleSelected = { uri, mimeType, label ->
+                                playerViewModel.addExternalSubtitle(uri.toString(), mimeType, label)
+                            },
+                            onRemoveExternalSubtitle = playerViewModel::removeExternalSubtitle,
+                            onSubtitleFontSizeChanged = { sizeSp ->
+                                playerViewModel.setSubtitleFontSize(sizeSp)
+                                coroutineScope.launch { settingsRepository.updateSubtitleFontSize(sizeSp) }
+                            },
+                            onSubtitleTextColorChanged = { colorHex ->
+                                playerViewModel.setSubtitleTextColor(colorHex)
+                                coroutineScope.launch { settingsRepository.updateSubtitleTextColor(colorHex) }
+                            },
+                            onSubtitleBackgroundChanged = { enabled ->
+                                playerViewModel.setSubtitleBackgroundEnabled(enabled)
+                                coroutineScope.launch { settingsRepository.updateSubtitleBackground(enabled) }
+                            },
+                            onAddBookmark = playerViewModel::addBookmark,
+                            onDeleteBookmark = playerViewModel::deleteBookmark,
+                            onUpdateBookmarkNote = playerViewModel::updateBookmarkNote,
+                            // In the player the choice belongs to this video only (it used to also overwrite the global default).
+                            onDecoderStrategyChanged = playerViewModel::setDecoderStrategy,
+                            onDismissCompatibilityNotice = playerViewModel::dismissCompatibilityNotice,
+                            onSearchWebClick = { playerViewModel.showWebSearchDialog(true) },
+                            onDismissWebSearchDialog = { playerViewModel.showWebSearchDialog(false) },
+                            onLaunchWebSearch = { query, provider ->
+                                playerViewModel.checkpointPlayback()
+                                playerViewModel.showWebSearchDialog(false)
+                                val targetUrl = when (provider) {
+                                    0 -> org.aptura.player.core.media.SubtitleQuerySanitizer.buildSubdlUrl(query)
+                                    1 -> org.aptura.player.core.media.SubtitleQuerySanitizer.buildOpenSubtitlesUrl(query)
+                                    else -> org.aptura.player.core.media.SubtitleQuerySanitizer.buildGoogleSearchUrl(query)
+                                }
+                                try {
+                                    val browserIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(targetUrl)).apply {
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
+                                    context.startActivity(browserIntent)
+                                } catch (_: Throwable) {
+                                    android.widget.Toast.makeText(context, "No web browser found to open link", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            onAttachRecentSubtitle = { sidecar ->
+                                playerViewModel.addExternalSubtitle(sidecar.uri.toString(), sidecar.mimeType, sidecar.displayName)
+                                playerViewModel.setRecentDownloadedSubtitle(null)
+                                android.widget.Toast.makeText(context, "Attached: ${sidecar.displayName}", android.widget.Toast.LENGTH_SHORT).show()
+                            },
+                            onDismissRecentSubtitle = {
+                                playerViewModel.setRecentDownloadedSubtitle(null)
+                            },
+                            onDismissAutoPairToast = playerViewModel::dismissAutoPairToast,
+                            onQueueSheetVisible = playerViewModel::showQueueSheet,
+                            onJumpToQueueItem = playerViewModel::jumpToQueueItem,
+                            onMoveQueueItem = playerViewModel::moveQueueItem,
+                            onRemoveQueueItem = playerViewModel::removeFromQueue,
+                            onClearQueue = playerViewModel::clearQueue,
+                            onReplayCurrentItem = playerViewModel::replayCurrentItem,
+                            onToggleStatsOverlay = playerViewModel::toggleStatsOverlay,
+                            onWhyCompatibilityClick = { playerViewModel.setWhyCompatibilitySheetVisible(true) },
+                            onDismissWhyCompatibilitySheet = { playerViewModel.setWhyCompatibilitySheetVisible(false) },
+                            onResetVideoPreferences = playerViewModel::resetVideoPreferences,
+                            onAudioOnlyChanged = playerViewModel::setAudioOnly
+                        )
                     }
                 }
-
-                PlayerScreen(
-                    uiState = uiState,
-                    player = playbackController.player,
-                    isPipMode = isPipMode,
-                    pipSupported = pipSupported,
-                    onEnterPip = onEnterPip,
-                    onBackClick = { handleBack(backStack, dismissPlayerAndResetOrientation) },
-                    onPlayPauseClick = playerViewModel::togglePlayPause,
-                    onSeekRelative = { delta -> playerViewModel.seekRelative(delta) },
-                    onSeekRelativeWithSide = playerViewModel::seekRelative,
-                    onHorizontalSwipeSeekStart = playerViewModel::onHorizontalSwipeSeekStart,
-                    onHorizontalSwipeSeek = playerViewModel::onHorizontalSwipeSeek,
-                    onHorizontalSwipeSeekCommit = playerViewModel::onHorizontalSwipeSeekCommit,
-                    onHorizontalSwipeSeekCancel = playerViewModel::onHorizontalSwipeSeekCancel,
-                    onTriggerLockHint = playerViewModel::triggerLockHint,
-                    onTwoFingerTap = playerViewModel::togglePlayPause,
-                    onScrubStart = playerViewModel::onScrubStart,
-                    onScrubMove = playerViewModel::onScrubMove,
-                    onScrubEnd = playerViewModel::onScrubEnd,
-                    onControlsVisibilityToggle = playerViewModel::toggleControlsVisibility,
-                    onLockToggle = playerViewModel::toggleLock,
-                    onSpeedSelected = playerViewModel::setPlaybackSpeed,
-                    onStartHoldSpeed = playerViewModel::startHoldSpeedBoost,
-                    onEndHoldSpeed = playerViewModel::endHoldSpeedBoost,
-                    onResizeModeToggle = playerViewModel::toggleResizeMode,
-                    onResizeModeSelected = playerViewModel::setResizeMode,
-                    onSpeedSheetVisible = playerViewModel::setSpeedSheetVisible,
-                    onAudioSheetVisible = playerViewModel::setAudioSheetVisible,
-                    onSubtitleSheetVisible = playerViewModel::setSubtitleSheetVisible,
-                    onAudioTrackSelected = playerViewModel::selectAudioTrack,
-                    onSubtitleTrackSelected = playerViewModel::selectSubtitleTrack,
-                    onVolumePercentChanged = playerViewModel::setVolumePercent,
-                    onBrightnessPercentChanged = playerViewModel::setBrightnessPercent,
-                    onRetryPlayback = playerViewModel::retryPlayback,
-                    onPlayModeToggle = playerViewModel::togglePlayMode,
-                    onSkipNext = playerViewModel::skipToNext,
-                    onSkipPrevious = playerViewModel::skipToPrevious,
-                    onAdvancedSheetVisible = playerViewModel::setAdvancedSheetVisible,
-                    onSubtitleDelayChanged = playerViewModel::setSubtitleDelay,
-                    onAudioDelayChanged = playerViewModel::setAudioDelay,
-                    onStartSleepTimer = playerViewModel::startSleepTimer,
-                    onCancelSleepTimer = playerViewModel::cancelSleepTimer,
-                    onExtendSleepTimer = playerViewModel::extendSleepTimer,
-                    onSleepAtEndOfVideo = playerViewModel::startSleepAtEndOfVideo,
-                    onDelayStepChanged = playerViewModel::setDelayStep,
-                    onEqualizerEnabledChanged = playerViewModel::setEqualizerEnabled,
-                    onEqualizerPresetSelected = playerViewModel::setEqualizerPreset,
-                    onEqualizerBandChanged = playerViewModel::setEqualizerBandLevel,
-                    onBassBoostChanged = playerViewModel::setBassBoost,
-                    onVirtualizerChanged = playerViewModel::setVirtualizer,
-                    onLoudnessBoostChanged = playerViewModel::setLoudnessBoost,
-                    onContrastChanged = playerViewModel::setContrast,
-                    onSaturationChanged = playerViewModel::setSaturation,
-                    onNightModeToggle = { enabled -> playerViewModel.setNightMode(enabled) },
-                    onNightModeWarmthChanged = { warmth -> playerViewModel.setNightMode(true, warmth) },
-                    onResetPictureAdjustment = playerViewModel::resetPictureAdjustments,
-                    onSetAbPointA = playerViewModel::setAbPointA,
-                    onSetAbPointB = playerViewModel::setAbPointB,
-                    onClearAbRepeat = playerViewModel::clearAbRepeat,
-                    onStepFrame = playerViewModel::stepFrame,
-                    onCancelAutoAdvance = playerViewModel::cancelAutoAdvance,
-                    onPlayNextImmediately = playerViewModel::playNextImmediately,
-                    onExternalSubtitleSelected = { uri, mimeType, label ->
-                        playerViewModel.addExternalSubtitle(uri.toString(), mimeType, label)
-                    },
-                    onRemoveExternalSubtitle = playerViewModel::removeExternalSubtitle,
-                    onSubtitleFontSizeChanged = { sizeSp ->
-                        playerViewModel.setSubtitleFontSize(sizeSp)
-                        coroutineScope.launch { settingsRepository.updateSubtitleFontSize(sizeSp) }
-                    },
-                    onSubtitleTextColorChanged = { colorHex ->
-                        playerViewModel.setSubtitleTextColor(colorHex)
-                        coroutineScope.launch { settingsRepository.updateSubtitleTextColor(colorHex) }
-                    },
-                    onSubtitleBackgroundChanged = { enabled ->
-                        playerViewModel.setSubtitleBackgroundEnabled(enabled)
-                        coroutineScope.launch { settingsRepository.updateSubtitleBackground(enabled) }
-                    },
-                    onAddBookmark = playerViewModel::addBookmark,
-                    onDeleteBookmark = playerViewModel::deleteBookmark,
-                    onUpdateBookmarkNote = playerViewModel::updateBookmarkNote,
-                    // In the player the choice belongs to this video only (it used to also overwrite the global default).
-                    onDecoderStrategyChanged = playerViewModel::setDecoderStrategy,
-                    onDismissCompatibilityNotice = playerViewModel::dismissCompatibilityNotice,
-                    onSearchWebClick = { playerViewModel.showWebSearchDialog(true) },
-                    onDismissWebSearchDialog = { playerViewModel.showWebSearchDialog(false) },
-                    onLaunchWebSearch = { query, provider ->
-                        playerViewModel.checkpointPlayback()
-                        playerViewModel.showWebSearchDialog(false)
-                        val targetUrl = when (provider) {
-                            0 -> org.aptura.player.core.media.SubtitleQuerySanitizer.buildSubdlUrl(query)
-                            1 -> org.aptura.player.core.media.SubtitleQuerySanitizer.buildOpenSubtitlesUrl(query)
-                            else -> org.aptura.player.core.media.SubtitleQuerySanitizer.buildGoogleSearchUrl(query)
-                        }
-                        try {
-                            val browserIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(targetUrl)).apply {
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            }
-                            context.startActivity(browserIntent)
-                        } catch (_: Throwable) {
-                            android.widget.Toast.makeText(context, "No web browser found to open link", android.widget.Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    onAttachRecentSubtitle = { sidecar ->
-                        playerViewModel.addExternalSubtitle(sidecar.uri.toString(), sidecar.mimeType, sidecar.displayName)
-                        playerViewModel.setRecentDownloadedSubtitle(null)
-                        android.widget.Toast.makeText(context, "Attached: ${sidecar.displayName}", android.widget.Toast.LENGTH_SHORT).show()
-                    },
-                    onDismissRecentSubtitle = {
-                        playerViewModel.setRecentDownloadedSubtitle(null)
-                    },
-                    onDismissAutoPairToast = playerViewModel::dismissAutoPairToast,
-                    onQueueSheetVisible = playerViewModel::showQueueSheet,
-                    onJumpToQueueItem = playerViewModel::jumpToQueueItem,
-                    onMoveQueueItem = playerViewModel::moveQueueItem,
-                    onRemoveQueueItem = playerViewModel::removeFromQueue,
-                    onClearQueue = playerViewModel::clearQueue,
-                    onReplayCurrentItem = playerViewModel::replayCurrentItem,
-                    onToggleStatsOverlay = playerViewModel::toggleStatsOverlay,
-                    onWhyCompatibilityClick = { playerViewModel.setWhyCompatibilitySheetVisible(true) },
-                    onDismissWhyCompatibilitySheet = { playerViewModel.setWhyCompatibilitySheetVisible(false) },
-                    onResetVideoPreferences = playerViewModel::resetVideoPreferences,
-                    onAudioOnlyChanged = playerViewModel::setAudioOnly
-                )
             }
         }
     )

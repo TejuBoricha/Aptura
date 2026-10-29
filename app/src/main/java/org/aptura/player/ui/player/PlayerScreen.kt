@@ -1323,6 +1323,10 @@ fun PlayerScreen(
                             )
 
                             val scrubberStepMs = uiState.seekStepMs
+                            // Read in composition: a draw lambda cannot read theme tokens.
+                            val scrubberTrackColor = ApturaColors.SurfaceElevated3
+                            val scrubberBufferedColor = ApturaColors.TextMediumEmphasis.copy(alpha = 0.35f)
+                            val scrubberAccent = ApturaColors.AccentPrimary
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
@@ -1416,7 +1420,7 @@ fun PlayerScreen(
 
                                     // 1. Background Inactive Track
                                     drawRoundRect(
-                                        color = ApturaColors.SurfaceElevated3,
+                                        color = scrubberTrackColor,
                                         topLeft = Offset(0f, cy - trackH / 2f),
                                         size = Size(totalW, trackH),
                                         cornerRadius = CornerRadius(trackH / 2f, trackH / 2f)
@@ -1426,7 +1430,7 @@ fun PlayerScreen(
                                     if (uiState.bufferedFraction > 0f) {
                                         val buffW = totalW * uiState.bufferedFraction.coerceIn(0f, 1f)
                                         drawRoundRect(
-                                            color = ApturaColors.TextMediumEmphasis.copy(alpha = 0.35f),
+                                            color = scrubberBufferedColor,
                                             topLeft = Offset(0f, cy - trackH / 2f),
                                             size = Size(buffW, trackH),
                                             cornerRadius = CornerRadius(trackH / 2f, trackH / 2f)
@@ -1437,7 +1441,7 @@ fun PlayerScreen(
                                     val activeW = totalW * uiState.progressFraction.coerceIn(0f, 1f)
                                     if (activeW > 0f) {
                                         drawRoundRect(
-                                            color = ApturaColors.AccentPrimary,
+                                            color = scrubberAccent,
                                             topLeft = Offset(0f, cy - trackH / 2f),
                                             size = Size(activeW, trackH),
                                             cornerRadius = CornerRadius(trackH / 2f, trackH / 2f)
@@ -1470,7 +1474,7 @@ fun PlayerScreen(
                                             val xA = totalW * (ptA.toFloat() / uiState.durationMs.toFloat()).coerceIn(0f, 1f)
                                             val xB = totalW * (ptB.toFloat() / uiState.durationMs.toFloat()).coerceIn(0f, 1f)
                                             drawRoundRect(
-                                                color = ApturaColors.AccentPrimary.copy(alpha = 0.32f),
+                                                color = scrubberAccent.copy(alpha = 0.32f),
                                                 topLeft = Offset(xA, cy - trackH),
                                                 size = Size((xB - xA).coerceAtLeast(0f), trackH * 2f),
                                                 cornerRadius = CornerRadius(trackH, trackH)
@@ -1479,7 +1483,7 @@ fun PlayerScreen(
                                         if (ptA != null) {
                                             val xA = totalW * (ptA.toFloat() / uiState.durationMs.toFloat()).coerceIn(0f, 1f)
                                             drawRoundRect(
-                                                color = ApturaColors.AccentPrimary,
+                                                color = scrubberAccent,
                                                 topLeft = Offset(xA - markerW / 2f, cy - markerH / 2f),
                                                 size = Size(markerW, markerH),
                                                 cornerRadius = CornerRadius(markerW / 2f, markerW / 2f)
@@ -1488,7 +1492,7 @@ fun PlayerScreen(
                                         if (ptB != null) {
                                             val xB = totalW * (ptB.toFloat() / uiState.durationMs.toFloat()).coerceIn(0f, 1f)
                                             drawRoundRect(
-                                                color = ApturaColors.AccentPrimary,
+                                                color = scrubberAccent,
                                                 topLeft = Offset(xB - markerW / 2f, cy - markerH / 2f),
                                                 size = Size(markerW, markerH),
                                                 cornerRadius = CornerRadius(markerW / 2f, markerW / 2f)
@@ -1503,7 +1507,7 @@ fun PlayerScreen(
                                         totalW / 2f
                                     }
                                     drawCircle(
-                                        color = ApturaColors.AccentPrimary,
+                                        color = scrubberAccent,
                                         radius = thumbR,
                                         center = Offset(clampedThumbX, cy)
                                     )

@@ -1,5 +1,7 @@
 package org.aptura.player.ui.onboarding
 
+import org.aptura.player.theme.AccentColor
+import org.aptura.player.theme.ApturaPalettes
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -93,7 +95,7 @@ class GuideFooterPixelTest {
         val top = composeRule.toPx(footer.top + 2.dp)
         val bottom = composeRule.toPx(footer.bottom - 2.dp)
         screen.assertRegionIs(
-            ApturaColors.SurfaceBase,
+            ApturaPalettes.light(AccentColor.CYAN).surfaceBase,
             left,
             top,
             right,
@@ -116,13 +118,13 @@ class GuideFooterPixelTest {
         val right = left + 1
         val top = composeRule.toPx(footer.top + 2.dp)
         val bottom = composeRule.toPx(footer.bottom - 2.dp)
-        screen.assertRegionIs(ApturaColors.SurfaceBase, left, top, right, bottom, "dark guide footer strip")
+        screen.assertRegionIs(ApturaPalettes.dark(AccentColor.CYAN).surfaceBase, left, top, right, bottom, "dark guide footer strip")
 
         // Eight dp inside the circle-shaped 52 dp button is clear of the centred label and inside the accent fill.
         val buttonX = composeRule.toPx(action.left + 8.dp)
         val buttonY = composeRule.toPx((action.top + action.bottom) / 2)
         screen.assertRegionIs(
-            ApturaColors.AccentPrimary,
+            ApturaPalettes.dark(AccentColor.CYAN).accentPrimary,
             buttonX,
             buttonY,
             buttonX + 1,

@@ -1,9 +1,9 @@
 package org.aptura.player.theme
 
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
 /**
@@ -37,58 +37,58 @@ data class ApturaPalette(
 )
 
 /**
+ * The palette of the nearest [ApturaTheme]. Dark until a theme says otherwise, so a composable shown without one (a
+ * test, a preview) is still readable.
+ */
+internal val LocalApturaPalette = staticCompositionLocalOf { ApturaPalettes.dark(AccentColor.CYAN) }
+
+/**
  * Aptura Color Palette & Design Tokens
  * Source of truth: DESIGN.md & spec/06_UX_SCREEN_AND_STATE_SPECIFICATION.md
  *
- * The tokens are state-backed rather than constants: the whole app reads them by name (~900 call sites), so
- * `ApturaTheme` swaps the active palette instead of every screen taking colours as parameters. Reading a token in a
- * composable subscribes that composable to palette changes, exactly like any other Compose state.
+ * The whole app reads the tokens by name (~700 call sites), so [ApturaTheme] provides the active palette through
+ * [LocalApturaPalette] instead of every screen taking colours as parameters. Each token is a composable getter: it can
+ * only be read while composing, and it always answers for the theme the composable is shown in. That is what lets a
+ * light library and the always-dark player be on screen together (during a transition, or a predictive back swipe)
+ * with the right colours each, which a single global palette could not do.
  */
 object ApturaColors {
-    private var activePalette by mutableStateOf(ApturaPalettes.dark(AccentColor.CYAN))
-
-    /** Applies a palette before the themed content composes, so a mode switch never shows the old colours. */
-    internal fun apply(palette: ApturaPalette) {
-        if (activePalette != palette) activePalette = palette
-    }
-
     /** Whether the palette on screen is a dark one. Used by widgets that draw raw accent swatches. */
-    val IsDark: Boolean get() = activePalette.isDark
+    val IsDark: Boolean @Composable @ReadOnlyComposable get() = LocalApturaPalette.current.isDark
 
     // Surfaces & Backgrounds
-    val SurfacePureBlack: Color get() = activePalette.surfacePureBlack
-    val SurfaceBase: Color get() = activePalette.surfaceBase
-    val SurfaceElevated1: Color get() = activePalette.surfaceElevated1
-    val SurfaceElevated2: Color get() = activePalette.surfaceElevated2
-    val SurfaceElevated3: Color get() = activePalette.surfaceElevated3
+    val SurfacePureBlack: Color @Composable @ReadOnlyComposable get() = LocalApturaPalette.current.surfacePureBlack
+    val SurfaceBase: Color @Composable @ReadOnlyComposable get() = LocalApturaPalette.current.surfaceBase
+    val SurfaceElevated1: Color @Composable @ReadOnlyComposable get() = LocalApturaPalette.current.surfaceElevated1
+    val SurfaceElevated2: Color @Composable @ReadOnlyComposable get() = LocalApturaPalette.current.surfaceElevated2
+    val SurfaceElevated3: Color @Composable @ReadOnlyComposable get() = LocalApturaPalette.current.surfaceElevated3
 
     /** A recessed track inside a panel (selector switches, folder chips). */
-    val SurfaceRecessed: Color get() = activePalette.surfaceRecessed
-    val SurfaceScrim: Color get() = activePalette.surfaceScrim
-    val SurfaceGlass: Color get() = activePalette.surfaceGlass
+    val SurfaceRecessed: Color @Composable @ReadOnlyComposable get() = LocalApturaPalette.current.surfaceRecessed
+    val SurfaceScrim: Color @Composable @ReadOnlyComposable get() = LocalApturaPalette.current.surfaceScrim
+    val SurfaceGlass: Color @Composable @ReadOnlyComposable get() = LocalApturaPalette.current.surfaceGlass
 
     // Brand & Functional Accents
-    val AccentPrimary: Color get() = activePalette.accentPrimary
-    val AccentSecondary: Color get() = activePalette.accentSecondary
-    val AccentSubtle: Color get() = activePalette.accentSubtle
-    val BorderSubtle: Color get() = activePalette.borderSubtle
+    val AccentPrimary: Color @Composable @ReadOnlyComposable get() = LocalApturaPalette.current.accentPrimary
+    val AccentSecondary: Color @Composable @ReadOnlyComposable get() = LocalApturaPalette.current.accentSecondary
+    val AccentSubtle: Color @Composable @ReadOnlyComposable get() = LocalApturaPalette.current.accentSubtle
+    val BorderSubtle: Color @Composable @ReadOnlyComposable get() = LocalApturaPalette.current.borderSubtle
 
     // Semantic State Colors
-    val StatusSuccess: Color get() = activePalette.statusSuccess
-    val StatusWarning: Color get() = activePalette.statusWarning
-    val StatusError: Color get() = activePalette.statusError
-    val StatusInfo: Color get() = activePalette.statusInfo
+    val StatusSuccess: Color @Composable @ReadOnlyComposable get() = LocalApturaPalette.current.statusSuccess
+    val StatusWarning: Color @Composable @ReadOnlyComposable get() = LocalApturaPalette.current.statusWarning
+    val StatusError: Color @Composable @ReadOnlyComposable get() = LocalApturaPalette.current.statusError
+    val StatusInfo: Color @Composable @ReadOnlyComposable get() = LocalApturaPalette.current.statusInfo
 
     // Typography Color Scale
-    val TextHighEmphasis: Color get() = activePalette.textHighEmphasis
-    val TextMediumEmphasis: Color get() = activePalette.textMediumEmphasis
-    val TextLowEmphasis: Color get() = activePalette.textLowEmphasis
-    val TextOnAccent: Color get() = activePalette.textOnAccent
+    val TextHighEmphasis: Color @Composable @ReadOnlyComposable get() = LocalApturaPalette.current.textHighEmphasis
+    val TextMediumEmphasis: Color @Composable @ReadOnlyComposable get() = LocalApturaPalette.current.textMediumEmphasis
+    val TextLowEmphasis: Color @Composable @ReadOnlyComposable get() = LocalApturaPalette.current.textLowEmphasis
+    val TextOnAccent: Color @Composable @ReadOnlyComposable get() = LocalApturaPalette.current.textOnAccent
 
     /** Text and icons that sit on a dark scrim over an image, in either mode. */
-    val TextOnScrim: Color get() = activePalette.textOnScrim
+    val TextOnScrim: Color @Composable @ReadOnlyComposable get() = LocalApturaPalette.current.textOnScrim
 }
-
 /** The concrete palettes. Dark keeps the original cinematic tokens exactly; light is its daylight counterpart. */
 internal object ApturaPalettes {
 

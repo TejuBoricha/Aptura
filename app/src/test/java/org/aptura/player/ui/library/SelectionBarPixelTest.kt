@@ -1,5 +1,7 @@
 package org.aptura.player.ui.library
 
+import org.aptura.player.theme.AccentColor
+import org.aptura.player.theme.ApturaPalettes
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
@@ -101,7 +103,7 @@ class SelectionBarPixelTest {
 
         val bar = composeRule.onNodeWithTag("selection_action_bar")
             .getUnclippedBoundsInRoot()
-        val expected = ApturaColors.SurfaceElevated2
+        val expected = ApturaPalettes.forMode(mode == ThemeMode.DARK, AccentColor.CYAN).surfaceElevated2
         // Four dp inside the left edge and sixteen dp below/above the rounded corners is a pure fill strip: past the
         // 1 dp outline, left of the close glyph, and clear of the 18 dp corner radius.
         val left = composeRule.toPx(bar.left + 4.dp)

@@ -208,15 +208,19 @@ internal fun SpeedRail(
                     )
                 }
         ) {
+            // Read here, not in the draw lambda: tokens belong to the theme this rail is composed in.
+            val accent = ApturaColors.AccentPrimary
+            val hairline = ApturaColors.BorderSubtle
+            val onAccent = ApturaColors.TextOnAccent
+            val isLightSurface = ApturaColors.SurfaceBase.luminance() > 0.5f
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val edge = 14.dp.toPx()
                 val span = (size.width - edge * 2f).coerceAtLeast(1f)
-                val accent = ApturaColors.AccentPrimary
                 val needleX = edge + span * needleFraction
 
                 // The ember under the needle: a soft gradient, not a flat disc, so the control feels lit. On a light
                 // surface a strong glow reads as a smudge, so it is kept faint there.
-                val glowAlpha = if (ApturaColors.SurfaceBase.luminance() > 0.5f) 0.10f else 0.30f
+                val glowAlpha = if (isLightSurface) 0.10f else 0.30f
                 drawCircle(
                     brush = Brush.radialGradient(
                         colors = listOf(accent.copy(alpha = glowAlpha), Color.Transparent),
@@ -229,7 +233,7 @@ internal fun SpeedRail(
 
                 // Baseline and the rising ticks: a shape that already means "slower → faster".
                 drawLine(
-                    color = ApturaColors.BorderSubtle,
+                    color = hairline,
                     start = Offset(edge, baselinePx),
                     end = Offset(size.width - edge, baselinePx),
                     strokeWidth = 1.dp.toPx()
@@ -242,7 +246,7 @@ internal fun SpeedRail(
                         color = when {
                             current -> accent
                             index < displayIndex -> accent.copy(alpha = 0.8f)
-                            else -> ApturaColors.BorderSubtle
+                            else -> hairline
                         },
                         topLeft = Offset(tickX - (if (current) 1.25.dp.toPx() else 1.dp.toPx()), baselinePx - tickHeight),
                         size = Size(if (current) 2.5.dp.toPx() else 2.dp.toPx(), tickHeight),
@@ -273,7 +277,7 @@ internal fun SpeedRail(
                 )
                 drawText(
                     textLayoutResult = measuredValue,
-                    color = ApturaColors.TextOnAccent,
+                    color = onAccent,
                     topLeft = Offset(
                         bubbleX + (bubbleWidthPx - measuredValue.size.width) / 2f,
                         (bubbleHeightPx - measuredValue.size.height) / 2f

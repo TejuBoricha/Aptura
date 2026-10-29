@@ -34,11 +34,6 @@ class SettingsAppearanceTest {
     @get:Rule
     val composeRule = createComposeRule()
 
-    @After
-    fun resetPalette() {
-        ApturaColors.apply(ApturaPalettes.dark(AccentColor.CYAN))
-    }
-
     private fun show(
         mode: ThemeMode = ThemeMode.DARK,
         accent: AccentColor = AccentColor.CYAN,

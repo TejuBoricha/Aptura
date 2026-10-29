@@ -2,6 +2,7 @@ package org.aptura.player.ui.library
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.offset
+import org.aptura.player.ui.components.StableSystemBars
 import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
@@ -223,7 +224,11 @@ fun MediaLibraryScreen(
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        containerColor = ApturaColors.SurfaceBase
+        containerColor = ApturaColors.SurfaceBase,
+        // The player hides the system bars and shows them again as it closes. With the default, visibility-aware
+        // insets the library lays out without them for the first frames of the way back and then jumps down by the
+        // height of the status bar; the sizes themselves never change, so use those.
+        contentWindowInsets = StableSystemBars
     ) { innerPadding ->
         Box(modifier = Modifier.fillMaxSize()) {
             when (uiState) {
@@ -1875,46 +1880,6 @@ internal fun WatchProgressLine(fraction: Float, modifier: Modifier = Modifier) {
                 .fillMaxHeight()
                 .fillMaxWidth(fraction.coerceIn(0f, 1f))
                 .background(ApturaColors.AccentPrimary)
-        )
-    }
-}
-
-/**
- * The cached frame for a video, generated on first use. While it loads (or when a frame cannot be read) a film glyph
- * on the elevated surface stands in, so an unreadable file never looks like a black hole in the grid.
- */
-@Composable
-internal fun VideoThumbnail(card: VideoCardUiModel, modifier: Modifier = Modifier) =
-    VideoThumbnail(card.uri, card.rawItem.dateModifiedSec, card.title, modifier)
-
-@Composable
-internal fun VideoThumbnail(uri: String, dateModifiedSec: Long, contentDescription: String?, modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    val cachedThumbnail = remember(uri, dateModifiedSec) {
-        ThumbnailRepository.getCachedThumbnailFile(context, uri, dateModifiedSec)
-    }
-    val thumbnailFile by produceState<File?>(initialValue = cachedThumbnail, uri, dateModifiedSec) {
-        if (value == null) {
-            value = ThumbnailRepository.getOrCreateThumbnail(context, uri, dateModifiedSec)
-        }
-    }
-    Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        if (thumbnailFile == null) {
-            Icon(
-                imageVector = Icons.Outlined.Movie,
-                contentDescription = null,
-                tint = ApturaColors.TextLowEmphasis,
-                modifier = Modifier.size(28.dp)
-            )
-        }
-        val imageRequest = remember(thumbnailFile) {
-            ImageRequest.Builder(context).data(thumbnailFile).build()
-        }
-        AsyncImage(
-            model = imageRequest,
-            contentDescription = contentDescription,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize()
         )
     }
 }

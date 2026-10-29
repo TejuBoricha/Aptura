@@ -1,5 +1,7 @@
 package org.aptura.player.ui.settings
 
+import org.aptura.player.theme.AccentColor
+import org.aptura.player.theme.ApturaPalettes
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
@@ -73,7 +75,7 @@ class SettingsTopBarPixelTest {
 
         val bar = composeRule.onNodeWithTag("settings_compact_bar")
             .getUnclippedBoundsInRoot()
-        val expected = ApturaColors.SurfaceBase
+        val expected = ApturaPalettes.forMode(mode == ThemeMode.DARK, AccentColor.CYAN).surfaceBase
         // The last two dp sit below the 48 dp back button and above the deliberate 1 dp hairline: a strip that must be
         // pure bar fill. Any scrolled list content visible here means the bar is translucent or missing.
         val y = composeRule.toPx(bar.bottom - 2.dp)

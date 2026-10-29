@@ -22,10 +22,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
+import org.aptura.player.ui.components.StableNavigationBars
+import org.aptura.player.ui.components.StableStatusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -118,7 +118,7 @@ internal const val SETTINGS_TOP_BAR_HEIGHT_DP = 56
  * scrolling underneath show through the back button and title (audit 2026-10-24).
  */
 internal val SettingsTopBarBackground: Brush
-    get() = SolidColor(ApturaColors.SurfaceBase)
+    @Composable get() = SolidColor(ApturaColors.SurfaceBase)
 
 /**
  * Settings Root Screen (SCR-013, SCR-014, SCR-015, SCR-016).
@@ -225,8 +225,8 @@ fun SettingsScreen(
         }
     }
 
-    val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val navigationBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val statusTop = StableStatusBars.asPaddingValues().calculateTopPadding()
+    val navigationBottom = StableNavigationBars.asPaddingValues().calculateBottomPadding()
 
     Box(
         modifier = modifier

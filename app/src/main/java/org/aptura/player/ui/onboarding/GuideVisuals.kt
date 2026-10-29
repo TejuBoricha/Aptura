@@ -69,7 +69,7 @@ import org.aptura.player.theme.ApturaTypography
  * TalkBack and their parts are hidden from it, so a screen reader hears one clear sentence instead of fragments.
  */
 
-private val Hairline: Color get() = ApturaColors.BorderSubtle
+private val Hairline: Color @Composable get() = ApturaColors.BorderSubtle
 
 @Composable
 internal fun GuidePanel(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
@@ -240,6 +240,7 @@ internal fun FeatureList(items: List<Pair<String, String>>) {
 @Composable
 internal fun GestureMap(modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(18.dp)
+    val seam = ApturaColors.BorderSubtle
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -250,7 +251,7 @@ internal fun GestureMap(modifier: Modifier = Modifier) {
             .drawBehind {
                 // The seam between the two halves.
                 drawLine(
-                    color = ApturaColors.BorderSubtle,
+                    color = seam,
                     start = Offset(size.width / 2, 14.dp.toPx()),
                     end = Offset(size.width / 2, size.height - 38.dp.toPx()),
                     strokeWidth = 1.dp.toPx(),
