@@ -95,15 +95,32 @@ class SettingsGalleryTest : GalleryBase() {
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xhdpi")
 class OnboardingGalleryTest : GalleryBase() {
 
-    private fun pages(mode: ThemeMode, prefix: String, access: Boolean) {
+    private fun pages(
+        mode: ThemeMode,
+        prefix: String,
+        access: Boolean,
+        fontScale: Float = 1f,
+        library: org.aptura.player.ui.library.MediaLibraryUiState.Success? = null
+    ) {
         themed(mode) {
-            OnboardingScreen(onRequestPermissionClick = {}, onContinueWithoutPermissionClick = {}, hasStorageAccess = access)
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            androidx.compose.runtime.CompositionLocalProvider(
+                androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(density.density, fontScale)
+            ) {
+                OnboardingScreen(
+                    onRequestPermissionClick = {},
+                    onContinueWithoutPermissionClick = {},
+                    hasStorageAccess = access,
+                    animateDemos = false,
+                    libraryState = library
+                )
+            }
         }
         for (page in 0 until 5) {
             shoot("${prefix}_$page")
-            val next = composeRule.onAllNodes(hasText("Continue")).fetchSemanticsNodes()
-            if (next.isEmpty()) break
-            composeRule.onAllNodes(hasText("Continue"))[0].performClick()
+            val next = composeRule.onAllNodes(hasText("Continue"))
+            if (next.fetchSemanticsNodes().isEmpty()) break
+            next[0].performClick()
             settle()
         }
     }
@@ -113,6 +130,18 @@ class OnboardingGalleryTest : GalleryBase() {
 
     @Config(qualifiers = "w1280dp-h800dp-xhdpi")
     @Test fun tablet() = pages(ThemeMode.LIGHT, "onboarding_tablet", access = false)
+
+    @Config(qualifiers = "w320dp-h640dp-xhdpi")
+    @Test fun smallPhone() = pages(ThemeMode.DARK, "onboarding_small", access = false)
+
+    @Config(qualifiers = "w891dp-h411dp-xhdpi")
+    @Test fun landscape() = pages(ThemeMode.DARK, "onboarding_landscape", access = false)
+
+    @Test fun largeFont() = pages(ThemeMode.LIGHT, "onboarding_font200", access = false, fontScale = 2f)
+
+    /** The replay from Settings: the person's own videos, with their own frames, on the library page. */
+    @Test fun replayWithTheirOwnLibrary() =
+        pages(ThemeMode.DARK, "onboarding_replay", access = true, library = librarySuccess(continueWatching = false))
 }
 
 @RunWith(RobolectricTestRunner::class)

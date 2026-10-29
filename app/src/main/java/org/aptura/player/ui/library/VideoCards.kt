@@ -98,7 +98,8 @@ fun VideoGridCard(
     modifier: Modifier = Modifier,
     isSelected: Boolean = false,
     detail: LibraryDetail = LibraryDetail.STANDARD,
-    density: LibraryDensity = LibraryDensity.COMFORTABLE
+    density: LibraryDensity = LibraryDensity.COMFORTABLE,
+    thumbnail: (@Composable () -> Unit)? = null
 ) {
     val compact = density == LibraryDensity.COMPACT
     val metadata = remember(card, detail) { videoMetadataLines(card, detail) }
@@ -113,6 +114,7 @@ fun VideoGridCard(
             card = card,
             isSelected = isSelected,
             modifier = Modifier.fillMaxWidth(),
+            thumbnail = thumbnail,
             overlayEnd = if (compact && callbacks.onMore != null) {
                 { VideoOverflowButton(card, callbacks, onScrim = true) }
             } else {
@@ -162,7 +164,8 @@ fun VideoListRow(
     modifier: Modifier = Modifier,
     isSelected: Boolean = false,
     detail: LibraryDetail = LibraryDetail.STANDARD,
-    density: LibraryDensity = LibraryDensity.COMFORTABLE
+    density: LibraryDensity = LibraryDensity.COMFORTABLE,
+    thumbnail: (@Composable () -> Unit)? = null
 ) {
     val metadata = remember(card, detail) { videoMetadataLines(card, detail) }
     val remaining = if (card.progressFraction > 0f && !card.isCompleted && !card.isMissing) {
@@ -186,7 +189,8 @@ fun VideoListRow(
             isSelected = isSelected,
             modifier = Modifier.width(LibraryMetrics.listThumbnailWidth(density)),
             shape = RoundedCornerShape(10.dp),
-            pillsFit = density != LibraryDensity.COMPACT
+            pillsFit = density != LibraryDensity.COMPACT,
+            thumbnail = thumbnail
         )
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
@@ -264,6 +268,8 @@ internal fun VideoThumbnailFrame(
     modifier: Modifier = Modifier,
     shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(14.dp),
     pillsFit: Boolean = true,
+    /** Replaces the video's own frame, for content that has no file behind it (the welcome guide's samples). */
+    thumbnail: (@Composable () -> Unit)? = null,
     overlayEnd: (@Composable () -> Unit)? = null
 ) {
     Box(
@@ -277,7 +283,11 @@ internal fun VideoThumbnailFrame(
                 shape = shape
             )
     ) {
-        VideoThumbnail(card = card, modifier = Modifier.fillMaxSize())
+        if (thumbnail != null) {
+            Box(modifier = Modifier.fillMaxSize()) { thumbnail() }
+        } else {
+            VideoThumbnail(card = card, modifier = Modifier.fillMaxSize())
+        }
 
         if (isSelected) {
             Box(

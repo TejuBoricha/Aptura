@@ -353,7 +353,11 @@ private fun AppNavHost(
                     backStack.removeLastOrNull()
                     if (backStack.isEmpty()) backStack.add(MediaLibrary)
                 }
+                // The library page of the guide shows the person's own videos when there are enough of them (the replay
+                // from Settings), and drawn samples otherwise (the first run, before anything is scanned).
+                val libraryForGuide by libraryViewModel.uiState.collectAsStateWithLifecycle()
                 OnboardingScreen(
+                    libraryState = libraryForGuide as? MediaLibraryUiState.Success,
                     hasStorageAccess = PermissionHelper.hasStoragePermission(context),
                     onRequestPermissionClick = {
                         permissionLauncher.launch(PermissionHelper.getRequiredPermissions())

@@ -46,7 +46,7 @@ fun ApturaTheme(
     val palette = remember(dark, accentColor) { ApturaPalettes.forMode(dark, accentColor) }
     val colorScheme = remember(palette) { palette.toColorScheme() }
 
-    CompositionLocalProvider(LocalApturaPalette provides palette) {
+    CompositionLocalProvider(LocalApturaPalette provides palette, LocalApturaAccent provides accentColor) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography = ApturaTypography,

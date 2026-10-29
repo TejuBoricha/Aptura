@@ -54,7 +54,8 @@ class GuideFooterPixelTest {
                     OnboardingScreen(
                         hasStorageAccess = hasStorageAccess,
                         onRequestPermissionClick = {},
-                        onContinueWithoutPermissionClick = {}
+                        onContinueWithoutPermissionClick = {},
+                        animateDemos = false
                     )
                 }
             }

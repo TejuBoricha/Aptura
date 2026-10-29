@@ -42,6 +42,9 @@ data class ApturaPalette(
  */
 internal val LocalApturaPalette = staticCompositionLocalOf { ApturaPalettes.dark(AccentColor.CYAN) }
 
+/** The accent the surrounding [ApturaTheme] was given, so a part of the UI that is always dark can keep the user's accent. */
+internal val LocalApturaAccent = staticCompositionLocalOf { AccentColor.CYAN }
+
 /**
  * Aptura Color Palette & Design Tokens
  * Source of truth: DESIGN.md & spec/06_UX_SCREEN_AND_STATE_SPECIFICATION.md
