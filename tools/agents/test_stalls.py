@@ -460,7 +460,8 @@ def gh_comment(n, author, body, number, kind="issue", created="2026-10-29T09:00:
 
 def pr_entry(n, title="PR", created="2026-10-29T08:00:00Z", body=""):
     return {"number": n, "title": title, "html_url": f"https://example/{n}", "created_at": created,
-            "updated_at": created, "body": body, "head": {"sha": f"sha{n}"}, "labels": []}
+            "updated_at": created, "body": body, "head": {"sha": f"sha{n}"}, "labels": [],
+            "user": {"login": "TejuBoricha"}}
 
 
 class FetchTest(unittest.TestCase):
@@ -487,7 +488,8 @@ class FetchTest(unittest.TestCase):
 
     def test_only_the_owners_comments_and_debates_count(self):
         routes = self.routes(**{
-            "/pulls?state=open": [pr_entry(9)],
+            "/pulls?state=open": [pr_entry(9), {**pr_entry(12, "Stranger's PR"), "user": {"login": "stranger"}},
+                                  {**pr_entry(13, "Bump x"), "user": {"login": "dependabot[bot]"}}],
             "/pulls/9/reviews": [],
             "/issues?state=open": [
                 {**pr_entry(20, "Owner's"), "user": {"login": "tejuboricha"}, "labels": [{"name": "debate"}]},

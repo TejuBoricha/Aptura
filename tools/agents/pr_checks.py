@@ -53,6 +53,7 @@ class PullRequest:
     updated_at: datetime
     files: list[str] = field(default_factory=list)
     commit_messages: list[str] = field(default_factory=list)
+    trusted: bool = True  # opened by the owner's account (every agent) or a bot, not by a stranger
 
 
 @dataclass
@@ -83,9 +84,23 @@ def is_bot_commit(commit: dict) -> bool:
     return author.get("type") == "Bot" or str(author.get("login", "")).endswith("[bot]")
 
 
+# A Co-Authored-By line that names an AI tool, as several tools add on their own. A person as co-author says nothing
+# about AI help, so it does not count.
+CO_AUTHORED = re.compile(r"^co-authored-by:.*\b(claude|anthropic|copilot|codex|openai|chatgpt|gpt|gemini|cursor|"
+                         r"opencode|aider|devin|deepseek|qwen|kimi|glm|mistral|llama|grok|windsurf|antigravity)\b",
+                         re.IGNORECASE | re.MULTILINE)
+
+
 def unattributed(messages: list[tuple[str, str]]) -> list[str]:
-    """Short SHAs of commits with neither trailer. Each item is (sha, message); merge commits are excluded upstream."""
-    return [sha[:7] for sha, message in messages if not ATTRIBUTION.search(message)]
+    """Short SHAs of commits with neither trailer (nor a Co-Authored-By line, see co_authored_only). Each item is
+    (sha, message); merge commits are excluded upstream."""
+    return [sha[:7] for sha, message in messages if not ATTRIBUTION.search(message) and not CO_AUTHORED.search(message)]
+
+
+def co_authored_only(messages: list[tuple[str, str]]) -> list[str]:
+    """Commits attributed only by a `Co-Authored-By:` line, which several tools add on their own. They pass, with a
+    warning, so a tool's default does not block a pull request that a non-technical owner cannot easily reword."""
+    return [sha[:7] for sha, message in messages if not ATTRIBUTION.search(message) and CO_AUTHORED.search(message)]
 
 
 def check(pr: PullRequest, others: list[PullRequest], shas_and_messages: list[tuple[str, str]],
@@ -96,8 +111,14 @@ def check(pr: PullRequest, others: list[PullRequest], shas_and_messages: list[tu
     if missing:
         findings.append(Finding("error",
             f"Commits without an attribution trailer: {', '.join(missing)}. End each commit message with "
-            f"`Assisted-by: <Tool> (<model>)`, or `Human-authored: yes` if a person wrote it, then rebase the "
-            f"branch to reword them (see AGENTS.md)."))
+            f"`Assisted-by: <Tool> (<model>)`, or `Human-authored: yes` if a person wrote it (see AGENTS.md). To fix "
+            f"it, the agent that made the commits rewords them: `git rebase -i origin/main`, mark them `reword`, add "
+            f"the trailer, then `git push --force-with-lease` to its own branch."))
+    partial = co_authored_only(shas_and_messages)
+    if partial:
+        findings.append(Finding("warning",
+            f"Commits attributed only by `Co-Authored-By:`: {', '.join(partial)}. Accepted; next time also add "
+            f"`Assisted-by: <Tool> (<model>)`, which names the model."))
 
     my_hot = {f for f in pr.files if is_hot(f, patterns)}
     my_issues = issue_refs(f"{pr.title}\n{pr.body}\n" + "\n".join(pr.commit_messages))
@@ -108,7 +129,8 @@ def check(pr: PullRequest, others: list[PullRequest], shas_and_messages: list[tu
             continue
         earlier = other.number < pr.number
         stale = other.updated_at < stale_before
-        blocking = earlier and not stale
+        # A stranger's pull request on this public repository can never block the agents' work.
+        blocking = earlier and not stale and other.trusted
         shared_hot = sorted(my_hot & set(other.files))
         shared_issues = sorted(my_issues & issue_refs(f"{other.title}\n{other.body}\n" + "\n".join(other.commit_messages)))
         shared_files = sorted(set(pr.files) & set(other.files))
@@ -119,7 +141,8 @@ def check(pr: PullRequest, others: list[PullRequest], shas_and_messages: list[tu
                     f"#{other.number} is already changing hot file(s) {', '.join(shared_hot)}. Only one open pull "
                     f"request may change these. Wait for #{other.number} to merge or close, then rebase and push."))
             else:
-                why = "it has been idle for over two weeks" if stale else "this pull request is older"
+                why = ("it was opened by someone outside the project" if earlier and not other.trusted
+                       else "it has been idle for over two weeks" if stale else "this pull request is older")
                 findings.append(Finding("warning",
                     f"#{other.number} also changes hot file(s) {', '.join(shared_hot)} ({why}, so it does not block "
                     f"this one)."))
@@ -215,8 +238,10 @@ def fetch(repo: str, number: int, token: str | None) -> tuple[PullRequest, list[
     def as_pr(raw: dict, raw_commits: list[dict] | None = None) -> PullRequest:
         n = raw["number"]
         raw_commits = commits(n) if raw_commits is None else raw_commits
+        author = ((raw.get("user") or {}).get("login") or "").lower()
         return PullRequest(n, raw["title"] or "", raw["body"] or "", bool(raw.get("draft")),
-                           _parse_time(raw["updated_at"]), files(n), [c["commit"]["message"] for c in raw_commits])
+                           _parse_time(raw["updated_at"]), files(n), [c["commit"]["message"] for c in raw_commits],
+                           trusted=author == repo.split("/")[0].lower() or author.endswith("[bot]"))
 
     raw_pr = _get(f"{API}/repos/{repo}/pulls/{number}", token)
     own_commits = commits(number)  # Fetched once: used for attribution and for issue references.

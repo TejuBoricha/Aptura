@@ -545,7 +545,9 @@ def fetch(repo: str, token: str | None, extra_trusted: list[str] | None = None,
     authors = trusted_authors(repo, extra_trusted)
     cutoff = now - timedelta(days=CLOSED_DAYS)
 
-    open_prs = list(every(f"{base}/pulls?state=open", token))
+    # Agents open pull requests through the owner's account; anyone else's (a stranger's, Dependabot's) is not
+    # agent work and gets no nudges.
+    open_prs = [pr for pr in every(f"{base}/pulls?state=open", token) if _login(pr).lower() in authors]
     open_issues = [i for i in every(f"{base}/issues?state=open", token) if "pull_request" not in i]
     # Anyone can open an issue with the Debate form; only the owner's (and so the agents') debates are work.
     debates = [i for i in open_issues if DEBATE_LABEL in _labels(i) and _login(i).lower() in authors]
