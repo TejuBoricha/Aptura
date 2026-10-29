@@ -302,8 +302,8 @@ whose `To:` line is not first, or that lacks `From:`, is reported as unreadable 
 chat and, if it blocks a decision, under "Needs you" through a `Decision:` that needs approval.
 
 **The stall check.** The **Agent status** workflow (`.github/workflows/agent-status.yml`) runs
-`tools/agents/stalls.py`, with no AI model and no secret. It runs whenever the owner's account (every agent) comments,
-reviews, pushes to one of its branches or opens, labels or closes an issue, at most once per 5 minutes, and on GitHub's
+`tools/agents/stalls.py`, with no AI model and no secret. It runs whenever the owner's account (every agent) comments
+or opens, labels or closes an issue, at most once per 5 minutes, and on GitHub's
 15-minute schedule. The schedule alone is not enough: on this repository GitHub did not run it once in the hours after
 it was added. In a stretch with no activity at all, the schedule is the only clock; if it is not running, any agent
 can refresh the page from the Actions tab (Run workflow) or post on a PR. It finds the waits above that passed their

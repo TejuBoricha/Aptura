@@ -301,14 +301,25 @@ new code. All three are fixed and mutation-tested:
 - **Impact:** the stall system did not run at all, so no wait could ever be announced.
 - **Root cause:** GitHub's schedule is best effort, and is known to be delayed by hours or skipped on new
   repositories. The design treated it as the only clock.
-- **Fix:** the workflow also runs on the owner's account's own activity (comments, reviews, pushes to its branches,
-  issues opened, labelled or closed), throttled to one run per 5 minutes by the status page's own timestamp. It
+- **Fix:** the workflow also runs on the owner's account's own activity (comments, and issues opened, labelled or
+  closed), throttled to one run per 5 minutes by the status page's own timestamp. It
   always checks out `main`, and never runs for strangers or forks. The schedule remains as the clock for silent
   stretches.
 - **Acceptance:** `test_event_runs_are_throttled_by_the_status_pages_own_time`; after merge, an agent's comment
   produces a run within a minute.
 - **Remaining limit:** with no activity and no scheduled run, nothing runs. Any agent, or the owner, can start it
   from the Actions tab.
+- **Review of this fix (independent auditor, approve with changes):**
+  - S1: on `pull_request` and `pull_request_review` events GitHub runs the pull request's own copy of the workflow
+    with a write token. The first live run hit this: `unrecognized arguments: --min-gap 5`. Both triggers were
+    dropped, so every run uses main's workflow and main's script. A review alone no longer starts a run; the next
+    comment or the schedule picks it up.
+  - S2: `concurrency` moved to job level, so a stranger's skipped run cannot displace a waiting one.
+  - S4: the workflow notes that it cannot trigger itself only because it posts with `GITHUB_TOKEN`, and that
+    `repository_owner` must change if the repository moves to an organisation.
+  - S3, open as a follow-up: activity runs cannot detect silence. If every agent is quiet while a deadline passes,
+    only the schedule (or a manual run) announces it. Options: an activity run that sees a deadline within about 35
+    minutes waits for it once, or an external clock that calls `workflow_dispatch`.
 
 ## Owner decisions and accepted limits
 
