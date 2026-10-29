@@ -154,6 +154,89 @@ starts an agent in GitHub Actions, exists for both tools. It needs a paid model 
 a token other than `GITHUB_TOKEN` for one bot's comment to trigger the other, because GitHub deliberately does not
 start workflows from `GITHUB_TOKEN` events. Consider it only if this lighter setup still leaves too much relaying.
 
+## When an agent stops
+
+Agents stop without warning: a usage limit, a crash, a restarted cloud session, a closed laptop. The rules below keep
+the work moving without the owner relaying anything, and keep two agents from colliding when one comes back. They
+apply to any tool and model.
+
+### The principles
+
+1. **The owner's word wins, at any time.** "Take over" or "go ahead" means act now, without waiting for a timer.
+   "Wait", "hold" or "stop" means no agent pushes, takes over or merges on that PR until the owner lifts it. No timer
+   or rule here overrides the owner.
+2. **The owner's instructions go on the PR.** The owner usually talks to one agent in its own session, and the other
+   agents cannot see that chat. An agent told something about a PR posts it there before acting on it:
+
+   ```markdown
+   To: all
+   Owner said (in my session, 2026-10-29 09:10 UTC): take over #4 now; OpenCode is out of limit until tonight.
+   From: claude
+   ```
+
+   If two recorded instructions conflict, the newer one wins. If that still leaves the next step unclear, ask the
+   owner; that is a decision, not message-carrying.
+3. **One agent drives a PR at a time.** The first line of the PR description says who and what it waits on, and the
+   driver keeps it current:
+
+   ```markdown
+   Status: driven by opencode — waiting for claude's review (asked 14:05 UTC)
+   ```
+
+   Only the driver pushes to the branch. Only the driver or the approving reviewer merges.
+4. **Re-read before every action.** After any pause (a usage limit, a restart, a long `inbox.py` wait), read the PR's
+   comments, head commit and CI again before pushing, merging or posting. Never act on a plan made before the pause.
+   Push with `--force-with-lease`, which refuses to overwrite commits you have not seen.
+5. **Push after every finished step**, not only at green checkpoints. A small commit on your own branch is cheap;
+   unpushed work is the only work a stop can lose. Each commit still needs its trailers.
+
+### Stopping, and taking over
+
+- **If you know you are about to stop** (a usage-limit warning, the end of a session), push, update the Handoff, and
+  post a pause note. Another agent may take over at once:
+
+  ```markdown
+  To: all
+  Pausing: usage limit, back around 18:00 UTC. Pushed a1b2c3d. Next: the custom-duration dialog (Handoff is current).
+  From: opencode
+  ```
+
+- **If an agent goes silent,** a `To:` message addressed to it that gets no reply and no push from it for **2 hours**
+  lets another agent take over. CI running is not silence, nor is a step the agent announced with an expected finish
+  time, until that time has passed; the 2 hours then count from it. Use
+  `inbox.py --timeout 7200` so a local agent's wait ends when this rule starts to apply.
+- **Taking over** starts with a comment, before any push:
+
+  ```markdown
+  To: all
+  Taking over #4 from opencode: no reply to the 14:05 message for 2 hours. Continuing from the Handoff's "Next".
+  From: claude
+  ```
+
+  Then follow "Taking over someone else's task" above and update the `Status:` line. If two agents post `Taking over`,
+  the earlier comment wins; the other posts that it is backing off and does not push.
+- **Coming back** after a stop, read the PR first. If someone took over, do not push to the branch; post that you are
+  back and offer to review. Changes you never pushed are offered as a suggestion on the PR or a follow-up commit agreed
+  with the driver, not force-pushed over theirs.
+- **A takeover does not skip review.** Code an agent pushes while taking over needs a review by a different model, like
+  any other commit. A reviewer who takes over cannot approve its own new commits; the returning author, or a third
+  model, reviews them.
+
+### Steps only some agents can do
+
+Agents do not all have the same permissions. On this repository, for example, re-running a failed CI job needs Actions
+write access, which the cloud Claude session has and OpenCode's local token does not. When the driver is blocked on
+such a step, it posts `To: all` naming the step, and any agent that has the permission does it. If none does, the
+owner is asked, as for any setting or secret. A step that only one agent can do should be written down here, so the
+others know whom to ask.
+
+### When every agent is stopped
+
+The work waits on GitHub: the branch, the Handoff and the `Status:` line. Nothing is lost that was pushed, and the
+owner has nothing to do. The first agent to come back reads the PR and continues. A third tool (any agent that reads
+this file) can pick it up the same way. Only an agent running in GitHub Actions, which needs a paid model key (see
+"Talking to each other"), would remove this pause.
+
 ## Automatic checks
 
 `tools/agents/pr_checks.py` runs first in the required `verify` CI job on every pull request. It takes a few seconds.

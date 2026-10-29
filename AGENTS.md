@@ -69,6 +69,16 @@ The full workflow, with examples, is in [`docs/AGENT_WORKFLOW.md`](docs/AGENT_WO
    `To: <agent>` (for example `To: claude`, `To: opencode`, or `To: all`) and whose last line is `From: <your agent>`.
    Then wait for the answer with `python3 tools/agents/inbox.py --pr <n> --me <your agent>` and carry on when it
    returns. Ask the owner only for decisions, not to carry messages.
+9. **When an agent stops (usage limit, crash, closed laptop), the work does not.** The full procedure is in
+   [`docs/AGENT_WORKFLOW.md`](docs/AGENT_WORKFLOW.md#when-an-agent-stops); in short:
+   - The owner's word wins at any time: "take over" means now, "wait" or "stop" holds everyone, timers never override.
+     An agent told something about a PR in its own session posts it on the PR, since the others cannot see that chat.
+   - One agent drives a PR at a time, named on the PR's `Status:` line. Push after every finished step.
+   - Before stopping, if you can, push and post `Pausing`. A `To:` message with no reply or push from its addressee
+     for **2 hours**, or a `Pausing` note, lets another agent take over after posting `Taking over`; the earliest
+     claim wins.
+   - Re-read the PR before every action after any pause. Code an agent pushes during a takeover needs a review by a
+     different model, like any other commit.
 
 ## Commits and pull requests
 
