@@ -115,8 +115,8 @@ CI checks that the trailer is present and not empty, not its exact format.
 
 | Change | Required review |
 |---|---|
-| Docs, copy, isolated UI tweak | The gate only |
-| Playback, file operations, Room schema or migrations, privacy invariants, or about 300+ changed lines | The gate plus one review by a **different model** than the author, recorded in the PR |
+| Security (`.github/` workflows, tokens and permissions, `tools/agents/` checks), privacy invariants, Room schema or migrations | The gate plus one review by a **different model** than the author, recorded in the PR |
+| Everything else, whatever its size | The gate and green CI only |
 | Anything | Never merge on a review alone while a test fails |
 
 If the reviewer you asked is away, use the fallback ladder in "Reviews when the reviewer is away" below rather than

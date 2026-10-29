@@ -152,9 +152,10 @@ overrides have their own markers; look them up in [the workflow](docs/AGENT_WORK
 ## Review
 
 - Every change passes the gate and the review rules in `.agents/rules/qa-and-code-review.md`.
-- Changes to playback, file operations (SAF, move, delete, rename), Room schema or migrations, privacy invariants, or
-  more than about 300 changed lines also get **one independent review by a different model** than the author. Record
-  the reviewer model in the PR. Docs, copy and isolated UI tweaks do not need it. If the reviewer asked is away, use
+- Only three kinds of change also get **one independent review by a different model** than the author: security
+  (workflows under `.github/`, tokens and permissions, the coordination checks in `tools/agents/`), privacy
+  invariants, and the Room schema or migrations. Record the reviewer model in the PR. Everything else merges on the
+  gate and green CI alone, whatever its size (the owner's instruction, 2026-10-29). If the reviewer asked is away, use
   the fallback ladder (rule 10) rather than wait.
 - A review never overrides a failing test. A defect that escaped gets a regression test in the fix.
 - **Prove it fails when it should.** For any check, gate, script or error handling, run each failure path (network
