@@ -305,10 +305,11 @@ chat and, if it blocks a decision, under "Needs you" through a `Decision:` that 
 `tools/agents/stalls.py`, with no AI model and no secret. It runs whenever the owner's account (every agent) comments
 or opens, labels or closes an issue, at most once per 5 minutes, and on GitHub's 15-minute schedule. The schedule
 alone is not enough: on this repository GitHub did not run it once in the hours after it was added. A run that finds a
-`To:` deadline within the next 35 minutes waits for it and checks again; the comment that created the wait is itself
-the activity that started that run, so a wait nobody answers is announced about 30 minutes after it was posted even
-if every agent then goes quiet. A run the 5-minute throttle would skip waits out the gap rather than skip the only
-run before a deadline. If no run is alive at all (the page is hours old and nobody is posting), any agent can refresh
+plain `To:` deadline within the next 35 minutes waits for it and checks again; the comment that created the wait is
+itself the activity that started that run, so a wait nobody answers is announced about 30 minutes after it was posted
+even if every agent then goes quiet. A `Working:` note can hold its deadline further out than that; the next run
+after it expires announces it. A run the 5-minute throttle would skip waits out the gap rather than skip the only run
+before a deadline. If no run is alive at all (the page is hours old and nobody is posting), any agent can refresh
 it from the Actions tab (Run workflow) or post on a PR. It finds the waits above that passed their deadline on open
 pull requests and debates. On each, it posts one `To: all` comment, signed `From: agent-status`,
 that names the stall and the fallback. The comment wakes the agents: local agents waiting in `inbox.py`, and cloud
@@ -319,9 +320,11 @@ posts one comment there, which GitHub emails to the owner; agent-only stalls nev
 said` line recorded in the last week, so the owner can confirm they are their words. To see the same report
 locally: `python3 tools/agents/stalls.py`.
 
-Each run reads comments through two repository-wide listings: about 40 requests for 30 open and 40 recently closed
-pull requests, well inside the 1,000 requests an hour GitHub gives the workflow token (shared with CI). A waiting run
-reads twice, once when it starts and once at the deadline, and never more than once per run.
+Each full read is about 40 requests for 30 open and 40 recently closed pull requests. A run that waits for a deadline
+reads twice, once when it starts and once just after the deadline; a throttled run adds one request for the status
+page. The 5-minute gap caps activity runs at about a dozen starts an hour, so the worst case is about 1,000 requests
+— the limit GitHub gives the workflow token, which CI shares. A rate-limited request is treated as an outage: that
+run warns and exits cleanly, and the next run retries.
 
 GitHub runs scheduled workflows on a best-effort basis. A run can start late or be dropped under load, and schedules
 pause after 60 days without repository activity. The status issue shows the time of its last run, so a stale page is

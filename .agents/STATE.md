@@ -19,8 +19,9 @@ PR's Verification section and in CI, not here, so most pull requests never need 
 - **Coordination status page:** the open issue labelled
   [`agent-status`](https://github.com/TejuBoricha/Aptura/issues?q=is%3Aissue+is%3Aopen+label%3Aagent-status), kept
   current by the Agent status workflow whenever the owner's account comments or opens, labels or closes an issue,
-  and on a 15-minute schedule that GitHub runs best effort. A run that sees a deadline within 35 minutes waits for
-  it, so a quiet stretch is still announced; it opens with what needs the owner.
+  and on a 15-minute schedule that GitHub runs best effort. A run that sees a plain `To:` deadline within 35 minutes
+  waits for it, so a quiet stretch is still announced; a longer `Working:` note is seen by the next run after it
+  expires. It opens with what needs the owner.
 
 ## Quality gate
 

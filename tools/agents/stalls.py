@@ -809,7 +809,7 @@ def explain(body: str) -> int:
     return 1 if problem else 0
 
 
-def run_once(args, token: str | None) -> tuple[int, list[Item], datetime]:
+def run_once(args, token: str | None, summary_mode: str = "a") -> tuple[int, list[Item], datetime]:
     """One full pass: fetch, find, report, and publish with --nudge. Returns the exit code and what it read."""
     now = utcnow()
     items = fetch(args.repo, token, args.trust, now=now)
@@ -818,7 +818,7 @@ def run_once(args, token: str | None) -> tuple[int, list[Item], datetime]:
     text = report(items, found, now)
     print(text)
     if summary := os.environ.get("GITHUB_STEP_SUMMARY"):
-        with open(summary, "a", encoding="utf-8") as handle:
+        with open(summary, summary_mode, encoding="utf-8") as handle:
             handle.write(text)
     if args.nudge:
         posted, failures = publish(args.repo, token, items, found, text)
@@ -859,6 +859,10 @@ def main() -> int:
         return 2
     window = timedelta(minutes=args.minutes)
     waiting = args.wait_for_deadline and args.nudge  # a local report has nobody to wake, so it never sleeps
+    if waiting and args.wait_max < args.minutes:
+        print(f"::error::--wait-max ({args.wait_max:g}) must be at least --minutes ({args.minutes:g}): a plain To: "
+              f"deadline falls due {args.minutes:g} minutes after the message, so a shorter wait would miss it.")
+        return 2
     code = 0
     try:
         if args.min_gap:
@@ -884,7 +888,7 @@ def main() -> int:
         minutes = pause.total_seconds() / 60
         print(f"Next deadline at {deadline:%H:%M} UTC ({minutes:.0f} min away); waiting for it, then checking again.")
         time.sleep(pause.total_seconds())
-        code, _, _ = run_once(args, token)
+        code, _, _ = run_once(args, token, summary_mode="w")  # the final report replaces the pre-wait one
     except (urllib.error.URLError, TimeoutError) as error:
         if not pr_checks.is_outage(error):
             print(f"::error::Agent status could not use the GitHub API ({error}). Check the workflow's permissions.")

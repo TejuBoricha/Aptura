@@ -2,6 +2,7 @@
 
 import io
 import re
+import tempfile
 import unittest
 from pathlib import Path
 import unittest.mock
@@ -897,7 +898,7 @@ class MainFailureModeTest(unittest.TestCase):
 class DeadlineWaitTest(unittest.TestCase):
     """Issue #14: a run that sees a deadline soon waits for it, so a deadline that passes in silence is announced."""
 
-    def run_waiting_main(self, argv, clock, fetch, page=()):
+    def run_waiting_main(self, argv, clock, fetch, page=(), env=None):
         slept, sent = [], []
 
         def sleep(seconds):
@@ -913,7 +914,7 @@ class DeadlineWaitTest(unittest.TestCase):
                 unittest.mock.patch.object(stalls, "_send", send), \
                 unittest.mock.patch.object(stalls, "every", lambda url, token: iter(page)), \
                 unittest.mock.patch.object(stalls.sys, "argv", ["stalls.py", *argv]), \
-                unittest.mock.patch.dict(stalls.os.environ, {"GITHUB_TOKEN": "t"}, clear=True), \
+                unittest.mock.patch.dict(stalls.os.environ, {"GITHUB_TOKEN": "t", **(env or {})}, clear=True), \
                 unittest.mock.patch.object(stalls.sys, "stdout", io.StringIO()):
             return stalls.main(), slept, sent
 
@@ -933,6 +934,17 @@ class DeadlineWaitTest(unittest.TestCase):
         self.assertEqual(len(nudges), 1)
         self.assertIn("Overdue", nudges[0])
 
+    def test_the_second_read_replaces_the_job_summary(self):
+        clock = [at(5)]
+        with tempfile.TemporaryDirectory() as tmp:
+            summary = Path(tmp) / "summary.md"
+            code, slept, _ = self.run_waiting_main(["--nudge", "--wait-for-deadline"], clock,
+                                                   lambda repo, token, extra=None, now=None: [item([msg(ASK)])],
+                                                   env={"GITHUB_STEP_SUMMARY": str(summary)})
+            text = summary.read_text(encoding="utf-8")
+        self.assertEqual((code, len(slept)), (0, 1))
+        self.assertEqual(text.count("### Agent status"), 1, "the post-wait report replaces the pre-wait one")
+
     def test_an_answer_during_the_wait_suppresses_the_nudge(self):
         # The second read is fresh on purpose: an answer posted while the run sleeps must not be nudged over.
         clock = [at(5)]
@@ -947,11 +959,19 @@ class DeadlineWaitTest(unittest.TestCase):
         self.assertEqual((code, len(fetches), len(slept)), (0, 2, 1))
         self.assertEqual([p for _, url, p in sent if url.endswith("/issues/9/comments")], [])
 
-    def test_does_not_hold_a_run_when_no_deadline_is_near(self):
+    def test_a_run_with_no_deadline_does_not_sleep(self):
         clock = [at(0)]
-        code, slept, _ = self.run_waiting_main(["--wait-for-deadline"], clock,
+        code, slept, _ = self.run_waiting_main(["--nudge", "--wait-for-deadline"], clock,
                                                lambda repo, token, extra=None, now=None: [])
         self.assertEqual((code, slept), (0, []))
+
+    def test_refuses_a_wait_shorter_than_the_answer_window(self):
+        # A plain To: wait falls due --minutes after the message; a shorter --wait-max would never reach it.
+        clock = [at(5)]
+        code, slept, _ = self.run_waiting_main(["--nudge", "--wait-for-deadline", "--wait-max", "10"],
+                                               clock,
+                                               lambda repo, token, extra=None, now=None: [item([msg(ASK)])])
+        self.assertEqual((code, slept), (2, []))
 
     def test_waits_once_per_run_and_only_with_the_flag(self):
         clock = [at(5)]
