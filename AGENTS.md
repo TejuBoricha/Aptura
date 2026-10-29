@@ -73,6 +73,9 @@ The full workflow, with examples, is in [`docs/AGENT_WORKFLOW.md`](docs/AGENT_WO
    [`docs/AGENT_WORKFLOW.md`](docs/AGENT_WORKFLOW.md#when-an-agent-stops); in short:
    - The owner's word wins at any time: "take over" means now, "wait" or "stop" holds everyone, timers never override.
      An agent told something about a PR in its own session posts it on the PR, since the others cannot see that chat.
+     When the owner tells an agent to skip a step, it records an `Override:` with the owner's words quoted, the
+     reason, the scope and the follow-up before acting; the other agents accept it and do the follow-up
+     ([details](docs/AGENT_WORKFLOW.md#when-the-owner-overrides-the-process)).
    - One agent drives a PR at a time, named on the PR's `Status:` line. Push after every finished step.
    - Before stopping, if you can, push and post `Pausing`. A `To:` message with no reply from its addressee for
      **30 minutes**, or a `Pausing` note, lets another agent take over after posting `Taking over #<n> from <agent>`;
@@ -117,6 +120,9 @@ The full workflow, with examples, is in [`docs/AGENT_WORKFLOW.md`](docs/AGENT_WO
      every must-fix finding is fixed and re-checked by a different model from the author's;
   3. no `To:` message on the PR is waiting for an answer (answered, `Withdrawn:`, or taken over), and there is no
      `Hold:` and no reviewer has asked to hold.
+
+  An approving review ends with `No reply needed`, since its author merges rather than answers. An `Override:`
+  recorded on the PR (rule 9) stands in for the step it names.
 
   Merge with **rebase** and pass the head commit you checked (`expectedHeadSha`, or `gh pr merge --match-head-commit`),
   so a push that lands in between makes the merge fail instead of merging unchecked code. Then post `To: all` on the

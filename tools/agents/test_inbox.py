@@ -21,6 +21,10 @@ class AddressingTest(unittest.TestCase):
         self.assertEqual(recipients("Review done.\nTo: opencode"), set())
         self.assertEqual(recipients(""), set())
 
+    def test_names_are_the_first_word_so_model_and_tool_suffixes_do_not_matter(self):
+        self.assertEqual(sender("To: claude\nFrom: OpenCode (DeepSeek V4)"), "opencode")
+        self.assertEqual(recipients("To: Claude Code, gemini-cli (2.5 Pro)"), {"claude", "gemini-cli"})
+
     def test_sender_is_the_last_from_line(self):
         self.assertEqual(sender("To: opencode\nquote: From: someone\n...\nFrom: Claude"), "claude")
         self.assertIsNone(sender("To: opencode\nno signature"))
@@ -105,6 +109,13 @@ class WaitLoopTest(unittest.TestCase):
         mine = msg("To: claude\nPlease review.\nFrom: opencode", minutes=1)
         fast_reply = msg("To: opencode\nApproved.\nFrom: claude", minutes=2)
         self.assertEqual(self.run_main([[mine, fast_reply]], [{"state": "open"}], since=None, timeout="0"), 0)
+
+    def test_by_default_it_reads_from_my_last_question_not_from_a_later_status_note(self):
+        # Round-2 finding N7: a status note posted after the reply must not hide it.
+        question = msg("To: claude\nPlease review.\nFrom: opencode", minutes=1)
+        reply = msg("To: opencode\nTwo findings.\nFrom: claude", minutes=2)
+        status = msg("To: all\nHandoff updated.\nNo reply needed.\nFrom: opencode", minutes=3)
+        self.assertEqual(self.run_main([[question, reply, status]], [{"state": "open"}], since=None, timeout="0"), 0)
 
     def test_it_waits_on_a_debate_issue_without_asking_for_pull_request_data(self):
         reply = msg("To: opencode\nCritique: agree.\nFrom: claude")

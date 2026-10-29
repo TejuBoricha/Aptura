@@ -143,6 +143,8 @@ From: claude
 
 - **First line** `To:` names one or more agents, comma-separated, or `all`.
 - **Last line** `From:` names the sender. Do not use `@name`: it notifies real GitHub users with those names.
+- **A name is its first word**, so `From: OpenCode (DeepSeek V4)` and `To: Claude Code` mean opencode and claude.
+  Agents use one stable name each: `claude`, `opencode`, `codex`, `gemini`, `cursor`, `copilot`.
 - **Answer on the PR, not only with a push.** A wait ends when the addressee replies to the sender (or to `all`). A
   push alone does not answer anything; say what the push did.
 - **Waiting for a reply:** run `python3 tools/agents/inbox.py --pr <n> --me <your agent>`. `<n>` can be a pull request
@@ -272,12 +274,16 @@ quoted (`>`) text:
 
 | Line | Meaning |
 |---|---|
-| `Working: <what>, done by <time>` | I am on it. Restarts the deadline; does not end the wait. |
+| `Working: <what>, done by <HH:MM> UTC` | I am on it. Holds the wait until that time plus 30 minutes (2 hours if no time is given); does not end it. Counts however it is addressed. |
 | `Pausing: <why>, back around <time>` | I am stopping. Anyone may take over now. |
-| `No reply needed` | This message is not a wait (a merge note, an approval with nothing left to do). Any other addressed message is a wait, so a forgotten one is caught rather than missed. |
+| `No reply needed` | This message is not a wait. Put it on merge notes, status notes, and on an approving review, whose author merges rather than answers. Any other addressed message is a wait, so a forgotten one is caught rather than missed. |
 | `Withdrawn: <agent>` | The sender no longer waits on that agent, for example after using a fallback reviewer. |
 | `Taking over #<n> from <agent>: <why>` | Ends the waits on that agent, when another agent posts it. |
 | `Hold: <reason>` / `Hold lifted: <reason>` | The owner's "wait" and "go", recorded by the agent that heard it. While a hold stands, no deadline on that PR or debate runs out. A hold older than a day is listed for the owner. |
+| `Override: <step> on #<n>` with `Follow-up: <what>` | The owner told an agent to skip a step. Listed in the status issue until `Follow-up done:` (see "When the owner overrides the process"). |
+
+`To: owner` is never a wait: the owner answers in chat, on no clock. A question for the owner goes in the agent's
+chat and, if it blocks a decision, under "Needs you" through a `Decision:` that needs approval.
 
 **The stall check.** The **Agent status** workflow (`.github/workflows/agent-status.yml`) runs
 `tools/agents/stalls.py` every 15 minutes, with no AI model and no secret. It finds the waits above that passed their
@@ -296,6 +302,45 @@ repository anyone else can comment, so `inbox.py` and the stall check ignore eve
 is `github-actions[bot]`, and only for the stall check's own nudges, which carry its marker. A stranger can't address
 an agent, fake a `Hold:`, or close a wait. Debates opened by anyone but the owner are not work. Titles shown in the
 status issue are escaped, so a title can't mention people or inject links.
+
+## When the owner overrides the process
+
+The owner may tell any agent to skip any step: "skip the review and merge it now, it's urgent", "don't wait for
+OpenCode", "decide without a debate". The owner's word wins, and these rules make an override visible, scoped and
+followed up, so the other agents know it was intended and nothing skipped is forgotten.
+
+1. **Record it before acting,** on the PR or issue it concerns, quoting the owner exactly:
+
+   ```markdown
+   To: all
+   Owner said (in my session, 2026-10-29 10:15 UTC): "skip the review and merge it now, it's urgent"
+   Override: independent review on #12
+   Reason: urgent fix (owner's priority)
+   Scope: this PR only
+   Follow-up: post-merge review by opencode
+   No reply needed.
+   From: claude
+   ```
+
+   - **The owner's words are quoted, not paraphrased.** Nobody can stretch an override beyond what was said.
+   - **`Override:` names the step skipped:** a review, a deadline, a debate's critiques, hot-file order, a hold.
+   - **`Scope:` is one PR, issue or task.** An override never becomes a standing rule unless the owner says "from
+     now on"; a standing rule is then written into this file in its own PR.
+   - **`Follow-up:` says what replaces the skipped step later.** A skipped review becomes a post-merge review, and
+     skipped critiques become critiques of the decision. If nothing replaces it, say "none, by the owner's
+     decision".
+2. **The other agents accept it.** They do not undo, block or re-argue it. If they see a concrete risk, they post it
+   once, with evidence, on the same PR, and carry on. An override is not a question to the owner.
+3. **The follow-up is done** by whoever it names, who then posts `Follow-up done: <result>`. Findings from a
+   post-merge review become a fix PR first in that agent's queue. Until then the status issue lists the override
+   under "Overrides in effect".
+4. **What an override cannot do.**
+   - The checks GitHub enforces (the ruleset's required checks, branch protection) can't be skipped by an agent. Only
+     the owner can do that, in GitHub's settings.
+   - The product invariants (no network, no telemetry, scoped storage, no bundled video decoder) can still be
+     changed by the owner, but that is a product decision. It is recorded in the DEC register in the same PR, and
+     the invariant tests are changed openly rather than skipped.
+   - Only the owner's account can record an override, so a stranger's comment cannot fake one.
 
 ## Reviews when the reviewer is away
 
@@ -360,7 +405,8 @@ and decided by evidence, never by vote.
    than the proposer's each post a comment with a line starting `Critique:` that names the critic's model. At least
    one should be from a different vendor.
    - **Write your critique before reading the other critiques.** Independence is the point.
-   - End with a verdict: agree, agree with changes, or object.
+   - End with a line `Verdict: agree`, `Verdict: agree with changes` or `Verdict: object`. A critique without a clear
+     verdict counts as an objection.
    - A critique that agrees still names at least one risk or missing scenario, so agreement is never a rubber stamp.
    - One model fills one critic slot, and the proposer cannot critique its own proposal.
    - Critiques are due 2 hours after the proposal; after that, use the fallback ladder above.
@@ -370,7 +416,8 @@ and decided by evidence, never by vote.
    - It states the revised plan.
    - It ends with a three-line summary of where the debate stands, so nobody (including the owner) has to read the
      whole thread.
-5. **Decision.** Only the proposer, or an agent that took the debate over, posts a line starting `Decision:` with:
+5. **Decision.** Only the proposer, or an agent that took the debate over, posts a line starting `Decision:`, and only
+   after two critiques (unless the owner overrode that step). It contains:
    - the plan;
    - the task list;
    - what was rejected, and why;
@@ -383,8 +430,9 @@ and decided by evidence, never by vote.
    objection still stands after that, the proposer sends the owner a one-screen summary: the options, the strongest
    argument for each, and a recommendation. The owner picks, and that is final. The stall check flags a debate that
    passes its time box or its rounds, and proposals or critiques over their word limits.
-7. **Approval.** The owner answers in any agent's chat ("approve", or a choice). That agent posts it on the issue as
-   `Owner said …`. Until then the decision is listed under "Needs you" in the status issue.
+7. **Approval.** The owner answers in any agent's chat ("approve", "reject", or a choice). That agent posts it on the
+   issue on a line starting `Owner said`, with the owner's words quoted. Until then the decision is listed under
+   "Needs you" in the status issue. A rejection sends it back to the proposer.
 8. **Build.** Each task in the decision becomes an issue or a checklist item. Agents claim and merge them under the
    usual rules. The proposer records a durable decision in the DEC register
    ([`spec/17`](../spec/17_RISKS_ASSUMPTIONS_AND_DECISIONS.md)) in the first task's PR.

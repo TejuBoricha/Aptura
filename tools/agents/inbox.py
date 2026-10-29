@@ -94,23 +94,31 @@ def every(url: str, token: str | None, max_pages: int = 100):
     raise RuntimeError(f"more than {max_pages * 100} entries at {url}; refusing to read a truncated thread")
 
 
+def agent_name(text: str) -> str | None:
+    """The agent's name is the first word: `OpenCode (DeepSeek V4)` and `Claude Code` are opencode and claude."""
+    match = re.match(r"\s*([\w-]+)", text or "")
+    return match.group(1).lower() if match else None
+
+
 def recipients(body: str) -> set[str]:
     """Names on the first non-empty line `To: a, b`; empty when the message is not addressed."""
     for line in (body or "").splitlines():
         if line.strip():
             match = TO_LINE.match(line)
-            return {n.strip().lower() for n in match.group(1).split(",") if n.strip()} if match else set()
+            if not match:
+                return set()
+            return {name for part in match.group(1).split(",") if (name := agent_name(part))}
     return set()
 
 
 def sender(body: str) -> str | None:
     matches = FROM_LINE.findall(body or "")
-    return matches[-1].strip().lower() if matches else None
+    return agent_name(matches[-1]) if matches else None
 
 
 def for_me(messages: list[Message], me: str, since: datetime) -> list[Message]:
     """New messages addressed to `me` (or to all), excluding the ones `me` sent."""
-    me = me.lower()
+    me = agent_name(me) or ""
     picked = [m for m in messages
               if m.created_at > since and (me in recipients(m.body) or "all" in recipients(m.body))
               and sender(m.body) != me]
@@ -166,8 +174,11 @@ def main() -> int:
             state = pr_checks._get(f"{pr_checks.API}/repos/{args.repo}/issues/{args.pr}", token)
             messages = trusted(fetch_messages(args.repo, args.pr, token, "pull_request" in state), authors)
             if since is None:
-                mine = [m.created_at for m in messages if sender(m.body) == args.me.lower()]
-                since = max(mine, default=started)
+                # From the last question this agent asked (a message to someone other than all), so a reply that
+                # arrived before the wait started is not lost, even if a status note was posted after it.
+                me = agent_name(args.me)
+                asked = [m.created_at for m in messages if sender(m.body) == me and recipients(m.body) - {"all"}]
+                since = max(asked, default=started)
                 print(f"Reading messages after {since:%Y-%m-%dT%H:%M:%SZ}.", flush=True)
             new = for_me(messages, args.me, since)
         except Exception as error:  # A network blip should not end a long wait; report it and keep going.
