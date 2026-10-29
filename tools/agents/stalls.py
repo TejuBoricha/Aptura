@@ -659,6 +659,12 @@ def publish(repo: str, token: str, items: list[Item], found: Findings, text: str
     body = text if len(text) + len(footer) <= BODY_LIMIT else text[:BODY_LIMIT - len(footer) - 40] + "\n\n(cut short)\n"
     if status:
         write("PATCH", f"{base}/issues/{status[0]['number']}", {"body": body + footer})
+        # Editing the page notifies nobody. A new "Needs you" entry gets one comment, which GitHub sends the owner;
+        # agent-only stalls never do, so the owner's notifications are only the things only the owner can settle.
+        new = [n for n in found.needs_owner if n not in (status[0].get("body") or "")]
+        if new:
+            write("POST", f"{base}/issues/{status[0]['number']}/comments",
+                  {"body": "The agents need you for:\n\n" + "\n".join(f"- {n}" for n in new)})
     else:
         write("POST", f"{base}/issues", {"title": "Agent status", "body": body + footer, "labels": [STATUS_LABEL]})
     return posted, failures

@@ -626,6 +626,25 @@ class PublishTest(unittest.TestCase):
         self.assertIn(("POST", "https://api.github.com/repos/o/r/issues/9/labels"), sent)
         self.assertIn(("DELETE", "https://api.github.com/repos/o/r/issues/4/labels/follow-up"), sent)
 
+    def test_a_new_needs_you_entry_notifies_the_owner_once(self):
+        # Audit U2: editing the status page sends no notification.
+        found = stalls.Findings(needs_owner=["[#20](u) decision waiting for your approval: v"])
+        sent = []
+        def send(method, url, token, payload):
+            sent.append((method, url, payload))
+        with unittest.mock.patch.object(stalls, "_send", send), \
+                unittest.mock.patch.object(stalls, "every", lambda url, token: iter([{"number": 50, "body": "old"}])):
+            stalls.publish("o/r", "token", [], found, "report")
+        comments = [p for m, u, p in sent if u.endswith("/issues/50/comments")]
+        self.assertEqual(len(comments), 1)
+        self.assertIn("decision waiting for your approval", comments[0]["body"])
+        sent.clear()
+        already = {"number": 50, "body": "- [#20](u) decision waiting for your approval: v"}
+        with unittest.mock.patch.object(stalls, "_send", send), \
+                unittest.mock.patch.object(stalls, "every", lambda url, token: iter([already])):
+            stalls.publish("o/r", "token", [], found, "report")
+        self.assertFalse([u for m, u, p in sent if u.endswith("/comments")])
+
     def test_creates_the_status_issue_when_there_is_none(self):
         _, sent, _ = self.publish([], [])
         self.assertEqual(sent, [("POST", "https://api.github.com/repos/o/r/issues")])

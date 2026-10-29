@@ -4,7 +4,8 @@
 > change makes them false; do not append contradicting notes. History lives in [`MEMORY.md`](MEMORY.md); decisions in
 > [`spec/17`](../spec/17_RISKS_ASSUMPTIONS_AND_DECISIONS.md) (DEC) and [`spec/08`](../spec/08_TECHNOLOGY_EVALUATION_AND_ADRS.md) (ADR).
 
-**Last verified against:** `main` @ `03faf29`, PR #4's tree as merged (2026-10-29)
+Only facts that stay true between pull requests belong here. Test counts and the last verified commit live in each
+PR's Verification section and in CI, not here, so most pull requests never need to touch this hot file.
 
 ## Project
 
@@ -14,7 +15,10 @@
 - **Team:** one owner (Tejas) and several AI agents working in parallel: Claude Code (cloud), OpenCode (various models,
   including DeepSeek), Antigravity. Coordination rules: [`AGENTS.md`](../AGENTS.md),
   [`docs/AGENT_WORKFLOW.md`](../docs/AGENT_WORKFLOW.md). This replaces the "solo AI developer" model in OD-4.
-- **Owner's machine:** Windows, PowerShell. Use `;` not `&&` in commands meant for it.
+- **Owner's machine:** Windows, PowerShell. Use `;` not `&&` in commands meant for it. Python is `py -3` there.
+- **Coordination status page:** the open issue labelled
+  [`agent-status`](https://github.com/TejuBoricha/Aptura/issues?q=is%3Aissue+is%3Aopen+label%3Aagent-status), kept
+  current every 15 minutes by the Agent status workflow; it opens with what needs the owner.
 
 ## Quality gate
 
@@ -22,8 +26,6 @@
   release + `verifyReleaseApk`; `connected` = instrumented tests on an API 35 tablet emulator).
 - The gate also runs the checker's Python tests (`python -m unittest discover -s tools/agents`) when Python 3 is
   installed; CI always runs them.
-- Last full result: 682 tests / 101 suites, 0 failures, 0 errors, 78 opt-in gallery tests skipped; lint 0; release
-  invariants clean (branch `agent/opencode/sleep-timer-and-review-fixes`, rebased on `main` @ `0d99e1f`).
 - `gradle/actions/setup-gradle` is pinned to **v5 on purpose** (v6 pulls a proprietary build-cache component).
 
 ## Open work (highest first)
