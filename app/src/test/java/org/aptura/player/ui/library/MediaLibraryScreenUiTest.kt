@@ -237,8 +237,11 @@ class MediaLibraryScreenUiTest {
         assertEquals(0, folderSelectionCount)
     }
 
+    // A tall window: the sheet is four sections and does not scroll under Robolectric. What the sheet reports is covered
+    // by LibraryViewSheetTest; a click inside a sheet's own window does not settle under Robolectric.
+    @Config(qualifiers = "w411dp-h1400dp")
     @Test
-    fun mediaLibraryScreen_displaysSortButton_andTriggersSortMenu() {
+    fun theViewOptionsButton_opensTheSheetWithEveryChoice() {
         composeTestRule.setContent {
             ApturaTheme {
                 MediaLibraryScreen(
@@ -258,8 +261,14 @@ class MediaLibraryScreenUiTest {
             }
         }
 
-        // Verify sort button is displayed with correct content description
-        composeTestRule.onNodeWithContentDescription("Sort library").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("View options").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("View options").performClick()
+        composeTestRule.waitForIdle()
+
+        // Layout, size, details and sort all live in this one sheet.
+        listOf("Layout", "Size", "Details", "Sort by").forEach {
+            composeTestRule.onNodeWithText(it, ignoreCase = true).assertIsDisplayed()
+        }
     }
 
     @Test

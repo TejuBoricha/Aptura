@@ -34,7 +34,9 @@ class MediaLibraryViewModel(
     private val computeDispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val searchDebounceMs: Long = SEARCH_DEBOUNCE_MS,
     /** Emits true while a library scan is queued/running. Null keeps the legacy "enqueue only" behaviour. */
-    private val scanActivity: kotlinx.coroutines.flow.Flow<Boolean>? = null
+    private val scanActivity: kotlinx.coroutines.flow.Flow<Boolean>? = null,
+    /** The sort the user picked in an earlier session, or null for the library's own choice by folder. */
+    initialSort: LibrarySortOrder? = null
 ) : ViewModel() {
 
     companion object {
@@ -51,7 +53,7 @@ class MediaLibraryViewModel(
     val selectedFolder: StateFlow<String?> = _selectedFolder
 
     /** The sort the user picked; null = automatic (newest first overall, episode order inside a folder). */
-    private val _chosenSort = MutableStateFlow<LibrarySortOrder?>(null)
+    private val _chosenSort = MutableStateFlow(initialSort)
 
     private val _isRefreshing = MutableStateFlow(false)
 
@@ -145,7 +147,8 @@ class MediaLibraryViewModel(
                     libraryVideoCount = allVideos.size,
                     libraryDurationMs = allVideos.sumOf { it.durationMs },
                     librarySizeBytes = allVideos.sumOf { it.sizeBytes },
-                    folderCounts = allVideos.groupingBy { it.folderPath }.eachCount()
+                    folderCounts = allVideos.groupingBy { it.folderPath }.eachCount(),
+                    folderSummaries = allVideos.summarizeFolders()
                 )
             }
         }
@@ -264,6 +267,19 @@ class MediaLibraryViewModel(
             }
         }
     }
+
+    private fun List<DomainMediaItem>.summarizeFolders(): Map<String, FolderSummary> =
+        groupBy { it.folderPath }.mapValues { (_, items) ->
+            // The newest addition that can still be read stands for the folder; a missing file has no frame to show.
+            val cover = items.filterNot { it.isMissing }.maxByOrNull { it.dateAddedSec }
+            FolderSummary(
+                videoCount = items.size,
+                totalBytes = items.sumOf { it.sizeBytes },
+                totalDurationMs = items.sumOf { it.durationMs },
+                coverUri = cover?.uri,
+                coverDateModifiedSec = cover?.dateModifiedSec ?: 0L
+            )
+        }
 
     private fun DomainMediaItem.toCardUiModel(): VideoCardUiModel {
         val progress = MediaFormatters.calculateProgressFraction(playbackPositionMs, durationMs)

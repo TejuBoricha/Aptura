@@ -63,6 +63,8 @@ import org.aptura.player.ui.library.DeleteFromDeviceDialog
 import org.aptura.player.ui.library.HideFromLibraryDialog
 import org.aptura.player.ui.library.RemoveMissingVideoDialog
 import org.aptura.player.ui.library.MediaDetailsContent
+import org.aptura.player.ui.library.LibrarySortOrder
+import org.aptura.player.ui.library.LibraryViewPrefs
 import org.aptura.player.ui.library.MediaLibraryScreen
 import org.aptura.player.ui.library.MediaLibraryUiState
 import org.aptura.player.ui.library.MediaLibraryViewModel
@@ -227,7 +229,9 @@ private fun AppNavHost(
     val libraryViewModel: MediaLibraryViewModel = viewModel {
         MediaLibraryViewModel(
             mediaRepository,
-            scanActivity = MediaScanScheduler.isScanning(context.applicationContext)
+            scanActivity = MediaScanScheduler.isScanning(context.applicationContext),
+            // The sort the user last picked, so the library opens the way it was left.
+            initialSort = LibrarySortOrder.entries.firstOrNull { it.name == initialSettings.librarySortName }
         )
     }
 
@@ -413,7 +417,25 @@ private fun AppNavHost(
                     },
                     onSearchQueryChanged = libraryViewModel::onSearchQueryChanged,
                     onFolderSelected = libraryViewModel::onFolderSelected,
-                    onSortOrderChanged = libraryViewModel::onSortOrderChanged,
+                    onSortOrderChanged = { order ->
+                        libraryViewModel.onSortOrderChanged(order)
+                        coroutineScope.launch { settingsRepository.updateLibrarySortName(order.name) }
+                    },
+                    viewPrefs = LibraryViewPrefs(
+                        layout = settings.libraryLayout,
+                        density = settings.libraryDensity,
+                        detail = settings.libraryDetail,
+                        folderLayout = settings.folderLayout
+                    ),
+                    onViewPrefsChanged = { new ->
+                        // Only what changed is written, so a tap on a layout button is one small edit.
+                        coroutineScope.launch {
+                            if (new.layout != settings.libraryLayout) settingsRepository.updateLibraryLayout(new.layout)
+                            if (new.density != settings.libraryDensity) settingsRepository.updateLibraryDensity(new.density)
+                            if (new.detail != settings.libraryDetail) settingsRepository.updateLibraryDetail(new.detail)
+                            if (new.folderLayout != settings.folderLayout) settingsRepository.updateFolderLayout(new.folderLayout)
+                        }
+                    },
                     onRefresh = {
                         libraryViewModel.onRefresh {
                             MediaScanScheduler.scheduleImmediateScan(context)

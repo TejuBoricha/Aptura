@@ -15,6 +15,10 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import org.aptura.player.domain.model.AudioEffectsSettings
 import org.aptura.player.domain.model.EqualizerPreset
+import org.aptura.player.domain.model.FolderLayout
+import org.aptura.player.domain.model.LibraryDensity
+import org.aptura.player.domain.model.LibraryDetail
+import org.aptura.player.domain.model.LibraryLayout
 import org.aptura.player.domain.repository.AudioEffectsStore
 import org.aptura.player.theme.AccentColor
 import org.aptura.player.theme.ThemeMode
@@ -24,6 +28,10 @@ import kotlinx.coroutines.flow.map
 import java.io.IOException
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "aptura_settings")
+
+/** A stored enum by name; a missing or unknown name (a downgrade, a hand-edited file) falls back to [default]. */
+private inline fun <reified E : Enum<E>> Preferences.enumOr(key: Preferences.Key<String>, default: E): E =
+    this[key]?.let { name -> enumValues<E>().firstOrNull { it.name == name } } ?: default
 
 @Immutable
 data class ApturaSettings(
@@ -42,7 +50,13 @@ data class ApturaSettings(
     val subtitleBackgroundEnabled: Boolean = false,
     val defaultDecoderStrategy: Int = 0, // 0: Auto, 1: Hardware, 2: Software
     val persistedSafFolders: Set<String> = emptySet(),
-    val audioEffects: AudioEffectsSettings = AudioEffectsSettings()
+    val audioEffects: AudioEffectsSettings = AudioEffectsSettings(),
+    val libraryLayout: LibraryLayout = LibraryLayout.GRID,
+    val libraryDensity: LibraryDensity = LibraryDensity.COMFORTABLE,
+    val libraryDetail: LibraryDetail = LibraryDetail.STANDARD,
+    val folderLayout: FolderLayout = FolderLayout.LIST,
+    /** The name of the sort the user picked in the library, or null to let the library choose by folder. */
+    val librarySortName: String? = null
 )
 
 /**
@@ -72,6 +86,11 @@ class ApturaSettingsRepository(private val context: Context) : AudioEffectsStore
         val FX_BASS = intPreferencesKey("fx_bass_percent")
         val FX_VIRTUALIZER = intPreferencesKey("fx_virtualizer_percent")
         val FX_LOUDNESS = intPreferencesKey("fx_loudness_percent")
+        val LIBRARY_LAYOUT = stringPreferencesKey("library_layout")
+        val LIBRARY_DENSITY = stringPreferencesKey("library_density")
+        val LIBRARY_DETAIL = stringPreferencesKey("library_detail")
+        val FOLDER_LAYOUT = stringPreferencesKey("folder_layout")
+        val LIBRARY_SORT = stringPreferencesKey("library_sort")
     }
 
     val settingsFlow: Flow<ApturaSettings> = context.dataStore.data
@@ -112,9 +131,37 @@ class ApturaSettingsRepository(private val context: Context) : AudioEffectsStore
                     bassBoostPercent = preferences[PreferencesKeys.FX_BASS] ?: 0,
                     virtualizerPercent = preferences[PreferencesKeys.FX_VIRTUALIZER] ?: 0,
                     loudnessBoostPercent = preferences[PreferencesKeys.FX_LOUDNESS] ?: 0
-                )
+                ),
+                libraryLayout = preferences.enumOr(PreferencesKeys.LIBRARY_LAYOUT, LibraryLayout.GRID),
+                libraryDensity = preferences.enumOr(PreferencesKeys.LIBRARY_DENSITY, LibraryDensity.COMFORTABLE),
+                libraryDetail = preferences.enumOr(PreferencesKeys.LIBRARY_DETAIL, LibraryDetail.STANDARD),
+                folderLayout = preferences.enumOr(PreferencesKeys.FOLDER_LAYOUT, FolderLayout.LIST),
+                librarySortName = preferences[PreferencesKeys.LIBRARY_SORT]
             )
         }
+
+    suspend fun updateLibraryLayout(layout: LibraryLayout) {
+        context.dataStore.edit { it[PreferencesKeys.LIBRARY_LAYOUT] = layout.name }
+    }
+
+    suspend fun updateLibraryDensity(density: LibraryDensity) {
+        context.dataStore.edit { it[PreferencesKeys.LIBRARY_DENSITY] = density.name }
+    }
+
+    suspend fun updateLibraryDetail(detail: LibraryDetail) {
+        context.dataStore.edit { it[PreferencesKeys.LIBRARY_DETAIL] = detail.name }
+    }
+
+    suspend fun updateFolderLayout(layout: FolderLayout) {
+        context.dataStore.edit { it[PreferencesKeys.FOLDER_LAYOUT] = layout.name }
+    }
+
+    /** Pass null to go back to the library's own choice of sort. */
+    suspend fun updateLibrarySortName(name: String?) {
+        context.dataStore.edit { preferences ->
+            if (name == null) preferences.remove(PreferencesKeys.LIBRARY_SORT) else preferences[PreferencesKeys.LIBRARY_SORT] = name
+        }
+    }
 
     suspend fun updateDefaultPlaybackSpeed(speed: Float) {
         context.dataStore.edit { preferences ->
@@ -234,6 +281,12 @@ class ApturaSettingsRepository(private val context: Context) : AudioEffectsStore
             val current = preferences[PreferencesKeys.PERSISTED_SAF_FOLDERS] ?: emptySet()
             preferences[PreferencesKeys.PERSISTED_SAF_FOLDERS] = current - treeUri
         }
+    }
+
+    /** Stores [value] under a raw string [key], as an older or newer build might have. */
+    @androidx.annotation.VisibleForTesting
+    suspend fun writeRawForTesting(key: String, value: String) {
+        context.dataStore.edit { preferences -> preferences[stringPreferencesKey(key)] = value }
     }
 
     @androidx.annotation.VisibleForTesting

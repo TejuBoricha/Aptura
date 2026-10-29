@@ -41,6 +41,8 @@ import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -100,6 +102,13 @@ internal fun LibrarySidebar(
         )
 
         val listState = rememberLazyListState()
+        val labels = remember(state.folders) { folderLabels(state.folders) }
+        // Items: 0 is the "Collections" header, 1 is "All videos", the folders follow. Whichever way a folder was
+        // selected (a tap, or a swipe that moved several folders along), its row must be on screen.
+        val selectedRow = if (state.selectedFolder == null) 1 else state.folders.indexOf(state.selectedFolder).takeIf { it >= 0 }?.plus(2)
+        LaunchedEffect(selectedRow) {
+            if (selectedRow != null) listState.scrollIntoView(selectedRow)
+        }
         Box(
             modifier = Modifier
                 .weight(1f)
@@ -131,7 +140,7 @@ internal fun LibrarySidebar(
                     val selected = state.selectedFolder == folder
                     SidebarCollectionRow(
                         icon = if (selected) Icons.Default.FolderOpen else Icons.Default.Folder,
-                        label = friendlyFolderName(folder),
+                        label = labels[folder] ?: friendlyFolderName(folder),
                         count = state.folderCounts[folder],
                         selected = selected,
                         onClick = { onFolderSelected(folder) }
@@ -148,7 +157,22 @@ internal fun LibrarySidebar(
                     }
                 }
             }
-            // On an 800 dp-tall tablet the list genuinely scrolls; the fade says so without a scrollbar.
+            // On an 800 dp-tall tablet the list genuinely scrolls; the fades say so without a scrollbar, and stop rows
+            // from looking cut off by the panel above them.
+            if (listState.canScrollBackward) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .fillMaxWidth()
+                        .height(20.dp)
+                        .background(
+                            Brush.verticalGradient(
+                                0f to ApturaColors.SurfaceElevated1,
+                                1f to Color.Transparent
+                            )
+                        )
+                )
+            }
             if (listState.canScrollForward) {
                 Box(
                     modifier = Modifier
@@ -651,3 +675,16 @@ internal fun friendlyFolderName(folder: String): String =
     } else {
         folder.ifBlank { "Internal Storage" }
     }
+
+/**
+ * Scrolls just far enough to show the item at [index], with some context around it, and not at all when it is already
+ * fully visible (so tapping a visible row does not make the list jump).
+ */
+internal suspend fun androidx.compose.foundation.lazy.LazyListState.scrollIntoView(index: Int) {
+    val visible = layoutInfo.visibleItemsInfo.firstOrNull { it.index == index }
+    val viewportStart = layoutInfo.viewportStartOffset
+    val viewportEnd = layoutInfo.viewportEndOffset
+    if (visible != null && visible.offset >= viewportStart && visible.offset + visible.size <= viewportEnd) return
+    // Leave the previous row visible above the target, so the list reads as continuing.
+    animateScrollToItem((index - 1).coerceAtLeast(0))
+}

@@ -570,4 +570,50 @@ class MediaLibraryViewModelTest {
         assertEquals(10, rail.size)
         assertEquals("the most recently played is first", "Show.S01E15", rail.first().title)
     }
+
+    @Test
+    fun folderSummaries_describeEachFolder_andPickTheNewestReadableVideoAsItsCover() = runTest(testDispatcher) {
+        val repo = FakeMediaRepository()
+        // Movies holds item1 (added 1000), item2 (2000) and a newer one that is missing, which cannot give a picture.
+        val missingNewest = item2.copy(uri = "content://media/9", title = "Gone", dateAddedSec = 9000L, isMissing = true)
+        repo.videosFlow.value = listOf(item1, item2, missingNewest, item3)
+        repo.foldersFlow.value = listOf("Camera", "Movies")
+
+        val viewModel = MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 0L)
+
+        viewModel.uiState.test {
+            assertEquals(MediaLibraryUiState.Loading, awaitItem())
+            val success = awaitItem() as MediaLibraryUiState.Success
+
+            val movies = success.folderSummaries.getValue("Movies")
+            assertEquals(3, movies.videoCount)
+            assertEquals(item1.sizeBytes + item2.sizeBytes + missingNewest.sizeBytes, movies.totalBytes)
+            assertEquals("the missing video cannot be the cover", item2.uri, movies.coverUri)
+
+            val camera = success.folderSummaries.getValue("Camera")
+            assertEquals(1, camera.videoCount)
+            assertEquals(item3.uri, camera.coverUri)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun theSortTheUserPickedLastTime_isUsedFromTheFirstEmission() = runTest(testDispatcher) {
+        val repo = FakeMediaRepository()
+        repo.videosFlow.value = listOf(item1, item2, item3)
+        repo.foldersFlow.value = listOf("Camera", "Movies")
+
+        val viewModel = MediaLibraryViewModel(
+            repo, testDispatcher, testDispatcher, searchDebounceMs = 0L, initialSort = LibrarySortOrder.TITLE_ASC
+        )
+
+        viewModel.uiState.test {
+            assertEquals(MediaLibraryUiState.Loading, awaitItem())
+            val success = awaitItem() as MediaLibraryUiState.Success
+
+            assertEquals(LibrarySortOrder.TITLE_ASC, success.sortOrder)
+            assertEquals(listOf("Avatar", "Inception", "Vacation Clip"), success.videos.map { it.title })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
 }
