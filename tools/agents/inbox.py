@@ -62,14 +62,36 @@ class Message:
 # can comment on a public repository, so their comments are never messages: a stranger must not be able to address an
 # agent, fake a `Hold:` or a `Taking over`, or answer for one.
 STATUS_BOT = "github-actions[bot]"
+STALL_MARKER = "<!-- stall:"  # every nudge stalls.py posts carries one
 
 
 def trusted_authors(repo: str, extra: list[str] | None = None) -> set[str]:
-    return {repo.split("/")[0].lower(), STATUS_BOT, *(name.lower() for name in extra or [])}
+    """The owner (every agent posts through the owner's account) plus any logins named explicitly."""
+    return {repo.split("/")[0].lower(), *(name.lower() for name in extra or [])}
+
+
+def is_trusted(m: Message, authors: set[str]) -> bool:
+    if m.author.lower() == STATUS_BOT:
+        # github-actions[bot] is shared by every workflow in the repository, and another workflow could echo text a
+        # stranger controls. Only the stall check's own nudges, which carry its marker and signature, count.
+        return STALL_MARKER in (m.body or "") and sender(m.body) == "agent-status"
+    return m.author.lower() in authors
 
 
 def trusted(messages: list[Message], authors: set[str]) -> list[Message]:
-    return [m for m in messages if m.author.lower() in authors]
+    return [m for m in messages if is_trusted(m, authors)]
+
+
+def every(url: str, token: str | None, max_pages: int = 100):
+    """All pages of a listing. Listings are oldest first, so stopping early would drop the newest messages, the ones
+    that matter most; past `max_pages` (10,000 entries) fail loudly instead."""
+    for page in range(1, max_pages + 1):
+        sep = "&" if "?" in url else "?"
+        batch = pr_checks._get(f"{url}{sep}per_page=100&page={page}", token)
+        yield from batch
+        if len(batch) < 100:
+            return
+    raise RuntimeError(f"more than {max_pages * 100} entries at {url}; refusing to read a truncated thread")
 
 
 def recipients(body: str) -> set[str]:
@@ -95,17 +117,20 @@ def for_me(messages: list[Message], me: str, since: datetime) -> list[Message]:
     return sorted(picked, key=lambda m: m.created_at)
 
 
-def fetch_messages(repo: str, number: int, token: str | None) -> list[Message]:
+def fetch_messages(repo: str, number: int, token: str | None, is_pr: bool = True) -> list[Message]:
+    """Comments on a pull request or issue; a pull request also has reviews and review comments."""
     base = f"{pr_checks.API}/repos/{repo}"
     found: list[Message] = []
-    for c in pr_checks._pages(f"{base}/issues/{number}/comments", token, limit=5):
+    for c in every(f"{base}/issues/{number}/comments", token):
         found.append(Message("comment", pr_checks._parse_time(c["created_at"]), c["html_url"], c["body"] or "",
                              _login(c)))
-    for r in pr_checks._pages(f"{base}/pulls/{number}/reviews", token, limit=5):
+    if not is_pr:
+        return found
+    for r in every(f"{base}/pulls/{number}/reviews", token):
         if r.get("submitted_at"):
             found.append(Message("review", pr_checks._parse_time(r["submitted_at"]), r["html_url"], r["body"] or "",
                                  _login(r)))
-    for c in pr_checks._pages(f"{base}/pulls/{number}/comments", token, limit=5):
+    for c in every(f"{base}/pulls/{number}/comments", token):
         found.append(Message("review comment", pr_checks._parse_time(c["created_at"]), c["html_url"], c["body"] or "",
                              _login(c)))
     return found
@@ -119,9 +144,10 @@ def main() -> int:
     force_utf8_output()
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY", "TejuBoricha/Aptura"))
-    parser.add_argument("--pr", type=int, required=True)
+    parser.add_argument("--pr", type=int, required=True, help="the pull request or debate issue number")
     parser.add_argument("--me", required=True, help="your agent name, as others write it after To:")
-    parser.add_argument("--since", help="ISO time to read from, e.g. 2026-10-28T15:00:00Z (default: now)")
+    parser.add_argument("--since", help="ISO time to read from, e.g. 2026-10-28T15:00:00Z (default: your own latest "
+                                         "message there, so a reply that came before you started waiting is not lost)")
     parser.add_argument("--interval", type=int, default=60)
     parser.add_argument("--timeout", type=int, default=4 * 3600)
     parser.add_argument("--trust", nargs="*", default=[],
@@ -129,14 +155,21 @@ def main() -> int:
     args = parser.parse_args()
     authors = trusted_authors(args.repo, args.trust)
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
-    since = pr_checks._parse_time(args.since) if args.since else datetime.now(timezone.utc).replace(microsecond=0)
+    since = pr_checks._parse_time(args.since) if args.since else None
+    started = datetime.now(timezone.utc).replace(microsecond=0)
     deadline = time.monotonic() + args.timeout
-    print(f"Waiting for messages to '{args.me}' on #{args.pr} since {since:%Y-%m-%dT%H:%M:%SZ} ...", flush=True)
+    print(f"Waiting for messages to '{args.me}' on #{args.pr} ...", flush=True)
 
     while True:
         try:
-            new = for_me(trusted(fetch_messages(args.repo, args.pr, token), authors), args.me, since)
-            state = pr_checks._get(f"{pr_checks.API}/repos/{args.repo}/pulls/{args.pr}", token)
+            # The issues endpoint answers for pull requests and debate issues alike.
+            state = pr_checks._get(f"{pr_checks.API}/repos/{args.repo}/issues/{args.pr}", token)
+            messages = trusted(fetch_messages(args.repo, args.pr, token, "pull_request" in state), authors)
+            if since is None:
+                mine = [m.created_at for m in messages if sender(m.body) == args.me.lower()]
+                since = max(mine, default=started)
+                print(f"Reading messages after {since:%Y-%m-%dT%H:%M:%SZ}.", flush=True)
+            new = for_me(messages, args.me, since)
         except Exception as error:  # A network blip should not end a long wait; report it and keep going.
             print(f"(could not check GitHub: {error}; trying again)", flush=True)
             new, state = [], {}
@@ -146,7 +179,8 @@ def main() -> int:
                       f"{m.url}\n\n{m.body}\n", flush=True)
             return 0
         if state.get("state") == "closed":
-            print(f"#{args.pr} was {'merged' if state.get('merged') else 'closed'}; nothing more to wait for.")
+            merged = state.get("merged") or (state.get("pull_request") or {}).get("merged_at")
+            print(f"#{args.pr} was {'merged' if merged else 'closed'}; nothing more to wait for.")
             return 3
         if time.monotonic() >= deadline:
             print(f"No message after {args.timeout} s. Check the pull request, or ask the owner.")

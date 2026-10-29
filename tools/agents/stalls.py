@@ -2,24 +2,29 @@
 """Find work that is waiting past its deadline, and say so where the agents will see it.
 
 Every wait between agents has a deadline (docs/AGENT_WORKFLOW.md, "Nothing waits without a deadline"). This script
-finds the ones that have passed it, so a stall is announced within the hour instead of when the owner notices:
+finds the ones that passed it on open pull requests and `debate` issues, so a stall is announced within minutes
+instead of when the owner notices. The rules, in the order they apply to a `To:` message:
 
-- a `To:` message on an open pull request or `debate` issue that its addressee has not answered, by a reply or by a
-  commit naming its tool in `Assisted-by:`, within --hours (default 2), or that the addressee answered with `Pausing`.
-  Every addressed message is a wait unless it says "No reply needed", so a forgotten wait is reported, not missed. A
-  `Working:` note from the addressee restarts the deadline without ending the wait;
-- a `debate` issue whose `Proposal:` has fewer than two critiques after --hours, or whose critiques have had no
-  `Rebuttal:` or `Decision:` for --hours.
+- `No reply needed` on a line of its own (outside quoted `>` lines) means the message is not a wait.
+- The sender withdraws it with a line `Withdrawn: <agent>`, for example after using a fallback reviewer.
+- Another agent's line `Taking over ... from <agent>` resolves the waits on that agent.
+- The addressee's latest message decides: `Pausing:` makes the wait overdue at once (even if the pause came first);
+  a reply to the sender (or to all) that starts a line with `Working:` restarts the deadline; any other reply to the
+  sender or to all answers it. A push alone is not an answer: say so on the PR.
+- Otherwise the wait is overdue --minutes (default 30) after the message.
 
-A `Hold:` line (the owner said wait) pauses the checks on that item until a later `Hold lifted` line.
+A debate stalls when its critiques are overdue, the proposer's answer to them is overdue, it ran past its time box,
+it went past two rounds, or a proposal or critique is over its word limit. A `Hold:` line (the owner said wait) pauses
+an item until a later `Hold lifted:` line; holds older than a day are listed for the owner.
 
     python3 tools/agents/stalls.py                 # print the report
     python3 tools/agents/stalls.py --nudge         # also post one `To: all` comment per stall (needs a write token)
 
-The hourly `Agent status` workflow runs it with --nudge and keeps the report in the issue labelled `agent-status`.
-A nudge is addressed to all, so local agents waiting in inbox.py and cloud agents subscribed to the pull request wake
-up on it. Exit code: 0 (stalls are reported, not failures), 1 when GitHub refuses the request (a missing permission
-should not turn the watch off unnoticed), 0 with a warning during a GitHub outage. Standard library only.
+The **Agent status** workflow runs it with --nudge every 15 minutes and keeps the report in the issue labelled
+`agent-status`. A nudge is addressed to all, so local agents waiting in inbox.py and cloud agents subscribed to the
+pull request wake up on it. Only comments by the owner's account count (inbox.trusted). Exit code: 0 (stalls are
+reported, not failures), 1 when GitHub refuses the request (a missing permission must not turn the watch off
+unnoticed), 0 with a warning during a GitHub outage. Standard library only.
 """
 
 from __future__ import annotations
@@ -31,45 +36,67 @@ import re
 import sys
 import urllib.error
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
 import pr_checks
-from inbox import Message, _login, force_utf8_output, recipients, sender, trusted, trusted_authors
+from inbox import Message, _login, every, force_utf8_output, recipients, sender, trusted, trusted_authors
 
 BOT = "agent-status"
 STATUS_LABEL = "agent-status"
 DEBATE_LABEL = "debate"
 MARKER = "<!-- stall:{key} -->"
-ASSISTED_BY = re.compile(r"^assisted-by:\s*(.+)$", re.IGNORECASE | re.MULTILINE)
-NO_REPLY = re.compile(r"\bno reply needed\b", re.IGNORECASE)  # "Merged #4. No reply needed." is not a wait
-TAKING_OVER = re.compile(r"^\s*taking over\b", re.IGNORECASE | re.MULTILINE)  # "Taking over #4 from opencode: ..."
-HOLD = re.compile(r"^\s*hold(\s+lifted)?\s*:", re.IGNORECASE | re.MULTILINE)
+PROPOSAL_WORDS = 500
+CRITIQUE_WORDS = 350
+
+
+def own_lines(body: str) -> list[str]:
+    """The lines a comment says itself: quoted lines (`> ...`) repeat someone else and never count as markers."""
+    return [line for line in (body or "").splitlines() if not line.lstrip().startswith(">")]
 
 
 def has_line(body: str, word: str) -> bool:
-    """True when a line of `body` starts with `word:`, e.g. `Proposal:` or `Pausing:`."""
-    return re.search(rf"^\s*{word}\s*:", body or "", re.IGNORECASE | re.MULTILINE) is not None
+    """True when one of the comment's own lines starts with `word:`, e.g. `Proposal:` or `Pausing:`."""
+    pattern = re.compile(rf"^\s*{word}\s*:", re.IGNORECASE)
+    return any(pattern.match(line) for line in own_lines(body))
 
 
-@dataclass
-class Commit:
-    at: datetime
-    message: str
+def no_reply_needed(body: str) -> bool:
+    return any(re.search(r"\bno reply needed\b", line, re.IGNORECASE) for line in own_lines(body))
 
-    def by(self, agent: str) -> bool:
-        return any(agent in line.lower() for line in ASSISTED_BY.findall(self.message))
+
+def withdrawn(body: str) -> set[str]:
+    """Agents named on a `Withdrawn: a, b` line."""
+    names: set[str] = set()
+    for line in own_lines(body):
+        match = re.match(r"^\s*withdrawn\s*:\s*(.+)$", line, re.IGNORECASE)
+        if match:
+            names |= {n.lower() for n in re.findall(r"[\w-]+", match.group(1))}
+    return names
+
+
+def taken_over_from(body: str) -> set[str]:
+    """Agents named in `Taking over #4 from opencode: ...`."""
+    names = set()
+    for line in own_lines(body):
+        match = re.match(r"^\s*taking over\b.*?\bfrom\s+([\w-]+)", line, re.IGNORECASE)
+        if match:
+            names.add(match.group(1).lower())
+    return names
+
+
+def words(body: str) -> int:
+    return len(" ".join(own_lines(body)).split())
 
 
 @dataclass
 class Item:
-    """An open pull request or debate issue, with everything said and pushed on it."""
+    """An open pull request or debate issue, with everything trusted said on it."""
     number: int
     title: str
     url: str
     is_debate: bool
     messages: list[Message]
-    commits: list[Commit]
 
 
 @dataclass
@@ -79,93 +106,142 @@ class Stall:
     text: str
 
 
-def on_hold(messages: list[Message]) -> bool:
-    """The owner's word wins: a `Hold:` line holds the item until a later `Hold lifted` line."""
-    held = False
+@dataclass
+class Hold:
+    since: datetime
+    url: str
+
+
+@dataclass
+class Findings:
+    stalls: list[Stall] = field(default_factory=list)
+    needs_owner: list[str] = field(default_factory=list)
+
+
+def current_hold(messages: list[Message]) -> Hold | None:
+    """The owner's word wins: a `Hold:` line holds the item until a later `Hold lifted:` line."""
+    hold = None
     for m in sorted(messages, key=lambda m: m.created_at):
-        for match in HOLD.finditer(m.body or ""):
-            held = match.group(1) is None
-    return held
+        for line in own_lines(m.body):
+            if re.match(r"^\s*hold\s+lifted\s*:", line, re.IGNORECASE):
+                hold = None
+            elif re.match(r"^\s*hold\s*:", line, re.IGNORECASE):
+                hold = Hold(m.created_at, m.url)
+    return hold
 
 
 def unanswered(item: Item, now: datetime, window: timedelta) -> list[Stall]:
-    """The oldest unanswered `To:` message per addressee, once its deadline has passed or the addressee paused."""
+    """The oldest overdue `To:` message per addressee (see the module docstring for the rules)."""
     stalls, seen = [], set()
     ordered = sorted(item.messages, key=lambda m: m.created_at)
     for m in ordered:
         author = sender(m.body)
-        if author == BOT or NO_REPLY.search(m.body or ""):
+        # An acknowledgement (`Working:`) or a pause note answers someone; it never makes the other side wait.
+        if author in (BOT, None) or no_reply_needed(m.body) or has_line(m.body, "working") or has_line(m.body, "pausing"):
             continue
         for agent in sorted(recipients(m.body) - {"all", author}):
             if agent in seen:
                 continue
-            later = [x for x in ordered if x.created_at > m.created_at and sender(x.body) == agent]
-            pushed = any(c.at > m.created_at and c.by(agent) for c in item.commits)
-            taken_over = any(x.created_at > m.created_at and TAKING_OVER.search(x.body or "") for x in ordered)
-            # Only the addressee's latest word counts. `Pausing` makes the wait overdue at once; `Working:` (an
-            # acknowledgement, "reviewing, done by 15:00") restarts the deadline but does not end the wait, so an
-            # agent that says "on it" and then stops is still caught. Anything else from it is an answer.
-            last = later[-1] if later else None
-            paused = last is not None and has_line(last.body, "pausing")
-            working = last is not None and has_line(last.body, "working")
-            if (last and not paused and not working) or pushed or taken_over:
+            later = [x for x in ordered if x.created_at > m.created_at]
+            if any(sender(x.body) == author and agent in withdrawn(x.body) for x in later):
                 continue
-            age = now - (last.created_at if working else m.created_at)
-            if not paused and age < window:
+            if any(sender(x.body) != agent and agent in taken_over_from(x.body) for x in later):
+                continue
+            from_agent = [x for x in ordered if sender(x.body) == agent]
+            replies = [x for x in from_agent if x.created_at > m.created_at
+                       and (author in recipients(x.body) or "all" in recipients(x.body))]
+            paused = bool(from_agent) and has_line(from_agent[-1].body, "pausing")
+            working = not paused and bool(replies) and has_line(replies[-1].body, "working")
+            if replies and not paused and not working:
+                continue
+            anchor = replies[-1].created_at if working else m.created_at
+            if not paused and now - anchor < window:
                 continue
             seen.add(agent)
             if paused:
-                why = f"{agent} posted `Pausing`"
+                why = f"{agent} posted `Pausing` ({from_agent[-1].url})"
             elif working:
-                why = f"{agent}'s `Working:` note is {_hours(age)} old with no answer or push since"
+                why = f"{agent}'s `Working:` note is {_age(now - anchor)} old with no answer since"
             else:
-                why = f"no reply or push from {agent} for {_hours(age)}"
-            stalls.append(Stall(item, f"{m.url}#{agent}",
-                                f"{author or 'someone'}'s message to {agent} ({m.url}) is waiting: {why}. Another "
-                                f"agent may take over after posting `Taking over` (AGENTS.md rule 9); for a review, "
-                                f"use the fallback reviewer (docs/AGENT_WORKFLOW.md)."))
+                why = f"no reply from {agent} for {_age(now - anchor)}"
+            stalls.append(Stall(item, f"{m.url}#{agent}#{anchor:%Y%m%dT%H%M}",
+                                f"{author}'s message to {agent} ({m.url}) is waiting: {why}. Another agent may take "
+                                f"over after posting `Taking over ... from {agent}` (AGENTS.md rule 9); for a review, "
+                                f"use the fallback reviewer and post `Withdrawn: {agent}` (docs/AGENT_WORKFLOW.md)."))
     return stalls
 
 
-def debate_stalls(item: Item, now: datetime, window: timedelta) -> list[Stall]:
-    """A debate stalls when critiques or the proposer's answer to them are overdue."""
+def debate(item: Item, now: datetime, step: timedelta, timebox: timedelta) -> Findings:
+    """Overdue steps, broken limits and owner approvals in a debate."""
+    found = Findings()
     ordered = sorted(item.messages, key=lambda m: m.created_at)
-    if any(has_line(m.body, "decision") for m in ordered):
-        return []
     proposals = [m for m in ordered if has_line(m.body, "proposal")]
     if not proposals:
-        return []
+        return found
     proposal = proposals[-1]
     proposer = sender(proposal.body)
-    critiques = [m for m in ordered if m.created_at > proposal.created_at and has_line(m.body, "critique")]
-    critics = {sender(m.body) for m in critiques} - {proposer, None}
+    after = [m for m in ordered if m.created_at > proposal.created_at]
+    takeovers = {name for m in after for name in taken_over_from(m.body)}
+    deciders = {proposer} | ({sender(m.body) for m in after if taken_over_from(m.body)} if proposer in takeovers else set())
+    decisions = [m for m in after if has_line(m.body, "decision") and sender(m.body) in deciders]
+    if decisions:
+        decision = decisions[-1]
+        approval = re.search(r"owner approval needed\s*:\s*yes", " ".join(own_lines(decision.body)), re.IGNORECASE)
+        approved = any(m.created_at > decision.created_at and re.search(r"\bowner said\b", m.body or "", re.IGNORECASE)
+                       for m in ordered)
+        if approval and not approved:
+            found.needs_owner.append(f"[#{item.number}]({item.url}) decision waiting for your approval: {decision.url}")
+        return found
+
+    def stall(key: str, text: str):
+        found.stalls.append(Stall(item, f"{proposal.url}#{key}", text))
+
+    if words(proposal.body) > PROPOSAL_WORDS:
+        stall("long-proposal", f"the proposal ({proposal.url}) is {words(proposal.body)} words, over the "
+                               f"{PROPOSAL_WORDS}-word limit: shorten it and link the details.")
+    critiques = [m for m in after if has_line(m.body, "critique") and sender(m.body) not in (proposer, None)]
+    for c in critiques:
+        if words(c.body) > CRITIQUE_WORDS:
+            found.stalls.append(Stall(item, f"{c.url}#long", f"the critique {c.url} is {words(c.body)} words, over "
+                                      f"the {CRITIQUE_WORDS}-word limit: keep at most three must-fix points."))
+    rebuttals = [m for m in after if has_line(m.body, "rebuttal") and sender(m.body) in deciders]
+    if now - proposal.created_at > timebox:
+        stall("timebox", f"the debate has run {_age(now - proposal.created_at)}, past its time box of "
+                         f"{_age(timebox)}: {proposer} posts `Decision:`, or sends the owner a one-screen summary.")
+    elif len(rebuttals) >= 2 and any(c.created_at > rebuttals[1].created_at for c in critiques):
+        stall("rounds", f"two rounds are done and objections remain: {proposer} sends the owner a one-screen summary "
+                        f"of the options with a recommendation; the owner picks.")
+    critics = {sender(c.body) for c in critiques}
     if len(critics) < 2:
-        if now - proposal.created_at < window:
-            return []
-        return [Stall(item, f"{proposal.url}#critiques",
-                      f"the proposal ({proposal.url}) has {len(critics)} of 2 critiques after "
-                      f"{_hours(now - proposal.created_at)}. Any agent running a model other than {proposer or 'the proposer'}"
-                      f" may critique it; failing that, the proposer gets a critique from another model "
-                      f"(docs/AGENT_WORKFLOW.md, \"Debates\").")]
-    last = critiques[-1]
-    answered = any(m.created_at > last.created_at and has_line(m.body, "rebuttal") for m in ordered)
-    if answered or now - last.created_at < window:
-        return []
-    return [Stall(item, f"{last.url}#rebuttal",
-                  f"the critiques are in, but {proposer or 'the proposer'} has not posted `Rebuttal:` or `Decision:` "
-                  f"for {_hours(now - last.created_at)}. Another agent may take the debate over after posting "
-                  f"`Taking over`.")]
+        if now - proposal.created_at >= step:
+            stall("critiques", f"the proposal ({proposal.url}) has {len(critics)} of 2 critiques after "
+                               f"{_age(now - proposal.created_at)}. Any agent running a model other than {proposer}'s "
+                               f"may critique it; failing that, use the fallback ladder (docs/AGENT_WORKFLOW.md).")
+    elif critiques:
+        last = critiques[-1]
+        answered = any(r.created_at > last.created_at for r in rebuttals)
+        if not answered and now - last.created_at >= step:
+            stall(f"rebuttal-{len(rebuttals)}", f"the critiques are in, but {proposer} has not posted `Rebuttal:` or "
+                                                f"`Decision:` for {_age(now - last.created_at)}. Another agent may take "
+                                                f"the debate over after posting `Taking over ... from {proposer}`.")
+    return found
 
 
-def find_stalls(items: list[Item], now: datetime, window: timedelta) -> list[Stall]:
-    stalls = []
+def find(items: list[Item], now: datetime, window: timedelta, step: timedelta, timebox: timedelta) -> Findings:
+    found = Findings()
     for item in items:
-        if on_hold(item.messages):
+        hold = current_hold(item.messages)
+        if hold:
+            if now - hold.since > timedelta(days=1):
+                found.needs_owner.append(f"[#{item.number}]({item.url}) has been on hold for {_age(now - hold.since)} "
+                                         f"({hold.url}): lift it or close the item.")
             continue
-        stalls += unanswered(item, now, window)
+        found.stalls += unanswered(item, now, window)
         if item.is_debate:
-            stalls += debate_stalls(item, now, window)
-    return stalls
+            sub = debate(item, now, step, timebox)
+            found.stalls += sub.stalls
+            found.needs_owner += sub.needs_owner
+    return found
 
 
 def already_announced(item: Item, stall: Stall) -> bool:
@@ -176,15 +252,22 @@ def nudge_body(stall: Stall) -> str:
     return f"To: all\n\nOverdue: {stall.text}\n\n{MARKER.format(key=stall.key)}\nFrom: {BOT}"
 
 
-def report(items: list[Item], stalls: list[Stall], now: datetime) -> str:
-    lines = [f"### Agent status ({now:%Y-%m-%d %H:%M} UTC)", ""]
+def safe(text: str) -> str:
+    """A title anyone can write, made inert: no mentions that notify people, no links, no formatting."""
+    text = re.sub(r"[\\`*_\[\]()<>#|!]", lambda m: "\\" + m.group(0), text)
+    return text.replace("@", "@​")
+
+
+def report(items: list[Item], found: Findings, now: datetime) -> str:
+    lines = [f"### Agent status ({now:%Y-%m-%d %H:%M} UTC)", "", "**Needs you:** " +
+             ("nothing." if not found.needs_owner else ""), *[f"- {n}" for n in found.needs_owner], ""]
     if not items:
         lines.append("No open pull requests or debates.")
     for item in items:
-        mine = [s for s in stalls if s.item is item]
+        mine = [s for s in found.stalls if s.item is item]
         kind = "Debate" if item.is_debate else "PR"
-        state = "held by the owner" if on_hold(item.messages) else ("**stalled**" if mine else "moving")
-        lines.append(f"- {kind} [#{item.number}]({item.url}) {item.title}: {state}")
+        state = "on hold" if current_hold(item.messages) else ("**stalled**" if mine else "moving")
+        lines.append(f"- {kind} [#{item.number}]({item.url}) {safe(item.title)}: {state}")
         lines += [f"  - {s.text}" for s in mine]
     return "\n".join(lines) + "\n"
 
@@ -204,46 +287,45 @@ def _send(method: str, url: str, token: str, payload: dict):
 
 def _comments(base: str, number: int, token: str | None, is_pr: bool, authors: set[str]) -> list[Message]:
     found = [Message("comment", pr_checks._parse_time(c["created_at"]), c["html_url"], c["body"] or "", _login(c))
-             for c in pr_checks._pages(f"{base}/issues/{number}/comments", token, limit=5)]
+             for c in every(f"{base}/issues/{number}/comments", token)]
     if is_pr:
         found += [Message("review", pr_checks._parse_time(r["submitted_at"]), r["html_url"], r["body"] or "",
                           _login(r))
-                  for r in pr_checks._pages(f"{base}/pulls/{number}/reviews", token, limit=5) if r.get("submitted_at")]
+                  for r in every(f"{base}/pulls/{number}/reviews", token) if r.get("submitted_at")]
         found += [Message("review comment", pr_checks._parse_time(c["created_at"]), c["html_url"], c["body"] or "",
                           _login(c))
-                  for c in pr_checks._pages(f"{base}/pulls/{number}/comments", token, limit=5)]
+                  for c in every(f"{base}/pulls/{number}/comments", token)]
     # A stranger's comment on this public repository must not create a wait, fake a `Hold:` or resolve one.
     return trusted(found, authors)
 
 
-def fetch(repo: str, token: str | None) -> list[Item]:
+def fetch(repo: str, token: str | None, extra_trusted: list[str] | None = None) -> list[Item]:
     base = f"{pr_checks.API}/repos/{repo}"
-    authors = trusted_authors(repo)
+    authors = trusted_authors(repo, extra_trusted)
     items = []
-    for pr in pr_checks._pages(f"{base}/pulls?state=open", token, limit=3):
-        commits = [Commit(pr_checks._parse_time(c["commit"]["committer"]["date"]), c["commit"]["message"])
-                   for c in pr_checks._pages(f"{base}/pulls/{pr['number']}/commits", token, limit=3)]
+    for pr in every(f"{base}/pulls?state=open", token):
         items.append(Item(pr["number"], pr["title"], pr["html_url"], False,
-                          _comments(base, pr["number"], token, True, authors), commits))
-    for issue in pr_checks._pages(f"{base}/issues?state=open&labels={DEBATE_LABEL}", token, limit=3):
+                          _comments(base, pr["number"], token, True, authors)))
+    for issue in every(f"{base}/issues?state=open&labels={DEBATE_LABEL}", token):
         # Anyone can open an issue with the Debate form; only the owner's (and so the agents') debates are work.
         if "pull_request" not in issue and _login(issue).lower() in authors:
             items.append(Item(issue["number"], issue["title"], issue["html_url"], True,
-                              _comments(base, issue["number"], token, False, authors), []))
+                              _comments(base, issue["number"], token, False, authors)))
     return items
 
 
-def publish(repo: str, token: str, items: list[Item], stalls: list[Stall], text: str) -> int:
+def publish(repo: str, token: str, items: list[Item], found: Findings, text: str) -> int:
     """Post one nudge per new stall, and keep the report in the open issue labelled agent-status."""
     base = f"{pr_checks.API}/repos/{repo}"
     posted = 0
-    for stall in stalls:
+    for stall in found.stalls:
         if not already_announced(stall.item, stall):
             _send("POST", f"{base}/issues/{stall.item.number}/comments", token, {"body": nudge_body(stall)})
             posted += 1
-    status = list(pr_checks._pages(f"{base}/issues?state=open&labels={STATUS_LABEL}", token, limit=1))
-    body = (text + "\n_Updated every hour by the Agent status workflow (`tools/agents/stalls.py`). Stalled items also "
-                   "get a `To: all` comment, which wakes the agents waiting on them._\n")
+    status = list(every(f"{base}/issues?state=open&labels={STATUS_LABEL}", token))
+    body = (text + "\n_Updated by the Agent status workflow (`tools/agents/stalls.py`) about every 15 minutes; GitHub "
+                   "may delay or skip a scheduled run. If the time above is hours old, run the workflow from the "
+                   "Actions tab. Stalled items also get a `To: all` comment, which wakes the agents waiting on them._\n")
     if status:
         _send("PATCH", f"{base}/issues/{status[0]['number']}", token, {"body": body})
     else:
@@ -251,7 +333,7 @@ def publish(repo: str, token: str, items: list[Item], stalls: list[Stall], text:
     return posted
 
 
-def _hours(delta: timedelta) -> str:
+def _age(delta: timedelta) -> str:
     minutes = int(delta.total_seconds() // 60)
     return f"{minutes // 60} h {minutes % 60:02d} min"
 
@@ -260,7 +342,10 @@ def main() -> int:
     force_utf8_output()
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY", "TejuBoricha/Aptura"))
-    parser.add_argument("--hours", type=float, default=2.0, help="the deadline for a reply (default 2)")
+    parser.add_argument("--minutes", type=float, default=30, help="deadline for answering a To: message (default 30)")
+    parser.add_argument("--debate-hours", type=float, default=2, help="deadline for each debate step (default 2)")
+    parser.add_argument("--timebox-hours", type=float, default=24, help="time box for a whole debate (default 24)")
+    parser.add_argument("--trust", nargs="*", default=[], help="extra GitHub logins whose comments count")
     parser.add_argument("--nudge", action="store_true", help="post the nudges and update the status issue")
     args = parser.parse_args()
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
@@ -269,20 +354,21 @@ def main() -> int:
         return 2
     now = datetime.now(timezone.utc)
     try:
-        items = fetch(args.repo, token)
-        stalls = find_stalls(items, now, timedelta(hours=args.hours))
-        text = report(items, stalls, now)
+        items = fetch(args.repo, token, args.trust)
+        found = find(items, now, timedelta(minutes=args.minutes), timedelta(hours=args.debate_hours),
+                     timedelta(hours=args.timebox_hours))
+        text = report(items, found, now)
         print(text)
         if summary := os.environ.get("GITHUB_STEP_SUMMARY"):
             with open(summary, "a", encoding="utf-8") as handle:
                 handle.write(text)
         if args.nudge:
-            print(f"Posted {publish(args.repo, token, items, stalls, text)} new nudge(s).")
+            print(f"Posted {publish(args.repo, token, items, found, text)} new nudge(s).")
     except (urllib.error.URLError, TimeoutError) as error:
         if not pr_checks.is_outage(error):
             print(f"::error::Agent status could not use the GitHub API ({error}). Check the workflow's permissions.")
             return 1
-        print(f"::warning::Agent status skipped: GitHub API unavailable ({error}). The next hourly run retries.")
+        print(f"::warning::Agent status skipped: GitHub API unavailable ({error}). The next scheduled run retries.")
     return 0
 
 
