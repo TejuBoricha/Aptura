@@ -59,7 +59,9 @@ local Gradle builds at once.
 Hot files are listed in [`tools/agents/hot-files.txt`](../tools/agents/hot-files.txt) and named in `AGENTS.md`.
 They merge cleanly in Git but break when two branches change them independently, for example two branches that each
 add Room migration 6→7. Before touching one, look at the open PRs (`gh pr list --state open`, then
-`gh pr view <n> --json files`). If one already changes the file, wait for it, or ask the owner to sequence the work.
+`gh pr view <n> --json files`). If one already changes the file, wait for it, or agree the order with a `To:` message on the older PR. The
+block clears by itself: once the older PR merges, the newer one must rebase to be up to date with `main`, and that
+push re-runs the check.
 
 CI enforces the same rule, so a mistake here is caught rather than merged (see "Automatic checks" below).
 
@@ -127,7 +129,8 @@ left unanswered. Usually the reviewer merges after confirming the fixes; the aut
 approved. The merging agent posts `To: all` with what went in. The owner is asked only for product decisions,
 settings or secrets, irreversible actions outside the repository, or a disagreement two rounds did not settle. If the branch is behind,
 the agent rebases and CI runs again on the combined code. That is the step that catches two changes which each pass
-alone but break together. If a merged change turns out wrong, `git revert` its commits; `Refs: #N` finds them.
+alone but break together. A rebase that needed no conflict resolution keeps the review's approval; one that resolved
+conflicts in reviewed code needs the reviewer, or another model, to re-check the resolution. If a merged change turns out wrong, `git revert` its commits; `Refs: #N` finds them.
 
 ## Talking to each other
 
@@ -149,7 +152,10 @@ From: claude
   Agents use one stable name each: `claude`, `opencode`, `codex`, `gemini`, `cursor`, `copilot`.
 - **Answer on the PR, not only with a push.** A wait ends when the addressee replies to the sender (or to `all`). A
   push alone does not answer anything; say what the push did.
-- **Waiting for a reply:** run `python3 tools/agents/inbox.py --pr <n> --me <your agent>`. `<n>` can be a pull request
+- **`python3` means Python 3.9 or newer.** On Windows, use `py -3` in its place.
+- **Waiting for a reply:** run `python3 tools/agents/inbox.py --pr <n> --me <your agent>`. It uses `GITHUB_TOKEN`, or
+  the GitHub CLI's login if you have run `gh auth login`; without a token it checks only every 4 minutes, to stay
+  inside GitHub's limit of 60 requests an hour. `<n>` can be a pull request
   or a debate issue. It reads from your own latest message there, so a reply that arrived before you started waiting
   is not lost. It checks once a minute, prints new messages addressed to you (or to `all`, which includes the stall
   check's nudges) and exits 0. It exits 3 if the PR is merged or closed and 2 after the `--timeout` (default four
@@ -266,19 +272,24 @@ is the general rule; the table lists the waits known so far.
 | A whole debate | 24 h, and two rounds | The owner gets a one-screen summary and picks |
 | A step only some agents can do | 30 min after asking | The owner, once (a setting or a permission) |
 | CI | the job's own timeout | An infrastructure failure gets one re-run by an agent with the permission |
+| A claimed task to become a pull request | 2 h after the `claim:` comment | Another agent may take the task over |
+| Any sign of life on an open PR | 4 h without a message or commit | Its driver posts where it stands, or another agent takes over |
+| Anything above, once announced | 1 day with nobody acting | Listed under "Needs you": perhaps no agent is running |
 | An owner decision | none: the owner is not on a clock | It stays under "Needs you" in the status issue; agents work on something else meanwhile, and never take a product decision by default |
 
 **When you create a new kind of wait,** say in the same message what happens if nobody answers, and by when. A wait
 with no stated fallback falls back to the 30-minute rule.
 
 **The words the stall check reads.** They count only at the start of one of the comment's own lines, never inside
-quoted (`>`) text:
+quoted (`>`) text or code blocks. Bold labels and list bullets are fine (`**To:** opencode`, `- Working: …`). To see
+how a message will be read before posting it, pipe it into `python3 tools/agents/stalls.py --explain`; a message
+whose `To:` line is not first, or that lacks `From:`, is reported as unreadable rather than silently ignored.
 
 | Line | Meaning |
 |---|---|
 | `Working: <what>, done by <HH:MM> UTC` | I am on it. Holds the wait until that time plus 30 minutes, up to 24 hours ahead; without a time in UTC (`2:30pm`, `CET`), for 2 hours. Counts however it is addressed, and never reopens a question already answered. An agent may renew it; the status issue shows the wait meanwhile. |
 | `Pausing: <why>, back around <time>` | I am stopping. Anyone may take over now. |
-| `No reply needed` | This message is not a wait. Put it on merge notes, status notes, and on an approving review, whose author merges rather than answers. Any other addressed message is a wait, so a forgotten one is caught rather than missed. |
+| `No reply needed` (anywhere in the message's own text, not in a quote or code) | This message is not a wait. Put it on merge notes, status notes, and on an approving review, whose author merges rather than answers. Any other addressed message is a wait, so a forgotten one is caught rather than missed. |
 | `Withdrawn: <agent>` | The sender no longer waits on that agent, for example after using a fallback reviewer. |
 | `Taking over #<n> from <agent>: <why>` | Ends the waits on that agent, when another agent posts it. |
 | `Hold: <reason>` / `Hold lifted: <reason>` | The owner's "wait" and "go", recorded by the agent that heard it. While a hold stands, no deadline on that PR or debate runs out. A hold older than a day is listed for the owner. |
@@ -293,7 +304,13 @@ deadline on open pull requests and debates. On each, it posts one `To: all` comm
 that names the stall and the fallback. The comment wakes the agents: local agents waiting in `inbox.py`, and cloud
 agents subscribed to the PR. It also keeps the issue labelled `agent-status` current. That issue opens with **Needs
 you**: the decisions waiting for the owner and the holds older than a day. It is the owner's one page for what is
-moving and what is stuck. To see the same report locally: `python3 tools/agents/stalls.py`.
+moving and what is stuck. Editing that page notifies nobody, so when something new needs the owner the check also
+posts one comment there, which GitHub emails to the owner; agent-only stalls never do. It also lists every `Owner
+said` line recorded in the last week, so the owner can confirm they are their words. To see the same report
+locally: `python3 tools/agents/stalls.py`.
+
+Each run reads comments through two repository-wide listings: about 40 requests for 30 open and 40 recently closed
+pull requests, well inside the 1,000 requests an hour GitHub gives the workflow token (shared with CI).
 
 GitHub runs scheduled workflows on a best-effort basis. A run can start late or be dropped under load, and schedules
 pause after 60 days without repository activity. The status issue shows the time of its last run, so a stale page is
@@ -329,7 +346,7 @@ followed up, so the other agents know it was intended and nothing skipped is for
      stretch an override beyond what was said. Every agent posts through the owner's account, so the quote is what
      makes an override checkable: one without it is listed as **unverified** and does not unlock anything.
    - **`Withdrawn:`** names any agent the skipped step was waiting on, so that wait stops counting.
-   - **`Override:` names the step skipped:** a review, a deadline, a debate's critiques, hot-file order, a hold.
+   - **`Override:` names the step skipped:** a review, a deadline, a debate's critiques, a hold.
    - **`Scope:` is one PR, issue or task.** An override never becomes a standing rule unless the owner says "from
      now on"; a standing rule is then written into this file in its own PR.
    - **`Follow-up:` says what replaces the skipped step later.** A skipped review becomes a post-merge review, and
@@ -346,8 +363,9 @@ followed up, so the other agents know it was intended and nothing skipped is for
    however long ago they closed, and removes the label once every follow-up on the item is done. A single
    `Follow-up done:` note closes all the overrides recorded before it on that item.
 4. **What an override cannot do.**
-   - The checks GitHub enforces (the ruleset's required checks, branch protection) can't be skipped by an agent. Only
-     the owner can do that, in GitHub's settings.
+   - The checks GitHub enforces (the ruleset's required checks, branch protection, and so the hot-file order and
+     the commit trailers that `verify` checks) can't be skipped by an agent. Only the owner can do that, in GitHub's
+     settings. To let a newer PR go first, the owner can tell an agent to close or park the older one instead.
    - The product invariants (no network, no telemetry, scoped storage, no bundled video decoder) can still be
      changed by the owner, but that is a product decision. It is recorded in the DEC register in the same PR, and
      the invariant tests are changed openly rather than skipped.
@@ -500,6 +518,15 @@ These settings live in GitHub, not in the repository, so only the owner can appl
 4. **Agent tokens:** give each tool its own fine-grained token, scoped to this repository, with contents, pull
    request and issue write access, and **Actions read and write**, so every agent can re-run a failed CI job instead
    of waiting for the one that can. Grant no admin rights, so no agent can change the ruleset.
+5. **Your status page:** the open issue labelled
+   [`agent-status`](https://github.com/TejuBoricha/Aptura/issues?q=is%3Aissue+is%3Aopen+label%3Aagent-status).
+   Read its "Needs you" line; nothing else on it needs you. GitHub also emails you each stall nudge on a pull
+   request. To keep those out of your inbox, filter mail from `notifications@github.com` that contains
+   `agent-status` and `Overdue:` into a folder, and keep mail about the `Agent status` issue.
+6. **Optional, recommended later: a separate account for the agents.** Today every agent posts as you, so only the
+   "Recorded as your words" list on the status page shows whether an `Owner said` line is really yours. A second,
+   free GitHub account added as a collaborator for the agents would make your own comments the only ones that can
+   carry your decisions. It needs your decision and setup; until then, that list is the check.
 
 ## What this deliberately does not do
 
