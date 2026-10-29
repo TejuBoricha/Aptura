@@ -114,7 +114,8 @@ CI checks that the trailer is present and not empty, not its exact format.
 | Playback, file operations, Room schema or migrations, privacy invariants, or about 300+ changed lines | The gate plus one review by a **different model** than the author, recorded in the PR |
 | Anything | Never merge on a review alone while a test fails |
 
-Reviews go in the PR or in `review/` for large audits, such as `review/audit-2026-10-28/CODE_REVIEW.md`. Which
+If the reviewer you asked is away, use the fallback ladder in "Reviews when the reviewer is away" below rather than
+waiting for it. Reviews go in the PR or in `review/` for large audits, such as `review/audit-2026-10-28/CODE_REVIEW.md`. Which
 reviewer finds real defects is tracked over time: keep a reviewer whose findings you usually accept, and drop one
 that mostly produces noise.
 
@@ -202,9 +203,10 @@ apply to any tool and model.
   ```
 
 - **If an agent goes silent,** a `To:` message addressed to it that gets no reply and no push from it for **2 hours**
-  lets another agent take over. CI running is not silence, nor is a step the agent announced with an expected finish
-  time, until that time has passed; the 2 hours then count from it. Use
-  `inbox.py --timeout 7200` so a local agent's wait ends when this rule starts to apply.
+  lets another agent take over. CI running is not silence. An agent that needs longer acknowledges with a line starting
+  `Working:` ("Working: reviewing, done by 15:00 UTC"), which restarts the 2 hours but does not end the wait. Use
+  `inbox.py --timeout 7200` so a local agent's wait ends when this rule starts to apply. The hourly stall check
+  announces the overdue wait on the PR (see "Nothing waits without a deadline").
 - **Taking over** starts with a comment, before any push:
 
   ```markdown
@@ -236,6 +238,99 @@ The work waits on GitHub: the branch, the Handoff and the `Status:` line. Nothin
 owner has nothing to do. The first agent to come back reads the PR and continues. A third tool (any agent that reads
 this file) can pick it up the same way. Only an agent running in GitHub Actions, which needs a paid model key (see
 "Talking to each other"), would remove this pause.
+
+## Nothing waits without a deadline
+
+Every wait between agents has a deadline and a fallback, so no flow depends on one particular agent coming back. This
+is the general rule; the table lists the waits known so far.
+
+| Waiting for | Deadline | Then |
+|---|---|---|
+| A reply to a `To:` message | 2 h, restarted by a `Working:` note; at once after `Pausing` | Another agent may take over (rule 9) |
+| An independent review | 2 h after the request | The fallback reviewer (below) |
+| Critiques in a debate | 2 h after the proposal | Fallback critics, the same way |
+| The proposer's answer to critiques | 2 h after the last critique | Another agent may take the debate over |
+| A step only some agents can do | 2 h after asking | The owner, once (a setting or a permission) |
+| CI | the job's own timeout | An infrastructure failure gets one re-run by an agent with the permission |
+| An owner decision | none: the owner is not on a clock | The question stays at the top of the status issue; agents work on something else meanwhile, and never take a product decision by default |
+
+**When you create a new kind of wait,** say in the same message what happens if nobody answers, and by when. A wait
+with no stated fallback falls back to the 2-hour rule.
+
+**A message that needs no answer** (a merge note, an approval with nothing left to do) says `No reply needed`, so it
+does not count as a wait.
+
+**The owner's "wait" or "stop"** is recorded as a line `Hold: <reason>` in the agent's `Owner said` comment, and
+lifted with `Hold lifted: <reason>`. While a hold stands, no deadline on that PR or debate runs out.
+
+**The hourly stall check.** The **Agent status** workflow (`.github/workflows/agent-status.yml`) runs
+`tools/agents/stalls.py` every hour, with no AI model and no secret. It finds the waits above that passed their
+deadline on open pull requests and debates. On each, it posts one `To: all` comment, signed `From: agent-status`,
+that names the stall and the fallback. The comment wakes the agents: local agents waiting in `inbox.py`, and cloud
+agents subscribed to the PR. It also keeps a one-page summary in the issue labelled `agent-status`, which is the
+owner's view of what is moving and what is stuck. To see the same report locally:
+`python3 tools/agents/stalls.py`.
+
+**Only the owner's account counts.** Every agent posts through the owner's GitHub account. On this public
+repository anyone else can comment, so `inbox.py` and the stall check ignore every other author except
+`github-actions[bot]`, the stall check's own account. A stranger can't address an agent, fake a `Hold:`, or close a
+wait. Debates opened by anyone but the owner are not work.
+
+## Reviews when the reviewer is away
+
+The independent reviewer is a role, not a particular agent. Take the first of these that is possible:
+
+1. The agent that was asked, if it answers within 2 hours (or posts `Working:`).
+2. Any other running agent whose model differs from the author's.
+3. A review the author obtains itself from a different model, with the model recorded on the PR. Any of these will
+   do:
+   - a review subagent on another model;
+   - a one-off session in another tool (Gemini CLI, Codex, OpenCode with another provider);
+   - GitHub's Copilot code review on the PR.
+
+   Give that reviewer only the diff, the PR description, `AGENTS.md` and
+   [`.agents/rules/qa-and-code-review.md`](../.agents/rules/qa-and-code-review.md), not the author's reasoning, so it
+   judges the work rather than the story. Post its full verdict on the PR, so anyone can check it.
+4. If none of these is possible, the PR waits and the status issue shows it. The owner is never asked to review code.
+
+A model from a **different vendor** is preferred, because two models from one family tend to share blind spots. For
+privacy invariants, Room migrations and file deletion, a same-vendor fallback is not enough: wait for a different
+vendor through steps 1–3. When the original reviewer comes back, it may still review after the merge. Its must-fix
+findings become a follow-up PR, which goes first in its queue.
+
+## Debates
+
+A debate is how the agents decide something that has more than one reasonable answer and is expensive to get wrong.
+Examples are an architecture or data-model choice, a change to this workflow, or anything touching hot files. Routine
+fixes don't need one.
+
+1. **Open it.** Use an issue made with the **Debate** form and labelled `debate`. The owner opens it, or an agent opens
+   it on the owner's request in its chat and says so in the issue.
+2. **Proposal.** One agent posts a comment with a line starting `Proposal:`. It covers the problem, two or three
+   options, a recommendation, and the risks. Its evidence is concrete: `file:line`, test output, measurements, or
+   linked sources. A claim without evidence counts as an opinion.
+3. **Critiques.** At least **two** agents running models other than the proposer's each post a comment with a line
+   starting `Critique:`. Prefer at least one from a different vendor. Write your critique before reading the other
+   critiques, so the second is independent of the first. Each critique ends with a verdict: agree, agree with
+   changes, or object. A critique that agrees still names at least one risk or missing scenario, so agreement is
+   never a rubber stamp. One model fills one critic slot, and the proposer cannot critique its own proposal. If
+   critics are missing after 2 hours, use the fallback ladder above.
+4. **Rebuttal.** The proposer answers once, in a comment with a line starting `Rebuttal:`. For each must-fix point,
+   it accepts the change or gives the evidence against it, then states the revised plan.
+5. **Decision.** If no critic still objects, the proposer posts a line starting `Decision:` with:
+   - the plan;
+   - the task list;
+   - what was rejected, and why;
+   - `Owner approval needed: yes/no`.
+
+   Approval is needed when the plan changes what the user sees or does, or takes more than about a day of agent work.
+   If an objection survives the rebuttal, there is one more round of critique and rebuttal. If it still stands, the
+   owner gets a one-screen summary of the options with a recommendation, and picks.
+6. **Approval.** The owner answers in any agent's chat ("approve", or a choice). That agent posts it on the issue as
+   `Owner said …`.
+7. **Build.** Each task in the decision becomes an issue or a checklist item. Agents claim and merge them under the
+   usual rules. The proposer records a durable decision in the DEC register
+   ([`spec/17`](../spec/17_RISKS_ASSUMPTIONS_AND_DECISIONS.md)) in the first task's PR.
 
 ## Automatic checks
 
@@ -280,11 +375,12 @@ These settings live in GitHub, not in the repository, so only the owner can appl
    - Require status checks to pass: `verify` and `connected`, with **Require branches to be up to date before
      merging** turned on.
 2. **Labels:** created automatically by the **Labels** workflow (`.github/workflows/labels.yml`) when it reaches
-   `main`: `agent-ready` (owner-only signal), `task`, and `claimed:<tool>` for each tool. To add a tool, edit that
-   file.
+   `main`: `agent-ready` (owner-only signal), `task`, `debate`, `agent-status`, and `claimed:<tool>` for each tool.
+   To add a tool, edit that file.
 3. **Secret protection:** Settings → Code security → enable secret scanning and push protection.
-4. **Agent tokens:** give each tool its own fine-grained token, scoped to this repository, with contents and pull
-   request write access. Grant no admin rights, so no agent can change the ruleset.
+4. **Agent tokens:** give each tool its own fine-grained token, scoped to this repository, with contents, pull
+   request and issue write access, and **Actions read and write**, so every agent can re-run a failed CI job instead
+   of waiting for the one that can. Grant no admin rights, so no agent can change the ruleset.
 
 ## What this deliberately does not do
 
