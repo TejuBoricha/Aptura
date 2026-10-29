@@ -54,9 +54,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           EVENT: ${{ github.event_name }}
+        # On a pull_request event GitHub runs the pull request's copy of this file against main's script, so a new
+        # option is passed only if the script that was checked out already has it.
         run: |
-          if [ "$EVENT" = schedule ] || [ "$EVENT" = workflow_dispatch ]; then
-            python3 tools/agents/stalls.py --nudge
-          else
-            python3 tools/agents/stalls.py --nudge --min-gap 5
+          set -- --nudge
+          if [ "$EVENT" != schedule ] && [ "$EVENT" != workflow_dispatch ] &&
+             python3 tools/agents/stalls.py --help | grep -q -- --min-gap; then
+            set -- "$@" --min-gap 5
           fi
+          python3 tools/agents/stalls.py "$@"
