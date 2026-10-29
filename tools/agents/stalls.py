@@ -75,7 +75,18 @@ def has_line(body: str, word: str) -> bool:
 
 
 def no_reply_needed(body: str) -> bool:
-    return any(re.search(r"\bno reply needed\b", line, re.IGNORECASE) for line in own_lines(body))
+    """`No reply needed` at the start of a line or as its own sentence ("Merged. No reply needed."), not inside one
+    ("this rule is not a no reply needed case"), which would silence a real wait."""
+    return any(re.search(r"(^|[.!?:]\s+)no reply needed\b", line.strip(), re.IGNORECASE) for line in own_lines(body))
+
+
+NEEDS = "<!-- needs:{key} -->"
+
+
+def needs(key: str, text: str) -> str:
+    """A "Needs you" entry. The key, hidden in the page, stays the same while the visible text (an age) changes, so
+    the owner is told about each entry once, not at every run."""
+    return f"{text} {NEEDS.format(key=key)}"
 
 
 def is_wait(body: str) -> bool:
@@ -294,11 +305,12 @@ def debate(item: Item, now: datetime, step: timedelta, timebox: timedelta) -> Fi
         if re.search(r"owner approval needed\s*:\s*yes", " ".join(own_lines(decision.body)), re.IGNORECASE):
             answers = [a for m in ordered if m.created_at > decision.created_at and (a := owner_answer(m))]
             if not answers:
-                found.needs_owner.append(f"[#{item.number}]({item.url}) decision waiting for your approval: "
-                                         f"{decision.url}")
+                found.needs_owner.append(needs(f"approve#{decision.url}", f"[#{item.number}]({item.url}) decision "
+                                                               f"waiting for your approval: {decision.url}"))
             elif answers[-1] == "unclear":
-                found.needs_owner.append(f"[#{item.number}]({item.url}) your answer to the decision ({decision.url}) "
-                                         f"was recorded but is unclear: say approve or reject.")
+                found.needs_owner.append(needs(f"unclear#{decision.url}", f"[#{item.number}]({item.url}) your answer "
+                                                               f"to the decision ({decision.url}) was recorded but is "
+                                                               f"unclear: say approve or reject."))
             elif answers[-1] == "reject":
                 stall("rejected", f"the owner rejected the decision ({decision.url}): {proposer} revises the "
                                   f"proposal or closes the debate.")
@@ -417,12 +429,22 @@ def find(items: list[Item], now: datetime, window: timedelta, step: timedelta, t
         hold = current_hold(item.messages)
         if hold:
             if now - hold.since > timedelta(days=1):
-                found.needs_owner.append(f"[#{item.number}]({item.url}) has been on hold for {_age(now - hold.since)} "
-                                         f"({hold.url}): lift it or close the item.")
+                found.needs_owner.append(needs(f"hold#{hold.url}", f"[#{item.number}]({item.url}) has been on hold "
+                                                                   f"for {_age(now - hold.since)} ({hold.url}): lift it "
+                                                                   f"or close the item."))
             continue
         mine = unanswered(item, now, window)
         for m in item.messages:
             reason = malformed(m.body) if sender(m.body) != BOT and _login_of(m) != "github-actions[bot]" else None
+            author = sender(m.body)
+            # Once its sender has posted again, an old unreadable message is history, not a stall. Without a
+            # signature there is no sender to wait for: it is history once anyone has posted after it and it has
+            # been flagged for an hour.
+            later = [x for x in item.messages if x.created_at > m.created_at and sender(x.body) != BOT
+                     and _login_of(x) != "github-actions[bot]"]
+            if reason and (any(sender(x.body) == author for x in later) if author
+                           else later and now - m.created_at >= timedelta(hours=1)):
+                reason = None
             if reason:
                 mine.append(Stall(item, f"{m.url}#malformed",
                                   f"the message {m.url} cannot be read: {reason}. Repost it with `To: <agent>` as "
@@ -435,12 +457,15 @@ def find(items: list[Item], now: datetime, window: timedelta, step: timedelta, t
         if not mine:
             mine = silent(item, now)
         for stall in mine:
+            if stall.key.endswith("#malformed"):
+                continue  # an unreadable message is the agents' to fix; it never needs the owner
             # A stall nobody resolved within a day needs the owner: perhaps no agent is running, or none can do it.
             first = next((m for m in item.messages if MARKER.format(key=stall.key) in (m.body or "")), None)
             if first and now - first.created_at >= ESCALATE:
-                found.needs_owner.append(f"[#{item.number}]({item.url}) stalled for {_age(now - first.created_at)} "
-                                         f"with no agent acting on it ({first.url}): start an agent on it, or close "
-                                         f"it.")
+                found.needs_owner.append(needs(f"escalate#{stall.key}", f"[#{item.number}]({item.url}) stalled for "
+                                                                         f"{_age(now - first.created_at)} with no agent "
+                                                                         f"acting on it ({first.url}): start an agent "
+                                                                         f"on it, or close it."))
         found.stalls += mine
     return found
 
@@ -587,15 +612,19 @@ def fetch(repo: str, token: str | None, extra_trusted: list[str] | None = None,
 
     items: list[Item] = []
     for number, entry in sorted(closed.items()):
-        found = messages(entry, "pull_request" in entry, False)
+        # Reviews are read for a closed item only while its follow-up is pending, for overrides recorded in a review.
+        found = messages(entry, "pull_request" in entry, FOLLOW_UP_LABEL in _labels(entry))
         if any(override_step(m) for m in found):
             items.append(Item(number, entry["title"], entry["html_url"], False, found, is_open=False,
                               labels=_labels(entry)))
-    pr_text = " ".join(f"{pr.get('title') or ''} {pr.get('body') or ''}" for pr in open_prs)
+    # A task is linked when an open pull request, or one closed recently (merged), mentions it.
+    pr_text = " ".join(f"{pr.get('title') or ''} {pr.get('body') or ''}" for pr in
+                       [*open_prs, *(e for e in closed.values() if "pull_request" in e)])
     for pr in open_prs:
         found = messages(pr, True, True)
         item = Item(pr["number"], pr["title"], pr["html_url"], False, found, labels=_labels(pr))
-        last = max((m.created_at for m in found if sender(m.body) not in (BOT, None)),
+        # Any trusted comment is activity, signed or not (the owner writes plain comments); the bot's own are not.
+        last = max((m.created_at for m in found if sender(m.body) != BOT and _login_of(m) != "github-actions[bot]"),
                    default=pr_checks._parse_time(pr["created_at"]))
         if now - last >= IDLE:  # only then is the head commit worth a request
             commit = pr_checks._get(f"{base}/commits/{pr['head']['sha']}", token)
@@ -661,7 +690,9 @@ def publish(repo: str, token: str, items: list[Item], found: Findings, text: str
         write("PATCH", f"{base}/issues/{status[0]['number']}", {"body": body + footer})
         # Editing the page notifies nobody. A new "Needs you" entry gets one comment, which GitHub sends the owner;
         # agent-only stalls never do, so the owner's notifications are only the things only the owner can settle.
-        new = [n for n in found.needs_owner if n not in (status[0].get("body") or "")]
+        old = status[0].get("body") or ""
+        new = [n for n in found.needs_owner
+               if (key := re.search(r"<!-- needs:.+? -->", n)) is None or key.group(0) not in old]
         if new:
             write("POST", f"{base}/issues/{status[0]['number']}/comments",
                   {"body": "The agents need you for:\n\n" + "\n".join(f"- {n}" for n in new)})
