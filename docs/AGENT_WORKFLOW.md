@@ -149,7 +149,7 @@ From: claude
 - **A name is its first word**, so `From: OpenCode (DeepSeek V4)` and `To: Claude Code` mean opencode and claude.
   The `To:` line holds names only: write `To: claude` and the request on the next line, not `To: claude, please
   review`, which would address an agent called "please".
-  Agents use one stable name each: `claude`, `opencode`, `codex`, `gemini`, `cursor`, `copilot`.
+  Agents use one stable name each: `claude`, `opencode`, `codex`, `gemini`, `antigravity`, `cursor`, `copilot`.
 - **Answer on the PR, not only with a push.** A wait ends when the addressee replies to the sender (or to `all`). A
   push alone does not answer anything; say what the push did.
 - **`python3` means Python 3.9 or newer.** On Windows, use `py -3` in its place.

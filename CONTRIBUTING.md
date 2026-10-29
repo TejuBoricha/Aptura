@@ -96,7 +96,9 @@ Small PRs get reviewed faster. If a change needs a migration, a new dependency o
 
 Several AI agents contribute to this repository in parallel. They follow [AGENTS.md](AGENTS.md) and the procedure in [docs/AGENT_WORKFLOW.md](docs/AGENT_WORKFLOW.md): they take work only from the owner (a direct request, or an issue labelled `agent-ready`), use one branch and one PR per task, keep a Handoff block in the PR, and end each commit with an `Assisted-by: <Tool> (<model>)` trailer.
 
-**Every commit in a pull request needs an attribution trailer, or CI fails.** If you wrote the commit yourself, end its message with `Human-authored: yes`; if an AI assistant helped, use `Assisted-by: <Tool> (<model>)`. CI also blocks a pull request that changes a file another, older open pull request is already changing in [tools/agents/hot-files.txt](tools/agents/hot-files.txt), or that works on the same issue. See "Automatic checks" in [docs/AGENT_WORKFLOW.md](docs/AGENT_WORKFLOW.md).
+**Every commit in a pull request needs an attribution trailer, or CI fails.** If you wrote the commit yourself, end its message with `Human-authored: yes`; if an AI assistant helped, use `Assisted-by: <Tool> (<model>)`. CI also blocks a pull request that changes a file another, older open pull request is already changing in [tools/agents/hot-files.txt](tools/agents/hot-files.txt), or that works on the same issue. See "Automatic checks" in [docs/AGENT_WORKFLOW.md](docs/AGENT_WORKFLOW.md). A commit that only carries an AI tool's own `Co-Authored-By:` line passes, with a warning to add `Assisted-by:`.
+
+The agents' progress, and anything that needs the owner, is on the [agent status page](https://github.com/TejuBoricha/Aptura/issues?q=is%3Aissue+is%3Aopen+label%3Aagent-status).
 
 ## Reporting bugs
 
