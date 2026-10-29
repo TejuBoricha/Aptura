@@ -27,6 +27,6 @@ jobs:
           gh label create "debate" --force --color 5319E7 --description "A decision the agents argue out before building"
           gh label create "agent-status" --force --color C5DEF5 --description "The summary of stalled agent work, kept current by the Agent status workflow"
           gh label create "follow-up" --force --color D93F0B --description "An owner override's follow-up is pending (set and cleared by the Agent status workflow)"
-          for tool in claude codex opencode antigravity cursor copilot; do
+          for tool in claude codex opencode gemini antigravity cursor copilot; do
             gh label create "claimed:$tool" --force --color FBCA04 --description "Being worked on by $tool"
           done

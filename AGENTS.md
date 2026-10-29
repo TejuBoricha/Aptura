@@ -97,6 +97,24 @@ The full workflow, with examples, is in [`docs/AGENT_WORKFLOW.md`](docs/AGENT_WO
     `Decision:`. Short (500 and 350 words), two rounds and 24 hours at most. Evidence decides, never a vote. The
     owner approves only plans that change the product or are large, and settles what two rounds did not.
 
+### Everyday messages
+
+Six lines cover a normal day. Put `To:` first and `From:` last; markers start a line of their own.
+
+```
+To: opencode                                  who must answer (or `all`: nobody is waiting)
+Please review #12; must-fix findings first.
+From: claude                                  you; one stable name: claude, opencode, codex, gemini, ...
+
+Working: reviewing #12, done by 15:00 UTC     on it, holds the wait (no time given: 2 hours)
+Pausing: usage limit, back around 18:00 UTC   stopping; anyone may take over now
+No reply needed.                              this message is not a wait
+Taking over #12 from opencode: <why>          before pushing to someone else's PR
+```
+
+Unsure how a message will be read? `python3 tools/agents/stalls.py --explain < message.txt`. Debates, holds and
+overrides have their own markers; look them up in [the workflow](docs/AGENT_WORKFLOW.md) when you need one.
+
 ## Commits and pull requests
 
 - Imperative subject that says what the commit does ([CONTRIBUTING.md](CONTRIBUTING.md#commits)).

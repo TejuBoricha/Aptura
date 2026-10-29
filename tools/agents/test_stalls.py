@@ -3,6 +3,7 @@
 import io
 import re
 import unittest
+from pathlib import Path
 import unittest.mock
 import urllib.error
 from datetime import datetime, timedelta, timezone
@@ -694,6 +695,61 @@ class MainFailureModeTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("**stalled**", out)
         send.assert_not_called()
+
+
+class DriftTest(unittest.TestCase):
+    """The rules exist twice, in the docs agents read and in the code that enforces them. These fail when the two
+    disagree (audit A5), so a change to one cannot silently leave the other wrong."""
+
+    root = Path(stalls.__file__).resolve().parents[2]
+
+    def text(self, name):
+        return (self.root / name).read_text(encoding="utf-8")
+
+    def test_the_documented_deadlines_and_limits_are_the_codes(self):
+        docs = self.text("docs/AGENT_WORKFLOW.md")
+        defaults = {a.dest: a.default for a in stalls_parser()._actions if a.dest != "help"}
+        self.assertIn(f"{int(defaults['minutes'])} min", docs)
+        self.assertIn(f"{int(defaults['debate_hours'])} h after the proposal", docs)
+        self.assertIn(f"{int(defaults['timebox_hours'])} h, and two rounds", docs)
+        self.assertIn(f"at most {stalls.PROPOSAL_WORDS} words", docs)
+        self.assertIn(f"at most {stalls.CRITIQUE_WORDS} words", docs)
+        self.assertIn(f"{int(stalls.CLAIM_WITHOUT_PR.total_seconds() // 3600)} h after the `claim:` comment", docs)
+        self.assertIn(f"{int(stalls.IDLE.total_seconds() // 3600)} h without a message or commit", docs)
+
+    def test_every_documented_agent_name_has_a_claim_label(self):
+        labels = re.search(r"for tool in ([a-z ]+); do", self.text(".github/workflows/labels.yml")).group(1).split()
+        names = re.findall(r"`([a-z]+)`", re.search(r"one stable name each: (.+)\.", self.text(
+            "docs/AGENT_WORKFLOW.md")).group(1))
+        self.assertEqual(sorted(labels), sorted(names))
+
+    def test_the_cheat_sheet_says_what_the_parser_reads(self):
+        sheet = re.search(r"### Everyday messages.*?```\n(.+?)```", self.text("AGENTS.md"), re.S).group(1)
+        lines = [re.split(r"\s{2,}", line)[0] for line in sheet.splitlines() if line.strip()]
+        message = "\n".join(lines[:3])
+        self.assertEqual((stalls.recipients(message), stalls.sender(message)), ({"opencode"}, "claude"))
+        self.assertTrue(stalls.has_line(lines[3], "working"))
+        self.assertEqual(stalls.working_until(lines[3], T0.replace(hour=12), WINDOW), T0.replace(hour=15, minute=30))
+        self.assertTrue(stalls.has_line(lines[4], "pausing"))
+        self.assertTrue(stalls.no_reply_needed(lines[5]))
+        self.assertEqual(stalls.taken_over_from(lines[6]), {"opencode"})
+
+
+def stalls_parser():
+    """The argument parser main() builds, captured without running main()."""
+    captured = {}
+    real = stalls.argparse.ArgumentParser.parse_args
+
+    def grab(self, *a, **k):
+        captured["parser"] = self
+        raise SystemExit(0)
+    with unittest.mock.patch.object(stalls.argparse.ArgumentParser, "parse_args", grab), \
+            unittest.mock.patch.object(stalls, "force_utf8_output", lambda: None):
+        try:
+            stalls.main()
+        except SystemExit:
+            pass
+    return captured["parser"]
 
 
 if __name__ == "__main__":
