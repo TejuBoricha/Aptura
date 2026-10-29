@@ -61,7 +61,7 @@ Started 2026-10-29. Written while testing, updated as items finish.
 | HDR playback | PARTIAL PASS | HDR10 test clip (HEVC Main10, BT.2020/PQ, mastering metadata, 1080p) played with 0 crashes, 0 dropped frames. Stats overlay: **"HDR10 (PQ)"**, "Hardware Accelerated", `c2.exynos.hevc.decoder`, `hvc1.2.4.L120.90`. NOT judged: tone-mapping quality / panel HDR brightness (needs eyes), and the compositor dump did not show a clear BT.2020/PQ layer dataspace, so I cannot say the panel switched to HDR mode. |
 | 30-minute 4K thermal run | PASS (no throttling; no A/V desync measurable) | 3840x2160 HEVC looped for 30.2 min (12:55:06 to 13:25:19) with the phone on USB power. 0 dropped frames (0.0%) in all seven stats crops, 0 audio underruns in all 61 samples, thermal status 0 (None) throughout. Live HAL temperatures (13:11:33 to 13:27:12): AP 39.5 to 42.2, CP/PA 38.4 to 40.4, skin 37.4 to 38.1, battery 36.2 to 36.8, USB 34.8 to 35.1 degrees C. Playback clock drift 0 to -401 ms over 30 min (about -13 ms/min, loop restarts); A/V desync itself is not measurable over adb. |
 | PiP unavailable | CANNOT BE TESTED FULLY | The S24 supports PiP. With the PiP app-op denied for Aptura: Home no longer made a PiP window (normal background), and tapping "Picture in picture" in More options did nothing (no crash, no message). The menu entry is still shown, so "PiP button absent" is not met by this approximation. Note: with PiP allowed, pressing Home during playback auto-enters PiP. |
-| Kill the app during a large SAF copy | NOT YET RUN | Built a 2.5 GB valid MP4 (`bigtest.mp4`) to move with the library's "Move to folder" action. |
+| Kill the app during a large SAF copy | PASS | Moved the 2.5 GB `bigtest.mp4` with the library's **Move to folder** into `Movies/AptureTestDest`, polled the destination size and force-stopped the app at 1,122,697,216 bytes (42% of 2,685,185,070, t+4.1 s; the copy runs at ~330 MB/s). Reopened the app: `MediaTransferScheduler.resumePending` took over, the partial destination (1,178,861,568 bytes) was **deleted**, the copy restarted from 0 and finished in ~8 s, then Android asked "Allow Aptura to delete this video?" and the move completed ("Move complete / 1 of 1 video moved to the selected folder"). Source is gone, destination is the full 2,685,185,070 bytes, no partial or duplicate left. Caveat: resume is per file — a single huge file restarts from zero, it is not a byte-level continue. |
 
 ## Things worth a look (possible defects or oddities)
 
@@ -107,6 +107,11 @@ Product and UX
   look in Settings).
 
 Testability (would make on-device and instrumented tests cheaper)
+- **Resumable single-file transfers:** a kill during one large file makes the next run delete the partial and copy it
+  from zero (the journal records only completed files). Appending to the partial and storing its byte offset would turn
+  a 2.5 GB redo into a continue. On this phone the redo took ~8 s; on slower storage it could be minutes.
+- The 2.5 GB move runs at ~330 MB/s and finishes in ~8 s, so a kill-during-copy test needs a tight size poll (150 ms
+  here); the usable window is about 4 s.
 - **Expose test tags as resource ids** (`Modifier.semantics { testTagsAsResourceId = true }` at the root). Every Compose
   node showed an empty `resource-id` in UI dumps, so tests and tools have to find controls by visible text or position.
 - The accessibility tree has no "tab N of M" or slider range information I could read from a dump; if that is provided
