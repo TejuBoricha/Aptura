@@ -74,19 +74,36 @@ class UnansweredTest(unittest.TestCase):
         back = msg("To: all\nBack, reviewing now.\nNo reply needed.\nFrom: opencode", 60)
         self.assertEqual(stalls_of([msg(ASK), pause, back], 300), [])
 
-    def test_a_working_note_restarts_the_deadline_without_ending_the_wait(self):
+    def test_a_working_note_holds_until_its_done_by_time_plus_the_window(self):
+        # Round-2 finding N5: the stated time counts. T0 is 09:00 UTC; the note says done by 11:00.
         working = msg("To: claude\nWorking: reviewing, done by 11:00 UTC.\nFrom: opencode", 60)
-        self.assertEqual(stalls_of([msg(ASK), working], 89), [])
-        [stall] = stalls_of([msg(ASK), working], 91)
-        self.assertIn("`Working:` note is 0 h 31 min old", stall.text)
+        self.assertEqual(stalls_of([msg(ASK), working], 149), [])
+        [stall] = stalls_of([msg(ASK), working], 151)
+        self.assertIn("`Working:` note ran out 0 h 01 min ago", stall.text)
+
+    def test_a_working_note_without_a_time_holds_two_hours_and_needs_no_to_line(self):
+        working = msg("Working: on it.\nFrom: opencode", 10)
+        self.assertEqual(stalls_of([msg(ASK), working], 129), [])
+        self.assertEqual(len(stalls_of([msg(ASK), working], 131)), 1)
 
     def test_a_restarted_wait_is_announced_again(self):
         # Review nit: the de-duplication key includes the deadline's anchor.
         first = stalls_of([msg(ASK)], 31)[0]
         working = msg("To: claude\nWorking: on it.\nFrom: opencode", 40)
         ask = first.item.messages[0]
-        second = stalls_of([ask, working], 80)[0]
+        second = stalls_of([ask, working], 200)[0]
         self.assertNotEqual(first.key, second.key)
+
+    def test_names_with_a_model_or_a_tool_suffix_still_match(self):
+        # Round-2 finding N1: `From: OpenCode (DeepSeek V4)` and `To: Claude Code` are opencode and claude.
+        reply = msg("To: Claude Code\nApproved.\nNo reply needed.\nFrom: OpenCode (DeepSeek V4)", 10)
+        self.assertEqual(stalls_of([msg(ASK), reply], 300), [])
+
+    def test_the_owner_is_never_waited_on(self):
+        # Round-2 finding N2: the owner answers in plain text, without a From: line, and is not on a clock.
+        self.assertEqual(stalls_of([msg("To: owner\nShould we ship?\nFrom: claude")], 900), [])
+        both = stalls_of([msg("To: opencode, owner\nReview, and owner please confirm.\nFrom: claude")], 900)
+        self.assertEqual([s.text.split(" ")[3] for s in both], ["opencode"])
 
     def test_a_push_alone_is_not_an_answer(self):
         # Review findings 2 and 3: commit dates are not push times, and Assisted-by matching was unreliable.
@@ -167,25 +184,57 @@ class DebateTest(unittest.TestCase):
         messages.append(msg("Rebuttal: changed the plan.\nFrom: claude", 100))
         self.assertEqual(self.run_debate(messages, 200).stalls, [])
 
+    def critiqued(self):
+        return [msg(self.proposal), msg("Critique: agree.\nFrom: opencode", 5), msg("Critique: agree.\nFrom: gemini", 6)]
+
     def test_only_the_proposers_decision_closes_the_debate_and_quotes_do_not(self):
         stray = msg("Critique: object.\nDecision: should be per video\nFrom: opencode", 10)
         quoted = msg("> Decision: per-video storage.\nFrom: gemini", 11)
         self.assertNotEqual(self.run_debate([msg(self.proposal), stray, quoted], 900).stalls, [])
         decision = msg("To: all\nDecision: per-video storage.\nOwner approval needed: no\nFrom: claude", 20)
-        self.assertEqual(self.run_debate([msg(self.proposal), decision], 900).stalls, [])
+        self.assertEqual(self.run_debate([*self.critiqued(), decision], 900).stalls, [])
+
+    def test_a_decision_before_two_critiques_does_not_count_unless_overridden(self):
+        # Round-2 finding N3: a proposer could skip the critiques.
+        decision = msg("To: all\nDecision: per-video storage.\nOwner approval needed: no\nFrom: claude", 2)
+        [stall] = self.run_debate([msg(self.proposal), decision], 60).stalls
+        self.assertIn("0 of 2 critiques", stall.text)
+        override = msg("To: all\nOwner said: skip the critiques, decide now.\nOverride: debate critiques on #9\n"
+                       "Follow-up: critiques after the decision\nNo reply needed.\nFrom: claude", 1)
+        self.assertEqual(self.run_debate([msg(self.proposal), override, decision], 60).stalls, [])
 
     def test_a_decision_that_needs_the_owner_is_listed_until_the_owner_answers(self):
         decision = msg("To: all\nDecision: per-video storage.\nOwner approval needed: yes\nFrom: claude", 20)
-        found = self.run_debate([msg(self.proposal), decision], 60)
+        found = self.run_debate([*self.critiqued(), decision], 60)
         self.assertIn("waiting for your approval", found.needs_owner[0])
         approval = msg("To: all\nOwner said (in my session): approve.\nNo reply needed.\nFrom: opencode", 30)
-        self.assertEqual(self.run_debate([msg(self.proposal), decision, approval], 60).needs_owner, [])
+        self.assertEqual(self.run_debate([*self.critiqued(), decision, approval], 60).needs_owner, [])
+
+    def test_owner_approval_is_read_only_from_an_owner_said_line(self):
+        # Round-2 finding N4: "Owner said nothing" in passing, or a quote, is not an approval; a rejection is not one.
+        decision = msg("To: all\nDecision: per-video storage.\nOwner approval needed: yes\nFrom: claude", 20)
+        chatter = msg("To: all\nI think the owner said approve to a different plan.\n> Owner said: approve\n"
+                      "No reply needed.\nFrom: gemini", 30)
+        self.assertEqual(len(self.run_debate([*self.critiqued(), decision, chatter], 60).needs_owner), 1)
+        rejected = msg("To: all\nOwner said (in my session): rejected, keep one global value.\nNo reply needed.\n"
+                       "From: opencode", 30)
+        found = self.run_debate([*self.critiqued(), decision, rejected], 60)
+        self.assertEqual(found.needs_owner, [])
+        self.assertIn("rejected the decision", found.stalls[0].text)
 
     def test_a_debate_past_its_time_box_is_flagged(self):
         critiques = [msg("Critique: agree.\nFrom: opencode", 30), msg("Critique: object.\nFrom: gemini", 40)]
         rebuttal = msg("Rebuttal: revised.\nFrom: claude", 60)
         found = self.run_debate([msg(self.proposal), *critiques, rebuttal], 25 * 60)
         self.assertTrue(any("past its time box" in s.text for s in found.stalls))
+
+    def test_an_agreeing_critique_after_two_rounds_is_not_an_objection(self):
+        # Round-2 finding N6.
+        messages = [msg(self.proposal), msg("Critique: object.\nFrom: opencode", 10),
+                    msg("Critique: object.\nFrom: gemini", 11), msg("Rebuttal: one.\nFrom: claude", 20),
+                    msg("Critique: still object.\nFrom: opencode", 30), msg("Rebuttal: two.\nFrom: claude", 40),
+                    msg("Critique: now agree.\nVerdict: agree\nFrom: opencode", 50)]
+        self.assertFalse(any("two rounds are done" in s.text for s in self.run_debate(messages, 60).stalls))
 
     def test_objections_after_two_rounds_go_to_the_owner(self):
         messages = [msg(self.proposal), msg("Critique: object.\nFrom: opencode", 10),
@@ -203,6 +252,19 @@ class DebateTest(unittest.TestCase):
         self.assertTrue(any("over the 350-word limit" in t for t in texts))
 
 
+class OverrideTest(unittest.TestCase):
+    def test_overrides_are_listed_with_their_follow_up_until_it_is_done(self):
+        override = msg("To: all\nOwner said (in my session): \"skip the review and merge it now, it's urgent\"\n"
+                       "Override: independent review on #9\nReason: urgent fix\nScope: this PR only\n"
+                       "Follow-up: post-merge review by opencode\nNo reply needed.\nFrom: claude")
+        found = find([item([override])], at(10), WINDOW, STEP, TIMEBOX)
+        self.assertIn("skipped independent review on \\#9", found.overrides[0])
+        self.assertIn("**pending**", found.overrides[0])
+        done = msg("To: all\nFollow-up done: reviewed after merge, no findings.\nNo reply needed.\nFrom: opencode", 60)
+        self.assertIn(", done", find([item([override, done])], at(70), WINDOW, STEP, TIMEBOX).overrides[0])
+        self.assertIn("Overrides in effect", stalls.report([item([override])], found, at(10)))
+
+
 class ReportTest(unittest.TestCase):
     def test_titles_cannot_mention_people_or_inject_links(self):
         # Review finding 8: a stranger's PR title is rendered into the public status issue.
@@ -210,6 +272,7 @@ class ReportTest(unittest.TestCase):
         text = stalls.report([pr], stalls.Findings(), at(0))
         self.assertNotIn("@octocat", text)
         self.assertNotIn("[x](http", text)
+        self.assertNotIn("http://e", stalls.safe("see http://e.vil"))
 
     def test_needs_you_is_the_first_thing_the_owner_reads(self):
         text = stalls.report([], stalls.Findings(needs_owner=["approve #20"]), at(0))
