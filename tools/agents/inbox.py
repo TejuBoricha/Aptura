@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import subprocess
 import sys
 import time
 from dataclasses import dataclass
@@ -31,7 +32,42 @@ from datetime import datetime, timezone
 import pr_checks
 
 TO_LINE = re.compile(r"^\s*to:\s*(.+?)\s*$", re.IGNORECASE)
-FROM_LINE = re.compile(r"^\s*from:\s*(.+?)\s*$", re.IGNORECASE | re.MULTILINE)
+FROM_LINE = re.compile(r"^\s*from:\s*(.+?)\s*$", re.IGNORECASE)
+FENCE = re.compile(r"^\s*(```|~~~)")
+
+
+def message_lines(body: str) -> list[str]:
+    """The lines a comment says itself, as the markers are read from them.
+
+    Quoted lines (`> ...`) and fenced code blocks repeat or illustrate other text, so a `Hold:` or `From:` inside them
+    never counts. Common formatting is undone, so `**To:** opencode` and `- Working: ...` read as `To: opencode` and
+    `Working: ...`.
+    """
+    lines, fenced = [], False
+    for line in (body or "").splitlines():
+        if FENCE.match(line):
+            fenced = not fenced
+            continue
+        if fenced or line.lstrip().startswith(">"):
+            continue
+        line = re.sub(r"^\s*[-*+]\s+", "", line)  # a list bullet
+        lines.append(line.replace("**", "").replace("__", ""))
+    return lines
+
+
+def github_token() -> str | None:
+    """GITHUB_TOKEN or GH_TOKEN, else the GitHub CLI's login (`gh auth token`), which most local agents already have.
+    Without a token GitHub allows 60 requests an hour, which a waiting agent would use up in minutes."""
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if token:
+        return token
+    try:
+        result = subprocess.run(["gh", "auth", "token"], capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip() or None
 
 
 def force_utf8_output() -> None:
@@ -101,18 +137,34 @@ def agent_name(text: str) -> str | None:
 
 
 def recipients(body: str) -> set[str]:
-    """Names on the first non-empty line `To: a, b`; empty when the message is not addressed."""
-    for line in (body or "").splitlines():
+    """Names on the first non-empty line `To: a, b` (or `a and b`); empty when the message is not addressed."""
+    for line in message_lines(body):
         if line.strip():
             match = TO_LINE.match(line)
             if not match:
                 return set()
-            return {name for part in match.group(1).split(",") if (name := agent_name(part))}
+            parts = re.split(r",|\band\b", match.group(1), flags=re.IGNORECASE)
+            return {name for part in parts if (name := agent_name(part))}
     return set()
 
 
+def malformed(body: str) -> str | None:
+    """Why a comment that looks like a message cannot be read as one, or None. A message nobody can parse would
+    otherwise be silently ignored: no wait, no answer, no nudge."""
+    lines = [line for line in message_lines(body) if line.strip()]
+    has_to = any(TO_LINE.match(line) for line in lines)
+    has_from = any(FROM_LINE.match(line) for line in lines)
+    if has_to and not TO_LINE.match(lines[0]):
+        return "its `To:` line is not the first line"
+    if has_to and not has_from:
+        return "it has a `To:` line but no `From:` line"
+    if has_from and not has_to:
+        return "it has a `From:` line but no `To:` line"
+    return None
+
+
 def sender(body: str) -> str | None:
-    matches = FROM_LINE.findall(body or "")
+    matches = [m.group(1) for line in message_lines(body) if (m := FROM_LINE.match(line))]
     return agent_name(matches[-1]) if matches else None
 
 
@@ -162,7 +214,12 @@ def main() -> int:
                         help="extra GitHub logins whose comments count as messages (default: the owner and the bot)")
     args = parser.parse_args()
     authors = trusted_authors(args.repo, args.trust)
-    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    token = github_token()
+    if not token:
+        # 60 requests an hour without a token, and each check costs four: slow down rather than run out.
+        args.interval = max(args.interval, 240)
+        print("No GitHub token (set GITHUB_TOKEN, or log in with `gh auth login`): checking every 4 minutes to stay "
+              "within GitHub's limit of 60 requests an hour.", flush=True)
     since = pr_checks._parse_time(args.since) if args.since else None
     started = datetime.now(timezone.utc).replace(microsecond=0)
     deadline = time.monotonic() + args.timeout
