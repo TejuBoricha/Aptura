@@ -112,7 +112,7 @@ class PlaybackSmokeTest {
 
     @After
     fun removeClips() {
-        runCatching { PlayerManager.activeController?.player?.let { p -> onMain { p.stop() } } }
+        runCatching { PlayerManager.activeController?.let { c -> onMain { c.stopForDismissal() } } }
         listOfNotNull(clipUri, hevcUri).forEach { runCatching { context.contentResolver.delete(it, null, null) } }
     }
 
@@ -178,16 +178,19 @@ class PlaybackSmokeTest {
         waitForNode(first, 30_000)
         waitForNode(second, 30_000)
         val controller = PlayerManager.getOrCreate(context)
+        val device = androidx.test.uiautomator.UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
 
         composeRule.onAllNodes(first)[0].performClick()
         assertPlays(controller, "the first tap", expectedMediaId = clipUri.toString())
 
-        androidx.test.uiautomator.UiDevice.getInstance(InstrumentationRegistry.getInstrumentation()).pressBack()
+        device.pressBack()
         // Leaving the player lets its decoder go before the picture's surface is destroyed.
         waitFor(5_000, "the decoder to be let go on leaving the player") { controller.player.playbackState == Player.STATE_IDLE }
-        // Leaving the player turns the screen back upright, which recreates the activity: for a moment there is no screen.
-        waitForNode(second, 15_000)
-        composeRule.onAllNodes(second)[0].performClick()
+        // Leaving the player turns the screen back upright, which recreates the activity, so the compose rule's view of
+        // it goes stale; the device sees whatever is on the screen now.
+        val card = device.wait(androidx.test.uiautomator.Until.findObject(androidx.test.uiautomator.By.textContains(HEVC_WORD)), 15_000)
+            ?: fail("The library did not come back after leaving the first video. ${appRecord()}").let { null }
+        card!!.click()
         assertPlays(controller, "a second tap, after going back from the first video", expectedMediaId = hevcUri.toString())
     }
 
@@ -337,6 +340,13 @@ class PlaybackSmokeTest {
         else -> null
     }
 
+    /** The player view of the activity that is on screen now (not the one the compose rule started with, which may have been recreated). */
+    private fun resumedPlayerView(): PlayerView? {
+        val resumed = androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry.getInstance()
+            .getActivitiesInStage(androidx.test.runner.lifecycle.Stage.RESUMED).firstOrNull() ?: return null
+        return findPlayerView(resumed.window.decorView)
+    }
+
     /** The picture and the lock screen belong to the player in use, so they must move with it. */
     @UnstableApi
     @Test
@@ -354,9 +364,9 @@ class PlaybackSmokeTest {
         assertPlays(controller, "the replacement while the player screen is showing")
 
         waitFor(8_000, "the picture to follow the new player") {
-            findPlayerView(composeRule.activity.window.decorView)?.player === controller.player
+            resumedPlayerView()?.player === controller.player
         }
-        assertSame(controller.player, onMain { findPlayerView(composeRule.activity.window.decorView)?.player })
+        assertSame(controller.player, onMain { resumedPlayerView()?.player })
     }
 
     /** What the screen and the app's own log said, for the failure message. */

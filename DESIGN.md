@@ -286,6 +286,16 @@ A player that reports `ERROR_CODE_TIMEOUT` (a surface or codec that never answer
 
 Every step is written to the diagnostic report (`play.session.start` for each recovery with the player's steps, buffering and thread states; `play.error` when it gives up), so a report from a phone still says what happened. `Media3PlaybackControllerStallTest` covers each rung, the carried-over settings, the order of the hand-over, what happens to the queue and the final message. `PlaybackSmokeTest` (connected) plays H.264, HEVC, a 558-item queue and a second video after the first on the CI emulator, wedges a real player with a source that never delivers a byte and requires the video to play on the replacement, and requires the picture to follow a replaced player.
 
+### 5.5d Scrolling a big library stays smooth
+
+The owner's library has 558 videos and fast scrolling felt laggy. Every cell that scrolled into view started reading or making its picture at once, with no limit and no pause for cells that were only flashing past: a hard fling started 212 pieces of picture work and up to 30 ran together, taking the processor from the screen. Now (`VideoThumbnail.kt`):
+
+- **Nothing starts during a fling.** The grid measures how fast it moves (`rememberFlingGate`: more than 12 cells per second is a fling) and the cells wait; 150 ms after it slows, the cells on screen get their pictures, 60 ms later. A cell is composed for as long as a few rows either side of the screen are, far longer than it is seen, so a fixed delay alone did not help (it still started 106).
+- **At most three at once** (`ThumbnailWork`), at background thread priority, so the thread that draws the screen is served first. Work that is still waiting is dropped, never started, when its cell scrolls away.
+- Pictures already in memory still appear in the first frame; the pictures of a fast scroll fill in a moment after it stops.
+
+`ThumbnailScrollLoadTest` measures both: a hard fling starts at most 10 pieces of work (212 before), and at most 3 run together (30 before). Not measured on a phone.
+
 ### 5.5c Bottom sheets stay put
 
 Every bottom sheet is `ApturaModalBottomSheet` (`ui/components/ApturaSheet.kt`), never Material's `ModalBottomSheet` directly. Material gives the sheet whatever speed a fling has left at the end of a list, and the sheet settles at the top with it; a spring that starts at its resting place with speed away from it swings past and back, so a flicked list lifted the whole sheet about 85 dp and dropped it again ("the screen dances"). The wrapper swallows the **upward** leftover speed only. Flicking down from the top of a list still closes the sheet, by distance or by speed alone. `ApturaSheetTest` measures the heading's top frame by frame after a flick and fails if a source file opens a plain `ModalBottomSheet`.

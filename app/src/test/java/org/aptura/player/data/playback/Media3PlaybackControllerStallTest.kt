@@ -285,6 +285,25 @@ class Media3PlaybackControllerStallTest {
     }
 
     @Test
+    fun aStoppedPlayer_isNotAStalledOne() = runTest(dispatcher) {
+        val player = StuckPlayer()
+        val controller = controllerWith(player)
+
+        controller.playQueue(listOf(video), 0)
+        runCurrent()
+        player.startPlaying()
+        // Stopped from outside while play-when-ready is still on (a test teardown, a release): idle, with its queue.
+        player.playWhenReady = true
+        player.isPlaying = false
+        player.changeState(Player.STATE_IDLE)
+        advanceTimeBy(rung * 6)
+        runCurrent()
+
+        assertEquals("nothing is waiting for a stopped player to start", 0, made.size)
+        assertFalse(controller.playbackState.value is DomainPlaybackState.Error)
+    }
+
+    @Test
     fun aPlayerThatFailedWithAnError_isLeftToTheErrorHandling() = runTest(dispatcher) {
         val player = StuckPlayer()
         val controller = controllerWith(player)

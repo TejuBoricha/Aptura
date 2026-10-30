@@ -774,8 +774,10 @@ class Media3PlaybackController(
      * the player says so, with what it was doing. Any sign of life (playing, paused by a person, an error) stops it.
      */
     private fun updateStartWatch() {
-        val waiting = player.playWhenReady && !player.isPlaying && player.mediaItemCount > 0 &&
-            player.playbackState != Player.STATE_ENDED && player.playerError == null &&
+        // A stopped player (IDLE) is not trying to start; only one that is buffering, or ready and not playing, is waiting.
+        val trying = player.playbackState == Player.STATE_BUFFERING || player.playbackState == Player.STATE_READY
+        val waiting = player.playWhenReady && !player.isPlaying && player.mediaItemCount > 0 && trying &&
+            player.playerError == null &&
             player.playbackSuppressionReason == Player.PLAYBACK_SUPPRESSION_REASON_NONE &&
             stalledReason == null
         if (!waiting) {

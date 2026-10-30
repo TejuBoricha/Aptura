@@ -63,6 +63,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
@@ -394,9 +395,11 @@ internal fun LibraryVideoPane(
     val columnGap = if (isList) 20.dp else LibraryMetrics.gridColumnGap(prefs.density, isWideScreen)
     val rowGap = if (isList) LibraryMetrics.listRowGap(prefs.density) else LibraryMetrics.gridRowGap(prefs.density)
 
+    val gridState = rememberLazyGridState()
+    CompositionLocalProvider(LocalThumbnailsPaused provides rememberFlingGate(gridState)) {
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = minCell),
-        state = rememberLazyGridState(),
+        state = gridState,
         modifier = modifier.testTag(LIBRARY_VIDEO_GRID_TAG),
         contentPadding = PaddingValues(
             start = pagePadding,
@@ -462,6 +465,7 @@ internal fun LibraryVideoPane(
                 )
             }
         }
+    }
     }
 }
 
