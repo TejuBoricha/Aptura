@@ -146,7 +146,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.ModalBottomSheet
+import org.aptura.player.ui.components.ApturaModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -1942,7 +1942,7 @@ fun PlayerScreen(
 
         // 7c. Speed Selection Sheet (SCR-010b)
         if (uiState.isSpeedSheetVisible) {
-            ModalBottomSheet(
+            ApturaModalBottomSheet(
                 onDismissRequest = { onSpeedSheetVisible(false) },
                 sheetState = rememberModalBottomSheetState(),
                 containerColor = ApturaColors.SurfaceElevated2
@@ -2039,7 +2039,7 @@ fun PlayerScreen(
         if (uiState.isAdvancedSheetVisible) {
             var selectedTab by remember { mutableIntStateOf(0) }
 
-            ModalBottomSheet(
+            ApturaModalBottomSheet(
                 onDismissRequest = { onAdvancedSheetVisible(false) },
                 sheetState = rememberModalBottomSheetState(),
                 containerColor = ApturaColors.SurfaceElevated2

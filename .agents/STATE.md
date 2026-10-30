@@ -69,6 +69,9 @@ PR's Verification section and in CI, not here, so most pull requests never need 
 - **Playback is tested on a real codec in CI:** `PlaybackSmokeTest` (`connected` job) plays H.264, HEVC and a 558-item queue and
   taps a video in the library. The player never stays silently stuck: 8 s without starting tries the software decoder once,
   then shows "Playback Did Not Start" (DESIGN.md §5.5b). Not checked on a Samsung S24 yet.
+- **Every bottom sheet is `ApturaModalBottomSheet`** (`ui/components/ApturaSheet.kt`): it swallows the upward fling speed left over
+  at the end of a list, which made the whole sheet rise ~85 dp and drop back ("dancing"). `ApturaSheetTest` also fails on any
+  plain `ModalBottomSheet(` in the sources. A stall report now carries a step trace and thread states (`PlaybackTrace`).
 - **Video access** is read from the system every time the app comes to the front (`rememberVideoAccess`); a grant scans now
   and again after 5 s; Settings has a Video access row (DESIGN.md §4.2c).
 - **Folder identity:** the folder key (`folderPath` in Room) is the folder's path on its storage volume, from `MediaFolderKey`;

@@ -47,7 +47,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ModalBottomSheet
+import org.aptura.player.ui.components.ApturaModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -336,7 +336,7 @@ internal fun FolderBrowserSheet(
     onAddFolder: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    ModalBottomSheet(
+    ApturaModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = ApturaColors.SurfaceElevated1

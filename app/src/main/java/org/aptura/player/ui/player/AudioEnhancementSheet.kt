@@ -45,7 +45,7 @@ import androidx.compose.material.icons.filled.SurroundSound
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ModalBottomSheet
+import org.aptura.player.ui.components.ApturaModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
@@ -124,7 +124,7 @@ fun AudioEnhancementSheet(
     var selectedTab by remember(initialTab) { mutableIntStateOf(initialTab) }
     val haptic = LocalHapticFeedback.current
 
-    ModalBottomSheet(
+    ApturaModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = ApturaColors.SurfaceElevated2,

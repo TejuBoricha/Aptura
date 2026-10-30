@@ -49,7 +49,7 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ModalBottomSheet
+import org.aptura.player.ui.components.ApturaModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -93,7 +93,7 @@ fun PlaybackQueueSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    ModalBottomSheet(
+    ApturaModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = ApturaColors.SurfaceElevated2,

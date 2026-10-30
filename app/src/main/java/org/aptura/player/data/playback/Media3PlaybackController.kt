@@ -142,6 +142,9 @@ class Media3PlaybackController(
     /** Why play-when-ready last changed (a person, an audio-focus loss, the end of an item...), for the stall report. */
     private var lastPlayWhenReadyChangeReason = -1
 
+    /** What the player did since playback was last asked for; goes to the diagnostic report when it never starts. */
+    private val trace = PlaybackTrace()
+
     /** When the current request to play was made (nanoTime), so the diagnostic log can say how long the start took; 0 once logged. */
     private var playRequestedAtNanos = 0L
 
@@ -372,6 +375,101 @@ class Media3PlaybackController(
     }
 
     private val analyticsListener = object : AnalyticsListener {
+        override fun onPlaybackStateChanged(eventTime: AnalyticsListener.EventTime, state: Int) {
+            trace.note("state=${stateName(state)}")
+        }
+
+        override fun onPlayWhenReadyChanged(eventTime: AnalyticsListener.EventTime, playWhenReady: Boolean, reason: Int) {
+            trace.note("playWhenReady=$playWhenReady($reason)")
+        }
+
+        override fun onIsLoadingChanged(eventTime: AnalyticsListener.EventTime, isLoading: Boolean) {
+            trace.note("loading=$isLoading")
+        }
+
+        override fun onTimelineChanged(eventTime: AnalyticsListener.EventTime, reason: Int) {
+            trace.note("timeline(items=${player.mediaItemCount})")
+        }
+
+        override fun onLoadStarted(
+            eventTime: AnalyticsListener.EventTime,
+            loadEventInfo: androidx.media3.exoplayer.source.LoadEventInfo,
+            mediaLoadData: androidx.media3.exoplayer.source.MediaLoadData
+        ) {
+            trace.note("load-start(type=${mediaLoadData.dataType} track=${mediaLoadData.trackType})")
+        }
+
+        override fun onLoadCompleted(
+            eventTime: AnalyticsListener.EventTime,
+            loadEventInfo: androidx.media3.exoplayer.source.LoadEventInfo,
+            mediaLoadData: androidx.media3.exoplayer.source.MediaLoadData
+        ) {
+            trace.note("load-done(type=${mediaLoadData.dataType} ${loadEventInfo.bytesLoaded}B ${loadEventInfo.loadDurationMs}ms)")
+        }
+
+        override fun onLoadError(
+            eventTime: AnalyticsListener.EventTime,
+            loadEventInfo: androidx.media3.exoplayer.source.LoadEventInfo,
+            mediaLoadData: androidx.media3.exoplayer.source.MediaLoadData,
+            error: java.io.IOException,
+            wasCanceled: Boolean
+        ) {
+            trace.note("load-error(${error.javaClass.simpleName} canceled=$wasCanceled)")
+        }
+
+        override fun onTracksChanged(eventTime: AnalyticsListener.EventTime, tracks: Tracks) {
+            val parts = mutableListOf<String>()
+            for (group in tracks.groups) {
+                for (i in 0 until group.length) {
+                    val f = group.getTrackFormat(i)
+                    val kind = when (group.type) {
+                        C.TRACK_TYPE_VIDEO -> "v ${f.sampleMimeType} ${f.width}x${f.height}"
+                        C.TRACK_TYPE_AUDIO -> "a ${f.sampleMimeType} ${f.channelCount}ch ${f.sampleRate}Hz"
+                        C.TRACK_TYPE_TEXT -> "t ${f.sampleMimeType}"
+                        else -> "type${group.type}"
+                    }
+                    parts += kind + if (group.isTrackSelected(i)) "*" else if (group.isTrackSupported(i)) "" else "(unsupported)"
+                }
+            }
+            trace.note("tracks[${parts.joinToString(", ")}]")
+        }
+
+        override fun onRenderedFirstFrame(eventTime: AnalyticsListener.EventTime, output: Any, renderTimeMs: Long) {
+            trace.note("first-frame")
+        }
+
+        override fun onSurfaceSizeChanged(eventTime: AnalyticsListener.EventTime, width: Int, height: Int) {
+            trace.note("surface=${width}x$height")
+        }
+
+        override fun onVideoEnabled(eventTime: AnalyticsListener.EventTime, decoderCounters: androidx.media3.exoplayer.DecoderCounters) {
+            trace.note("video-renderer-on")
+        }
+
+        override fun onAudioEnabled(eventTime: AnalyticsListener.EventTime, decoderCounters: androidx.media3.exoplayer.DecoderCounters) {
+            trace.note("audio-renderer-on")
+        }
+
+        override fun onAudioPositionAdvancing(eventTime: AnalyticsListener.EventTime, playoutStartSystemTimeMs: Long) {
+            trace.note("audio-advancing")
+        }
+
+        override fun onAudioSinkError(eventTime: AnalyticsListener.EventTime, audioSinkError: Exception) {
+            trace.note("audio-sink-error(${audioSinkError.javaClass.simpleName})")
+        }
+
+        override fun onAudioCodecError(eventTime: AnalyticsListener.EventTime, audioCodecError: Exception) {
+            trace.note("audio-codec-error(${audioCodecError.javaClass.simpleName})")
+        }
+
+        override fun onVideoCodecError(eventTime: AnalyticsListener.EventTime, videoCodecError: Exception) {
+            trace.note("video-codec-error(${videoCodecError.javaClass.simpleName})")
+        }
+
+        override fun onPlayerError(eventTime: AnalyticsListener.EventTime, error: PlaybackException) {
+            trace.note("player-error(${error.errorCodeName})")
+        }
+
         override fun onVideoDecoderInitialized(
             eventTime: AnalyticsListener.EventTime,
             decoderName: String,
@@ -379,6 +477,7 @@ class Media3PlaybackController(
             initializationDurationMs: Long
         ) {
             currentVideoDecoderName = decoderName
+            trace.note("video-decoder=$decoderName ${initializationDurationMs}ms")
             isVideoHardware = !decoderName.startsWith("c2.android.") && !decoderName.startsWith("OMX.google.")
             updatePlaybackStats()
         }
@@ -390,6 +489,7 @@ class Media3PlaybackController(
             initializationDurationMs: Long
         ) {
             currentAudioDecoderName = decoderName
+            trace.note("audio-decoder=$decoderName ${initializationDurationMs}ms")
             updatePlaybackStats()
         }
 
@@ -619,7 +719,13 @@ class Media3PlaybackController(
         val facts = describePlayerForStall()
         ApturaDiagnostics.logEvent(
             code = EventCode.EV_011,
-            payload = mapOf("errorCode" to "PLAYBACK_STALLED", "stage" to "start", "reason" to facts)
+            payload = mapOf(
+                "errorCode" to "PLAYBACK_STALLED",
+                "stage" to "start",
+                "reason" to facts,
+                "trace" to trace.summary(),
+                "threads" to PlaybackThreads.ofThisProcess()
+            )
         )
         val canTrySoftware = !hasAttemptedSoftwareFallback && currentDecoderStrategy != 2 && player.currentMediaItem != null
         if (canTrySoftware) {
@@ -660,6 +766,7 @@ class Media3PlaybackController(
         "state=${stateName(player.playbackState)} playWhenReady=${player.playWhenReady} " +
             "suppression=${player.playbackSuppressionReason} lastPlayChange=$lastPlayWhenReadyChangeReason " +
             "position=${player.currentPosition}ms item=${player.currentMediaItemIndex + 1}/${player.mediaItemCount} " +
+            "buffered=${player.bufferedPosition}ms loading=${player.isLoading} " +
             "skipped=$consecutiveSkips decoder=${currentDecoderStrategy}"
 
     private fun stateName(state: Int) = when (state) {
@@ -822,6 +929,8 @@ class Media3PlaybackController(
         pausedAtItemEnd = false
         consecutiveSkips = 0
         stalledReason = null
+        trace.restart()
+        trace.note("requested items=${items.size} start=$clampedIndex")
         queueItems.clear()
         queueItems.addAll(items)
         sidecarsByUri.clear()
@@ -1259,6 +1368,8 @@ class Media3PlaybackController(
     override suspend fun retryPlayback() {
         if (player.currentMediaItem == null) return
         stalledReason = null
+        trace.restart()
+        trace.note("retry")
         startWatchdog?.cancel()
         startWatchdog = null
         player.prepare()

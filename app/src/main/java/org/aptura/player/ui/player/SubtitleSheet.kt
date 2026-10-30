@@ -44,7 +44,7 @@ import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ModalBottomSheet
+import org.aptura.player.ui.components.ApturaModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
@@ -115,7 +115,7 @@ fun SubtitleSheet(
     var selectedTab by remember { mutableIntStateOf(0) }
     val haptic = LocalHapticFeedback.current
 
-    ModalBottomSheet(
+    ApturaModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = rememberModalBottomSheetState(),
         containerColor = ApturaColors.SurfaceElevated2,

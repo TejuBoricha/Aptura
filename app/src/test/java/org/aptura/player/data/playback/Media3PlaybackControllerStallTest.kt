@@ -14,6 +14,8 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import org.aptura.player.core.diagnostics.ApturaDiagnostics
+import org.aptura.player.core.diagnostics.EventCode
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.domain.model.DomainPlaybackState
 import org.junit.After
@@ -223,5 +225,24 @@ class Media3PlaybackControllerStallTest {
         advanceTimeBy(window * 2)
         runCurrent()
         assertFalse(controller.playbackState.value is DomainPlaybackState.Error)
+    }
+
+    @Test
+    fun theReportCarriesWhereThePlayerStopped_theStepsAndTheThreads() = runTest(dispatcher) {
+        val player = StuckPlayer()
+        val controller = controllerWith(player)
+        ApturaDiagnostics.ringBuffer.clear()
+
+        controller.playQueue(listOf(video), 0)
+        runCurrent()
+        advanceTimeBy(window)
+        runCurrent()
+
+        val stall = ApturaDiagnostics.ringBuffer.getAllEvents()
+            .last { it.code == EventCode.EV_011 && it.payload["errorCode"] == "PLAYBACK_STALLED" }
+        assertTrue("the steps are there: ${stall.payload}", stall.payload["trace"].orEmpty().contains("requested items=1 start=0"))
+        assertTrue("the threads are there: ${stall.payload}", stall.payload.containsKey("threads"))
+        assertTrue(stall.payload["reason"].orEmpty().contains("buffered="))
+        assertTrue(stall.payload["reason"].orEmpty().contains("loading="))
     }
 }

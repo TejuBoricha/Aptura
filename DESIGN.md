@@ -274,6 +274,10 @@ The stats panel (top right, up to 380dp wide) and the centred transport buttons 
 
 Playback that is asked for and never begins must not end as a paused, black player that says nothing (the owner's Samsung S24: queue 558, 0:00, no message). While the player is meant to be playing and is not (not an error, not the end, not a person's pause, not the system holding the audio), a timer runs; after **8 seconds** the software decoder is tried once (the same fallback as a decoder failure), and if that does not start either, the player shows **"Playback Did Not Start"** with Retry and Open in another app. The player's state (buffering or idle, play-when-ready, suppression, position, item, decoder) is written to the diagnostic report (`play.error`, `play.session.start`), so the next report says why. `Media3PlaybackControllerStallTest`; `PlaybackSmokeTest` (connected) plays a real H.264 clip, a real HEVC clip and a 558-item queue started in the middle on the CI emulator, and taps a video in the library.
 
+### 5.5c Bottom sheets stay put
+
+Every bottom sheet is `ApturaModalBottomSheet` (`ui/components/ApturaSheet.kt`), never Material's `ModalBottomSheet` directly. Material gives the sheet whatever speed a fling has left at the end of a list, and the sheet settles at the top with it; a spring that starts at its resting place with speed away from it swings past and back, so a flicked list lifted the whole sheet about 85 dp and dropped it again ("the screen dances"). The wrapper swallows the **upward** leftover speed only. Flicking down from the top of a list still closes the sheet, by distance or by speed alone. `ApturaSheetTest` measures the heading's top frame by frame after a flick and fails if a source file opens a plain `ModalBottomSheet`.
+
 ### 5.6 Player Sheets and Settings Controls
 
 Every player sheet (Audio, Subtitles, Playback tools, Speed, Queue) is built from one set of controls in `ui/player/PlayerSheetChrome.kt` and `ui/player/PlayerControls.kt`. A tab must not bring its own pill, slider or stepper.
