@@ -63,6 +63,14 @@ PR's Verification section and in CI, not here, so most pull requests never need 
   scrolling box (it is given unlimited height and never reads as short). Below 480 dp (`SHORT_WINDOW_HEIGHT`) Settings
   has no large title and the Continue watching cards shrink; the stats panel and the transport buttons are kept apart
   at every window shape (§5.3c).
+- **Transitions never fade a screen** (`NavigationTransitions.kt`, DESIGN.md §4.3): Navigation 3's default is a 700 ms
+  cross-fade and a shrink-then-vanish for the Back gesture, which is the flicker. Pages slide, solid, and a route must paint
+  its own opaque background. `ScreenTransitionTest` fails on any blended pixel.
+- **Playback is tested on a real codec in CI:** `PlaybackSmokeTest` (`connected` job) plays H.264, HEVC and a 558-item queue and
+  taps a video in the library. The player never stays silently stuck: 8 s without starting tries the software decoder once,
+  then shows "Playback Did Not Start" (DESIGN.md §5.5b). Not checked on a Samsung S24 yet.
+- **Video access** is read from the system every time the app comes to the front (`rememberVideoAccess`); a grant scans now
+  and again after 5 s; Settings has a Video access row (DESIGN.md §4.2c).
 - **Folder identity:** the folder key (`folderPath` in Room) is the folder's path on its storage volume, from `MediaFolderKey`;
   labels add the parent and then the storage only when two names collide (`folderLabels`). No schema change: a rescan
   rewrites the value. A SAF folder the person added keeps its own relative key. DESIGN.md §4.2.

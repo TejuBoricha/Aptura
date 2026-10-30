@@ -172,9 +172,102 @@ theme is tested at the resource level; the activity wiring itself is not under t
 
 **Decision on same-named folders (the owner asked for it to be taken on industry practice):** the library now identifies a folder by its volume and path, the way Photos, Files and the common gallery apps do (their `BUCKET_ID` is a hash of the directory), using the documented `RELATIVE_PATH` and `VOLUME_NAME` columns and the file path only before Android 10. Because the folder key is already a text column that the UI treats as a path (a folder the person added is one), this needed no Room schema change and no migration: the startup scan runs on every launch and rewrites the key on each video while keeping progress, per-video choices and hidden state. Not verified on a device with an SD card; the Android 10+ path is tested through the real scanner with a fake provider, and the older path through the key builder and the projection, because the Android 9 simulator is not available offline.
 
+## After the owner's phone test (a Samsung S24 and a second phone)
+
+The owner installed the debug build (52e0ec2) on a Samsung S24 and on another phone and reported five things. This is
+the first time the app ran on a device in this round.
+
+### No video started on the S24 (blocker)
+
+**What was seen.** The player opens, shows the title and duration, the queue chip reads 558, the controls are up, and it
+sits paused at 0:00 with a black picture. No error. Every video tried, picked at random from the gallery.
+
+**What is established.** Nothing in my branch changed playback code (the controller, the view model, the codec selector
+and the player manager are untouched; the player route's wrapper and the player screen's layout were). The CI `connected`
+job runs the app on an API 35 x86_64 emulator with a software decoder: `PlaybackSmokeTest` puts a real 4 s H.264 + AAC
+clip in MediaStore and requires the player to be playing it with the position moving. It passed for the controller and,
+after the test itself was fixed (it first tapped a folder chip called "AppturaSmoke" instead of the video), for a tap on
+the card in the library. So the pipeline from the library to a moving picture works on a clean device. The cause is
+therefore specific to the S24, to its 558-video library, or to a codec or audio path the emulator does not have.
+
+**What is not established: the cause.** Candidates, none confirmed: a hardware decoder (the S24's Exynos codecs) that
+accepts the stream and never produces a frame; the audio sink or audio focus never letting the player start; a very
+large queue. The owner can settle it with Settings > Share diagnostic report after trying one video.
+
+**How it got past the gate.** No test in the repository ever played a video: the unit tests run on a JVM where there is
+no codec, and the connected tests only opened the app and looked at the screen (launch, rotation, back). Device testing
+was on hold at the owner's request, so the first time anyone watched a video play was the owner's.
+
+**What changed.** (1) `PlaybackSmokeTest` (connected, CI): an H.264 clip, an HEVC clip, a 558-item queue started at item
+301, and a tap on a card in the library; a failure names the player's state, play-when-ready, suppression, position and
+error and includes the screen and the log. (2) A start watchdog in the controller: playback that has been asked for and
+has not begun after 8 s tries the software decoder once, then shows "Playback Did Not Start" with Retry (DESIGN.md
+§5.5b); nothing explained by an error, the end of the video, a person's pause or the system holding the audio back is
+touched. (3) The player's state at a stall, and when playback was requested and when it started, are written to the
+diagnostic report. Tests: `Media3PlaybackControllerStallTest` (6 tests; 8 mutations, each caught).
+
+**Not verified:** on the S24. If it is a decoder stall, the software fallback should start it; if it is something else,
+the message and the report will say what.
+
+### Back navigation flickers (the Settings back gesture and "most back navigation")
+
+**Reproduced first** with the app's real transition code, one picture per 16 ms (`BackShots`, before = `b7e3d57`):
+going back from Settings was a 700 ms cross-fade in which the Settings title is drawn through the library and the
+library's cards through the Settings page; and after a half-way Back gesture the shrunken page hung in place, fully
+opaque, for about 190 ms and then vanished in a single frame.
+
+**Root cause.** The commit before this one assumed "every other route keeps Navigation's default slide". In Navigation 3
+1.0.1 the defaults are `fadeIn/fadeOut(tween(700))` for going forward and back, and for the gesture
+`fadeIn + scaleOut(0.7)` with no fade-out (read from the library's own bytecode). Two opaque screens cross-fading are
+half see-through for most of the move, and a page that ends a gesture opaque must disappear all at once.
+
+**Fix.** Screens slide over each other, solid, in 300 ms (the page underneath moves a fifth of its width); the gesture
+drags the page with the finger (slide and shrink to 92%) and the Back button uses the same properties, so letting go
+carries the page on to the edge. The details route painted no background of its own, so it now does.
+`ScreenTransitionTest`: no blended pixel between two flat screens in any frame of going forward, going back or the
+gesture; the page keeps moving after the finger lets go. 5 mutations, each caught.
+
+**Not verified:** on a phone, and at 60/90/120 Hz. The previous round's player-route fix (a cover above the video) is
+untouched, and `PlayerRouteTransitionTest` still passes.
+
+### Folder swipe is slow
+
+Two causes: the swipe only counted after the finger had gone 64 dp **and lifted**, so a short flick did nothing and a
+long swipe started moving once the gesture was over; and the slide used the default easing, which starts slowly. Now the
+folder changes the moment the finger has gone 48 dp, a quick flick (500 dp/s) counts on letting go, and the same slide and
+fades take 170 ms with an easing that starts fast. Measured on the real library screen: the new folder is half there
+after 80 ms (112 before) and complete after 144 ms (240 before). `FolderSwipeFeelTest` (6 tests, 5 mutations caught).
+Not verified: the feel on a finger.
+
+### The welcome guide is laggy going back and forth
+
+**Measured** with a scripted Next, Next, Next, Back, Back, Back lap (twice; frame times on the build machine's JVM, so
+relative): every page turn had one frame of 14 to 128 ms (most 40 to 95) among frames of 2 to 5 ms. **Root cause:** each
+page is a screen's worth of real composables (the library header, folder bar and cards; the player scene), the pager built
+a page on the frame a swipe began and discarded it when the page was left, so every Next, Back and swipe began with a
+build. **Fix:** once the first page has settled, the other pages are built behind it one at a time and kept; the welcome
+rings move only while their page is in front. After: the worst frame of any turn is 13 ms. The cost moved to one pause
+while the first page is being read (about 0.5 s on the measuring machine, cold). `GuideBuildAheadTest` (4 tests, 4
+mutations caught). A debug build, which is what the owner installed, exaggerates any such hitch.
+
+### Videos did not appear after access was granted; the app asked again
+
+**What is established.** Access was read once when the app opened, and otherwise only from the reply to the app's own
+dialog; the scan after a grant ran once. Access given or taken anywhere else (or a reply that never arrived) was never
+seen until the app was closed and opened again, and Settings had no row for it at all.
+**Not established:** why the first scan after the grant found nothing on that phone (the index still catching up is
+the likeliest).
+**Fix:** `rememberVideoAccess` reads the system's answer every time the app comes to the front and the permission result
+handler trusts it over the reply; a grant starts a scan at once and another 5 s later (not shown as a visible scan);
+Settings > Library & storage > **Video access** says "Allowed" or "Not allowed" with Allow (asks the system) or Manage
+(the system's page for the app), and when the system no longer shows its dialog, asking opens that page. No new
+permission. Tests: `VideoAccessTest`, `AccessGrantedScanTest`, `SettingsVideoAccessTest` (10 tests, 7 mutations caught).
+The wiring in `Navigation.kt` (the effect that reacts to a change of access) is exercised by compiling, not by a test.
+**Not verified:** on that phone.
+
 ## Verification
 
-- Full unit suite: 904 tests, 0 failures, 162 skipped (the galleries, which run only when `APTURA_GALLERY_DIR` is set).
+- Full unit suite: 933 tests, 0 failures, 162 skipped (the galleries, which run only when `APTURA_GALLERY_DIR` is set).
 - Guide gallery renders reviewed at: phone, small phone (320 dp), 200% font, landscape, tablet, light and dark, and the
   replay with a library. The library layouts are rendered by `LibraryLayoutGalleryTest` at its listed sizes.
 - `lintDebug`: 0 errors, 91 warnings (the same count as before the sideways, first-scan and later work), none in the guide files (a first run flagged two uses of `Configuration.screenHeightDp` there; they now use the window-size API). `assembleRelease` with `verifyReleaseApk`
@@ -193,3 +286,6 @@ theme is tested at the resource level; the activity wiring itself is not under t
 6. The replay shows the person's own video titles and frames on the library page. It is on-device only and nothing is
    stored or sent, but a screenshot of the guide would show them.
 7. Point 6 is waiting for the owner's screenshots.
+8. Playback on the Samsung S24 is not verified: the cause of the report is not established (above). The start watchdog
+   waits 8 s, which is a guess about what is too long; if a real video needs longer it will be tried with the software decoder.
+9. The access effect in `Navigation.kt` is not covered by a test of its own.
