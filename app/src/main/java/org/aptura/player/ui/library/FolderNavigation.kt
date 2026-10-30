@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -51,6 +52,7 @@ import org.aptura.player.ui.components.ApturaModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -341,6 +343,13 @@ internal fun FolderBrowserSheet(
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = ApturaColors.SurfaceElevated1
     ) {
+        val listState = rememberLazyListState()
+        val gridState = rememberLazyGridState()
+        // The covers wait while the list is flung, like the pictures in the library (see rememberFlingGate).
+        val flinging = rememberFlingGate(scrollKey = layout) {
+            if (layout == FolderLayout.LIST) listState.firstVisibleItemIndex else gridState.firstVisibleItemIndex
+        }
+        CompositionLocalProvider(LocalThumbnailsPaused provides flinging) {
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.heightIn(max = maxHeight * 0.92f).padding(horizontal = 16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
@@ -388,6 +397,7 @@ internal fun FolderBrowserSheet(
                 }
                 when (layout) {
                     FolderLayout.LIST -> LazyColumn(
+                        state = listState,
                         modifier = Modifier.weight(1f, fill = false),
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                         contentPadding = PaddingValues(bottom = 24.dp)
@@ -398,6 +408,7 @@ internal fun FolderBrowserSheet(
                     }
                     FolderLayout.GRID -> LazyVerticalGrid(
                         columns = GridCells.Adaptive(minSize = 150.dp),
+                        state = gridState,
                         modifier = Modifier.weight(1f, fill = false),
                         verticalArrangement = Arrangement.spacedBy(14.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -409,6 +420,7 @@ internal fun FolderBrowserSheet(
                     }
                 }
             }
+        }
         }
     }
 }

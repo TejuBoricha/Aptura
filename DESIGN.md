@@ -292,6 +292,7 @@ The owner's library has 558 videos and fast scrolling felt laggy. Every cell tha
 
 - **Nothing starts during a fling.** The grid measures how fast it moves (`rememberFlingGate`: more than 12 cells per second is a fling) and the cells wait; 150 ms after it slows, the cells on screen get their pictures, 60 ms later. A cell is composed for as long as a few rows either side of the screen are, far longer than it is seen, so a fixed delay alone did not help (it still started 106).
 - **At most three at once** (`ThumbnailWork`), at background thread priority, so the thread that draws the screen is served first. Work that is still waiting is dropped, never started, when its cell scrolls away.
+- The same pause is on the Folders sheet (its cover pictures), and the library grid serves every folder, so it applies in all of them.
 - Pictures already in memory still appear in the first frame; the pictures of a fast scroll fill in a moment after it stops.
 
 `ThumbnailScrollLoadTest` measures both: a hard fling starts at most 10 pieces of work (212 before), and at most 3 run together (30 before). Not measured on a phone.

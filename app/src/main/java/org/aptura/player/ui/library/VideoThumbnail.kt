@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -78,12 +79,18 @@ private const val FLING_RELEASE_MS = 150L
 internal val LocalThumbnailsPaused = staticCompositionLocalOf<State<Boolean>> { mutableStateOf(false) }
 
 @Composable
-internal fun rememberFlingGate(state: LazyGridState): State<Boolean> {
-    val paused = remember(state) { mutableStateOf(false) }
-    LaunchedEffect(state) {
-        var lastIndex = state.firstVisibleItemIndex
+internal fun rememberFlingGate(state: LazyGridState): State<Boolean> =
+    rememberFlingGate(scrollKey = state) { state.firstVisibleItemIndex }
+
+/** The same for any scrolling list: [firstVisibleIndex] reads the index of its first visible item, [scrollKey] says which list it is. */
+@Composable
+internal fun rememberFlingGate(scrollKey: Any, firstVisibleIndex: () -> Int): State<Boolean> {
+    val read = rememberUpdatedState(firstVisibleIndex)
+    val paused = remember(scrollKey) { mutableStateOf(false) }
+    LaunchedEffect(scrollKey) {
+        var lastIndex = read.value()
         var lastNanos = Long.MIN_VALUE
-        snapshotFlow { state.firstVisibleItemIndex }.collectLatest { index ->
+        snapshotFlow { read.value() }.collectLatest { index ->
             val now = withFrameNanos { it }
             if (lastNanos != Long.MIN_VALUE && now > lastNanos) {
                 val cellsPerSecond = abs(index - lastIndex) * 1_000_000_000f / (now - lastNanos)
