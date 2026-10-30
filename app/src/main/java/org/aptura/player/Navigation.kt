@@ -47,7 +47,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.aptura.player.core.diagnostics.ApturaDiagnostics
 import org.aptura.player.core.diagnostics.DiagnosticStore
+import org.aptura.player.core.platform.AccessReply
 import org.aptura.player.core.platform.PermissionHelper
+import org.aptura.player.core.platform.appDetailsSettingsIntent
+import org.aptura.player.core.platform.rememberVideoAccess
+import org.aptura.player.core.platform.replyToVideoAccessRequest
 import org.aptura.player.core.platform.AppVersion
 import org.aptura.player.data.database.ApturaDatabase
 import org.aptura.player.data.playback.PlayerManager
@@ -250,23 +254,53 @@ private fun AppNavHost(
 
     val backStack = rememberNavBackStack(startKey)
 
+    // Whether Aptura may list the videos, as the system says now: read again every time the app comes back to the front,
+    // so access given or taken away in the system's settings is noticed without closing and opening the app.
+    var hasVideoAccess by rememberVideoAccess()
+    val hostActivity = context as? Activity
+
     // Permission Request Launcher (SCR-001)
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { results ->
-        val allGranted = results.values.all { it }
-        libraryViewModel.setPermissionDenied(!allGranted)
-        if (allGranted) {
-            coroutineScope.launch {
-                settingsRepository.setOnboardingCompleted(true)
-                settingsRepository.setLastSeenGuideVersion(currentVersionCode)
+    ) { _ ->
+        // The system's own answer decides, not the reply the dialog sent back: on the phone where the library stayed
+        // empty after access was granted, the reply was what had not arrived.
+        val granted = PermissionHelper.hasStoragePermission(context)
+        hasVideoAccess = granted
+        libraryViewModel.setPermissionDenied(!granted)
+        val canAskAgain = hostActivity != null && PermissionHelper.getRequiredPermissions().any { permission ->
+            androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(hostActivity, permission)
+        }
+        when (replyToVideoAccessRequest(granted, canAskAgain)) {
+            AccessReply.GRANTED -> {
+                coroutineScope.launch {
+                    settingsRepository.setOnboardingCompleted(true)
+                    settingsRepository.setLastSeenGuideVersion(currentVersionCode)
+                }
+                if (backStack.lastOrNull() == Onboarding) {
+                    backStack.removeLastOrNull()
+                    if (backStack.isEmpty()) backStack.add(MediaLibrary)
+                }
             }
-            MediaScanScheduler.scheduleImmediateScan(context)
-            if (backStack.lastOrNull() == Onboarding) {
-                backStack.removeLastOrNull()
-                if (backStack.isEmpty()) backStack.add(MediaLibrary)
+            AccessReply.DENIED -> Unit
+            AccessReply.OPEN_SETTINGS -> {
+                // The system no longer shows its dialog; its settings page is the only place left to allow it.
+                Toast.makeText(context, "Allow video access in the app's permissions", Toast.LENGTH_LONG).show()
+                try {
+                    context.startActivity(appDetailsSettingsIntent(context))
+                } catch (_: Throwable) {
+                }
             }
         }
+    }
+
+    // The library follows the access, and a grant starts a scan, wherever the grant came from (the dialog, or the
+    // system's settings). Not on the first look: the scan at process start covers an app that already had access.
+    var lastSeenAccess by remember { mutableStateOf(hasVideoAccess) }
+    LaunchedEffect(hasVideoAccess) {
+        libraryViewModel.setPermissionDenied(!hasVideoAccess)
+        if (hasVideoAccess && !lastSeenAccess) MediaScanScheduler.scheduleScansAfterAccessGranted(context)
+        lastSeenAccess = hasVideoAccess
     }
 
     // SAF Document File Picker Launcher (Limited Storage Mode, SCR-012)
@@ -302,11 +336,6 @@ private fun AppNavHost(
                 MediaScanScheduler.scheduleImmediateScan(context)
             }
         }
-    }
-
-    // Storage access state synchronization
-    LaunchedEffect(Unit) {
-        libraryViewModel.setPermissionDenied(!PermissionHelper.hasStoragePermission(context))
     }
 
     // Synchronize active route with MainActivity so PiP only triggers while Player is active (F-04)
@@ -364,7 +393,7 @@ private fun AppNavHost(
                 val libraryForGuide by libraryViewModel.uiState.collectAsStateWithLifecycle()
                 OnboardingScreen(
                     libraryState = libraryForGuide as? MediaLibraryUiState.Success,
-                    hasStorageAccess = PermissionHelper.hasStoragePermission(context),
+                    hasStorageAccess = hasVideoAccess,
                     onRequestPermissionClick = {
                         permissionLauncher.launch(PermissionHelper.getRequiredPermissions())
                     },
@@ -600,6 +629,10 @@ private fun AppNavHost(
                     },
                     showCloseButton = true,
                     modifier = Modifier
+                        // A page slides over the one beneath it (NavigationTransitions.kt), so it has to paint its own
+                        // background: this one had none and showed the library through it.
+                        .fillMaxSize()
+                        .background(ApturaColors.SurfaceBase)
                         // Stable while the player hides and restores the bars (see the library Scaffold).
                         .windowInsetsPadding(StableStatusBars)
                         .padding(top = 8.dp)
@@ -724,6 +757,18 @@ private fun AppNavHost(
                     },
                     onReplayOnboardingClick = {
                         backStack.add(Onboarding)
+                    },
+                    hasVideoAccess = hasVideoAccess,
+                    onVideoAccessClick = {
+                        if (hasVideoAccess) {
+                            // Allowed: the page where it can be taken back or changed.
+                            try {
+                                context.startActivity(appDetailsSettingsIntent(context))
+                            } catch (_: Throwable) {
+                            }
+                        } else {
+                            permissionLauncher.launch(PermissionHelper.getRequiredPermissions())
+                        }
                     },
                     onUpdateDecoderStrategy = { strategy ->
                         // The Settings screen edits the DEFAULT; the player picks it up from the settings flow.

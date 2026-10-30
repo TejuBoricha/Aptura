@@ -5,8 +5,13 @@ import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,16 +22,25 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.navigation3.scene.Scene
 import androidx.navigation3.ui.LocalNavAnimatedContentScope
-import androidx.navigation3.ui.defaultPopTransitionSpec
-import androidx.navigation3.ui.defaultPredictivePopTransitionSpec
-import androidx.navigation3.ui.defaultTransitionSpec
+import androidx.navigationevent.NavigationEvent
 
 /*
  * How the app moves between screens.
  *
- * Every screen but the player keeps Navigation's default slide. The player is different because its picture is drawn
- * by a SurfaceView, which lives behind the window and is only visible through a hole Compose cuts for it. Sliding,
- * scaling or fading *the player itself* leaves that hole where it was for a frame or two (video floating over a moving
+ * Navigation 3's own defaults are a 700 ms cross-fade for going forward and back, and, for the Back gesture, a page that
+ * shrinks to 70% without ever fading and then vanishes when the gesture ends. Both read as flicker: for most of the
+ * cross-fade two whole screens are half transparent on top of each other (a title drawn through the page behind it),
+ * and the shrunken page is still fully opaque on the frame it disappears. So no screen is ever faded:
+ *
+ *  - Going forward the new page slides in from the right over the page it came from, which moves a fifth of its width
+ *    to the left underneath. Going back is the same movement in reverse. Both pages are opaque the whole time, so
+ *    nothing shows through anything.
+ *  - The Back gesture drags the page along (it follows the finger and shrinks a little), and letting go carries the
+ *    same movement on to the edge, so the gesture and the Back button end in the same place instead of the page
+ *    snapping out of existence.
+ *
+ * The player is different because its picture is drawn by a SurfaceView, which lives behind the window and is only
+ * visible through a hole Compose cuts for it. Sliding, scaling or fading *the player itself* leaves that hole where it was for a frame or two (video floating over a moving
  * page) and, while the player is semi-transparent, shows whatever is composed beneath it through the hole. So the
  * player is never animated, and Navigation always stacks it above the screen it came from, so that screen cannot be
  * animated over it either. The only animation is a plain cover drawn *above* the video inside the player
@@ -52,6 +66,20 @@ internal val PlayerRouteMetadata: Map<String, Any> = mapOf(PLAYER_ROUTE_KEY to t
 internal val Scene<*>.isPlayerRoute: Boolean
     get() = metadata[PLAYER_ROUTE_KEY] == true
 
+/** How long a page takes to slide in or out. */
+internal const val SCREEN_SLIDE_MS = 300
+
+/** The page underneath moves this fraction of its width while the page above slides over it. */
+private const val UNDERLAY_SHIFT = 5
+
+/** The page being dragged away by the Back gesture shrinks to this much of its size. */
+private const val GESTURE_SCALE = 0.92f
+
+/** Quick to start, long soft landing (Material's emphasized decelerate). */
+private val SlideEasing = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
+
+private fun <T> slideSpec() = tween<T>(durationMillis = SCREEN_SLIDE_MS, easing = SlideEasing)
+
 /** Pushing a destination. The player itself never animates; its own cover does (see [PlayerRouteFrame]). */
 internal fun <T : Any> AnimatedContentTransitionScope<Scene<T>>.appTransition(): ContentTransform =
     if (targetState.isPlayerRoute) {
@@ -61,7 +89,11 @@ internal fun <T : Any> AnimatedContentTransitionScope<Scene<T>>.appTransition():
             sizeTransform = null
         )
     } else {
-        defaultTransitionSpec<T>().invoke(this)
+        ContentTransform(
+            targetContentEnter = slideInHorizontally(slideSpec()) { fullWidth -> fullWidth },
+            initialContentExit = slideOutHorizontally(slideSpec()) { fullWidth -> -fullWidth / UNDERLAY_SHIFT },
+            sizeTransform = null
+        )
     }
 
 /** Popping a destination. The player stays until its cover has risen; the page beneath it does not move. */
@@ -73,15 +105,35 @@ internal fun <T : Any> AnimatedContentTransitionScope<Scene<T>>.appPopTransition
             sizeTransform = null
         )
     } else {
-        defaultPopTransitionSpec<T>().invoke(this)
+        ContentTransform(
+            targetContentEnter = slideInHorizontally(slideSpec()) { fullWidth -> -fullWidth / UNDERLAY_SHIFT },
+            initialContentExit = slideOutHorizontally(slideSpec()) { fullWidth -> fullWidth } +
+                scaleOut(slideSpec(), targetScale = GESTURE_SCALE),
+            sizeTransform = null
+        )
     }
 
-/** The system Back gesture. Out of the player it previews the same cover, driven by the finger. */
-internal fun <T : Any> AnimatedContentTransitionScope<Scene<T>>.appPredictivePopTransition(swipeEdge: Int): ContentTransform =
+/**
+ * The system Back gesture. Out of the player it previews the same cover, driven by the finger. Out of any other page
+ * the page is dragged the way it will leave (slide and a little shrink, the same properties as [appPopTransition]), so
+ * letting go carries on from where the finger left it instead of jumping, and linearly so that the page moves exactly
+ * as far as the finger has.
+ */
+internal fun <T : Any> AnimatedContentTransitionScope<Scene<T>>.appPredictivePopTransition(
+    @NavigationEvent.SwipeEdge swipeEdge: Int
+): ContentTransform =
     if (initialState.isPlayerRoute) {
         appPopTransition()
     } else {
-        defaultPredictivePopTransitionSpec<T>().invoke(this, swipeEdge)
+        val toTheRight = swipeEdge != NavigationEvent.EDGE_RIGHT
+        val drag = tween<androidx.compose.ui.unit.IntOffset>(durationMillis = SCREEN_SLIDE_MS, easing = LinearEasing)
+        val shrink = tween<Float>(durationMillis = SCREEN_SLIDE_MS, easing = LinearEasing)
+        ContentTransform(
+            targetContentEnter = slideInHorizontally(drag) { fullWidth -> -fullWidth / UNDERLAY_SHIFT },
+            initialContentExit = slideOutHorizontally(drag) { fullWidth -> if (toTheRight) fullWidth else -fullWidth } +
+                scaleOut(shrink, targetScale = GESTURE_SCALE),
+            sizeTransform = null
+        )
     }
 
 /**

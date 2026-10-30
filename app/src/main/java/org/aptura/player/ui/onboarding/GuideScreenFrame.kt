@@ -8,6 +8,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -64,6 +69,20 @@ internal fun Modifier.reveal(index: Int, distance: Dp = 22.dp): Modifier {
         alpha = p
         translationY = (1f - p) * distancePx
     }
+}
+
+/**
+ * Whether this page is close enough to the centre for its pictures to be worth moving. Pages are kept built behind the
+ * current one, so an animation that ran whenever its page existed would keep running, and redrawing, off screen.
+ */
+@Composable
+internal fun rememberGuidePageActive(threshold: Float = 0.5f): Boolean {
+    val progress = LocalGuidePageProgress.current
+    var active by remember { mutableStateOf(progress() >= threshold) }
+    LaunchedEffect(progress) {
+        snapshotFlow { progress() >= threshold }.collect { active = it }
+    }
+    return active
 }
 
 /**

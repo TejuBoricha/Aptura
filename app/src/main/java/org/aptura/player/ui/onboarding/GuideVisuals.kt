@@ -148,7 +148,9 @@ internal fun FeatureList(items: List<Pair<String, String>>, firstReveal: Int = 5
 @Composable
 internal fun WelcomeHero(modifier: Modifier = Modifier) {
     val accent = ApturaColors.AccentPrimary
-    val phase: State<Float> = if (LocalGuideMotion.current) {
+    // Only while the page is the one in front: pages are kept built behind it, and rings that went on spreading out of
+    // sight would keep redrawing the pager's whole layer.
+    val phase: State<Float> = if (LocalGuideMotion.current && rememberGuidePageActive()) {
         rememberInfiniteTransition(label = "welcome-rings").animateFloat(
             initialValue = 0f,
             targetValue = 1f,

@@ -3,6 +3,8 @@ package org.aptura.player.ui.library
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -68,6 +70,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -102,7 +105,14 @@ internal const val LAYOUT_TOGGLE_TAG = "layout_toggle"
 internal const val VIEW_OPTIONS_TAG = "view_options_button"
 
 private const val ALL_VIDEOS_KEY = "<all videos>"
-private const val FOLDER_SWIPE_DISTANCE_DP = 64
+/** A drag this far moves to the next folder at once, while the finger is still down. */
+private const val FOLDER_SWIPE_DISTANCE_DP = 48
+
+/** A flick this quick (and past the touch slop, so it was a drag at all) counts on letting go, whatever the distance. */
+private const val FOLDER_FLICK_SPEED_DP_PER_S = 500
+
+/** The slide between two folders: how long the new folder takes to arrive. Same movement as before, but quicker. */
+internal const val FOLDER_SLIDE_MS = 170
 
 // ---- header -----------------------------------------------------------------------------------------------------
 
@@ -236,30 +246,52 @@ private fun SearchHint(full: String) {
 // ---- the folder swipe -------------------------------------------------------------------------------------------
 
 /**
- * A horizontal drag of at least [FOLDER_SWIPE_DISTANCE_DP] moves to the next or previous folder, calling [onSwipe]
- * with +1 or -1. "Next" follows the reading direction, so a right-to-left language swipes the other way.
+ * Moves to the next or previous folder, calling [onSwipe] with +1 or -1, in either of two ways: a horizontal drag of
+ * [FOLDER_SWIPE_DISTANCE_DP] (the folder changes the moment the finger has gone that far, not when it lifts), or a
+ * flick of [FOLDER_FLICK_SPEED_DP_PER_S] or more, on letting go. Once per touch.
+ * "Next" follows the reading direction, so a right-to-left language swipes the other way.
+ *
+ * It used to wait for the finger to lift after a 64 dp drag, so a short, quick flick did nothing and a long one only
+ * began to move after the whole gesture was over.
  */
 @Composable
 internal fun Modifier.folderSwipe(enabled: Boolean, onSwipe: (delta: Int) -> Unit): Modifier {
     val layoutDirection = LocalLayoutDirection.current
-    val density = LocalDensity.current
     // The gesture block is not restarted when the callback changes (that would cancel a drag in progress), so it must
     // read the latest callback, which knows the folder the library is on now. A captured first callback would swipe
     // "from" the folder the screen opened on, every time.
     val currentOnSwipe by rememberUpdatedState(onSwipe)
     return pointerInput(enabled, layoutDirection) {
         if (!enabled) return@pointerInput
+        val swipeDistance = FOLDER_SWIPE_DISTANCE_DP.dp.toPx()
+        val flickSpeed = FOLDER_FLICK_SPEED_DP_PER_S.dp.toPx()
+        val velocity = VelocityTracker()
         var horizontalDrag = 0f
+        var moved = false
+
+        fun moveAlong() {
+            moved = true
+            val towardsNext = if (layoutDirection == LayoutDirection.Ltr) horizontalDrag < 0f else horizontalDrag > 0f
+            currentOnSwipe(if (towardsNext) 1 else -1)
+        }
+
         detectHorizontalDragGestures(
-            onDragStart = { horizontalDrag = 0f },
+            onDragStart = {
+                horizontalDrag = 0f
+                moved = false
+                velocity.resetTracking()
+            },
             onHorizontalDrag = { change, dragAmount ->
                 change.consume()
+                velocity.addPosition(change.uptimeMillis, change.position)
                 horizontalDrag += dragAmount
+                if (!moved && kotlin.math.abs(horizontalDrag) >= swipeDistance) moveAlong()
             },
             onDragEnd = {
-                if (kotlin.math.abs(horizontalDrag) >= with(density) { FOLDER_SWIPE_DISTANCE_DP.dp.toPx() }) {
-                    val towardsNext = if (layoutDirection == LayoutDirection.Ltr) horizontalDrag < 0f else horizontalDrag > 0f
-                    currentOnSwipe(if (towardsNext) 1 else -1)
+                if (!moved) {
+                    val speed = velocity.calculateVelocity().x
+                    // Quick enough, and still going the way the finger went (not a flick that was reversed).
+                    if (kotlin.math.abs(speed) >= flickSpeed && speed * horizontalDrag > 0f) moveAlong()
                 }
             }
         )
@@ -293,8 +325,13 @@ private fun AnimatedContentTransitionScope<MediaLibraryUiState.Success>.folderTr
     } else {
         AnimatedContentTransitionScope.SlideDirection.End
     }
-    return (slideIntoContainer(direction, tween(260)) { it / 4 } + fadeIn(tween(220))) togetherWith
-        (slideOutOfContainer(direction, tween(260)) { it / 4 } + fadeOut(tween(160)))
+    // The new folder starts moving at once and settles; the old one leaves quickly. The same slide and fades as before,
+    // in about two thirds of the time, with an easing that starts fast (the default one starts slowly, which is most of
+    // why the slide felt like it was waiting).
+    return (slideIntoContainer(direction, tween(FOLDER_SLIDE_MS, easing = LinearOutSlowInEasing)) { it / 4 } +
+        fadeIn(tween(130, easing = LinearOutSlowInEasing))) togetherWith
+        (slideOutOfContainer(direction, tween(FOLDER_SLIDE_MS, easing = FastOutLinearInEasing)) { it / 4 } +
+            fadeOut(tween(100)))
 }
 
 /**

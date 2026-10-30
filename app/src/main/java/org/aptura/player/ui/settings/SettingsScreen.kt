@@ -46,6 +46,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
@@ -108,6 +109,8 @@ private val SeekSteps = listOf(5, 10, 15, 30)
 private val CountdownChoices = listOf(5, 10, 15, 0) // seconds; 0 plays the next video straight away
 private val DecoderChoices = listOf("Auto", "Hardware", "Software")
 
+internal const val VIDEO_ACCESS_BUTTON_TAG = "settings_video_access_button"
+
 /** How far (in dp) the large title has to scroll before the compact title bar has fully taken over. */
 private const val TITLE_COLLAPSE_DP = 90
 
@@ -141,6 +144,8 @@ fun SettingsScreen(
     onResetPlaybackDefaults: () -> Unit = {},
     onRescanClick: () -> Unit,
     onReplayOnboardingClick: () -> Unit,
+    hasVideoAccess: Boolean = true,
+    onVideoAccessClick: () -> Unit = {},
     onUpdateThemeMode: (ThemeMode) -> Unit = {},
     onUpdateAccentColor: (AccentColor) -> Unit = {},
     onUpdateDecoderStrategy: (Int) -> Unit = {},
@@ -400,6 +405,25 @@ fun SettingsScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     SectionLabel("Library & storage")
                     SettingsPanel {
+                        // Whether Aptura may list the videos on this device. It used to be answerable only in the first-run
+                        // dialog, so there was no way to look at it, give it later or take it back.
+                        ActionRow(
+                            icon = Icons.Default.VideoLibrary,
+                            title = "Video access",
+                            subtitle = if (hasVideoAccess) {
+                                "Allowed. Aptura can list the videos on this device."
+                            } else {
+                                "Not allowed. Aptura only sees videos you open or add."
+                            },
+                            trailing = {
+                                PillButton(
+                                    text = if (hasVideoAccess) "Manage" else "Allow",
+                                    onClick = onVideoAccessClick,
+                                    modifier = Modifier.testTag(VIDEO_ACCESS_BUTTON_TAG)
+                                )
+                            }
+                        )
+                        PanelDivider()
                         // Custom Storage Folders (SAF - FR-LIB-005)
                         ActionRow(
                             icon = Icons.Default.Folder,

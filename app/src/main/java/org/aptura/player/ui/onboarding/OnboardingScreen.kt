@@ -40,6 +40,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -64,6 +67,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.abs
 import kotlin.math.min
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
@@ -72,6 +76,12 @@ import org.aptura.player.ui.library.MediaLibraryUiState
 
 private const val PAGE_COUNT = 5
 private const val LAST_PAGE = PAGE_COUNT - 1
+
+/** The first page is on screen and has played its entrance this long before the others start being built behind it. */
+internal const val GUIDE_BUILD_AHEAD_START_MS = 1_200L
+
+/** One more page is built behind the current one this often (a page is 50-130 ms of work; two at once would be a visible hitch). */
+internal const val GUIDE_BUILD_AHEAD_STEP_MS = 350L
 
 /**
  * The welcome guide (SCR-001, FR-LIB-001..003): what Aptura keeps private, how the library works, the player's touch
@@ -132,6 +142,18 @@ private fun GuideContent(
     LaunchedEffect(Unit) {
         if (animateDemos) intro.animateTo(1f, tween(durationMillis = 900, delayMillis = 100))
     }
+    // Every page is a screen's worth of real composables (the library header, folder bar and cards, the player scene).
+    // Building one costs 50-130 ms; the pager built it on the frame a swipe began, and threw it away when the page was
+    // left, so every Next and Back, and every swipe, began with a hitch. Once the first page has settled, the others are
+    // built behind it one at a time, and then kept: a page turn is only a move.
+    var builtAhead by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        delay(GUIDE_BUILD_AHEAD_START_MS)
+        for (ahead in 1 until PAGE_COUNT) {
+            builtAhead = ahead
+            delay(GUIDE_BUILD_AHEAD_STEP_MS)
+        }
+    }
     val coroutineScope = rememberCoroutineScope()
     val page = pagerState.currentPage
 
@@ -160,6 +182,7 @@ private fun GuideContent(
             )
             HorizontalPager(
                 state = pagerState,
+                beyondViewportPageCount = builtAhead,
                 modifier = Modifier
                     .fillMaxSize()
                     .fadeEdges(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 56.dp, bottom = GUIDE_BOTTOM_FADE_HEIGHT),
