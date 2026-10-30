@@ -1,11 +1,12 @@
 package org.aptura.player.ui.components
 
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
-import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.swipeUp
@@ -14,7 +15,6 @@ import org.aptura.player.domain.model.FolderLayout
 import org.aptura.player.theme.ApturaTheme
 import org.aptura.player.ui.library.FolderBrowserSheet
 import org.aptura.player.ui.library.FolderSummary
-import androidx.compose.ui.semantics.getOrNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -25,11 +25,13 @@ import org.robolectric.annotation.GraphicsMode
 import java.io.File
 
 /**
- * "If you scroll too far up the screen starts dancing" (Folders sheet, Samsung S24).
+ * "If you scroll too far up the screen starts dancing" (Folders sheet, Samsung S24), and then "the touch does not feel
+ * responsive", and then "unable to pull the player's options when the phone is tilted".
  *
- * Flicking a long list up to its end used to lift the whole sheet by about 85 dp and drop it again. The sheet's heading
- * is the thing to watch: after the flick it must never be anywhere but where it started, frame after frame. And the
- * sheet must still close when it is flicked down from the top of the list, so the guard cannot be "ignore every fling".
+ * A sheet that is flicked upward must stay where it is, whether the finger is on a long list, on a short list that fits
+ * the screen or on the title; but it must still be pulled down and closed by a flick down, taps must still tap (even when
+ * the finger drifts a little upward) and lists must still scroll. The sheet's heading is the thing to watch: after a
+ * flick it must never be anywhere but where it started, frame after frame.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -66,6 +68,9 @@ class ApturaSheetTest {
         composeRule.mainClock.advanceTimeBy(1_000)
     }
 
+    /** The list of folders: the one node that reports a scroll position (the sheet's own scrolling wrapper moves nothing). */
+    private val theList = SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange)
+
     private fun headingTop() = composeRule.onNodeWithText("Folders").getUnclippedBoundsInRoot().top.value
 
     /** The heading's top after each of [frames] 16 ms frames. */
@@ -80,7 +85,22 @@ class ApturaSheetTest {
 
     private fun flingUp() {
         composeRule.mainClock.autoAdvance = false
-        composeRule.onNode(hasScrollAction()).performTouchInput { swipeUp(durationMillis = 100) }
+        composeRule.onNode(theList).performTouchInput { swipeUp(durationMillis = 100) }
+    }
+
+    /** A drag that starts on the heading, which is no list: the finger is on the sheet itself. */
+    private fun dragOnTheHeading(durationMs: Long, vararg moves: Float) {
+        composeRule.mainClock.autoAdvance = false
+        composeRule.onNodeWithText("Folders").performTouchInput {
+            down(center)
+            moves.forEach { dyDp -> moveBy(Offset(0f, dyDp.dp.toPx()), delayMillis = durationMs) }
+            up()
+        }
+    }
+
+    private fun assertStill(seen: List<Float>, resting: Float, what: String) {
+        val worst = seen.maxOf { Math.abs(it - resting) }
+        assertTrue("the sheet moved by up to $worst dp $what (resting at $resting dp): $seen", worst <= STILL)
     }
 
     @Test
@@ -88,10 +108,7 @@ class ApturaSheetTest {
         showFolders()
         val resting = headingTop()
         flingUp()
-        val seen = watchHeading(45)
-
-        val worst = seen.maxOf { Math.abs(it - resting) }
-        assertTrue("the sheet moved by up to $worst dp after a flick to the end of the list (resting at $resting dp): $seen", worst <= STILL)
+        assertStill(watchHeading(45), resting, "after a flick to the end of the list")
     }
 
     @Test
@@ -101,71 +118,89 @@ class ApturaSheetTest {
         watchHeading(60)
         val resting = headingTop()
         flingUp()
-        val seen = watchHeading(45)
-
-        val worst = seen.maxOf { Math.abs(it - resting) }
-        assertTrue("the sheet moved by up to $worst dp on a second flick (resting at $resting dp): $seen", worst <= STILL)
+        assertStill(watchHeading(45), resting, "on a second flick")
     }
 
     @Test
-    fun flickingDownOnTheList_atItsTop_doesNotMoveTheSheet() {
+    fun flickingUpOnTheHeading_ofAShortList_doesNotMoveTheSheet() {
+        // The owner's phone: seven folders that fit on the screen, so an upward flick on the title moves the sheet itself.
+        showFolders(count = 8)
+        val resting = headingTop()
+        dragOnTheHeading(30, -60f, -60f)
+        assertStill(watchHeading(60), resting, "when flicked upward on its title")
+    }
+
+    @Test
+    fun flickingUpOnTheHandle_doesNotMoveTheSheet() {
+        showFolders(count = 8)
+        val resting = headingTop()
+        composeRule.mainClock.autoAdvance = false
+        composeRule.onNodeWithText("Folders").performTouchInput {
+            // The handle sits above the title: start there.
+            down(Offset(centerX, -50.dp.toPx()))
+            moveBy(Offset(0f, -40.dp.toPx()), delayMillis = 25)
+            moveBy(Offset(0f, -40.dp.toPx()), delayMillis = 25)
+            up()
+        }
+        assertStill(watchHeading(60), resting, "when flicked upward on its handle")
+    }
+
+    @Test
+    fun flickingDownFromTheTopOfTheList_stillClosesTheSheet() {
         showFolders()
         val resting = headingTop()
         composeRule.mainClock.autoAdvance = false
-        composeRule.onNode(hasScrollAction()).performTouchInput { swipeDown(durationMillis = 60) }
+        composeRule.onNode(theList).performTouchInput { swipeDown(durationMillis = 60) }
         val seen = watchHeading(45)
 
-        val worst = seen.maxOf { Math.abs(it - resting) }
-        assertTrue("the sheet moved by up to $worst dp when the list was flicked down (resting at $resting dp): $seen", worst <= STILL)
-        assertTrue("the sheet closed by itself", !dismissed)
+        assertTrue("the sheet did not follow a flick down, it stayed at ${seen.last()} dp (rest $resting dp)", seen.last() > resting + CLOSED)
     }
 
     @Test
-    fun swipingTheHandleDown_closesTheSheet() {
-        showFolders(count = 8)
+    fun aShortQuickFlickDownFromTheTop_closesTheSheetBySpeedAlone() {
+        showFolders()
+        val resting = headingTop()
         composeRule.mainClock.autoAdvance = false
-        composeRule.onNodeWithTag(SHEET_HANDLE_TAG).performTouchInput {
-            swipeDown(startY = top, endY = top + 120.dp.toPx(), durationMillis = 300)
+        // 40 dp is too short to count as "dragged far enough"; only the speed says the finger meant to throw it away.
+        composeRule.onNode(theList).performTouchInput {
+            swipeDown(startY = height * 0.3f, endY = height * 0.3f + 40.dp.toPx(), durationMillis = 40)
         }
-        watchHeading(90)
+        val seen = watchHeading(60)
 
-        assertTrue("the sheet was not closed by a swipe down on its handle", dismissed)
+        assertTrue("a quick short flick down left the sheet at ${seen.last()} dp (rest $resting dp): $seen", seen.last() > resting + CLOSED)
     }
 
     @Test
-    fun aShortQuickFlickDownOnTheHandle_closesTheSheetBySpeedAlone() {
+    fun draggingDownOnTheHeading_stillClosesTheSheet() {
         showFolders(count = 8)
-        composeRule.mainClock.autoAdvance = false
-        // 32 dp is too short to count as "pulled far enough" (the closing distance is 40 dp after the touch slop); only
-        // the speed says the finger meant to throw it away.
-        composeRule.onNodeWithTag(SHEET_HANDLE_TAG).performTouchInput {
-            down(androidx.compose.ui.geometry.Offset(centerX, 4.dp.toPx()))
-            repeat(8) { moveBy(androidx.compose.ui.geometry.Offset(0f, 4.dp.toPx()), delayMillis = 8) }
-            up()
-        }
-        watchHeading(90)
+        val resting = headingTop()
+        dragOnTheHeading(40, 150f, 250f)
+        val seen = watchHeading(90)
 
-        assertTrue("a quick short flick down on the handle did not close the sheet", dismissed)
+        assertTrue("the sheet did not follow a pull down, it stayed at ${seen.last()} dp (rest $resting dp)", seen.last() > resting + CLOSED)
     }
 
     @Test
-    fun tappingTheHandle_closesTheSheet() {
+    fun pullingTheSheetDown_thenBackUp_comesBackWithoutRisingAboveWhereItStarted() {
         showFolders(count = 8)
-        composeRule.mainClock.autoAdvance = false
-        composeRule.onNodeWithTag(SHEET_HANDLE_TAG).performClick()
-        watchHeading(90)
+        val resting = headingTop()
+        // Down 40 dp, then quickly up 30 dp, and let go: the kind of wobble a thumb makes.
+        dragOnTheHeading(40, 40f, -30f)
+        val seen = watchHeading(90)
 
-        assertTrue("a tap on the handle did not close the sheet", dismissed)
+        val highest = seen.min()
+        assertTrue("the sheet rose to $highest dp, above where it started ($resting dp): $seen", highest >= resting - STILL)
+        assertTrue("and it came back to rest at the end (${seen.last()} dp)", Math.abs(seen.last() - resting) <= STILL)
     }
 
-    /** The owner's report on the first fix: "the touch does not feel responsive, scrolling sometimes does not react". */
+    /** The owner's report on the second fix: "the touch does not feel responsive, scrolling sometimes does not react". */
     @Test
     fun aTapThatDriftsUpwardABit_stillTapsTheFolder() {
         showFolders(count = 8)
         composeRule.mainClock.autoAdvance = false
         composeRule.onNodeWithText("Folder3").performTouchInput {
             down(center)
-            moveBy(androidx.compose.ui.geometry.Offset(0f, -3.dp.toPx()), delayMillis = 30)
+            moveBy(Offset(0f, -3.dp.toPx()), delayMillis = 30)
             up()
         }
         watchHeading(10)
@@ -178,55 +213,58 @@ class ApturaSheetTest {
         showFolders()
         composeRule.mainClock.autoAdvance = false
         repeat(3) {
-            composeRule.onNode(hasScrollAction()).performTouchInput { swipeUp(durationMillis = 120) }
+            composeRule.onNode(theList).performTouchInput { swipeUp(durationMillis = 120) }
             watchHeading(40)
-            composeRule.onNode(hasScrollAction()).performTouchInput { swipeDown(durationMillis = 120) }
+            // A short pull back, which does not reach the top (that would close the sheet, which is its job).
+            composeRule.onNode(theList).performTouchInput { swipeDown(startY = height * 0.3f, endY = height * 0.3f + 60.dp.toPx(), durationMillis = 120) }
             watchHeading(40)
         }
-        composeRule.onNode(hasScrollAction()).performTouchInput { swipeUp(durationMillis = 120) }
+        composeRule.onNode(theList).performTouchInput { swipeUp(durationMillis = 120) }
         watchHeading(40)
-        val position = composeRule.onNode(hasScrollAction()).fetchSemanticsNode().config
-            .getOrNull(androidx.compose.ui.semantics.SemanticsProperties.VerticalScrollAxisRange)?.value?.invoke() ?: 0f
+        val position = composeRule.onNode(theList).fetchSemanticsNode().config
+            .getOrNull(SemanticsProperties.VerticalScrollAxisRange)?.value?.invoke() ?: 0f
 
         assertTrue("the list did not scroll after repeated flicks ($position)", position > 0f)
     }
 
-    /** A drag that starts on the heading, which is no list: the finger is on the sheet itself. */
-    private fun dragOnTheHeading(durationMs: Long, vararg moves: Float) {
-        composeRule.mainClock.autoAdvance = false
-        composeRule.onNodeWithText("Folders").performTouchInput {
-            down(center)
-            var t = 0L
-            moves.forEach { dyDp ->
-                t += durationMs
-                moveBy(androidx.compose.ui.geometry.Offset(0f, dyDp.dp.toPx()), delayMillis = durationMs)
+    /**
+     * The owner's phone, tilted: the player's Subtitles sheet opens half way, with its options below the screen, and is
+     * pulled up to reach them. One build switched that pulling off, so the options could not be reached at all.
+     */
+    @Test
+    @Config(qualifiers = "w891dp-h411dp-xhdpi")
+    fun aHalfOpenSheet_onATiltedPhone_canBePulledUp() {
+        composeRule.setContent {
+            ApturaTheme {
+                org.aptura.player.ui.player.SubtitleSheet(
+                    uiState = org.aptura.player.ui.player.PlayerUiState(),
+                    onDismissRequest = { dismissed = true },
+                    onSubtitleTrackSelected = {},
+                    onSubtitleDelayChanged = {},
+                    onImportSubtitleClick = {},
+                    onSubtitleFontSizeChanged = {},
+                    onSubtitleTextColorChanged = {},
+                    onSubtitleBackgroundChanged = {}
+                )
             }
+        }
+        composeRule.waitForIdle()
+        composeRule.mainClock.advanceTimeBy(1_000)
+        val before = composeRule.onNodeWithText("Subtitles").getUnclippedBoundsInRoot().top.value
+        composeRule.mainClock.autoAdvance = false
+        composeRule.onNodeWithText("Subtitles").performTouchInput {
+            down(center)
+            repeat(6) { moveBy(Offset(0f, -30.dp.toPx()), delayMillis = 16) }
             up()
         }
-    }
+        val seen = List(60) {
+            composeRule.mainClock.advanceTimeBy(16)
+            composeRule.waitForIdle()
+            composeRule.onNodeWithText("Subtitles").getUnclippedBoundsInRoot().top.value
+        }
 
-    @Test
-    fun flickingUpOnTheHeading_ofAShortList_doesNotMoveTheSheet() {
-        // The owner's phone: eight folders that fit on the screen, so an upward flick moves the sheet itself.
-        showFolders(count = 8)
-        val resting = headingTop()
-        dragOnTheHeading(30, -60f, -60f)
-        val seen = watchHeading(60)
-
-        val worst = seen.maxOf { Math.abs(it - resting) }
-        assertTrue("the sheet moved by up to $worst dp when flicked upward (resting at $resting dp): $seen", worst <= STILL)
-    }
-
-    @Test
-    fun draggingTheHeadingDownAndUp_doesNotMoveTheSheet() {
-        showFolders(count = 8)
-        val resting = headingTop()
-        dragOnTheHeading(40, 120f, -80f)
-        val seen = watchHeading(60)
-
-        val worst = seen.maxOf { Math.abs(it - resting) }
-        assertTrue("the sheet moved by up to $worst dp from a drag on its content (resting at $resting dp): $seen", worst <= STILL)
-        assertTrue(!dismissed)
+        assertTrue("the half-open sheet did not rise when pulled up (title at $before dp, then ${seen.last()} dp)", seen.last() < before - 20f)
+        assertTrue("it rose past where it should stop and came back: $seen", seen.min() >= seen.last() - STILL)
     }
 
     /** Every bottom sheet in the app comes from [ApturaModalBottomSheet]; a plain Material one would dance again. */
@@ -242,8 +280,10 @@ class ApturaSheetTest {
     }
 
     private companion object {
-        /** Sub-pixel layout noise is fine; the dance was 85 dp. */
+        /** Sub-pixel layout noise is fine; the dance was 30 to 85 dp. */
         const val STILL = 1f
 
+        /** Well past the resting place: gone, not just nudged. */
+        const val CLOSED = 300f
     }
 }

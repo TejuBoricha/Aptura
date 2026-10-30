@@ -1,46 +1,41 @@
 package org.aptura.player.ui.components
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.gestures.rememberScrollableState
+import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.launch
-
-/** The strip at the top of every sheet: swipe it down or tap it to close the sheet. */
-const val SHEET_HANDLE_TAG = "sheet_handle"
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.unit.Velocity
 
 /*
- * The app's bottom sheet: Material's ModalBottomSheet, with its content kept apart from the sheet's own dragging.
+ * The app's bottom sheet: Material's ModalBottomSheet, set up so that a finger on its content reaches the sheet only
+ * the way a finger on a scrolling list does.
  *
- * Material lets the sheet be dragged from anywhere on it, and when a drag ends the sheet settles with the speed the finger
- * had. A spring that starts at its resting place (the top) with speed away from it swings past the place and back, so
- * flicking upward lifted the whole sheet by 30 to 85 dp and dropped it again, over and over ("the screen starts
- * dancing"); on a list the sheet also took part in every scroll that reached an end. Two earlier fixes tried to keep the
- * sheet from receiving that speed. One of them took finger movement away from the sheet, and Android reads that as
- * "something else has this touch", so taps and scrolls inside the sheet were cancelled: it felt dead. So now nothing the
- * finger does on the content reaches the sheet at all. A list scrolls, a button taps, and the sheet does not move. The
- * handle at the top closes the sheet (swipe down, or tap), the area outside it and Back do too.
+ * When a drag on the sheet itself ends, the sheet settles with the speed the finger had. A spring that starts at its
+ * resting place (the top) with speed away from it swings past the place and back, so flicking upward on a part of the
+ * sheet that does not scroll (a title, eight folders that fit on the screen) lifted the whole sheet by 30 to 85 dp and
+ * dropped it again, over and over ("the screen starts dancing"). A list does not do that, because its drags go to the
+ * sheet as nested scrolling, and the upward speed it has left over is swallowed below.
+ *
+ * So the content (and the handle) sits inside a vertical scrollable that moves nothing: every drag on it is nested
+ * scrolling too. The sheet is still pulled down, and still pulled up when it is not fully open (the player's sheets open
+ * half way when the phone is tilted, and are pulled up to reach their options), and a flick down still closes it; only
+ * the spring past the top is gone. Nothing ever consumes touch events above what the person is touching: that cancelled
+ * their taps and scrolls (the second fix, which felt dead), and an earlier build that switched sheet dragging off made
+ * the tilted player's options unreachable.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,49 +48,29 @@ fun ApturaModalBottomSheet(
     shape: Shape = BottomSheetDefaults.ExpandedShape,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val scope = rememberCoroutineScope()
-    val close: () -> Unit = {
-        // The same way a tap on the dimmed area closes it: slide out, then tell the owner of the sheet.
-        scope.launch { sheetState.hide() }.invokeOnCompletion { if (!sheetState.isVisible) onDismissRequest() }
-    }
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
-        sheetGesturesEnabled = false,
         containerColor = containerColor,
         scrimColor = scrimColor,
         shape = shape,
-        dragHandle = { SheetHandle(onClose = close) },
-        modifier = modifier,
-        content = content
-    )
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SheetHandle(onClose: () -> Unit) {
-    var dragged by remember { mutableFloatStateOf(0f) }
-    val closingDistance = with(LocalDensity.current) { 40.dp.toPx() }
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(44.dp)
-            .testTag(SHEET_HANDLE_TAG)
-            .clickable(onClickLabel = "Close", onClick = onClose)
-            .draggable(
-                state = rememberDraggableState { dragged += it },
-                orientation = Orientation.Vertical,
-                onDragStarted = { dragged = 0f },
-                onDragStopped = { velocity ->
-                    if (dragged > closingDistance || velocity > CLOSING_SPEED_PX_PER_S) onClose()
-                    dragged = 0f
-                }
-            ),
-        contentAlignment = Alignment.Center
+        dragHandle = { Box(Modifier.sheetDragsAreNestedScrolls()) { BottomSheetDefaults.DragHandle() } },
+        modifier = modifier
     ) {
-        BottomSheetDefaults.DragHandle()
+        Column(Modifier.fillMaxWidth().sheetDragsAreNestedScrolls()) { content() }
     }
 }
 
-/** A flick down on the handle faster than this closes the sheet however short it was. */
-private const val CLOSING_SPEED_PX_PER_S = 900f
+/** Makes every vertical drag on this part of a sheet a nested scroll (which moves nothing itself) with the spring removed. */
+private fun Modifier.sheetDragsAreNestedScrolls(): Modifier = composed {
+    val noScroll = rememberScrollableState { 0f }
+    this
+        .nestedScroll(SwallowUpwardLeftoverFling)
+        .scrollable(state = noScroll, orientation = Orientation.Vertical)
+}
+
+/** Sits inside the sheet, so it hears about a fling's leftover speed before the sheet does. */
+internal val SwallowUpwardLeftoverFling = object : NestedScrollConnection {
+    override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity =
+        if (available.y < 0f) Velocity(0f, available.y) else Velocity.Zero
+}

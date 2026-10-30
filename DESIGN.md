@@ -299,13 +299,16 @@ The owner's library has 558 videos and fast scrolling felt laggy. Every cell tha
 
 ### 5.5c Bottom sheets stay put
 
-Every bottom sheet is `ApturaModalBottomSheet` (`ui/components/ApturaSheet.kt`), never Material's `ModalBottomSheet` directly. A Material sheet can be dragged from anywhere on it, and when a drag ends it settles with the speed the finger had; a spring that starts at its resting place (the top) with speed away from it swings past the place and back, so an upward flick lifted the whole sheet by 30 to 85 dp and dropped it again ("the screen dances"). On a list the sheet also took part in every scroll that reached an end.
+Every bottom sheet is `ApturaModalBottomSheet` (`ui/components/ApturaSheet.kt`), never Material's `ModalBottomSheet` directly. When a drag on a Material sheet ends, the sheet settles with the speed the finger had; a spring that starts at its resting place (the top) with speed away from it swings past the place and back, so an upward flick on a part of the sheet that does not scroll (a title, eight folders that fit on the screen) lifted the whole sheet by 30 to 85 dp and dropped it again ("the screen dances"). A list does not do that, because its drags reach the sheet as nested scrolling.
 
-Two earlier fixes tried to keep that speed from reaching the sheet (swallowing a list's leftover fling speed; taking upward finger movement away from the sheet). The second one made the sheet feel dead: **a parent that consumes pointer movement makes Android cancel the taps and scrolls of the children under it** (a tap detector checks for consumption after the fact), so taps and scrolls inside the sheet sometimes did nothing. Never fix a gesture conflict by consuming events above the thing the person is touching.
+So the wrapper makes the content and the handle **behave like a list**: they sit inside a vertical `scrollable` that moves nothing, every drag on them is nested scrolling, and the upward fling speed that is left over is swallowed. The sheet is still pulled down, still **pulled up when it is not fully open** (the player's sheets open half way on a tilted phone and are pulled up to reach their options), and a flick down still closes it. Only the spring past the top is gone.
 
-The rule now: **nothing the finger does on a sheet's content reaches the sheet** (`sheetGesturesEnabled = false`). A list scrolls, a button taps, and the sheet does not move, so there is nothing to settle and nothing to spring. The sheet closes by the **handle strip** at the top (swipe it down 40 dp or flick it, or tap it), by a tap on the dimmed area, and by Back. A sheet that is dragged by its content is not a feature here.
+Three rules learned the hard way, one per wrong build:
+- **Never consume pointer events above what the person is touching.** Android cancels the taps and scrolls under a parent that consumes movement (a tap detector checks for consumption after the fact), so a build that took upward movement away from the sheet felt dead.
+- **Never switch sheet dragging off.** A build with `sheetGesturesEnabled = false` made the tilted player's half-open sheets impossible to pull up, so their options were unreachable.
+- The scrollable adds a scroll action to the accessibility tree of the content and the handle; it does nothing, which is harmless.
 
-`ApturaSheetTest` measures the heading's top frame by frame after flicks on the list, on the heading and at the end of a list, checks that a tap that drifts upward by 3 dp still taps and that repeated flicks still scroll, checks the handle, and fails if any source file opens a plain `ModalBottomSheet`.
+`ApturaSheetTest` measures the heading's top frame by frame after flicks on the list, on the title, on the handle and at the end of a list; checks that a flick down still closes the sheet, that a tap that drifts upward by 3 dp still taps, that repeated flicks still scroll and that a half-open Subtitles sheet on a tilted phone can be pulled up; and fails if any source file opens a plain `ModalBottomSheet`.
 
 ### 5.6 Player Sheets and Settings Controls
 

@@ -78,10 +78,11 @@ PR's Verification section and in CI, not here, so most pull requests never need 
 - **Library scrolling:** picture work (read, decode, make) is paused during a fling (`rememberFlingGate` in `LibraryVideoPane`), runs at most
   3 at a time at background priority (`ThumbnailWork`), and is dropped when its cell scrolls away (DESIGN.md §5.5d). Measured by
   `ThumbnailScrollLoadTest`; not measured on a phone, and the owner's phone runs a debug build, which is slower than release.
-- **Every bottom sheet is `ApturaModalBottomSheet`** (`ui/components/ApturaSheet.kt`): `sheetGesturesEnabled = false`, so the content never
-  drags the sheet (no "dancing"); it closes by its handle strip, a tap outside, or Back. Never consume pointer events above what the person
-  touches to settle a gesture conflict: Android cancels the taps and scrolls under it (DESIGN.md §5.5c). `ApturaSheetTest` covers it and
-  fails on any plain `ModalBottomSheet(`. A stall report carries a step trace and thread states (`PlaybackTrace`).
+- **Every bottom sheet is `ApturaModalBottomSheet`** (`ui/components/ApturaSheet.kt`): its content and handle sit in a do-nothing vertical
+  `scrollable` plus a connection that swallows upward fling speed, so a finger on them reaches the sheet like a finger on a list (no
+  "dancing"), and the sheet is still pulled up and down and closed by a flick. Never consume pointer events above what the person
+  touches, and never switch sheet dragging off (DESIGN.md §5.5c). `ApturaSheetTest` covers it and fails on any plain
+  `ModalBottomSheet(`. A stall report carries a step trace and thread states (`PlaybackTrace`).
 - **Video access** is read from the system every time the app comes to the front (`rememberVideoAccess`); a grant scans now
   and again after 5 s; Settings has a Video access row (DESIGN.md §4.2c).
 - **Folder identity:** the folder key (`folderPath` in Room) is the folder's path on its storage volume, from `MediaFolderKey`;
