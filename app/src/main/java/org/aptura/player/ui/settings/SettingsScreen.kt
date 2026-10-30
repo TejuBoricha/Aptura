@@ -560,8 +560,21 @@ fun SettingsScreen(
                             title = "Help & feedback",
                             subtitle = "Questions, suggestions or bug reports directly to the developer",
                             onClick = {
-                                val subject = "Aptura Feedback (${AppVersion.label(context)})"
-                                val body = "\n\n---\nApp: ${AppVersion.label(context)}\nDevice: ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} (Android ${android.os.Build.VERSION.RELEASE}, API ${android.os.Build.VERSION.SDK_INT})\n"
+                                val subject = "[Aptura Feedback] Query / Report - v${AppVersion.versionCode(context)}"
+                                val body = """
+                                    [Please describe your issue, question, or suggestion here]
+
+
+                                    ---------------------------------------------
+                                    Category: [ Bug Report / Feature Request / General Question ]
+                                    Video Format (if playback issue): [ e.g. MKV, MP4, 4K, Subtitles ]
+
+                                    --- Diagnostic Info (Please do not edit) ---
+                                    App: ${AppVersion.label(context)}
+                                    Device: ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}
+                                    Android OS: ${android.os.Build.VERSION.RELEASE} (API ${android.os.Build.VERSION.SDK_INT})
+                                    ---------------------------------------------
+                                """.trimIndent()
                                 val mailIntent = Intent(Intent.ACTION_SENDTO).apply {
                                     data = android.net.Uri.parse("mailto:tejasboricha225@gmail.com")
                                     putExtra(Intent.EXTRA_SUBJECT, subject)
