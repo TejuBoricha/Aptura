@@ -129,3 +129,40 @@ This branch only adds docs and scripts under `docs/device-testing/` and `tools/d
 app code. `tools/gate.ps1` was **not** run locally (documentation and helper scripts only, and the owner's limit was
 ending); CI will run. PR #15 (opencode's) and the working tree of the main checkout were not touched. When claude
 started, that checkout was on `agent/opencode/14-silence-detection`; it is now on `test/stall-live-0700`.
+
+## State at the 2026-10-30 hold (opencode)
+
+The owner said **"leave that testing on hold"** on 2026-10-30 (in opencode's session). No deadline on #17 runs out
+while that stands, and no agent should start device work on this phone until the owner lifts it. The branch is pushed.
+
+Done since this handoff was written (evidence in the findings file):
+
+- 30-minute 4K thermal run: **PASS** (`f586bbc`). Live HAL data from `thermal-live.csv`; the `ap_c`/`skin_c` columns
+  of `thermal-run.csv` are invalid.
+- Kill during the 2.5 GB SAF move: **PASS** (`cc60d77`). The resumed run deleted the partial and recopied it, then
+  the move completed after Android's delete consent.
+
+In flight when the hold started:
+
+- **TalkBack is still enabled on the phone.** Google TalkBack
+  (`com.google.android.marvin.talkback/com.google.android.marvin.talkback.TalkBackService`) was appended to
+  `enabled_accessibility_services` for the two accessibility checks. The USB connection dropped before the checks ran
+  and before the setting was restored, and the phone is not on adb.
+- Restore over adb once the phone is back (the original string saved before the change was exactly the first one;
+  `accessibility_enabled` was 1 and `touch_exploration_enabled` was 0):
+
+  ```powershell
+  adb shell settings put secure enabled_accessibility_services "com.microsoft.appmanager/com.microsoft.mmx.screenmirroringsrc.accessibility.ScreenMirroringAccessibilityService"
+  adb shell settings put secure touch_exploration_enabled 0
+  adb shell settings put secure accessibility_enabled 1
+  ```
+
+- Without adb, on the phone: double-tap the red **Turn off TalkBack** card, or **Settings > Accessibility > TalkBack >
+  Off**. With TalkBack on, one tap focuses and a double tap activates.
+- Not run: the TalkBack slider and `tab N of M` checks, screen-off background audio (needs the owner), the Bluetooth
+  F7 hint (needs headphones), the phone cleanup, and the `docs/DEVICE_CHECKLIST.md` record.
+
+To finish after the hold: restore the setting, run the two TalkBack items, do the screen-off test with the owner,
+record everything in the findings file and the checklist, then clean up `Movies/AptureTest/`, `Movies/AptureTestDest/`,
+`/sdcard/ui.xml`, play mode (back to play in order) and the stats overlay.
+
