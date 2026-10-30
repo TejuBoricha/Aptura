@@ -34,6 +34,13 @@ Every finding progresses strictly through the following states:
 | **ISSUE-010** | Phase 1 | P3 | Code Hygiene | 36 `UseKtx` Android Lint warnings across core and data layers | Various | Pending | TBD |
 | **ISSUE-011** | Phase 1 | P2 | Stability / Playback | Playback start stall / black screen report on hardware (watchdog fallback in PR #18) | `Media3PlaybackController.kt` | Investigating | CI connected playback tests |
 | **ISSUE-012** | Phase 1 | P2 | Storage / Domain | Global audio sync offset storage ambiguity (per-video vs global setting) | `ApturaSettingsRepository.kt`, `PlayerViewModel.kt` | Pending | TBD |
+| **ISSUE-013** | Phase 2 | P2 | Playback / Audio | `AudioDelayProcessor` only supports 16-bit PCM; float/hi-res PCM silently bypasses lip-sync delay | `AudioDelayProcessor.kt` | Pending | TBD |
+| **ISSUE-014** | Phase 2 | P2 | Error Handling | Blind `catch (_: Throwable)` blocks swallow system errors and avoid diagnostic tracing | `Navigation.kt`, `ApturaApplication.kt` | Pending | TBD |
+| **ISSUE-015** | Phase 2 | P3 | UI / UX | Silent no-op on `Open With` and `Share` if no handler application is installed | `Navigation.kt` | Pending | TBD |
+| **ISSUE-016** | Phase 2 | P3 | Architecture / Dead Code | Unused `deleteRemovedVideos` query in `MediaItemDao` | `MediaItemDao.kt` | Pending | TBD |
+| **ISSUE-017** | Phase 2 | P3 | Android Lint / Resources | `res/mipmap-anydpi-v26` triggers `ObsoleteSdkInt` lint warning (minSdk is 26) | `res/mipmap-anydpi-v26` | Pending | TBD |
+| **ISSUE-018** | Phase 2 | P3 | Code Hygiene | 36 `UseKtx` lint warnings (`Uri.parse()` instead of `toUri()`) | Various | Pending | TBD |
+| **ISSUE-019** | Phase 2 | P2 | Architecture / Maintainability | Decompose `PlayerScreen.kt` and `MediaLibraryScreen.kt` into modular sub-composables | `PlayerScreen.kt`, `MediaLibraryScreen.kt` | Pending | TBD |
 
 ---
 
@@ -94,3 +101,49 @@ Every finding progresses strictly through the following states:
 - **Root Cause:** Excessive accumulation of inline dialogs, sheets, gestures, and event handlers in a single Composable file.
 - **Proposed Solution:** Modularize into discrete composables (e.g. `PlayerTopBar`, `PlayerCenterControls`, `PlayerBottomScrubber`, `LibraryTopBar`, `LibraryGridContent`, etc.) following UDF and `@Stable` state parameters.
 - **Acceptance Criteria:** Maintainability improved, recomposition scopes minimized, zero visual or behavioral regressions.
+
+### ISSUE-013: AudioDelayProcessor silently bypasses lip-sync offset on non-16-bit PCM
+- **Phase:** Phase 2
+- **Priority:** P2 (Medium)
+- **Category:** Playback / Audio
+- **Affected Files:** `app/src/main/java/org/aptura/player/data/playback/AudioDelayProcessor.kt:41`
+- **Root Cause:** `AudioDelayProcessor.onConfigure` checks `if (inputAudioFormat.encoding != C.ENCODING_PCM_16BIT) return AudioFormat.NOT_SET`. If high-resolution audio (24-bit PCM, 32-bit float PCM) or float output is enabled in the audio sink, the delay processor deactivates and the user's audio offset is silently ignored.
+- **Proposed Solution:** Support `C.ENCODING_PCM_FLOAT` and `C.ENCODING_PCM_24BIT` or downsample/convert in processor, or document and expose format compatibility state so the user knows if audio sync is active.
+- **Acceptance Criteria:** Audio delay is applied for float PCM, or UI indicates when delay is inactive for the current audio format.
+
+### ISSUE-014: Blind `catch (_: Throwable)` blocks swallow system errors and avoid diagnostic tracing
+- **Phase:** Phase 2
+- **Priority:** P2 (Medium)
+- **Category:** Error Handling
+- **Affected Files:** `app/src/main/java/org/aptura/player/Navigation.kt:274, 290, 699, 709, 751`
+- **Root Cause:** Catching `Throwable` indiscriminately catches JVM virtual machine errors (such as `OutOfMemoryError`, `StackOverflowError`, `ThreadDeath`) and suppresses `SecurityException` during URI permission management without logging to `ApturaDiagnostics`.
+- **Proposed Solution:** Narrow exception types to `Exception` or specific checked types (`SecurityException`, `IllegalArgumentException`), and log suppressed failures to `ApturaDiagnostics.logEvent`.
+- **Acceptance Criteria:** System errors are never caught; suppressed operational exceptions are logged to local diagnostics.
+
+### ISSUE-015: Silent failure on external intent launch if no app handles intent
+- **Phase:** Phase 2
+- **Priority:** P3 (Low)
+- **Category:** UI / UX
+- **Affected Files:** `app/src/main/java/org/aptura/player/Navigation.kt:524, 534`
+- **Root Cause:** In `Navigation.kt`, `onOpenWithClick` and `onShareClick` wrap `context.startActivity` in `try { ... } catch (_: Exception) {}` with an empty body. If no app handles the intent or the intent chooser fails, nothing happens on screen.
+- **Proposed Solution:** Show an informative `Toast` or snackbar (matching `MediaLibraryScreen.kt:1948`) informing the user that no app is available to open or share the video.
+- **Acceptance Criteria:** Actionable feedback shown on screen instead of a silent no-op.
+
+### ISSUE-016: Unused dead query `deleteRemovedVideos` in `MediaItemDao`
+- **Phase:** Phase 2
+- **Priority:** P3 (Low)
+- **Category:** Architecture / Dead Code
+- **Affected Files:** `app/src/main/java/org/aptura/player/data/database/MediaItemDao.kt:113`
+- **Root Cause:** `deleteRemovedVideos(existingMediaStoreIds: List<Long>)` was left behind when `FileReconciliationEngine` was introduced to batch-delete obsolete items safely without triggering SQLite parameter limits.
+- **Proposed Solution:** Remove the unused method when the next database/schema PR is opened, or keep tracked until a database maintenance pass.
+- **Acceptance Criteria:** Dead code removed without breaking callers or tests.
+
+### ISSUE-017: Obsolete `-v26` resource qualifier on `res/mipmap-anydpi-v26`
+- **Phase:** Phase 2
+- **Priority:** P3 (Low)
+- **Category:** Android Lint / Resources
+- **Affected Files:** `app/src/main/res/mipmap-anydpi-v26`
+- **Root Cause:** `minSdkVersion` is 26, so `-v26` qualifier is completely redundant and triggers `ObsoleteSdkInt`.
+- **Proposed Solution:** Rename/merge `mipmap-anydpi-v26` to `mipmap-anydpi`.
+- **Acceptance Criteria:** `ObsoleteSdkInt` warning eliminated from `lintDebug`.
+
