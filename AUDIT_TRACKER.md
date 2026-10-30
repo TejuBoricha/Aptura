@@ -45,6 +45,9 @@ Every finding progresses strictly through the following states:
 | **ISSUE-021** | Phase 3 | P2 | Security / DoS | `SubtitleZipExtractor` lacks byte ceiling during extraction (Zip Bomb risk) | `SubtitleZipExtractor.kt` | Pending | TBD |
 | **ISSUE-022** | Phase 4 | P2 | Performance / Compose | 4 Hz position ticker triggers full `PlayerScreen` recomposition when controls hidden | `PlayerScreen.kt`, `Media3PlaybackController.kt` | Pending | TBD |
 | **ISSUE-023** | Phase 4 | P2 | Performance / Database | Room table invalidation re-queries entire library on 5s playback checkpoints | `MediaLibraryViewModel.kt`, `MediaItemDao.kt` | Pending | TBD |
+| **ISSUE-024** | Phase 5 | P2 | Navigation / Lifecycle | In-app Back arrow from external `ACTION_VIEW` launch drops user into Welcome / Onboarding flow | `Navigation.kt` | Pending | TBD |
+| **ISSUE-025** | Phase 5 | P2 | Audio / Platform | Bluetooth auto-sync hint (`Try −200 ms`) reflects connected devices rather than active audio output route | `AudioEnhancementSheet.kt` | Pending | TBD |
+| **ISSUE-026** | Phase 5 | P3 | Accessibility / UI | Sleep timer presets lack selected accessibility state for TalkBack screen reader | `SleepTimerSheet.kt` | Pending | TBD |
 
 ---
 
@@ -186,6 +189,33 @@ Every finding progresses strictly through the following states:
 - **Root Cause:** Room table invalidation tracks writes at table granularity. Every 5 seconds during playback, `PlayerViewModel` writes `mediaItemDao.updatePlaybackPosition(...)`. This invalidates `getAllVideosSortedByDate()`, causing `MediaLibraryViewModel` to re-fetch all rows from SQLite, re-sort, and re-allocate UI card models even when library contents have not changed.
 - **Proposed Solution:** Add `distinctUntilChanged` on key entity fields or separate playback position tracking from static media metadata, or decouple checkpoint updates so the library flow only updates when titles, completion, or membership change.
 - **Acceptance Criteria:** Inactive library view does not re-allocate all card UI models every 5s during active video playback.
+
+### ISSUE-024: In-app Back arrow from external ACTION_VIEW launch drops user into Welcome / Onboarding flow
+- **Phase:** Phase 5
+- **Priority:** P2 (Medium)
+- **Category:** Navigation / Lifecycle
+- **Affected Files:** `app/src/main/java/org/aptura/player/Navigation.kt:313-317`
+- **Root Cause:** When Aptura is launched via an external `ACTION_VIEW` intent on a clean install (or before onboarding was completed), `backStack` is initialized with `[Onboarding]`. The launch effect pushes `PlayerKey` so the stack is `[Onboarding, PlayerKey]`. Pressing Back or the top-bar arrow pops `PlayerKey`, dropping the user into the `Onboarding` welcome screen instead of finishing the activity. Even if onboarding was already completed, `backStack` has `[MediaLibrary, PlayerKey]`, dropping the user into `MediaLibrary` instead of finishing the activity to return to the calling app.
+- **Proposed Solution:** In `handleBack`, if the activity was launched with an external `ACTION_VIEW` intent, finish the activity when popping the player instead of dropping the user into the library or onboarding.
+- **Acceptance Criteria:** Opening a video from an external file manager and pressing Back cleanly exits Aptura and returns to the calling app.
+
+### ISSUE-025: Bluetooth auto-sync hint (`Try −200 ms`) reflects connected devices rather than active audio output route
+- **Phase:** Phase 5
+- **Priority:** P2 (Medium)
+- **Category:** Audio / Platform
+- **Affected Files:** `app/src/main/java/org/aptura/player/ui/player/AudioEnhancementSheet.kt:143`
+- **Root Cause:** `AudioEnhancementSheet.rememberBluetoothOutputConnected()` queries `audio.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { it.type in BLUETOOTH_OUTPUT_TYPES }`. This returns true if any Bluetooth headset is bonded or connected, even if the active media output route is currently routed to the built-in speaker.
+- **Proposed Solution:** Inspect active routing via `AudioTrack.getRoutedDevice()` or verify device state against active communication / media routing.
+- **Acceptance Criteria:** `Try -200 ms` only appears when audio is actively routed to Bluetooth output.
+
+### ISSUE-026: Sleep timer presets lack selected accessibility state for TalkBack screen reader
+- **Phase:** Phase 5
+- **Priority:** P3 (Low)
+- **Category:** Accessibility / UI
+- **Affected Files:** `app/src/main/java/org/aptura/player/ui/player/SleepTimerSheet.kt`
+- **Root Cause:** When a sleep timer is actively counting down, no chip is marked selected in the UI (`selected = false` for all chips because `activeTimerMinutes` is 0 or countdown is in progress). TalkBack announces all chips as unselected, so visually impaired users cannot hear which preset was chosen.
+- **Proposed Solution:** Ensure the matching preset chip corresponding to the active timer duration announces selected or has an active indicator for screen readers.
+- **Acceptance Criteria:** Screen readers announce which sleep timer preset is currently active.
 
 
 
