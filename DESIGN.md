@@ -272,7 +272,17 @@ The stats panel (top right, up to 380dp wide) and the centred transport buttons 
 
 ### 5.5b A video that does not start
 
-Playback that is asked for and never begins must not end as a paused, black player that says nothing (the owner's Samsung S24: queue 558, 0:00, no message). While the player is meant to be playing and is not (not an error, not the end, not a person's pause, not the system holding the audio), a timer runs; after **8 seconds** the software decoder is tried once (the same fallback as a decoder failure), and if that does not start either, the player shows **"Playback Did Not Start"** with Retry and Open in another app. The player's state (buffering or idle, play-when-ready, suppression, position, item, decoder) is written to the diagnostic report (`play.error`, `play.session.start`), so the next report says why. `Media3PlaybackControllerStallTest`; `PlaybackSmokeTest` (connected) plays a real H.264 clip, a real HEVC clip and a 558-item queue started in the middle on the CI emulator, and taps a video in the library.
+A video that is asked for must play, whatever state the player is in. The owner's Samsung S24 sat in "buffering" at 0:00 with no error for every video after the first, so no rule about *why* is enough: the player is **replaced**, because a wedged player (a codec that never answers, an audio output that never opens) cannot be repaired from outside, while a new one starts clean, like the first video after the app opens.
+
+While the player is meant to be playing and is not (not an error, not the end, not a person's pause, not the system holding the audio), a timer runs, **4 seconds** at a time:
+
+1. **First wait ends:** the video starts again, where it was, on a **brand-new player** (`Media3PlaybackController.startOnFreshPlayer`). Track choices, speed, volume, repeat, shuffle and the audio and subtitle delays are carried over; the media session and the picture follow the new player (`currentPlayer`); the old one is released before the new one asks for a codec.
+2. **Second wait ends:** the same on another new player with the **software decoder**.
+3. **Third wait ends:** only then does the player say **"Playback Did Not Start"** (12 s in all), with Retry (which starts on a new player again) and Open in another app.
+
+A player that reports `ERROR_CODE_TIMEOUT` (a surface or codec that never answered) is replaced at once. A start that needed a new player makes the controller **cautious for the rest of the session**: every later start begins on a new player and loads **only the video asked for**, and the rest of the queue is added behind it once it has played for 2 seconds (or at once when anything needs the queue: next, previous, a queue edit, shuffle). The queue shown to the person is the whole list throughout.
+
+Every step is written to the diagnostic report (`play.session.start` for each recovery with the player's steps, buffering and thread states; `play.error` when it gives up), so a report from a phone still says what happened. `Media3PlaybackControllerStallTest` covers each rung, the carried-over settings, the order of the hand-over, the held-back queue and the final message. `PlaybackSmokeTest` (connected) plays H.264, HEVC, a 558-item queue and a second video after the first on the CI emulator, wedges a real player with a source that never delivers a byte and requires the video to play on the replacement, and requires the picture to follow a replaced player.
 
 ### 5.5c Bottom sheets stay put
 

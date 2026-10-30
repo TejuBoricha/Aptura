@@ -21,6 +21,8 @@ import org.aptura.player.domain.model.DomainPlaybackState
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -30,8 +32,9 @@ import java.lang.reflect.Proxy
 
 /**
  * A video that was asked to play and never does (the owner's Samsung S24: a paused, black player, queue 558, no error,
- * nothing to say why). The player must try the software decoder once and then say plainly that playback did not start,
- * and must leave alone everything that is merely slow, paused or held back by the system.
+ * nothing to say why). That must not be possible to end in: the video is started again on a brand-new player, then on
+ * a brand-new player with the software decoder, and only when both fail does the player say so. Everything that is
+ * merely slow, paused or held back by the system is left alone.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class Media3PlaybackControllerStallTest {
@@ -45,29 +48,45 @@ class Media3PlaybackControllerStallTest {
     @After
     fun tearDown() = Dispatchers.resetMain()
 
+    /** What happened to which player, in order, across every player a test makes. */
+    private val events = mutableListOf<String>()
+
     /** A player that does what it is told about play-when-ready but only reports "playing" when the test says so. */
-    private class StuckPlayer : InvocationHandler {
+    private inner class StuckPlayer(val name: String = "player") : InvocationHandler {
         val listeners = mutableListOf<Player.Listener>()
         var playWhenReady = false
         var isPlaying = false
         var state = Player.STATE_IDLE
         var suppression = Player.PLAYBACK_SUPPRESSION_REASON_NONE
-        var itemCount = 0
-        var item: MediaItem? = null
+        val items = mutableListOf<MediaItem>()
+        var index = 0
+        var position = 0L
         var error: PlaybackException? = null
         var stops = 0
         var prepares = 0
+        var released = false
+        val calls = mutableListOf<String>()
 
         fun startPlaying() {
             state = Player.STATE_READY
             isPlaying = true
-            listeners.forEach { it.onPlaybackStateChanged(Player.STATE_READY) }
-            listeners.forEach { it.onIsPlayingChanged(true) }
+            listeners.toList().forEach { it.onPlaybackStateChanged(Player.STATE_READY) }
+            listeners.toList().forEach { it.onIsPlayingChanged(true) }
         }
 
         fun changeState(newState: Int) {
             state = newState
-            listeners.forEach { it.onPlaybackStateChanged(newState) }
+            listeners.toList().forEach { it.onPlaybackStateChanged(newState) }
+        }
+
+        fun fail(error: PlaybackException) {
+            this.error = error
+            listeners.toList().forEach { it.onPlayerError(error) }
+        }
+
+        private fun note(call: String) {
+            calls += call
+            events += "$name:$call"
         }
 
         override fun invoke(proxy: Any?, method: Method, args: Array<out Any>?): Any? = when (method.name) {
@@ -77,19 +96,41 @@ class Media3PlaybackControllerStallTest {
             "isPlaying" -> isPlaying
             "getPlaybackState" -> state
             "getPlaybackSuppressionReason" -> suppression
-            "getMediaItemCount" -> itemCount
-            "getCurrentMediaItem" -> item
+            "getMediaItemCount" -> items.size
+            "getCurrentMediaItem" -> items.getOrNull(index)
+            "getCurrentMediaItemIndex" -> index
+            "getMediaItemAt" -> items[args!![0] as Int]
+            "hasNextMediaItem" -> index < items.lastIndex
+            "hasPreviousMediaItem" -> index > 0
+            "getNextMediaItemIndex" -> if (index < items.lastIndex) index + 1 else -1
+            "getPreviousMediaItemIndex" -> if (index > 0) index - 1 else -1
+            "getCurrentPosition" -> position
             "getPlayerError" -> error
             "setMediaItems" -> {
-                val list = args?.get(0) as? List<*>
-                itemCount = list?.size ?: 0
-                item = list?.getOrNull(0) as? MediaItem
+                val list = args?.get(0) as List<*>
+                items.clear()
+                items.addAll(list.filterIsInstance<MediaItem>())
+                index = (args.getOrNull(1) as? Int) ?: 0
+                position = (args.getOrNull(2) as? Long) ?: 0L
+                note("setMediaItems(${items.size} at $index, ${position}ms)")
                 null
             }
-            "prepare" -> { prepares++; changeState(Player.STATE_BUFFERING); null }
-            "stop" -> { stops++; isPlaying = false; changeState(Player.STATE_IDLE); null }
-            "play" -> { playWhenReady = true; listeners.forEach { it.onPlayWhenReadyChanged(true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST) }; null }
-            "pause" -> { playWhenReady = false; isPlaying = false; listeners.forEach { it.onPlayWhenReadyChanged(false, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST) }; null }
+            "addMediaItems" -> {
+                val at = if (args!!.size == 2) args[0] as Int else items.size
+                val list = (args.last() as List<*>).filterIsInstance<MediaItem>()
+                items.addAll(at, list)
+                if (at <= index && items.size > list.size) index += list.size
+                note("addMediaItems(${list.size} at $at)")
+                null
+            }
+            "seekToNextMediaItem" -> { note("seekToNextMediaItem"); index++; null }
+            "prepare" -> { prepares++; note("prepare"); changeState(Player.STATE_BUFFERING); null }
+            "stop" -> { stops++; note("stop"); isPlaying = false; changeState(Player.STATE_IDLE); null }
+            "release" -> { released = true; note("release"); null }
+            "play" -> { playWhenReady = true; note("play"); listeners.toList().forEach { it.onPlayWhenReadyChanged(true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST) }; null }
+            "pause" -> { playWhenReady = false; isPlaying = false; listeners.toList().forEach { it.onPlayWhenReadyChanged(false, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST) }; null }
+            "setTrackSelectionParameters" -> { note("setTrackSelectionParameters"); null }
+            "setPlaybackParameters" -> { note("setPlaybackParameters"); null }
             "getDuration" -> 60_000L
             "getPlaybackParameters" -> androidx.media3.common.PlaybackParameters(1f)
             "getTrackSelectionParameters" -> androidx.media3.common.TrackSelectionParameters.DEFAULT_WITHOUT_CONTEXT
@@ -105,43 +146,91 @@ class Media3PlaybackControllerStallTest {
         }
     }
 
-    private val video = DomainMediaItem(uri = "content://media/1", title = "A video", durationMs = 60_000L, sizeBytes = 1_000_000L, mimeType = "video/mp4")
+    private fun proxyOf(handler: StuckPlayer) = Proxy.newProxyInstance(Player::class.java.classLoader, arrayOf(Player::class.java), handler) as Player
 
-    private fun controllerWith(handler: StuckPlayer): Media3PlaybackController {
-        val player = Proxy.newProxyInstance(Player::class.java.classLoader, arrayOf(Player::class.java), handler) as Player
-        return Media3PlaybackController(
-            player = player,
+    private fun video(n: Int) = DomainMediaItem(uri = "content://media/$n", title = "Video $n", durationMs = 60_000L, sizeBytes = 1_000_000L, mimeType = "video/mp4")
+
+    private val video = video(1)
+
+    /** Every player the controller asked its factory for, in order. */
+    private val made = mutableListOf<StuckPlayer>()
+
+    private fun controllerWith(handler: StuckPlayer, withFactory: Boolean = true): Media3PlaybackController =
+        Media3PlaybackController(
+            player = proxyOf(handler),
             scope = scope,
             mainDispatcher = dispatcher,
-            enablePositionTicker = false
+            enablePositionTicker = false,
+            playerFactory = if (withFactory) {
+                {
+                    val fresh = StuckPlayer("fresh${made.size + 1}")
+                    made += fresh
+                    PlayerParts(proxyOf(fresh))
+                }
+            } else null
         )
-    }
 
-    private val window = PLAYBACK_START_TIMEOUT_MS + 1
+    private val rung = PLAYBACK_START_RUNG_MS + 1
+
+    /** The handler behind the player the controller is using now. */
+    private fun liveHandler(controller: Media3PlaybackController): StuckPlayer =
+        (Proxy.getInvocationHandler(controller.player) as StuckPlayer)
 
     @Test
-    fun aVideoThatNeverStarts_triesTheSoftwareDecoderOnce_thenSaysPlaybackDidNotStart() = runTest(dispatcher) {
-        val player = StuckPlayer()
-        val controller = controllerWith(player)
+    fun aVideoThatNeverStarts_isStartedAgainOnAFreshPlayer_thenOnAFreshPlayerWithTheSoftwareDecoder_thenReported() = runTest(dispatcher) {
+        val first = StuckPlayer("first")
+        val controller = controllerWith(first)
 
         controller.playQueue(listOf(video), 0)
         runCurrent()
-        assertEquals("nothing happens before the wait is over", 0, player.stops)
+        assertEquals("nothing happens before the wait is over", 0, made.size)
 
-        advanceTimeBy(window)
+        advanceTimeBy(rung)
         runCurrent()
-        assertEquals("the software decoder is tried once", 1, player.stops)
+        assertEquals("a fresh player is made", 1, made.size)
+        assertNotSame(first, liveHandler(controller))
+        assertTrue("the stuck one is let go", first.released)
+        assertEquals("the new one is asked for the same video", 1, made[0].items.size)
+        assertEquals(1, made[0].prepares)
+        assertTrue(made[0].playWhenReady)
+        assertEquals("hardware first", 0, controller.currentDecoderStrategy)
+        assertFalse(controller.playbackState.value is DomainPlaybackState.Error)
+
+        advanceTimeBy(rung)
+        runCurrent()
+        assertEquals("then another, with the software decoder", 2, made.size)
         assertEquals(2, controller.currentDecoderStrategy)
         assertTrue(controller.isCompatibilityMode.value)
-        assertFalse("not an error yet, there is something left to try", controller.playbackState.value is DomainPlaybackState.Error)
+        assertTrue(made[0].released)
+        assertFalse("not an error yet, there is nothing left to try only after this", controller.playbackState.value is DomainPlaybackState.Error)
 
-        advanceTimeBy(window)
+        advanceTimeBy(rung)
         runCurrent()
         val state = controller.playbackState.value
         assertTrue("then it says so: $state", state is DomainPlaybackState.Error)
         assertEquals("PLAYBACK_STALLED", (state as DomainPlaybackState.Error).errorCode)
-        assertEquals("only one try", 1, player.stops)
+        assertEquals("nothing more is made once it has said so", 2, made.size)
         assertTrue("the reason names what the player was doing", controller.failureReason.value.orEmpty().contains("state=BUFFERING"))
+    }
+
+    @Test
+    fun theNewPlayerCarriesTheSettingsOver_andTheSessionIsToldBeforeTheOldOneIsReleased() = runTest(dispatcher) {
+        val first = StuckPlayer("first")
+        val controller = controllerWith(first)
+        controller.addPlayerReplacedListener { events += "told" }
+
+        controller.playQueue(listOf(video), 0)
+        runCurrent()
+        events.clear()
+        advanceTimeBy(rung)
+        runCurrent()
+
+        assertTrue("the track choices are carried over: ${made[0].calls}", made[0].calls.contains("setTrackSelectionParameters"))
+        assertTrue("so is the speed: ${made[0].calls}", made[0].calls.contains("setPlaybackParameters"))
+        val told = events.indexOf("told")
+        val released = events.indexOf("first:release")
+        assertTrue("told=$told released=$released in $events", told in 0 until released)
+        assertSame("the screen follows the new player", controller.player, controller.currentPlayer.value)
     }
 
     @Test
@@ -153,9 +242,10 @@ class Media3PlaybackControllerStallTest {
         runCurrent()
         advanceTimeBy(3_000)
         player.startPlaying()
-        advanceTimeBy(window * 3)
+        advanceTimeBy(rung * 6)
         runCurrent()
 
+        assertEquals(0, made.size)
         assertEquals(0, player.stops)
         assertEquals(0, controller.currentDecoderStrategy)
         assertFalse(controller.playbackState.value is DomainPlaybackState.Error)
@@ -169,10 +259,10 @@ class Media3PlaybackControllerStallTest {
         controller.playQueue(listOf(video), 0)
         runCurrent()
         controller.pause()
-        advanceTimeBy(window * 3)
+        advanceTimeBy(rung * 6)
         runCurrent()
 
-        assertEquals(0, player.stops)
+        assertEquals(0, made.size)
         assertFalse(controller.playbackState.value is DomainPlaybackState.Error)
     }
 
@@ -183,10 +273,10 @@ class Media3PlaybackControllerStallTest {
 
         controller.playQueue(listOf(video), 0)
         runCurrent()
-        advanceTimeBy(window * 3)
+        advanceTimeBy(rung * 6)
         runCurrent()
 
-        assertEquals(0, player.stops)
+        assertEquals(0, made.size)
         assertFalse(controller.playbackState.value is DomainPlaybackState.Error)
     }
 
@@ -199,32 +289,148 @@ class Media3PlaybackControllerStallTest {
         runCurrent()
         player.error = PlaybackException("boom", null, PlaybackException.ERROR_CODE_IO_UNSPECIFIED)
         player.changeState(Player.STATE_IDLE)
-        advanceTimeBy(window * 3)
+        advanceTimeBy(rung * 6)
         runCurrent()
 
-        assertEquals("the watchdog does not pile a second recovery on an error", 0, player.stops)
+        assertEquals("the watchdog does not pile a second recovery on an error", 0, made.size)
     }
 
     @Test
-    fun retryingAfterTheMessage_startsANewWait() = runTest(dispatcher) {
+    fun aPlayerThatTimedOut_isReplacedAtOnce() = runTest(dispatcher) {
         val player = StuckPlayer()
         val controller = controllerWith(player)
 
         controller.playQueue(listOf(video), 0)
         runCurrent()
-        advanceTimeBy(window)
+        player.fail(PlaybackException("detaching the surface timed out", null, PlaybackException.ERROR_CODE_TIMEOUT))
         runCurrent()
-        advanceTimeBy(window)
+
+        assertEquals("a player that timed out cannot be repaired, only replaced", 1, made.size)
+        assertTrue(player.released)
+    }
+
+    @Test
+    fun withoutAWayToMakeAPlayer_theStuckOneIsRestartedInPlace_andTheLadderStillEnds() = runTest(dispatcher) {
+        val player = StuckPlayer()
+        val controller = controllerWith(player, withFactory = false)
+
+        controller.playQueue(listOf(video), 0)
         runCurrent()
+        advanceTimeBy(rung)
+        runCurrent()
+        assertEquals(1, player.stops)
+        advanceTimeBy(rung)
+        runCurrent()
+        assertEquals(2, player.stops)
+        assertEquals(2, controller.currentDecoderStrategy)
+        advanceTimeBy(rung)
+        runCurrent()
+
+        assertEquals("PLAYBACK_STALLED", (controller.playbackState.value as DomainPlaybackState.Error).errorCode)
+    }
+
+    @Test
+    fun retryingAfterTheMessage_startsOnAFreshPlayer_andEndsAgainAfterOneMoreTry() = runTest(dispatcher) {
+        val player = StuckPlayer()
+        val controller = controllerWith(player)
+
+        controller.playQueue(listOf(video), 0)
+        runCurrent()
+        repeat(3) { advanceTimeBy(rung); runCurrent() }
         assertTrue(controller.playbackState.value is DomainPlaybackState.Error)
+        val made1 = made.size
 
         controller.retryPlayback()
         runCurrent()
         assertFalse("the message goes away when it is retried", controller.playbackState.value is DomainPlaybackState.Error)
-        player.startPlaying()
-        advanceTimeBy(window * 2)
+        assertEquals("a retry starts on a new player", made1 + 1, made.size)
+
+        advanceTimeBy(rung)
         runCurrent()
+        assertEquals("one more try, then", made1 + 2, made.size)
+        advanceTimeBy(rung)
+        runCurrent()
+        assertTrue(controller.playbackState.value is DomainPlaybackState.Error)
+    }
+
+    @Test
+    fun aRetryThatPlays_endsTheStall() = runTest(dispatcher) {
+        val player = StuckPlayer()
+        val controller = controllerWith(player)
+
+        controller.playQueue(listOf(video), 0)
+        runCurrent()
+        repeat(3) { advanceTimeBy(rung); runCurrent() }
+        controller.retryPlayback()
+        runCurrent()
+        liveHandler(controller).startPlaying()
+        advanceTimeBy(rung * 3)
+        runCurrent()
+
         assertFalse(controller.playbackState.value is DomainPlaybackState.Error)
+    }
+
+    @Test
+    fun aStallThatAFreshStartCured_makesEveryLaterStartFreshAndHoldsBackTheRestOfTheQueue() = runTest(dispatcher) {
+        val first = StuckPlayer("first")
+        val controller = controllerWith(first)
+
+        controller.playQueue(listOf(video(1)), 0)
+        runCurrent()
+        advanceTimeBy(rung)
+        runCurrent()
+        liveHandler(controller).startPlaying() // the fresh player started it
+        runCurrent()
+        assertEquals(1, made.size)
+
+        // The next video, picked from a folder of five.
+        val folder = (1..5).map { video(it) }
+        controller.playQueue(folder, 3)
+        runCurrent()
+
+        assertEquals("a new player before the video is loaded", 2, made.size)
+        val player = made[1]
+        assertEquals("only the video asked for is loaded at first: ${player.calls}", 1, player.items.size)
+        assertTrue(player.calls.contains("setMediaItems(1 at 0, 0ms)"))
+        val queue = controller.playbackQueue.value
+        assertEquals("the queue is still all five", 5, queue.items.size)
+        assertEquals("and still on the video that was picked", 3, queue.currentIndex)
+        assertEquals(true, queue.nextAvailable)
+        assertEquals(true, queue.previousAvailable)
+
+        player.startPlaying()
+        advanceTimeBy(QUEUE_RESTORE_AFTER_MS + 1)
+        runCurrent()
+
+        assertEquals("the rest follows once it plays", 5, player.items.size)
+        assertEquals("the playing video did not move", "content://media/4", player.items[player.index].mediaId)
+        assertEquals(3, controller.playbackQueue.value.currentIndex)
+    }
+
+    @Test
+    fun theRestOfTheQueue_isLoadedBeforeAnythingThatNeedsIt() = runTest(dispatcher) {
+        val first = StuckPlayer("first")
+        val controller = controllerWith(first)
+        controller.playQueue(listOf(video(1)), 0)
+        runCurrent()
+        advanceTimeBy(rung)
+        runCurrent()
+        liveHandler(controller).startPlaying()
+        runCurrent()
+
+        controller.playQueue((1..5).map { video(it) }, 1)
+        runCurrent()
+        val player = made[1]
+        player.startPlaying()
+        runCurrent()
+        assertEquals("not yet: the video has only just started", 1, player.items.size)
+
+        controller.skipToNext()
+
+        val added = player.calls.indexOfFirst { it.startsWith("addMediaItems") }
+        val skipped = player.calls.indexOf("seekToNextMediaItem")
+        assertTrue("the rest was loaded first: ${player.calls}", added in 0 until skipped)
+        assertEquals(5, player.items.size)
     }
 
     @Test
@@ -235,14 +441,19 @@ class Media3PlaybackControllerStallTest {
 
         controller.playQueue(listOf(video), 0)
         runCurrent()
-        advanceTimeBy(window)
+        advanceTimeBy(rung)
         runCurrent()
 
+        val recovery = ApturaDiagnostics.ringBuffer.getAllEvents()
+            .last { it.code == EventCode.EV_010 && it.payload["strategy"] == "stall_recovery" }
+        assertTrue("the steps are there: ${recovery.payload}", recovery.payload["trace"].orEmpty().contains("requested items=1 start=0"))
+        assertTrue("the threads are there: ${recovery.payload}", recovery.payload.containsKey("threads"))
+        assertTrue(recovery.payload["reason"].orEmpty().contains("buffered="))
+        assertTrue(recovery.payload["reason"].orEmpty().contains("loading="))
+
+        repeat(2) { advanceTimeBy(rung); runCurrent() }
         val stall = ApturaDiagnostics.ringBuffer.getAllEvents()
             .last { it.code == EventCode.EV_011 && it.payload["errorCode"] == "PLAYBACK_STALLED" }
-        assertTrue("the steps are there: ${stall.payload}", stall.payload["trace"].orEmpty().contains("requested items=1 start=0"))
-        assertTrue("the threads are there: ${stall.payload}", stall.payload.containsKey("threads"))
-        assertTrue(stall.payload["reason"].orEmpty().contains("buffered="))
-        assertTrue(stall.payload["reason"].orEmpty().contains("loading="))
+        assertTrue("the final report has the steps too: ${stall.payload}", stall.payload.containsKey("trace"))
     }
 }

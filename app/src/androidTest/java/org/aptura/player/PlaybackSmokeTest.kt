@@ -11,16 +11,35 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.performClick
+import android.view.View
+import android.view.ViewGroup
+import androidx.media3.common.C
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.BaseDataSource
+import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DataSpec
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.ui.PlayerView
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.runBlocking
+import org.aptura.player.data.playback.Media3PlaybackController
 import org.aptura.player.data.playback.PlayerManager
+import org.aptura.player.data.playback.PlayerParts
 import org.aptura.player.data.scanner.MediaScanScheduler
 import org.aptura.player.data.settings.ApturaSettingsRepository
 import org.aptura.player.domain.model.DomainMediaItem
+import org.aptura.player.domain.model.DomainPlaybackState
 import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Rule
@@ -110,7 +129,7 @@ class PlaybackSmokeTest {
         val controller = PlayerManager.getOrCreate(context)
         runBlocking(Dispatchers.Main) { controller.playQueue(listOf(item(clipUri, "zqprobe clip")), 0) }
 
-        assertPlays(controller.player, "the controller, one H.264 video")
+        assertPlays(controller, "the controller, one H.264 video")
     }
 
     @Test
@@ -118,7 +137,7 @@ class PlaybackSmokeTest {
         val controller = PlayerManager.getOrCreate(context)
         runBlocking(Dispatchers.Main) { controller.playQueue(listOf(item(hevcUri, "zqhevc clip")), 0) }
 
-        assertPlays(controller.player, "the controller, one HEVC video")
+        assertPlays(controller, "the controller, one HEVC video")
     }
 
     /** A real library holds hundreds of videos and a tap queues all of them: the owner's phone showed 558. */
@@ -128,7 +147,7 @@ class PlaybackSmokeTest {
         val queue = List(558) { index -> item(if (index % 2 == 0) clipUri else hevcUri, "queue item $index") }
         runBlocking(Dispatchers.Main) { controller.playQueue(queue, 300) }
 
-        assertPlays(controller.player, "the controller, 558 items starting at 301")
+        assertPlays(controller, "the controller, 558 items starting at 301")
         val index = onMain { controller.player.currentMediaItemIndex }
         if (index != 300) fail("The queue started at item ${index + 1}, not 301.")
     }
@@ -141,13 +160,13 @@ class PlaybackSmokeTest {
     fun aSecondVideoPickedAfterTheFirstWasLeft_plays() {
         val controller = PlayerManager.getOrCreate(context)
         runBlocking(Dispatchers.Main) { controller.playQueue(listOf(item(clipUri, "zqprobe clip")), 0) }
-        assertPlays(controller.player, "the first video", expectedMediaId = clipUri.toString())
+        assertPlays(controller, "the first video", expectedMediaId = clipUri.toString())
 
         runBlocking(Dispatchers.Main) { controller.pause() } // what leaving the player does
         val queue = List(7) { index -> item(if (index % 2 == 1) hevcUri else clipUri, "queue item $index") }
         runBlocking(Dispatchers.Main) { controller.playQueue(queue, 5) } // item 6 of 7, as on the phone
 
-        assertPlays(controller.player, "a queue of 7 started at item 6 after the first video was left", expectedMediaId = hevcUri.toString())
+        assertPlays(controller, "a queue of 7 started at item 6 after the first video was left", expectedMediaId = hevcUri.toString())
     }
 
     @Test
@@ -155,21 +174,18 @@ class PlaybackSmokeTest {
         MediaScanScheduler.scheduleImmediateScan(context)
         val first = hasText(CLIP_WORD, substring = true, ignoreCase = true)
         val second = hasText(HEVC_WORD, substring = true, ignoreCase = true)
-        composeRule.waitUntil(timeoutMillis = 30_000) {
-            composeRule.onAllNodes(first).fetchSemanticsNodes().isNotEmpty() &&
-                composeRule.onAllNodes(second).fetchSemanticsNodes().isNotEmpty()
-        }
+        waitForNode(first, 30_000)
+        waitForNode(second, 30_000)
         val controller = PlayerManager.getOrCreate(context)
 
         composeRule.onAllNodes(first)[0].performClick()
-        assertPlays(controller.player, "the first tap", expectedMediaId = clipUri.toString())
+        assertPlays(controller, "the first tap", expectedMediaId = clipUri.toString())
 
         androidx.test.uiautomator.UiDevice.getInstance(InstrumentationRegistry.getInstrumentation()).pressBack()
-        composeRule.waitUntil(timeoutMillis = 15_000) {
-            composeRule.onAllNodes(second).fetchSemanticsNodes().isNotEmpty()
-        }
+        // Leaving the player turns the screen back upright, which recreates the activity: for a moment there is no screen.
+        waitForNode(second, 15_000)
         composeRule.onAllNodes(second)[0].performClick()
-        assertPlays(controller.player, "a second tap, after going back from the first video", expectedMediaId = hevcUri.toString())
+        assertPlays(controller, "a second tap, after going back from the first video", expectedMediaId = hevcUri.toString())
     }
 
     @Test
@@ -177,9 +193,7 @@ class PlaybackSmokeTest {
         MediaScanScheduler.scheduleImmediateScan(context)
 
         val card = hasText(CLIP_WORD, substring = true, ignoreCase = true)
-        composeRule.waitUntil(timeoutMillis = 30_000) {
-            composeRule.onAllNodes(card).fetchSemanticsNodes().isNotEmpty()
-        }
+        waitForNode(card, 30_000)
         composeRule.onAllNodes(card)[0].performClick()
 
         val controller = PlayerManager.getOrCreate(context)
@@ -189,7 +203,154 @@ class PlaybackSmokeTest {
         if (onMain { controller.player.mediaItemCount } == 0) {
             fail("Tapping the video in the library never gave the player a queue. ${screenAndLog()}")
         }
-        assertPlays(controller.player, "a tap on the card in the library")
+        assertPlays(controller, "a tap on the card in the library")
+    }
+
+
+    // ---- a player that wedges is replaced -------------------------------------------------------------------------
+
+    /** A source that never delivers a byte: the player sits in "buffering" for ever, as the owner's did. */
+    @UnstableApi
+    private class NeverDeliversDataSource : BaseDataSource(/* isNetwork = */ false) {
+        private val closed = java.util.concurrent.CountDownLatch(1)
+
+        override fun open(dataSpec: DataSpec): Long {
+            transferInitializing(dataSpec)
+            try {
+                closed.await()
+            } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
+                throw java.io.InterruptedIOException()
+            }
+            throw java.io.IOException("closed")
+        }
+
+        override fun read(buffer: ByteArray, offset: Int, length: Int): Int = C.RESULT_END_OF_INPUT
+        override fun getUri(): Uri? = null
+        override fun close() = closed.countDown()
+    }
+
+    @UnstableApi
+    private fun stuckPlayer(): ExoPlayer = onMain {
+        ExoPlayer.Builder(context)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(DataSource.Factory { NeverDeliversDataSource() }))
+            .build()
+    }
+
+    @UnstableApi
+    private fun recoveringController(first: ExoPlayer, made: MutableList<ExoPlayer>, fresh: () -> ExoPlayer): Media3PlaybackController = onMain {
+        Media3PlaybackController(
+            player = first,
+            scope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
+            enablePositionTicker = false,
+            playerFactory = { PlayerParts(fresh().also { made += it }) }
+        )
+    }
+
+    /** Waits for a node, and through the moments when the activity is being recreated and the screen is not there to ask. */
+    private fun waitForNode(matcher: androidx.compose.ui.test.SemanticsMatcher, timeoutMs: Long) {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            val found = runCatching { composeRule.onAllNodes(matcher).fetchSemanticsNodes().isNotEmpty() }.getOrDefault(false)
+            if (found) return
+            Thread.sleep(200)
+        }
+        fail("Waited ${timeoutMs / 1000} s for a node on screen. ${screenAndLog()}")
+    }
+
+    private fun waitFor(timeoutMs: Long, what: String, condition: () -> Boolean) {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            if (onMain(condition)) return
+            Thread.sleep(200)
+        }
+        fail("Waited ${timeoutMs / 1000} s for $what. ${appRecord()}")
+    }
+
+    /**
+     * The player the owner's phone had: it was asked to play and never did. Nothing can repair it, so it must be
+     * replaced, and the video must then play on the new one, with the rest of the queue behind it.
+     */
+    @UnstableApi
+    @Test
+    fun aWedgedPlayer_isReplaced_andTheVideoPlaysOnTheNewOne() {
+        val made = mutableListOf<ExoPlayer>()
+        val first = stuckPlayer()
+        val controller = recoveringController(first, made) { ExoPlayer.Builder(context).build() }
+        try {
+            val queue = List(3) { index -> item(if (index == 1) hevcUri else clipUri, "wedged queue item $index") }
+            runBlocking(Dispatchers.Main) { controller.playQueue(queue, 1) }
+
+            assertPlays(controller, "a wedged player that has to be replaced", expectedMediaId = hevcUri.toString(), timeoutMs = 25_000)
+            assertTrue("the wedged player was not let go", onMain { first.isReleased })
+            assertNotSame(first, onMain { controller.player })
+            assertEquals("one replacement was enough", 1, made.size)
+            waitFor(10_000, "the rest of the queue to follow the video") { controller.player.mediaItemCount == 3 }
+            assertEquals("the video that is playing is still the one that was picked", 1, onMain { controller.player.currentMediaItemIndex })
+            assertEquals(3, controller.playbackQueue.value.items.size)
+            assertEquals(1, controller.playbackQueue.value.currentIndex)
+
+            // After that, every start begins on a new player, so the stall does not wait to happen again.
+            val before = onMain { controller.player }
+            runBlocking(Dispatchers.Main) { controller.playQueue(listOf(item(clipUri, "the next one")), 0) }
+            assertNotSame(before, onMain { controller.player })
+            assertPlays(controller, "the next video, on a new player", expectedMediaId = clipUri.toString())
+        } finally {
+            runBlocking(Dispatchers.Main) { controller.release() }
+        }
+    }
+
+    /** If nothing works, say so: a message, not a black screen, and a Retry that starts afresh. */
+    @UnstableApi
+    @Test
+    fun aPlayerThatStaysWedged_endsInAMessage_andRetryStartsAgain() {
+        val made = mutableListOf<ExoPlayer>()
+        val first = stuckPlayer()
+        val controller = recoveringController(first, made) { stuckPlayer() }
+        try {
+            runBlocking(Dispatchers.Main) { controller.playQueue(listOf(item(clipUri, "never starts")), 0) }
+
+            waitFor(30_000, "the message that playback did not start") {
+                (controller.playbackState.value as? DomainPlaybackState.Error)?.errorCode == "PLAYBACK_STALLED"
+            }
+            assertEquals("two fresh players were tried", 2, made.size)
+            assertTrue(onMain { first.isReleased })
+            assertTrue("the first fresh player was let go when the second took over", onMain { made[0].isReleased })
+
+            runBlocking(Dispatchers.Main) { controller.retryPlayback() }
+            assertEquals("a retry starts on a new player", 3, made.size)
+            assertTrue("the message goes away when it is retried", controller.playbackState.value !is DomainPlaybackState.Error)
+        } finally {
+            runBlocking(Dispatchers.Main) { controller.release() }
+        }
+    }
+
+    private fun findPlayerView(view: View): PlayerView? = when (view) {
+        is PlayerView -> view
+        is ViewGroup -> (0 until view.childCount).firstNotNullOfOrNull { findPlayerView(view.getChildAt(it)) }
+        else -> null
+    }
+
+    /** The picture and the lock screen belong to the player in use, so they must move with it. */
+    @UnstableApi
+    @Test
+    fun aPlayerReplacedWhileTheScreenShowsIt_isFollowedByTheScreen() {
+        MediaScanScheduler.scheduleImmediateScan(context)
+        val card = hasText(CLIP_WORD, substring = true, ignoreCase = true)
+        waitForNode(card, 30_000)
+        composeRule.onAllNodes(card)[0].performClick()
+        val controller = PlayerManager.getOrCreate(context)
+        assertPlays(controller, "a tap on the card in the library")
+
+        val before = onMain { controller.player }
+        assertTrue("no way to make a new player", onMain { controller.startOnFreshPlayer("a test", software = false) })
+        assertNotSame(before, onMain { controller.player })
+        assertPlays(controller, "the replacement while the player screen is showing")
+
+        waitFor(8_000, "the picture to follow the new player") {
+            findPlayerView(composeRule.activity.window.decorView)?.player === controller.player
+        }
+        assertSame(controller.player, onMain { findPlayerView(composeRule.activity.window.decorView)?.player })
     }
 
     /** What the screen and the app's own log said, for the failure message. */
@@ -206,17 +367,18 @@ class PlaybackSmokeTest {
     }
 
     /** Waits for the player to be playing with the position moving, and fails with what the player was doing. */
-    private fun assertPlays(player: Player, how: String, expectedMediaId: String? = null) {
-        val deadline = System.currentTimeMillis() + PLAY_TIMEOUT_MS
+    private fun assertPlays(controller: Media3PlaybackController, how: String, expectedMediaId: String? = null, timeoutMs: Long = PLAY_TIMEOUT_MS) {
+        val deadline = System.currentTimeMillis() + timeoutMs
         var last = ""
         while (System.currentTimeMillis() < deadline) {
-            val snapshot = onMain { Snapshot.of(player) }
+            // The controller may replace a wedged player, so ask it for the one in use every time.
+            val snapshot = onMain { Snapshot.of(controller.player) }
             last = snapshot.describe()
             val rightVideo = expectedMediaId == null || snapshot.mediaId == expectedMediaId
             if (rightVideo && snapshot.isPlaying && snapshot.positionMs >= MIN_POSITION_MS) return
             Thread.sleep(200)
         }
-        fail("No video started playing through $how within ${PLAY_TIMEOUT_MS / 1000} s. The player was: $last. " +
+        fail("No video started playing through $how within ${timeoutMs / 1000} s. The player was: $last. " +
             "The app's own record: ${appRecord()}. ${screenAndLog()}")
     }
 

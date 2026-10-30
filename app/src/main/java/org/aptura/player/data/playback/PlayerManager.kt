@@ -33,14 +33,8 @@ object PlayerManager {
     val activeController: Media3PlaybackController?
         get() = controllerInstance
 
-    @Synchronized
-    fun getOrCreate(context: Context): Media3PlaybackController {
-        val existing = controllerInstance
-        if (existing != null) {
-            return existing
-        }
-
-        val appContext = context.applicationContext
+    /** One complete player with its renderers; made at start and again whenever a player wedges and must be replaced. */
+    private fun buildPlayer(appContext: Context): PlayerParts {
         val codecSelector = ApturaMediaCodecSelector {
             controllerInstance?.currentDecoderStrategy ?: 0
         }
@@ -90,13 +84,25 @@ object PlayerManager {
             )
             .setHandleAudioBecomingNoisy(true)
             .build()
+        return PlayerParts(player, textRendererRef, audioDelayProcessor)
+    }
 
+    @Synchronized
+    fun getOrCreate(context: Context): Media3PlaybackController {
+        val existing = controllerInstance
+        if (existing != null) {
+            return existing
+        }
+
+        val appContext = context.applicationContext
+        val parts = buildPlayer(appContext)
         val controller = Media3PlaybackController(
-            player = player,
-            apturaTextRenderer = textRendererRef,
+            player = parts.player,
+            apturaTextRenderer = parts.textRenderer,
             sidecarResolver = AndroidSidecarSubtitleResolver(appContext),
             artworkProvider = { uri -> loadArtwork(appContext, uri) },
-            audioDelayProcessor = audioDelayProcessor
+            audioDelayProcessor = parts.audioDelayProcessor,
+            playerFactory = { buildPlayer(appContext) }
         )
         controllerInstance = controller
 

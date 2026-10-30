@@ -4,6 +4,7 @@ package org.aptura.player.data.playback
 
 import android.app.PendingIntent
 import android.content.Intent
+import androidx.media3.common.Player
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import org.aptura.player.MainActivity
@@ -17,6 +18,9 @@ import org.aptura.player.MainActivity
 class ApturaPlaybackService : MediaSessionService() {
 
     private var mediaSession: MediaSession? = null
+
+    /** A player that wedged is replaced by a new one; the session must follow or the lock screen controls a dead player. */
+    private val onPlayerReplaced: (Player) -> Unit = { fresh -> mediaSession?.player = fresh }
 
     override fun onCreate() {
         super.onCreate()
@@ -40,6 +44,7 @@ class ApturaPlaybackService : MediaSessionService() {
         // media notification and the service never enters the foreground: background playback had no notification,
         // no lock-screen controls and could be killed at will (audit P0-03).
         addSession(mediaSession!!)
+        controller.addPlayerReplacedListener(onPlayerReplaced)
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
@@ -55,6 +60,7 @@ class ApturaPlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        PlayerManager.activeController?.removePlayerReplacedListener(onPlayerReplaced)
         mediaSession?.run {
             release()
             mediaSession = null

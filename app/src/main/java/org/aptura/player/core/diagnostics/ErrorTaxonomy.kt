@@ -60,9 +60,9 @@ object ErrorTaxonomy {
                 "The video opened but did not start playing within $seconds seconds."
             },
             whatWasTried = if (isSoftwareAlreadyAttempted) {
-                "Hardware decoding and then platform software decoding were both tried."
+                "The video was started again on a brand-new player, first with hardware decoding and then with the software decoder."
             } else {
-                "Playback was requested and the player was waited on."
+                "The video was started again on a brand-new player."
             },
             suggestedActions = listOf(
                 "Retry playback",

@@ -853,9 +853,11 @@ private fun AppNavHost(
                             }
                         }
 
+                        // A player that wedges is replaced by a new one; the picture must follow it.
+                        val livePlayer by playbackController.currentPlayer.collectAsStateWithLifecycle()
                         PlayerScreen(
                             uiState = uiState,
-                            player = playbackController.player,
+                            player = livePlayer,
                             isPipMode = isPipMode,
                             pipSupported = pipSupported,
                             onEnterPip = onEnterPip,

@@ -66,9 +66,12 @@ PR's Verification section and in CI, not here, so most pull requests never need 
 - **Transitions never fade a screen** (`NavigationTransitions.kt`, DESIGN.md §4.3): Navigation 3's default is a 700 ms
   cross-fade and a shrink-then-vanish for the Back gesture, which is the flicker. Pages slide, solid, and a route must paint
   its own opaque background. `ScreenTransitionTest` fails on any blended pixel.
-- **Playback is tested on a real codec in CI:** `PlaybackSmokeTest` (`connected` job) plays H.264, HEVC and a 558-item queue and
-  taps a video in the library. The player never stays silently stuck: 8 s without starting tries the software decoder once,
-  then shows "Playback Did Not Start" (DESIGN.md §5.5b). Not checked on a Samsung S24 yet.
+- **A video that does not start is retried on a brand-new player** (`Media3PlaybackController.startOnFreshPlayer`, DESIGN.md §5.5b):
+  4 s without starting, then a new player; 4 s more, a new player with the software decoder; 4 s more, "Playback Did Not Start".
+  `controller.currentPlayer` is the player in use; the player screen and the media session follow it. Later starts in a session
+  that needed a recovery are "cautious": a new player and one video first, the queue behind it. `PlaybackSmokeTest` (`connected`)
+  plays H.264, HEVC, a 558-item queue and a second video, and wedges a real player to prove the replacement plays. Not checked on a
+  Samsung S24 yet.
 - **Every bottom sheet is `ApturaModalBottomSheet`** (`ui/components/ApturaSheet.kt`): it swallows the upward fling speed left over
   at the end of a list, which made the whole sheet rise ~85 dp and drop back ("dancing"). `ApturaSheetTest` also fails on any
   plain `ModalBottomSheet(` in the sources. A stall report now carries a step trace and thread states (`PlaybackTrace`).

@@ -52,11 +52,30 @@ import kotlin.math.abs
 import kotlin.math.roundToLong
 
 /**
- * How long a video that was asked to play may sit without playing before the player is considered stuck. A local file
- * starts in well under a second; this is long enough for a slow card or a very large first frame, and short enough
+ * How long a video that was asked to play may sit without playing before the next, stronger recovery is tried. A local
+ * file starts in well under a second; this is long enough for a slow card or a very large first frame, and short enough
  * that a person is not left looking at a black, paused player (the owner's Samsung S24, where nothing said why).
  */
-internal const val PLAYBACK_START_TIMEOUT_MS = 8_000L
+internal const val PLAYBACK_START_RUNG_MS = 4_000L
+
+/**
+ * What is tried, in turn, when a video does not start: the video on a brand-new player, then on a brand-new player with
+ * the software decoder. Only when both fail does the player say so.
+ */
+internal const val MAX_STALL_RECOVERIES = 2
+
+/** From asking to play to saying "Playback Did Not Start": the wait before each recovery, plus the wait after the last. */
+internal const val PLAYBACK_START_TIMEOUT_MS = PLAYBACK_START_RUNG_MS * (MAX_STALL_RECOVERIES + 1)
+
+/** How long a video must have been playing before the rest of the queue is loaded behind it (see `QueueRestore`). */
+internal const val QUEUE_RESTORE_AFTER_MS = 2_000L
+
+/** A player and the pieces that were built with it and must be replaced with it. */
+class PlayerParts(
+    val player: Player,
+    val textRenderer: ApturaTextRenderer? = null,
+    val audioDelayProcessor: AudioDelayProcessor? = null
+)
 
 /**
  * Concrete implementation of domain PlaybackController backed by Media3 Player.
@@ -68,7 +87,7 @@ internal const val PLAYBACK_START_TIMEOUT_MS = 8_000L
  * in the notification, lock screen and Bluetooth headsets. Now repeat/shuffle/next/previous are the player's own.
  */
 class Media3PlaybackController(
-    val player: Player,
+    player: Player,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
     private val mainDispatcher: CoroutineDispatcher = Dispatchers.Main,
     private val enablePositionTicker: Boolean = true,
@@ -77,8 +96,27 @@ class Media3PlaybackController(
     private val sidecarResolver: SidecarSubtitleResolver? = null,
     private val artworkProvider: (suspend (mediaUri: String) -> ByteArray?)? = null,
     var audioDelayProcessor: AudioDelayProcessor? = null,
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    /** Makes a new player like the one in use; without it a stuck player can only be restarted in place. */
+    private val playerFactory: (() -> PlayerParts)? = null
 ) : PlaybackController {
+
+    private val _currentPlayer = MutableStateFlow(player)
+
+    /**
+     * The player in use. A player that wedges (a codec that never answers) cannot be repaired, only replaced, so
+     * whatever holds the player (the video surface, the media session) must follow this instead of keeping its own.
+     */
+    val currentPlayer: StateFlow<Player> = _currentPlayer.asStateFlow()
+
+    val player: Player get() = _currentPlayer.value
+
+    private val playerReplacedListeners = java.util.concurrent.CopyOnWriteArrayList<(Player) -> Unit>()
+
+    /** Called right after the player in use was replaced and before the old one is released. */
+    fun addPlayerReplacedListener(listener: (Player) -> Unit) { playerReplacedListeners.add(listener) }
+
+    fun removePlayerReplacedListener(listener: (Player) -> Unit) { playerReplacedListeners.remove(listener) }
 
     var currentDecoderStrategy: Int = initialDecoderStrategy
         private set
@@ -138,6 +176,21 @@ class Media3PlaybackController(
 
     /** What the player was doing when playback was asked for, never started and nothing was left to try; shown as an error. */
     private var stalledReason: String? = null
+
+    /** Recoveries used since playback was last asked for (see [MAX_STALL_RECOVERIES]); a new request starts again from none. */
+    private var stallRecoveries = 0
+
+    /**
+     * Set once a stall was cured by starting afresh. From then on every start gets a brand-new player and loads one video
+     * first, which is what worked, instead of waiting for the stall to happen again on every video.
+     */
+    private var cautiousStart = false
+
+    /** The rest of the queue, held back while the first video starts; see [completeQueueRestore]. */
+    private var queueRestore: QueueRestore? = null
+    private var queueRestoreJob: Job? = null
+
+    private class QueueRestore(val before: List<MediaItem>, val after: List<MediaItem>)
 
     /** Why play-when-ready last changed (a person, an audio-focus loss, the end of an item...), for the stall report. */
     private var lastPlayWhenReadyChangeReason = -1
@@ -208,6 +261,8 @@ class Media3PlaybackController(
                 consecutiveSkips = 0
                 stalledReason = null
                 logPlaybackStarted()
+                learnFromRecovery()
+                scheduleQueueRestore()
             }
             checkPositionTicker(isPlaying)
             updatePlaybackState()
@@ -251,6 +306,13 @@ class Media3PlaybackController(
 
         override fun onPlayerError(error: PlaybackException) {
             checkPositionTicker(false)
+
+            // The player itself timed out (a codec or surface that never answered): it cannot be repaired, only replaced.
+            if (error.errorCode == PlaybackException.ERROR_CODE_TIMEOUT && stallRecoveries < MAX_STALL_RECOVERIES) {
+                stallRecoveries++
+                logRecovery("player_timeout", describePlayerForStall())
+                if (startOnFreshPlayer("the player timed out", software = false)) return
+            }
 
             // A file that has vanished or cannot be opened must not strand the whole queue on an error screen.
             if (error.errorCode in UNOPENABLE_FILE_ERRORS && skipUnopenableItem()) return
@@ -528,9 +590,18 @@ class Media3PlaybackController(
         }
     }
 
+    private fun attach(target: Player) {
+        target.addListener(playerListener)
+        (target as? ExoPlayer)?.addAnalyticsListener(analyticsListener)
+    }
+
+    private fun detach(target: Player) {
+        target.removeListener(playerListener)
+        (target as? ExoPlayer)?.removeAnalyticsListener(analyticsListener)
+    }
+
     init {
-        player.addListener(playerListener)
-        (player as? ExoPlayer)?.addAnalyticsListener(analyticsListener)
+        attach(player)
         updatePlaybackState()
         updatePlaybackStats()
         val currentTracks = try { player.currentTracks } catch (_: Throwable) { null } ?: Tracks.EMPTY
@@ -657,14 +728,20 @@ class Media3PlaybackController(
 
     /** Pushes the player's real queue state (index, next/previous availability incl. shuffle order) to the domain. */
     private fun publishQueue() {
-        val index = if (queueItems.isEmpty()) -1 else player.currentMediaItemIndex.coerceIn(0, queueItems.lastIndex)
+        // While the rest of the queue is held back the player knows one video; the queue is still the whole list.
+        val held = queueRestore
+        val index = when {
+            queueItems.isEmpty() -> -1
+            held != null -> held.before.size.coerceIn(0, queueItems.lastIndex)
+            else -> player.currentMediaItemIndex.coerceIn(0, queueItems.lastIndex)
+        }
         _playbackQueue.value = DomainPlaybackQueue(
             items = queueItems.toList(),
             currentIndex = index,
             playMode = playMode,
-            nextAvailable = player.hasNextMediaItem(),
-            previousAvailable = player.hasPreviousMediaItem(),
-            nextIndex = player.nextMediaItemIndex.takeIf { it != C.INDEX_UNSET }
+            nextAvailable = if (held != null) held.after.isNotEmpty() else player.hasNextMediaItem(),
+            previousAvailable = if (held != null) held.before.isNotEmpty() else player.hasPreviousMediaItem(),
+            nextIndex = if (held != null) (index + 1).takeIf { it <= queueItems.lastIndex } else player.nextMediaItemIndex.takeIf { it != C.INDEX_UNSET }
         )
     }
 
@@ -709,7 +786,7 @@ class Media3PlaybackController(
             startWatchdog = null
         } else if (startWatchdog?.isActive != true) {
             startWatchdog = scope.launch(mainDispatcher) {
-                delay(PLAYBACK_START_TIMEOUT_MS)
+                delay(PLAYBACK_START_RUNG_MS)
                 onStartTimeout()
             }
         }
@@ -717,37 +794,178 @@ class Media3PlaybackController(
 
     private fun onStartTimeout() {
         val facts = describePlayerForStall()
+        startWatchdog = null
+        val step = stallRecoveries
+        if (step >= MAX_STALL_RECOVERIES || player.currentMediaItem == null) {
+            ApturaDiagnostics.logEvent(
+                code = EventCode.EV_011,
+                payload = mapOf(
+                    "errorCode" to "PLAYBACK_STALLED",
+                    "stage" to "start",
+                    "reason" to facts,
+                    "trace" to trace.summary(),
+                    "threads" to PlaybackThreads.ofThisProcess()
+                )
+            )
+            stalledReason = facts
+            updatePlaybackState()
+            updatePlaybackStats()
+            return
+        }
+        stallRecoveries = step + 1
+        // The first recovery is a brand-new player; if that does not start it either, the second also tries the software decoder.
+        val software = step >= 1 && currentDecoderStrategy != 2
+        logRecovery(if (software) "fresh_player_software" else "fresh_player", facts)
+        if (software) engageSoftwareDecoder("Playback did not start within ${PLAYBACK_START_RUNG_MS / 1000} s ($facts). Automatically engaged software fallback.")
+        if (!startOnFreshPlayer(if (software) "software decoder" else "no start in ${PLAYBACK_START_RUNG_MS / 1000} s", software)) {
+            // No way to make a new player: restart this one. Keeps the playlist and the position.
+            player.stop()
+            player.prepare()
+            player.play()
+        }
+        updateStartWatch()
+    }
+
+    private fun logRecovery(step: String, facts: String) {
         ApturaDiagnostics.logEvent(
-            code = EventCode.EV_011,
+            code = EventCode.EV_010,
             payload = mapOf(
-                "errorCode" to "PLAYBACK_STALLED",
-                "stage" to "start",
+                "strategy" to "stall_recovery",
+                "step" to step,
                 "reason" to facts,
                 "trace" to trace.summary(),
                 "threads" to PlaybackThreads.ofThisProcess()
             )
         )
-        val canTrySoftware = !hasAttemptedSoftwareFallback && currentDecoderStrategy != 2 && player.currentMediaItem != null
-        if (canTrySoftware) {
-            hasAttemptedSoftwareFallback = true
-            currentDecoderStrategy = 2
-            _decoderStrategy.value = 2
-            _isCompatibilityMode.value = true
-            _failedCodecName.value = currentVideoDecoderName.ifBlank { "Hardware Decoder" }
-            _failureReason.value = "Playback did not start within ${PLAYBACK_START_TIMEOUT_MS / 1000} s ($facts). Automatically engaged software fallback."
-            _compatibilityNotice.value = "Playing in compatibility mode (Software Decoder)"
-            updatePlaybackStats()
-            // Keeps the playlist and the position; prepare() re-creates the codecs with the new strategy.
-            player.stop()
-            player.prepare()
-            player.play()
-            startWatchdog = null
-            updateStartWatch()
+    }
+
+    private fun engageSoftwareDecoder(reason: String) {
+        hasAttemptedSoftwareFallback = true
+        currentDecoderStrategy = 2
+        _decoderStrategy.value = 2
+        _isCompatibilityMode.value = true
+        _failedCodecName.value = currentVideoDecoderName.ifBlank { "Hardware Decoder" }
+        _failureReason.value = reason
+        _compatibilityNotice.value = "Playing in compatibility mode (Software Decoder)"
+        updatePlaybackStats()
+    }
+
+    /** A stall that a fresh start cured means every later start should begin that way (see [cautiousStart]). */
+    private fun learnFromRecovery() {
+        if (stallRecoveries == 0 || cautiousStart) return
+        cautiousStart = true
+        ApturaDiagnostics.logEvent(
+            code = EventCode.EV_010,
+            payload = mapOf("strategy" to "cautious_start", "after" to stallRecoveries.toString())
+        )
+    }
+
+    /**
+     * Replaces the player with a brand-new one and starts the current video on it, where it was, with one video loaded
+     * first and the rest of the queue behind it. A player whose codec or audio output has wedged cannot be repaired
+     * from outside (the hardware decoder may never answer), but a new one starts clean, like the first video after the
+     * app opens. @return false when no new player can be made.
+     */
+    internal fun startOnFreshPlayer(reason: String, software: Boolean): Boolean {
+        val old = player
+        if (old.mediaItemCount == 0) return false
+        val held = queueRestore
+        val index = old.currentMediaItemIndex.coerceIn(0, old.mediaItemCount - 1)
+        val here = (0 until old.mediaItemCount).map { old.getMediaItemAt(it) }
+        val playlist = if (held != null) held.before + here + held.after else here
+        val currentIndex = if (held != null) held.before.size else index
+        val position = old.currentPosition.coerceAtLeast(0L)
+        if (!swapInFreshPlayer(reason)) return false
+        if (software && currentDecoderStrategy != 2) engageSoftwareDecoder("Software decoder engaged: $reason.")
+
+        trace.restart()
+        trace.note("fresh player: $reason position=${position}ms items=${playlist.size} index=$currentIndex decoder=$currentDecoderStrategy")
+        loadHoldingBackQueue(playlist, currentIndex, position)
+        player.prepare()
+        player.play()
+        playRequestedAtNanos = System.nanoTime()
+        startWatchdog?.cancel()
+        startWatchdog = null
+        publishQueue()
+        updatePlaybackState()
+        updatePlaybackStats()
+        return true
+    }
+
+    /** Loads [playlist] starting at [index]: only that video now, the rest once it plays, unless it is a single video. */
+    private fun loadHoldingBackQueue(playlist: List<MediaItem>, index: Int, positionMs: Long) {
+        queueRestoreJob?.cancel()
+        queueRestoreJob = null
+        if (playlist.size > 1) {
+            player.setMediaItems(listOf(playlist[index]), 0, positionMs)
+            queueRestore = QueueRestore(playlist.subList(0, index).toList(), playlist.subList(index + 1, playlist.size).toList())
         } else {
-            startWatchdog = null
-            stalledReason = facts
-            updatePlaybackState()
-            updatePlaybackStats()
+            player.setMediaItems(playlist, index, positionMs)
+            queueRestore = null
+        }
+        applyPlayModeToPlayer()
+    }
+
+    /** Puts a new player in the old one's place, with the old one's settings, and releases the old one. @return false when none can be made. */
+    private fun swapInFreshPlayer(reason: String): Boolean {
+        val factory = playerFactory ?: return false
+        val old = player
+        val parts = try {
+            factory()
+        } catch (t: Throwable) {
+            trace.note("fresh player failed: ${t.javaClass.simpleName}")
+            return false
+        }
+        val fresh = parts.player
+        val audioDelay = audioDelayProcessor?.delayMs ?: 0L
+        val subtitleDelay = apturaTextRenderer?.subtitleDelayMs ?: 0L
+        try {
+            fresh.trackSelectionParameters = old.trackSelectionParameters
+            fresh.playbackParameters = old.playbackParameters
+            fresh.volume = old.volume
+            fresh.repeatMode = old.repeatMode
+            fresh.shuffleModeEnabled = old.shuffleModeEnabled
+        } catch (_: Throwable) {
+            // A setting that cannot be carried over must not stop the video from starting.
+        }
+        checkPositionTicker(false)
+        detach(old)
+        apturaTextRenderer = parts.textRenderer
+        audioDelayProcessor = parts.audioDelayProcessor
+        audioDelayProcessor?.delayMs = audioDelay
+        apturaTextRenderer?.subtitleDelayMs = subtitleDelay
+        attach(fresh)
+        _currentPlayer.value = fresh
+        _audioSessionIds.value = ((fresh as? ExoPlayer)?.audioSessionId ?: 0).coerceAtLeast(0)
+        playerReplacedListeners.forEach { listener ->
+            try { listener(fresh) } catch (_: Throwable) {}
+        }
+        // Before the new one asks for a codec, so the two never compete for one.
+        try { old.release() } catch (_: Throwable) {}
+        ApturaDiagnostics.logEvent(code = EventCode.EV_010, payload = mapOf("strategy" to "fresh_player", "reason" to reason))
+        return true
+    }
+
+    /** Loads the rest of the queue behind the video that is playing. Safe to call at any time and more than once. */
+    private fun completeQueueRestore() {
+        queueRestoreJob?.cancel()
+        queueRestoreJob = null
+        val held = queueRestore ?: return
+        queueRestore = null
+        if (player.mediaItemCount != 1) return
+        if (held.after.isNotEmpty()) player.addMediaItems(held.after)
+        if (held.before.isNotEmpty()) player.addMediaItems(0, held.before)
+        if (playMode == PlayMode.SHUFFLE) shuffleRemainingAfterCurrent()
+        publishQueue()
+        prefetchNeighbours()
+    }
+
+    /** Waits until the video has been playing for a moment, then loads the rest of the queue behind it. */
+    private fun scheduleQueueRestore() {
+        if (queueRestore == null || queueRestoreJob?.isActive == true) return
+        queueRestoreJob = scope.launch(mainDispatcher) {
+            delay(QUEUE_RESTORE_AFTER_MS)
+            if (player.isPlaying) completeQueueRestore() else queueRestoreJob = null
         }
     }
 
@@ -779,6 +997,7 @@ class Media3PlaybackController(
 
     /** Moves on to the next queue item after the current one could not be opened. @return false when there is nowhere to go. */
     private fun skipUnopenableItem(): Boolean {
+        completeQueueRestore()
         if (queueItems.size < 2 || !player.hasNextMediaItem()) return false
         if (consecutiveSkips >= queueItems.size - 1) return false
         consecutiveSkips++
@@ -929,8 +1148,10 @@ class Media3PlaybackController(
         pausedAtItemEnd = false
         consecutiveSkips = 0
         stalledReason = null
+        stallRecoveries = 0
+        if (cautiousStart) swapInFreshPlayer("a start that needed a new player before")
         trace.restart()
-        trace.note("requested items=${items.size} start=$clampedIndex")
+        trace.note("requested items=${items.size} start=$clampedIndex cautious=$cautiousStart")
         queueItems.clear()
         queueItems.addAll(items)
         sidecarsByUri.clear()
@@ -944,8 +1165,15 @@ class Media3PlaybackController(
         val mediaItems = items.mapIndexed { index, item ->
             if (index == clampedIndex) buildMediaItem(item, subtitles, artwork) else buildMediaItem(item, emptyList(), null)
         }
-        player.setMediaItems(mediaItems, clampedIndex, 0L)
-        applyPlayModeToPlayer()
+        if (cautiousStart) {
+            loadHoldingBackQueue(mediaItems, clampedIndex, 0L)
+        } else {
+            queueRestoreJob?.cancel()
+            queueRestoreJob = null
+            queueRestore = null
+            player.setMediaItems(mediaItems, clampedIndex, 0L)
+            applyPlayModeToPlayer()
+        }
         if (playMode == PlayMode.SHUFFLE) shuffleRemainingAfterCurrent()
         player.prepare()
         player.play()
@@ -989,6 +1217,7 @@ class Media3PlaybackController(
     }
 
     override suspend fun skipToNext() {
+        completeQueueRestore()
         if (!player.hasNextMediaItem()) return
         pausedAtItemEnd = false
         player.seekToNextMediaItem()
@@ -996,6 +1225,7 @@ class Media3PlaybackController(
     }
 
     override suspend fun skipToPrevious() {
+        completeQueueRestore()
         val currentPosition = player.currentPosition.coerceAtLeast(0L)
         val queue = _playbackQueue.value
         pausedAtItemEnd = false
@@ -1009,6 +1239,7 @@ class Media3PlaybackController(
     }
 
     override suspend fun playQueueItem(index: Int) {
+        completeQueueRestore()
         if (index !in queueItems.indices) return
         pausedAtItemEnd = false
         player.seekToDefaultPosition(index)
@@ -1017,6 +1248,7 @@ class Media3PlaybackController(
     }
 
     override suspend fun addToQueue(item: DomainMediaItem) {
+        completeQueueRestore()
         if (queueItems.isEmpty()) {
             playQueue(listOf(item), 0)
             return
@@ -1027,6 +1259,7 @@ class Media3PlaybackController(
     }
 
     override suspend fun playNext(item: DomainMediaItem) {
+        completeQueueRestore()
         if (queueItems.isEmpty()) {
             playQueue(listOf(item), 0)
             return
@@ -1038,6 +1271,7 @@ class Media3PlaybackController(
     }
 
     override suspend fun removeFromQueue(index: Int) {
+        completeQueueRestore()
         if (index !in queueItems.indices) return
         queueItems.removeAt(index)
         player.removeMediaItem(index)
@@ -1053,6 +1287,7 @@ class Media3PlaybackController(
     }
 
     override suspend fun moveQueueItem(fromIndex: Int, toIndex: Int) {
+        completeQueueRestore()
         if (fromIndex !in queueItems.indices || toIndex !in queueItems.indices || fromIndex == toIndex) return
         queueItems.add(toIndex, queueItems.removeAt(fromIndex))
         player.moveMediaItem(fromIndex, toIndex)
@@ -1060,6 +1295,7 @@ class Media3PlaybackController(
     }
 
     override suspend fun clearQueue() {
+        completeQueueRestore()
         if (queueItems.isEmpty()) return
         val current = player.currentMediaItemIndex
         if (current !in queueItems.indices) {
@@ -1085,6 +1321,7 @@ class Media3PlaybackController(
     }
 
     override suspend fun setPlayMode(mode: PlayMode) {
+        completeQueueRestore()
         val enteringShuffle = mode == PlayMode.SHUFFLE && playMode != PlayMode.SHUFFLE
         playMode = mode
         applyPlayModeToPlayer()
@@ -1368,12 +1605,16 @@ class Media3PlaybackController(
     override suspend fun retryPlayback() {
         if (player.currentMediaItem == null) return
         stalledReason = null
-        trace.restart()
-        trace.note("retry")
+        // A retry is itself a start on a brand-new player; if it stalls too, only the software decoder is left to try.
+        stallRecoveries = 1
         startWatchdog?.cancel()
         startWatchdog = null
-        player.prepare()
-        player.play()
+        if (!startOnFreshPlayer("retried", software = false)) {
+            trace.restart()
+            trace.note("retry")
+            player.prepare()
+            player.play()
+        }
         updateStartWatch()
     }
 
@@ -1409,8 +1650,9 @@ class Media3PlaybackController(
     override suspend fun release() {
         positionTickerJob?.cancel()
         positionTickerJob = null
-        player.removeListener(playerListener)
-        (player as? ExoPlayer)?.removeAnalyticsListener(analyticsListener)
+        queueRestoreJob?.cancel()
+        queueRestoreJob = null
+        detach(player)
         player.release()
         _playbackState.value = DomainPlaybackState.Idle
     }
