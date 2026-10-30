@@ -39,7 +39,23 @@ class SafTreeScanner(
             DocumentsContract.Document.COLUMN_SIZE,
             DocumentsContract.Document.COLUMN_LAST_MODIFIED
         )
+
+        /**
+         * Computes a deterministic 63-bit negative ID from SHA-256 for SAF documents so it never collides
+         * with positive MediaStore IDs or across large SAF libraries (audit P2-23).
+         */
+        fun computeSyntheticId(uriString: String): Long {
+            val digest = java.security.MessageDigest.getInstance("SHA-256").digest(uriString.toByteArray(Charsets.UTF_8))
+            var raw = 0L
+            for (i in 0 until 8) {
+                raw = (raw shl 8) or (digest[i].toLong() and 0xFFL)
+            }
+            val positive63 = (raw and 0x7FFFFFFFFFFFFFFFL).coerceAtLeast(1L)
+            return -positive63
+        }
     }
+
+    fun computeSyntheticId(uriString: String): Long = SafTreeScanner.computeSyntheticId(uriString)
 
     /**
      * Scans a persisted SAF directory tree recursively using a memory-safe BFS queue.
@@ -187,20 +203,6 @@ class SafTreeScanner(
         if (mimeType.startsWith("video/")) return true
         val ext = displayName.substringAfterLast('.', "").lowercase()
         return ext in VIDEO_EXTENSIONS
-    }
-
-    /**
-     * Computes a deterministic 63-bit negative ID from SHA-256 for SAF documents so it never collides
-     * with positive MediaStore IDs or across large SAF libraries (audit P2-23).
-     */
-    internal fun computeSyntheticId(uriString: String): Long {
-        val digest = java.security.MessageDigest.getInstance("SHA-256").digest(uriString.toByteArray(Charsets.UTF_8))
-        var raw = 0L
-        for (i in 0 until 8) {
-            raw = (raw shl 8) or (digest[i].toLong() and 0xFFL)
-        }
-        val positive63 = (raw and 0x7FFFFFFFFFFFFFFFL).coerceAtLeast(1L)
-        return -positive63
     }
 
     private fun resolveTreeDisplayName(treeUri: Uri, rootDocId: String): String {

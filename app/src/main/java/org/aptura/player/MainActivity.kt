@@ -1,11 +1,13 @@
 package org.aptura.player
 
+import android.app.AppOpsManager
 import android.app.PictureInPictureParams
 import android.content.Intent
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import android.util.Rational
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -182,11 +184,27 @@ class MainActivity : ComponentActivity() {
     }
 
     fun enterPictureInPicture() {
-        if (!supportsPictureInPicture()) return
+        if (!supportsPictureInPicture()) {
+            Toast.makeText(this, "Picture-in-Picture is not supported on this device", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val appOps = getSystemService(APP_OPS_SERVICE) as? AppOpsManager
+        val mode = appOps?.checkOpNoThrow(
+            AppOpsManager.OPSTR_PICTURE_IN_PICTURE,
+            android.os.Process.myUid(),
+            packageName
+        )
+        if (mode != null && mode != AppOpsManager.MODE_ALLOWED) {
+            Toast.makeText(this, "Picture-in-Picture is disabled in Android settings", Toast.LENGTH_LONG).show()
+            return
+        }
         try {
-            enterPictureInPictureMode(buildPictureInPictureParams(autoEnter = isPlayingVideo()))
+            val entered = enterPictureInPictureMode(buildPictureInPictureParams(autoEnter = isPlayingVideo()))
+            if (!entered) {
+                Toast.makeText(this, "Could not enter Picture-in-Picture mode", Toast.LENGTH_SHORT).show()
+            }
         } catch (_: IllegalStateException) {
-            // PiP disabled by the user/device policy.
+            Toast.makeText(this, "Picture-in-Picture is disabled in Android settings", Toast.LENGTH_LONG).show()
         }
     }
 

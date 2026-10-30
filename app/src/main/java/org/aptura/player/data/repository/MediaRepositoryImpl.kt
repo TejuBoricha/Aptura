@@ -9,8 +9,10 @@ import kotlinx.coroutines.withContext
 import org.aptura.player.data.database.BookmarkDao
 import org.aptura.player.data.database.BookmarkEntity
 import org.aptura.player.data.database.MediaItemDao
+import org.aptura.player.data.database.MediaItemEntity
 import org.aptura.player.data.database.toDomainBookmark
 import org.aptura.player.data.database.toDomainMediaItem
+import org.aptura.player.data.scanner.SafTreeScanner
 import org.aptura.player.domain.model.Bookmark
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.domain.repository.MediaRepository
@@ -63,7 +65,28 @@ class MediaRepositoryImpl(
         isCompleted: Boolean
     ): Unit = withContext(ioDispatcher) {
         val now = System.currentTimeMillis()
-        mediaItemDao.updatePlaybackPosition(uri, positionMs, isCompleted, now)
+        val existing = mediaItemDao.getVideoByUri(uri)
+        if (existing == null) {
+            val title = extractTitleFromUri(uri)
+            mediaItemDao.insertOrUpdate(
+                MediaItemEntity(
+                    mediaStoreId = SafTreeScanner.computeSyntheticId(uri),
+                    uri = uri,
+                    title = title,
+                    displayName = title,
+                    durationMs = 0L,
+                    sizeBytes = 0L,
+                    dateAddedSec = now / 1000L,
+                    mimeType = "video/*",
+                    folderPath = "External",
+                    playbackPositionMs = positionMs,
+                    isCompleted = isCompleted,
+                    lastPlayedTimestamp = now
+                )
+            )
+        } else {
+            mediaItemDao.updatePlaybackPosition(uri, positionMs, isCompleted, now)
+        }
     }
 
     override suspend fun removeVideoFromLibrary(uri: String): Unit = withContext(ioDispatcher) {
@@ -172,18 +195,50 @@ class MediaRepositoryImpl(
         audioDelayMs: Long,
         subtitleDelayMs: Long
     ): Unit = withContext(ioDispatcher) {
-        mediaItemDao.updatePlaybackPreferences(
-            uri = uri,
-            resizeMode = resizeMode,
-            playbackSpeed = playbackSpeed,
-            decoderStrategy = decoderStrategy ?: 0,
-            decoderOverridden = decoderStrategy != null,
-            audioDelayMs = audioDelayMs,
-            subtitleDelayMs = subtitleDelayMs
-        )
+        val existing = mediaItemDao.getVideoByUri(uri)
+        if (existing == null) {
+            val title = extractTitleFromUri(uri)
+            mediaItemDao.insertOrUpdate(
+                MediaItemEntity(
+                    mediaStoreId = SafTreeScanner.computeSyntheticId(uri),
+                    uri = uri,
+                    title = title,
+                    displayName = title,
+                    durationMs = 0L,
+                    sizeBytes = 0L,
+                    dateAddedSec = System.currentTimeMillis() / 1000L,
+                    mimeType = "video/*",
+                    folderPath = "External",
+                    resizeMode = resizeMode,
+                    playbackSpeed = playbackSpeed,
+                    decoderStrategy = decoderStrategy ?: 0,
+                    decoderOverridden = decoderStrategy != null,
+                    audioDelayMs = audioDelayMs,
+                    subtitleDelayMs = subtitleDelayMs
+                )
+            )
+        } else {
+            mediaItemDao.updatePlaybackPreferences(
+                uri = uri,
+                resizeMode = resizeMode,
+                playbackSpeed = playbackSpeed,
+                decoderStrategy = decoderStrategy ?: 0,
+                decoderOverridden = decoderStrategy != null,
+                audioDelayMs = audioDelayMs,
+                subtitleDelayMs = subtitleDelayMs
+            )
+        }
     }
 
     override suspend fun resetPlaybackPreferences(uri: String): Unit = withContext(ioDispatcher) {
         mediaItemDao.resetPlaybackPreferences(uri)
+    }
+
+    private fun extractTitleFromUri(uri: String): String = try {
+        val decoded = java.net.URLDecoder.decode(uri, "UTF-8")
+        decoded.substringBefore('?').substringBefore('#').trimEnd('/').substringAfterLast('/').substringAfterLast(':')
+            .ifBlank { "External Video" }
+    } catch (_: Throwable) {
+        "External Video"
     }
 }
