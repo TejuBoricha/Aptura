@@ -10,8 +10,8 @@
 | **Phase 2** | Comprehensive Code Quality & Architecture Audit | Complete | 100% | 2026-10-30 | 2026-10-30 |
 | **Phase 3** | Security & Privacy Invariants Audit | Complete | 100% | 2026-10-30 | 2026-10-30 |
 | **Phase 4** | Performance & Resource Lifecycle Audit | Complete | 100% | 2026-10-30 | 2026-10-30 |
-| **Phase 5** | Functional Integrity & Regression Audit | In Progress | 10% | 2026-10-30 | — |
-| **Phase 6** | Prioritization & Remediation Planning | Pending | 0% | — | — |
+| **Phase 5** | Functional Integrity & Regression Audit | Complete | 100% | 2026-10-30 | 2026-10-30 |
+| **Phase 6** | Prioritization & Remediation Planning | In Progress | 10% | 2026-10-30 | — |
 | **Phase 7** | Controlled Refactoring & Fix Implementation | Pending | 0% | — | — |
 | **Phase 8** | Continuous Testing & Regression Validation | Pending | 0% | — | — |
 | **Phase 9** | Final Production Readiness Audit | Pending | 0% | — | — |
@@ -22,7 +22,7 @@
 ## Detailed Phase Status
 
 ### Phase 1 — Project Discovery & Baseline Assessment
-- **Status:** In Progress (Finalizing deliverables)
+- **Status:** Complete (100%)
 - **Completed Checkpoints:**
   - [x] Project architecture and dependency graph analyzed.
   - [x] Verification gate baseline run (`tools/gate.ps1`) executed and passed cleanly.
@@ -32,43 +32,73 @@
   - [x] Python agent checker tests passed: 147 tests in 0.83s.
   - [x] Technical debt inventory and initial risk assessment compiled.
   - [x] Mandatory audit tracking files initialized (`AUDIT_TRACKER.md`, `AUDIT_PROGRESS.md`, `AUDIT_CHANGELOG.md`, `AUDIT_TEST_RESULTS.md`).
-- **Outstanding Tasks:**
-  - [ ] Publish Phase 1 Baseline Assessment Deliverables summary.
-  - [ ] Transition to Phase 2 upon owner confirmation.
-- **Blockers:** None.
+- **Deliverables:** `phase1_baseline_assessment.md` artifact generated.
 
 ---
 
 ### Phase 2 — Comprehensive Code Quality & Architecture Audit
-- **Status:** Pending
-- **Planned Work:**
-  - Full codebase inspection across `ui/`, `presentation/`, `domain/`, `data/`, and `core/`.
-  - God-component decomposition strategy (`PlayerScreen.kt`, `MediaLibraryScreen.kt`, `PlayerViewModel.kt`).
-  - Coroutine hygiene audit (check for unbounded jobs, missing error handlers, dispatcher usage).
-  - Algebraic UI state models (eliminating boolean explosion in modal/sheet coordinators).
+- **Status:** Complete (100%)
+- **Completed Checkpoints:**
+  - [x] Complete codebase inspection across all 109 Kotlin source files.
+  - [x] Architecture & UDF analysis: pure Kotlin `domain/`, Room/ExoPlayer `data/`, Compose `ui/`.
+  - [x] Identified God-components: `PlayerScreen.kt` (2,172 lines), `MediaLibraryScreen.kt` (2,137 lines), `PlayerViewModel.kt` (1,582 lines).
+  - [x] Identified unhandled exceptions and blind `catch (t: Throwable)` in `Navigation.kt`.
+  - [x] Identified audio delay limitation: 16-bit PCM only in `AudioDelayProcessor.kt` (ISSUE-013).
+  - [x] Documented dead query `deleteRemovedVideos` in `MediaItemDao` (ISSUE-016).
+  - [x] Documented lint warning for redundant `-v26` resource qualifier (ISSUE-017).
+- **Deliverables:** `phase2_code_quality_and_architecture_audit.md` artifact generated.
+
+---
 
 ### Phase 3 — Security & Privacy Invariants Audit
-- **Status:** Pending
-- **Planned Work:**
-  - Invariant validation: zero `INTERNET` permission, zero telemetry SDKs, no `MANAGE_EXTERNAL_STORAGE`.
-  - Storage Access Framework (SAF) URI grant persistence and lifecycle validation.
-  - Local diagnostic redaction engine audit (`RedactionEngine.kt`).
-  - Exported component security review (`MainActivity`, `StorageVolumeReceiver`, `ApturaPlaybackService`).
+- **Status:** Complete (100%)
+- **Completed Checkpoints:**
+  - [x] Merged AndroidManifest audit: 0 `INTERNET` permission, zero telemetry SDKs, no `MANAGE_EXTERNAL_STORAGE`.
+  - [x] Merged dependency graph and R8 mapping inspection: 0 forbidden HTTP or crash SDK packages.
+  - [x] Exported components audit: `MainActivity`, `StorageVolumeReceiver`, `ApturaPlaybackService`.
+  - [x] Discovered SD card path leakage vulnerability in `RedactionEngine.kt` (ISSUE-020).
+  - [x] Discovered Zip Bomb disk-exhaustion DoS vulnerability in `SubtitleZipExtractor.kt` (ISSUE-021).
+- **Deliverables:** `phase3_security_audit.md` artifact generated.
+
+---
 
 ### Phase 4 — Performance Audit
-- **Status:** Pending
-- **Planned Work:**
-  - Compose recomposition profiling and stability evaluation (`@Stable` / `@Immutable` contracts).
-  - MediaStore scanning throughput and SQLite batching review.
-  - Thumbnail cache sizing, memory footprints, and bitmap recycling.
-  - Main thread disk I/O analysis (e.g. `ApplySharedPref` warnings).
+- **Status:** Complete (100%)
+- **Completed Checkpoints:**
+  - [x] Recomposition profiling: Discovered 4 Hz position ticker triggering outer `PlayerScreen` recomposition when controls are hidden (ISSUE-022).
+  - [x] Database invalidation profiling: Discovered Room table invalidation triggering entire library re-query every 5s during video playback (ISSUE-023).
+  - [x] Memory & image caching analysis: Coil disk cache absent by design, memory cache bounded to 15% RAM.
+  - [x] Disk I/O analysis: Synchronous `commit()` in `MediaTransferJournal.kt` (ISSUE-006).
+- **Deliverables:** `phase4_performance_audit.md` artifact generated.
+
+---
 
 ### Phase 5 — Functional Integrity & Regression Audit
-- **Status:** Pending
-- **Planned Work:**
-  - Review core user journeys: Library browsing, folder navigation, playback controls, gesture HUD, audio sync, subtitle styling.
-  - Edge cases: Vanished/unmounted media, corrupt files, background playback, PiP transitions, audio focus loss.
-  - Galaxy S24 physical device test findings triage and checklist reconciliation.
+- **Status:** Complete (100%)
+- **Completed Checkpoints:**
+  - [x] Major user journeys analyzed: Library discovery, video playback, touch gestures, audio/subtitle sync, PiP, background play.
+  - [x] Galaxy S24 physical device test findings integrated (`docs/device-testing/2026-10-29-galaxy-s24-findings.md`).
+  - [x] Investigated `ISSUE-001` (Sleep timer lost on task swipe-out; prototype in PR #19).
+  - [x] Investigated `ISSUE-002` (PiP tap is silent no-op when PiP permission/app-op disabled).
+  - [x] Investigated `ISSUE-003` (Paused video resumes playing after configuration change).
+  - [x] Investigated `ISSUE-004` (Audio/subtitle offsets lost on external videos opened via `ACTION_VIEW`).
+  - [x] Discovered `ISSUE-024` (In-app Back arrow from external `ACTION_VIEW` drops into Onboarding/Library).
+  - [x] Discovered `ISSUE-025` (Bluetooth hint reflects connected devices instead of active audio route).
+  - [x] Discovered `ISSUE-026` (Sleep timer presets lack selected accessibility state for TalkBack).
+  - [x] Created comprehensive Functional Regression Verification Checklist.
+- **Deliverables:** `phase5_functional_integrity_audit.md` artifact generated.
 
-### Phase 6 through Phase 10
-- Scheduled sequentially following completion and validation of Phases 1 through 5.
+---
+
+### Phase 6 — Prioritization & Remediation Planning
+- **Status:** In Progress (10%)
+- **Planned Work:**
+  - Consolidate all 26 identified issues into a prioritized remediation plan.
+  - Classify into P0 (Critical), P1 (High), P2 (Medium), P3 (Low).
+  - Establish sequential remediation batches minimizing regression risks.
+  - Generate `phase6_remediation_plan.md` artifact.
+
+---
+
+### Phases 7 through 10
+- Scheduled sequentially following completion of Phase 6.
