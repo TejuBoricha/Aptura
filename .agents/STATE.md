@@ -66,6 +66,8 @@ PR's Verification section and in CI, not here, so most pull requests never need 
 - **Transitions never fade a screen** (`NavigationTransitions.kt`, DESIGN.md §4.3): Navigation 3's default is a 700 ms
   cross-fade and a shrink-then-vanish for the Back gesture, which is the flicker. Pages slide, solid, and a route must paint
   its own opaque background. `ScreenTransitionTest` fails on any blended pixel.
+- **Leaving the player stops the decoder before the surface goes** (`Media3PlaybackController.stopForDismissal`, called from the back
+  policy in `Navigation.kt`); a paused player used to keep a running decoder bound to a surface that was destroyed next.
 - **A video that does not start is retried on a brand-new player** (`Media3PlaybackController.startOnFreshPlayer`, DESIGN.md §5.5b):
   4 s without starting, then a new player; 4 s more, a new player with the software decoder; 4 s more, "Playback Did Not Start".
   `controller.currentPlayer` is the player in use; the player screen and the media session follow it. Later starts in a session

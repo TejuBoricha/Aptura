@@ -65,6 +65,8 @@ class Media3PlaybackControllerStallTest {
         var stops = 0
         var prepares = 0
         var released = false
+        var buffered = 0L
+        var loading = false
         val calls = mutableListOf<String>()
 
         fun startPlaying() {
@@ -106,6 +108,8 @@ class Media3PlaybackControllerStallTest {
             "getPreviousMediaItemIndex" -> if (index > 0) index - 1 else -1
             "getCurrentPosition" -> position
             "getPlayerError" -> error
+            "getBufferedPosition" -> buffered
+            "isLoading" -> loading
             "setMediaItems" -> {
                 val list = args?.get(0) as List<*>
                 items.clear()
@@ -128,7 +132,7 @@ class Media3PlaybackControllerStallTest {
             "stop" -> { stops++; note("stop"); isPlaying = false; changeState(Player.STATE_IDLE); null }
             "release" -> { released = true; note("release"); null }
             "play" -> { playWhenReady = true; note("play"); listeners.toList().forEach { it.onPlayWhenReadyChanged(true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST) }; null }
-            "pause" -> { playWhenReady = false; isPlaying = false; listeners.toList().forEach { it.onPlayWhenReadyChanged(false, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST) }; null }
+            "pause" -> { note("pause"); playWhenReady = false; isPlaying = false; listeners.toList().forEach { it.onPlayWhenReadyChanged(false, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST) }; null }
             "setTrackSelectionParameters" -> { note("setTrackSelectionParameters"); null }
             "setPlaybackParameters" -> { note("setPlaybackParameters"); null }
             "getDuration" -> 60_000L
@@ -431,6 +435,81 @@ class Media3PlaybackControllerStallTest {
         val skipped = player.calls.indexOf("seekToNextMediaItem")
         assertTrue("the rest was loaded first: ${player.calls}", added in 0 until skipped)
         assertEquals(5, player.items.size)
+    }
+
+
+    @Test
+    fun loadingThatKeepsArriving_isGivenTimeToFinish_andThenReplacedAnyway() = runTest(dispatcher) {
+        val player = StuckPlayer()
+        val controller = controllerWith(player)
+        controller.playQueue(listOf(video), 0)
+        runCurrent()
+        player.loading = true
+
+        // A slow disk: a little more arrives before every check, and there is never enough to start.
+        repeat(MAX_SLOW_LOAD_WAITS) { n ->
+            player.buffered = 600L * (n + 1)
+            advanceTimeBy(rung)
+            runCurrent()
+            assertEquals("a slow load is not a frozen player (wait ${n + 1})", 0, made.size)
+        }
+        player.buffered = 600L * (MAX_SLOW_LOAD_WAITS + 1)
+        advanceTimeBy(rung)
+        runCurrent()
+        assertEquals("but waiting is not for ever", 1, made.size)
+    }
+
+    @Test
+    fun aPlayerThatHasEnoughLoadedAndStillDoesNotStart_isFrozen_andReplacedAtOnce() = runTest(dispatcher) {
+        val player = StuckPlayer()
+        val controller = controllerWith(player)
+        controller.playQueue(listOf(video), 0)
+        runCurrent()
+        player.loading = true
+        player.buffered = ENOUGH_LOADED_TO_START_MS + 500
+
+        advanceTimeBy(rung)
+        runCurrent()
+
+        assertEquals(1, made.size)
+    }
+
+    @Test
+    fun loadingThatStoppedArriving_isFrozen() = runTest(dispatcher) {
+        val player = StuckPlayer()
+        val controller = controllerWith(player)
+        controller.playQueue(listOf(video), 0)
+        runCurrent()
+        player.loading = true
+        player.buffered = 600L
+
+        advanceTimeBy(rung)
+        runCurrent()
+        assertEquals("some data came in, so one more wait", 0, made.size)
+        advanceTimeBy(rung)
+        runCurrent()
+        assertEquals("nothing more came in", 1, made.size)
+    }
+
+    @Test
+    fun leavingThePlayer_letsTheDecoderGo_andStartsNoRecovery() = runTest(dispatcher) {
+        val player = StuckPlayer()
+        val controller = controllerWith(player)
+        controller.playQueue(listOf(video), 0)
+        runCurrent()
+        player.startPlaying()
+        player.calls.clear()
+
+        controller.stopForDismissal()
+        advanceTimeBy(rung * 6)
+        runCurrent()
+
+        val paused = player.calls.indexOf("pause")
+        val stopped = player.calls.indexOf("stop")
+        assertTrue("paused then stopped, in that order: ${player.calls}", paused in 0 until stopped)
+        assertEquals("the player is kept, only its decoder is let go", false, player.released)
+        assertEquals("a player that was left is not a stalled one", 0, made.size)
+        assertFalse(controller.playbackState.value is DomainPlaybackState.Error)
     }
 
     @Test

@@ -162,7 +162,8 @@ class PlaybackSmokeTest {
         runBlocking(Dispatchers.Main) { controller.playQueue(listOf(item(clipUri, "zqprobe clip")), 0) }
         assertPlays(controller, "the first video", expectedMediaId = clipUri.toString())
 
-        runBlocking(Dispatchers.Main) { controller.pause() } // what leaving the player does
+        onMain { controller.stopForDismissal() } // what leaving the player does
+        assertEquals("the decoder is let go when the player is left", Player.STATE_IDLE, onMain { controller.player.playbackState })
         val queue = List(7) { index -> item(if (index % 2 == 1) hevcUri else clipUri, "queue item $index") }
         runBlocking(Dispatchers.Main) { controller.playQueue(queue, 5) } // item 6 of 7, as on the phone
 
@@ -182,6 +183,8 @@ class PlaybackSmokeTest {
         assertPlays(controller, "the first tap", expectedMediaId = clipUri.toString())
 
         androidx.test.uiautomator.UiDevice.getInstance(InstrumentationRegistry.getInstrumentation()).pressBack()
+        // Leaving the player lets its decoder go before the picture's surface is destroyed.
+        waitFor(5_000, "the decoder to be let go on leaving the player") { controller.player.playbackState == Player.STATE_IDLE }
         // Leaving the player turns the screen back upright, which recreates the activity: for a moment there is no screen.
         waitForNode(second, 15_000)
         composeRule.onAllNodes(second)[0].performClick()

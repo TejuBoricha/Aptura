@@ -274,7 +274,9 @@ The stats panel (top right, up to 380dp wide) and the centred transport buttons 
 
 A video that is asked for must play, whatever state the player is in. The owner's Samsung S24 sat in "buffering" at 0:00 with no error for every video after the first, so no rule about *why* is enough: the player is **replaced**, because a wedged player (a codec that never answers, an audio output that never opens) cannot be repaired from outside, while a new one starts clean, like the first video after the app opens.
 
-While the player is meant to be playing and is not (not an error, not the end, not a person's pause, not the system holding the audio), a timer runs, **4 seconds** at a time:
+**Prevention first.** Leaving the player (Back, gesture or arrow) lets the video decoder go *before* the picture's surface is destroyed (`stopForDismissal`, called from the single back policy): a paused player keeps its decoder running and bound to the surface, and on some phones detaching a surface from a running decoder freezes the player for good (Media3 issue 1772 names Samsung). The playlist and position are kept; the saved position comes from the screen's state, not the player.
+
+**Then the safety net.** While the player is meant to be playing and is not (not an error, not the end, not a person's pause, not the system holding the audio), a timer runs, **4 seconds** at a time. A slow disk is not a frozen player: while data is still arriving and there is not yet enough loaded to start (about 2.5 s ahead), the wait is extended up to three times; once enough is loaded and it still does not start, or nothing more arrives, the player is called frozen:
 
 1. **First wait ends:** the video starts again, where it was, on a **brand-new player** (`Media3PlaybackController.startOnFreshPlayer`). Track choices, speed, volume, repeat, shuffle and the audio and subtitle delays are carried over; the media session and the picture follow the new player (`currentPlayer`); the old one is released before the new one asks for a codec.
 2. **Second wait ends:** the same on another new player with the **software decoder**.

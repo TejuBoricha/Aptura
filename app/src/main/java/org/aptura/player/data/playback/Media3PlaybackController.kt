@@ -67,6 +67,15 @@ internal const val MAX_STALL_RECOVERIES = 2
 /** From asking to play to saying "Playback Did Not Start": the wait before each recovery, plus the wait after the last. */
 internal const val PLAYBACK_START_TIMEOUT_MS = PLAYBACK_START_RUNG_MS * (MAX_STALL_RECOVERIES + 1)
 
+/**
+ * Loading that is still bringing in data, and has not yet brought in enough to start (ExoPlayer starts at about 2.5 s), is a
+ * slow disk, not a frozen player; it gets this many extra waits before the player is replaced anyway.
+ */
+internal const val MAX_SLOW_LOAD_WAITS = 3
+
+/** How much has to be loaded ahead of the position before a player that still does not start is called frozen. */
+internal const val ENOUGH_LOADED_TO_START_MS = 2_500L
+
 /** How long a video must have been playing before the rest of the queue is loaded behind it (see `QueueRestore`). */
 internal const val QUEUE_RESTORE_AFTER_MS = 2_000L
 
@@ -176,6 +185,10 @@ class Media3PlaybackController(
 
     /** What the player was doing when playback was asked for, never started and nothing was left to try; shown as an error. */
     private var stalledReason: String? = null
+
+    /** Extra waits given to loading that was still making progress, and how much was loaded at the last check. */
+    private var slowLoadWaits = 0
+    private var loadedAtLastCheck = 0L
 
     /** Recoveries used since playback was last asked for (see [MAX_STALL_RECOVERIES]); a new request starts again from none. */
     private var stallRecoveries = 0
@@ -812,6 +825,10 @@ class Media3PlaybackController(
             updatePlaybackStats()
             return
         }
+        if (stillLoadingSlowly()) {
+            updateStartWatch()
+            return
+        }
         stallRecoveries = step + 1
         // The first recovery is a brand-new player; if that does not start it either, the second also tries the software decoder.
         val software = step >= 1 && currentDecoderStrategy != 2
@@ -824,6 +841,24 @@ class Media3PlaybackController(
             player.play()
         }
         updateStartWatch()
+    }
+
+    /**
+     * A slow disk or a big file is not a frozen player: while data is still arriving and there is not yet enough to
+     * start, wait (a few times) instead of throwing the player away. Once enough is loaded and it still does not start,
+     * or nothing more arrives, nothing is going to change by waiting.
+     */
+    private fun stillLoadingSlowly(): Boolean {
+        val loaded = (player.bufferedPosition - player.currentPosition).coerceAtLeast(0L)
+        val progressed = loaded > loadedAtLastCheck
+        loadedAtLastCheck = loaded
+        val slow = player.playbackState == Player.STATE_BUFFERING && player.isLoading && progressed &&
+            loaded < ENOUGH_LOADED_TO_START_MS && slowLoadWaits < MAX_SLOW_LOAD_WAITS
+        if (slow) {
+            slowLoadWaits++
+            trace.note("still loading: ${loaded}ms ahead, waiting ($slowLoadWaits of $MAX_SLOW_LOAD_WAITS)")
+        }
+        return slow
     }
 
     private fun logRecovery(step: String, facts: String) {
@@ -878,6 +913,8 @@ class Media3PlaybackController(
         if (!swapInFreshPlayer(reason)) return false
         if (software && currentDecoderStrategy != 2) engageSoftwareDecoder("Software decoder engaged: $reason.")
 
+        slowLoadWaits = 0
+        loadedAtLastCheck = 0L
         trace.restart()
         trace.note("fresh player: $reason position=${position}ms items=${playlist.size} index=$currentIndex decoder=$currentDecoderStrategy")
         loadHoldingBackQueue(playlist, currentIndex, position)
@@ -1149,6 +1186,8 @@ class Media3PlaybackController(
         consecutiveSkips = 0
         stalledReason = null
         stallRecoveries = 0
+        slowLoadWaits = 0
+        loadedAtLastCheck = 0L
         if (cautiousStart) swapInFreshPlayer("a start that needed a new player before")
         trace.restart()
         trace.note("requested items=${items.size} start=$clampedIndex cautious=$cautiousStart")
@@ -1645,6 +1684,23 @@ class Media3PlaybackController(
         player.trackSelectionParameters = params.buildUpon()
             .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, !enabled)
             .build()
+    }
+
+    /**
+     * Called as the person leaves the player, while the picture's surface still exists. A paused player keeps its video
+     * decoder running and bound to that surface, and the surface is destroyed a moment later; on some phones detaching a
+     * surface from a running decoder freezes the player for good, and every video after it sits in "buffering". So the
+     * decoders are let go first, the way the platform expects. The playlist and position are kept.
+     */
+    fun stopForDismissal() {
+        queueRestoreJob?.cancel()
+        queueRestoreJob = null
+        startWatchdog?.cancel()
+        startWatchdog = null
+        checkPositionTicker(false)
+        player.pause()
+        player.stop()
+        trace.note("stopped: left the player")
     }
 
     override suspend fun release() {

@@ -368,6 +368,8 @@ private fun AppNavHost(
     val dismissPlayerAndResetOrientation: () -> Unit = {
         activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         playerViewModel.onPlayerDismissed()
+        // Before the screen (and its picture surface) goes: the decoder must be let go while the surface still exists.
+        playbackController.stopForDismissal()
     }
 
     NavDisplay(
