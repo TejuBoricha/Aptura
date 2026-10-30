@@ -1,5 +1,7 @@
 package org.aptura.player.ui.components
 
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,16 +15,21 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.unit.Velocity
 
 /*
- * The app's bottom sheet: Material's ModalBottomSheet that stays put when a list inside it is flung to its end.
+ * The app's bottom sheet: Material's ModalBottomSheet that stays put when it is flicked upward.
  *
- * Material hands whatever speed a fling has left over at the end of a list to the sheet, and the sheet settles at the
- * top with that speed. A spring started at its resting place with speed away from it swings past the place and back, so
- * flicking a long list up lifted the whole sheet by about 85 dp and dropped it again, over and over while scrolling
- * ("the screen starts dancing"). Swallowing the upward speed that is left over means the list simply stops at its end.
- * Downward speed is left alone: flicking down from the top of the list still closes the sheet.
+ * When a drag ends, the sheet settles at the nearer of its two places with the speed the finger had. A spring that
+ * starts at its resting place (the top) with speed away from it swings past the place and back, so flicking upward lifted
+ * the whole sheet by 30 to 85 dp and dropped it again, over and over ("the screen starts dancing"). That happens in two
+ * ways: the speed a list has left over at its end is handed to the sheet, and on a sheet with nothing to scroll (eight
+ * folders that fit on the screen) the finger drags the sheet itself. Both are closed here: the sheet follows the finger
+ * only downward (a move upward ends the drag and the sheet settles with no speed), and the upward speed a list leaves over
+ * is swallowed. Pulling down still closes the sheet, and the handle at the top can be dragged freely.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,7 +50,28 @@ fun ApturaModalBottomSheet(
         shape = shape,
         modifier = modifier
     ) {
-        Column(Modifier.fillMaxWidth().nestedScroll(SwallowUpwardLeftoverFling)) { content() }
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .nestedScroll(SwallowUpwardLeftoverFling)
+                .sheetFollowsOnlyDownward()
+        ) { content() }
+    }
+}
+
+/**
+ * Takes upward finger movement away from the sheet's own drag, after the content under the finger (a list, a button) has
+ * had its turn, so a drag that moves up ends there and the sheet settles with no speed instead of flying past its top.
+ */
+private fun Modifier.sheetFollowsOnlyDownward(): Modifier = pointerInput(Unit) {
+    awaitEachGesture {
+        awaitFirstDown(requireUnconsumed = false)
+        do {
+            val event = awaitPointerEvent(PointerEventPass.Main)
+            event.changes.forEach { change ->
+                if (!change.isConsumed && change.positionChange().y < 0f) change.consume()
+            }
+        } while (event.changes.any { it.pressed })
     }
 }
 

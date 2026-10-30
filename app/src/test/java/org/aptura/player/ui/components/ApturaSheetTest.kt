@@ -36,8 +36,8 @@ class ApturaSheetTest {
     @get:Rule
     val composeRule = createComposeRule()
 
-    private fun showFolders() {
-        val folders = (1..14).map { "/storage/emulated/0/Folder$it" }
+    private fun showFolders(count: Int = 14) {
+        val folders = (1..count).map { "/storage/emulated/0/Folder$it" }
         composeRule.setContent {
             ApturaTheme {
                 FolderBrowserSheet(
@@ -124,6 +124,56 @@ class ApturaSheetTest {
         val seen = watchHeading(60)
 
         assertTrue("a quick short flick down left the sheet at ${seen.last()} dp (rest $resting dp): $seen", seen.last() > resting + CLOSED)
+    }
+
+    /** A drag that starts on the heading, which is no list: the finger is on the sheet itself. */
+    private fun dragOnTheHeading(durationMs: Long, vararg moves: Float) {
+        composeRule.mainClock.autoAdvance = false
+        composeRule.onNodeWithText("Folders").performTouchInput {
+            down(center)
+            var t = 0L
+            moves.forEach { dyDp ->
+                t += durationMs
+                moveBy(androidx.compose.ui.geometry.Offset(0f, dyDp.dp.toPx()), delayMillis = durationMs)
+            }
+            up()
+        }
+    }
+
+    @Test
+    fun flickingUpOnTheHeading_ofAShortList_doesNotMoveTheSheet() {
+        // The owner's phone: eight folders that fit on the screen, so an upward flick moves the sheet itself.
+        showFolders(count = 8)
+        val resting = headingTop()
+        dragOnTheHeading(30, -60f, -60f)
+        val seen = watchHeading(60)
+
+        val worst = seen.maxOf { Math.abs(it - resting) }
+        assertTrue("the sheet moved by up to $worst dp when flicked upward (resting at $resting dp): $seen", worst <= STILL)
+    }
+
+    @Test
+    fun pullingTheSheetDown_thenBackUp_comesBackWithoutRisingAboveWhereItStarted() {
+        showFolders(count = 8)
+        val resting = headingTop()
+        // Down 40 dp, then quickly up 30 dp, and let go: the kind of wobble a thumb makes. (Further down than the
+        // sheet's closing distance, 56 dp, it closes instead: that is a decision, not a wobble.)
+        dragOnTheHeading(40, 40f, -30f)
+        val seen = watchHeading(90)
+
+        val highest = seen.min()
+        assertTrue("the sheet rose to $highest dp, above where it started ($resting dp): $seen", highest >= resting - STILL)
+        assertTrue("and it came back to rest at the end (${seen.last()} dp)", Math.abs(seen.last() - resting) <= STILL)
+    }
+
+    @Test
+    fun draggingDownOnTheHeading_stillClosesTheSheet() {
+        showFolders(count = 8)
+        val resting = headingTop()
+        dragOnTheHeading(40, 150f, 250f)
+        val seen = watchHeading(90)
+
+        assertTrue("the sheet did not follow a pull down, it stayed at ${seen.last()} dp (rest $resting dp)", seen.last() > resting + CLOSED)
     }
 
     /** Every bottom sheet in the app comes from [ApturaModalBottomSheet]; a plain Material one would dance again. */

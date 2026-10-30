@@ -299,7 +299,13 @@ The owner's library has 558 videos and fast scrolling felt laggy. Every cell tha
 
 ### 5.5c Bottom sheets stay put
 
-Every bottom sheet is `ApturaModalBottomSheet` (`ui/components/ApturaSheet.kt`), never Material's `ModalBottomSheet` directly. Material gives the sheet whatever speed a fling has left at the end of a list, and the sheet settles at the top with it; a spring that starts at its resting place with speed away from it swings past and back, so a flicked list lifted the whole sheet about 85 dp and dropped it again ("the screen dances"). The wrapper swallows the **upward** leftover speed only. Flicking down from the top of a list still closes the sheet, by distance or by speed alone. `ApturaSheetTest` measures the heading's top frame by frame after a flick and fails if a source file opens a plain `ModalBottomSheet`.
+Every bottom sheet is `ApturaModalBottomSheet` (`ui/components/ApturaSheet.kt`), never Material's `ModalBottomSheet` directly. When a drag ends, a Material sheet settles at the nearer of its two places with the speed the finger had; a spring that starts at its resting place (the top) with speed away from it swings past the place and back, so an upward flick lifted the whole sheet by 30 to 85 dp and dropped it again ("the screen dances"). It happened in two ways, and the first fix only closed one: the speed a **list** has left over at its end is handed to the sheet, and on a sheet with **nothing to scroll** (the owner's seven folders fit on the screen) the finger drags the sheet itself. The wrapper closes both:
+
+- **The sheet follows the finger only downward.** After the content under the finger (a list, a button) has had its turn, upward finger movement is taken away from the sheet's own drag, so a drag that moves up ends there and the sheet settles with no speed.
+- **The upward speed a list leaves over is swallowed**, so a list that is flicked to its end just stops.
+- Pulling down still closes the sheet, and the handle at the top is draggable freely. Past the closing distance (56 dp) a pull that turns back up still closes: that is a decision, not a wobble.
+
+`ApturaSheetTest` measures the heading's top frame by frame after flicks on the list, on the heading and at the end of a list, and fails if any source file opens a plain `ModalBottomSheet`.
 
 ### 5.6 Player Sheets and Settings Controls
 

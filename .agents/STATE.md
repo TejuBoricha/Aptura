@@ -78,9 +78,9 @@ PR's Verification section and in CI, not here, so most pull requests never need 
 - **Library scrolling:** picture work (read, decode, make) is paused during a fling (`rememberFlingGate` in `LibraryVideoPane`), runs at most
   3 at a time at background priority (`ThumbnailWork`), and is dropped when its cell scrolls away (DESIGN.md §5.5d). Measured by
   `ThumbnailScrollLoadTest`; not measured on a phone, and the owner's phone runs a debug build, which is slower than release.
-- **Every bottom sheet is `ApturaModalBottomSheet`** (`ui/components/ApturaSheet.kt`): it swallows the upward fling speed left over
-  at the end of a list, which made the whole sheet rise ~85 dp and drop back ("dancing"). `ApturaSheetTest` also fails on any
-  plain `ModalBottomSheet(` in the sources. A stall report now carries a step trace and thread states (`PlaybackTrace`).
+- **Every bottom sheet is `ApturaModalBottomSheet`** (`ui/components/ApturaSheet.kt`): it follows the finger only downward and swallows
+  the upward fling speed a list leaves over; both made the whole sheet rise 30 to 85 dp and drop back ("dancing"). `ApturaSheetTest`
+  also fails on any plain `ModalBottomSheet(` in the sources. A stall report carries a step trace and thread states (`PlaybackTrace`).
 - **Video access** is read from the system every time the app comes to the front (`rememberVideoAccess`); a grant scans now
   and again after 5 s; Settings has a Video access row (DESIGN.md §4.2c).
 - **Folder identity:** the folder key (`folderPath` in Room) is the folder's path on its storage volume, from `MediaFolderKey`;
