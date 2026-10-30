@@ -346,6 +346,9 @@ private fun AppNavHost(
     NavDisplay(
         backStack = backStack,
         onBack = { handleBack(backStack, dismissPlayerAndResetOrientation) },
+        transitionSpec = { appTransition() },
+        popTransitionSpec = { appPopTransition() },
+        predictivePopTransitionSpec = { swipeEdge -> appPredictivePopTransition(swipeEdge) },
         entryProvider = entryProvider {
             entry<Onboarding> {
                 // Leaves the guide: back to Settings when it was replayed from there, otherwise on to the library.
@@ -757,8 +760,9 @@ private fun AppNavHost(
                 )
             }
 
-            entry<PlayerKey> { playerKey ->
-                LaunchedEffect(playerKey.videoUri) {
+            entry<PlayerKey>(metadata = PlayerRouteMetadata) { playerKey ->
+                PlayerRouteFrame(closingColor = ApturaColors.SurfaceBase) {
+                    LaunchedEffect(playerKey.videoUri) {
                     if (playerViewModel.uiState.value.videoUri != playerKey.videoUri) {
                         playerViewModel.loadAndPlay(playerKey.videoUri)
                     }
@@ -928,6 +932,7 @@ private fun AppNavHost(
                     onResetVideoPreferences = playerViewModel::resetVideoPreferences,
                     onAudioOnlyChanged = playerViewModel::setAudioOnly
                 )
+                }
             }
         }
     )
