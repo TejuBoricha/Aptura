@@ -183,9 +183,9 @@ class PlaybackSmokeTest {
         composeRule.onAllNodes(first)[0].performClick()
         assertPlays(controller, "the first tap", expectedMediaId = clipUri.toString())
 
-        device.pressBack()
+        pressAppBack()
         // Leaving the player lets its decoder go before the picture's surface is destroyed.
-        waitFor(5_000, "the decoder to be let go on leaving the player") { controller.player.playbackState == Player.STATE_IDLE }
+        waitFor(5_000, "the decoder to be let go on leaving the player (${describeScreen(controller)})") { controller.player.playbackState == Player.STATE_IDLE }
         // Leaving the player turns the screen back upright, which recreates the activity, so the compose rule's view of
         // it goes stale; the device sees whatever is on the screen now.
         val card = device.wait(androidx.test.uiautomator.Until.findObject(androidx.test.uiautomator.By.textContains(HEVC_WORD)), 15_000)
@@ -340,10 +340,27 @@ class PlaybackSmokeTest {
         else -> null
     }
 
+    private fun resumedActivity(): android.app.Activity? =
+        androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry.getInstance()
+            .getActivitiesInStage(androidx.test.runner.lifecycle.Stage.RESUMED).firstOrNull()
+
+    /** For a failure message: which activity is on screen, whether it shows a player view, and which player each one holds. */
+    private fun describeScreen(controller: Media3PlaybackController): String = onMain {
+        val activity = resumedActivity()
+        val view = activity?.let { findPlayerView(it.window.decorView) }
+        "resumed activity=${activity?.javaClass?.simpleName}; player view found=${view != null}; " +
+            "view's player=${view?.player?.let { System.identityHashCode(it) }}; controller's player=${System.identityHashCode(controller.player)}; " +
+            "state=${controller.player.playbackState} items=${controller.player.mediaItemCount}"
+    }
+
+    /** What the system Back key does in the app, without depending on the system's input injection. */
+    private fun pressAppBack() {
+        onMain { (resumedActivity() as? androidx.activity.ComponentActivity)?.onBackPressedDispatcher?.onBackPressed() }
+    }
+
     /** The player view of the activity that is on screen now (not the one the compose rule started with, which may have been recreated). */
     private fun resumedPlayerView(): PlayerView? {
-        val resumed = androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry.getInstance()
-            .getActivitiesInStage(androidx.test.runner.lifecycle.Stage.RESUMED).firstOrNull() ?: return null
+        val resumed = resumedActivity() ?: return null
         return findPlayerView(resumed.window.decorView)
     }
 
@@ -363,7 +380,7 @@ class PlaybackSmokeTest {
         assertNotSame(before, onMain { controller.player })
         assertPlays(controller, "the replacement while the player screen is showing")
 
-        waitFor(8_000, "the picture to follow the new player") {
+        waitFor(8_000, "the picture to follow the new player (${describeScreen(controller)})") {
             resumedPlayerView()?.player === controller.player
         }
         assertSame(controller.player, onMain { resumedPlayerView()?.player })
