@@ -2,6 +2,7 @@ package org.aptura.player.data.scanner
 
 import android.content.Context
 import android.net.Uri
+import androidx.core.net.toUri
 import androidx.room.withTransaction
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
@@ -71,9 +72,9 @@ class MediaScanWorker(
                         retriever = android.media.MediaMetadataRetriever()
                     }
                     try {
-                        retriever?.setDataSource(context, Uri.parse(item.uri))
+                        retriever.setDataSource(context, item.uri.toUri())
                         val durationMs = retriever
-                            ?.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
+                            .extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
                             ?.toLongOrNull() ?: 0L
                         if (durationMs > 0L) item.copy(durationMs = durationMs) else item
                     } catch (_: Throwable) {
@@ -129,7 +130,7 @@ class MediaScanWorker(
                 val safScanner = SafTreeScanner(applicationContext)
                 for (folderUriStr in persistedFolders) {
                     try {
-                        val treeUri = Uri.parse(folderUriStr)
+                        val treeUri = folderUriStr.toUri()
                         val safItems = safScanner.scanTree(treeUri, existingByUri)
                         // Deduplicate SAF items against already-scanned MediaStore items so overlapping folders do not create duplicate cards
                         val deduplicatedSaf = safItems.filterNot { saf ->

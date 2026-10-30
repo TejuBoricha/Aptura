@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import androidx.core.net.toUri
 import android.os.Build
 import android.util.Size
 import androidx.annotation.VisibleForTesting
@@ -105,7 +106,7 @@ object ThumbnailRepository {
 
     private fun extractThumbnailBitmap(context: Context, uriString: String): Bitmap? {
         val uri = try {
-            Uri.parse(uriString)
+            uriString.toUri()
         } catch (_: Throwable) {
             return null
         }

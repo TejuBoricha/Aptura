@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.net.Uri
 import android.widget.Toast
+import androidx.core.net.toUri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -130,8 +131,8 @@ fun MediaDetailsContent(
     val inspection by produceState<MediaExtendedMetadata?>(null, item.uri) {
         value = withContext(Dispatchers.IO) {
             try {
-                MediaMetadataInspector.inspect(context, Uri.parse(item.uri))
-            } catch (_: Throwable) {
+                MediaMetadataInspector.inspect(context, item.uri.toUri())
+            } catch (_: Exception) {
                 MediaExtendedMetadata(inspected = false)
             }
         }

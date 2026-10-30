@@ -37,6 +37,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
+import androidx.core.net.toUri
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import kotlinx.coroutines.Dispatchers
@@ -44,6 +45,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.aptura.player.core.diagnostics.ApturaDiagnostics
 import org.aptura.player.core.diagnostics.DiagnosticStore
+import org.aptura.player.core.diagnostics.EventCode
 import org.aptura.player.core.platform.PermissionHelper
 import org.aptura.player.core.platform.AppVersion
 import org.aptura.player.data.database.ApturaDatabase
@@ -271,7 +273,12 @@ private fun AppNavHost(
                     uri,
                     Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
-            } catch (_: Throwable) {}
+            } catch (e: Exception) {
+                ApturaDiagnostics.logEvent(
+                    code = EventCode.EV_006,
+                    payload = mapOf("action" to "takePersistableUriPermission_file", "error" to (e.message ?: "unknown"))
+                )
+            }
             playerViewModel.loadAndPlay(uriString)
             backStack.add(PlayerKey(uriString))
         }
@@ -287,7 +294,12 @@ private fun AppNavHost(
                     treeUri,
                     Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
-            } catch (_: Throwable) {}
+            } catch (e: Exception) {
+                ApturaDiagnostics.logEvent(
+                    code = EventCode.EV_006,
+                    payload = mapOf("action" to "takePersistableUriPermission_tree", "error" to (e.message ?: "unknown"))
+                )
+            }
             coroutineScope.launch {
                 settingsRepository.addSafFolder(treeUri.toString())
                 MediaScanScheduler.scheduleImmediateScan(context)
@@ -516,22 +528,26 @@ private fun AppNavHost(
                     },
                     onOpenWithClick = {
                         val viewIntent = Intent(Intent.ACTION_VIEW).apply {
-                            setDataAndType(Uri.parse(item.uri), item.mimeType ?: "video/*")
+                            setDataAndType(item.uri.toUri(), item.mimeType ?: "video/*")
                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         }
                         try {
                             context.startActivity(Intent.createChooser(viewIntent, "Open Video With..."))
-                        } catch (_: Exception) {}
+                        } catch (_: Exception) {
+                            Toast.makeText(context, "No app available to open this video", Toast.LENGTH_SHORT).show()
+                        }
                     },
                     onShareClick = {
                         val shareIntent = Intent(Intent.ACTION_SEND).apply {
                             type = item.mimeType ?: "video/*"
-                            putExtra(Intent.EXTRA_STREAM, Uri.parse(item.uri))
+                            putExtra(Intent.EXTRA_STREAM, item.uri.toUri())
                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         }
                         try {
                             context.startActivity(Intent.createChooser(shareIntent, "Share Video"))
-                        } catch (_: Exception) {}
+                        } catch (_: Exception) {
+                            Toast.makeText(context, "No app available to share this video", Toast.LENGTH_SHORT).show()
+                        }
                     },
                     onResetProgressClick = {
                         libraryViewModel.resetVideoProgress(item.uri)
@@ -569,7 +585,7 @@ private fun AppNavHost(
                             when (
                                 val outcome = ApturaMediaFileManager.renameMediaFile(
                                     context = context,
-                                    uri = Uri.parse(target.uri),
+                                    uri = target.uri.toUri(),
                                     newNameWithExt = newName
                                 )
                             ) {
@@ -696,17 +712,27 @@ private fun AppNavHost(
                         coroutineScope.launch(Dispatchers.IO) {
                             try {
                                 ThumbnailRepository.clearCache(context)
-                            } catch (_: Throwable) {}
+                            } catch (e: Exception) {
+                                ApturaDiagnostics.logEvent(
+                                    code = EventCode.EV_008,
+                                    payload = mapOf("action" to "clearThumbnailCache", "error" to (e.message ?: "unknown"))
+                                )
+                            }
                         }
                     },
                     onAddFolderClick = { folderPickerLauncher.launch(null) },
                     onRemoveSafFolder = { folderUriStr ->
                         try {
                             context.contentResolver.releasePersistableUriPermission(
-                                android.net.Uri.parse(folderUriStr),
+                                folderUriStr.toUri(),
                                 Intent.FLAG_GRANT_READ_URI_PERMISSION
                             )
-                        } catch (_: Throwable) {}
+                        } catch (e: Exception) {
+                            ApturaDiagnostics.logEvent(
+                                code = EventCode.EV_006,
+                                payload = mapOf("action" to "releasePersistableUriPermission", "error" to (e.message ?: "unknown"))
+                            )
+                        }
                         coroutineScope.launch {
                             settingsRepository.removeSafFolder(folderUriStr)
                             mediaRepository.removeVideosByUriPrefix(folderUriStr)
@@ -748,7 +774,12 @@ private fun AppNavHost(
                                             playerViewModel.setRecentDownloadedSubtitle(recent.first())
                                         }
                                     }
-                                } catch (_: Throwable) {}
+                                } catch (e: Exception) {
+                                    ApturaDiagnostics.logEvent(
+                                        code = EventCode.EV_015,
+                                        payload = mapOf("action" to "findRecentDownloads", "error" to (e.message ?: "unknown"))
+                                    )
+                                }
                             }
                         }
                     }
@@ -853,12 +884,12 @@ private fun AppNavHost(
                             else -> org.aptura.player.core.media.SubtitleQuerySanitizer.buildGoogleSearchUrl(query)
                         }
                         try {
-                            val browserIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(targetUrl)).apply {
+                            val browserIntent = Intent(Intent.ACTION_VIEW, targetUrl.toUri()).apply {
                                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                             }
                             context.startActivity(browserIntent)
-                        } catch (_: Throwable) {
-                            android.widget.Toast.makeText(context, "No web browser found to open link", android.widget.Toast.LENGTH_SHORT).show()
+                        } catch (_: Exception) {
+                            Toast.makeText(context, "No web browser found to open link", Toast.LENGTH_SHORT).show()
                         }
                     },
                     onAttachRecentSubtitle = { sidecar ->

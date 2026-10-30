@@ -27,19 +27,19 @@ Every finding progresses strictly through the following states:
 | **ISSUE-003** | Phase 1 | P2 | Lifecycle / Configuration | Paused video resumes playing after configuration change (font scale / display size) | `PlayerViewModel.kt`, `MainActivity.kt` | Pending | TBD |
 | **ISSUE-004** | Phase 1 | P2 | Storage / Playback | A/V offsets set on video opened via VIEW intent lost if not indexed in Room library | `PlayerViewModel.kt`, `MediaRepositoryImpl.kt` | Pending | TBD |
 | **ISSUE-005** | Phase 1 | P2 | UI / Accessibility | Stats overlay text wraps awkwardly at 200% accessibility font scale | `StatsOverlay.kt` | Pending | TBD |
-| **ISSUE-006** | Phase 1 | P3 | Android Lint | 3 `ApplySharedPref` warnings using blocking `commit()` in `MediaTransferJournal` | `MediaTransferJournal.kt` | Pending | TBD |
+| **ISSUE-006** | Phase 1 | P3 | Android Lint | 3 `ApplySharedPref` warnings using blocking `commit()` in `MediaTransferJournal` | `MediaTransferJournal.kt` | Verified | Suppressed with architectural justification; verified 0 errors |
 | **ISSUE-007** | Phase 1 | P3 | Android Lint / Platform | Android 12+ PiP transition recommendation: `setAutoEnterEnabled(true)` and `setSourceRectHint` missing | `AndroidManifest.xml`, `MainActivity.kt` | Pending | TBD |
 | **ISSUE-008** | Phase 1 | P2 | Architecture / Maintainability | Massive God-composables (`PlayerScreen.kt` 2,172 lines; `MediaLibraryScreen.kt` 2,137 lines) | `PlayerScreen.kt`, `MediaLibraryScreen.kt` | Pending | TBD |
 | **ISSUE-009** | Phase 1 | P2 | Architecture / Maintainability | `PlayerViewModel.kt` is 1,582 lines managing multiple disjoint feature states | `PlayerViewModel.kt` | Pending | TBD |
-| **ISSUE-010** | Phase 1 | P3 | Code Hygiene | 36 `UseKtx` Android Lint warnings across core and data layers | Various | Pending | TBD |
+| **ISSUE-010** | Phase 1 | P3 | Code Hygiene | 36 `UseKtx` Android Lint warnings across core and data layers | Various | Verified | Migrated to `toUri()` extension; warnings eliminated |
 | **ISSUE-011** | Phase 1 | P2 | Stability / Playback | Playback start stall / black screen report on hardware (watchdog fallback in PR #18) | `Media3PlaybackController.kt` | Investigating | CI connected playback tests |
 | **ISSUE-012** | Phase 1 | P2 | Storage / Domain | Global audio sync offset storage ambiguity (per-video vs global setting) | `ApturaSettingsRepository.kt`, `PlayerViewModel.kt` | Pending | TBD |
 | **ISSUE-013** | Phase 2 | P2 | Playback / Audio | `AudioDelayProcessor` only supports 16-bit PCM; float/hi-res PCM silently bypasses lip-sync delay | `AudioDelayProcessor.kt` | Pending | TBD |
-| **ISSUE-014** | Phase 2 | P2 | Error Handling | Blind `catch (_: Throwable)` blocks swallow system errors and avoid diagnostic tracing | `Navigation.kt`, `ApturaApplication.kt` | Pending | TBD |
-| **ISSUE-015** | Phase 2 | P3 | UI / UX | Silent no-op on `Open With` and `Share` if no handler application is installed | `Navigation.kt` | Pending | TBD |
+| **ISSUE-014** | Phase 2 | P2 | Error Handling | Blind `catch (_: Throwable)` blocks swallow system errors and avoid diagnostic tracing | `Navigation.kt`, `ApturaApplication.kt` | Verified | Narrowed to `Exception` and logged to `ApturaDiagnostics` |
+| **ISSUE-015** | Phase 2 | P3 | UI / UX | Silent no-op on `Open With` and `Share` if no handler application is installed | `Navigation.kt`, `MediaLibraryScreen.kt` | Verified | Added user Toast feedback on failed intent launches |
 | **ISSUE-016** | Phase 2 | P3 | Architecture / Dead Code | Unused `deleteRemovedVideos` query in `MediaItemDao` | `MediaItemDao.kt` | Pending | TBD |
-| **ISSUE-017** | Phase 2 | P3 | Android Lint / Resources | `res/mipmap-anydpi-v26` triggers `ObsoleteSdkInt` lint warning (minSdk is 26) | `res/mipmap-anydpi-v26` | Pending | TBD |
-| **ISSUE-018** | Phase 2 | P3 | Code Hygiene | 36 `UseKtx` lint warnings (`Uri.parse()` instead of `toUri()`) | Various | Pending | TBD |
+| **ISSUE-017** | Phase 2 | P3 | Android Lint / Resources | `res/mipmap-anydpi-v26` triggers `ObsoleteSdkInt` lint warning (minSdk is 26) | `res/mipmap-anydpi-v26` | Verified | Renamed to `mipmap-anydpi`; `ObsoleteSdkInt` eliminated |
+| **ISSUE-018** | Phase 2 | P3 | Code Hygiene | 36 `UseKtx` lint warnings (`Uri.parse()` instead of `toUri()`) | Various | Verified | Migrated to `toUri()` across codebase |
 | **ISSUE-019** | Phase 2 | P2 | Architecture / Maintainability | Decompose `PlayerScreen.kt` and `MediaLibraryScreen.kt` into modular sub-composables | `PlayerScreen.kt`, `MediaLibraryScreen.kt` | Pending | TBD |
 | **ISSUE-020** | Phase 3 | P1 | Security / Privacy | `RedactionEngine` misses removable SD card storage paths (`/storage/<uuid>/`) | `RedactionEngine.kt` | Verified | `DiagnosticRedactionTest.redactionEngine_stripsRemovableSdCardPaths` PASSED |
 | **ISSUE-021** | Phase 3 | P2 | Security / DoS | `SubtitleZipExtractor` lacks byte ceiling during extraction (Zip Bomb risk) | `SubtitleZipExtractor.kt` | Verified | `SubtitleZipExtractorTest.extractSubtitleFromStream_exceedsMaxBytes_abortsWithFailure` PASSED |
@@ -90,6 +90,8 @@ Every finding progresses strictly through the following states:
 - **Root Cause:** `commit()` synchronously writes to disk on the calling thread, triggering Android Lint `ApplySharedPref` warnings.
 - **Proposed Solution:** Assess whether synchronous durability is strictly needed for the crash journal; if asynchronous persistence is safe or already guarded by I/O dispatcher, use `apply()` or document exception.
 - **Acceptance Criteria:** Lint warning resolved or documented justification in `lint-baseline.xml`.
+- **Status:** Verified
+- **Resolution & Evidence:** Added `@SuppressLint("ApplySharedPref")` with architectural rationale (crash recovery durability). Verified via `lintDebug` and gate.
 
 ### ISSUE-007: Android 12+ PiP transition recommendation missing
 - **Phase:** Phase 1 / Phase 5
@@ -126,15 +128,19 @@ Every finding progresses strictly through the following states:
 - **Root Cause:** Catching `Throwable` indiscriminately catches JVM virtual machine errors (such as `OutOfMemoryError`, `StackOverflowError`, `ThreadDeath`) and suppresses `SecurityException` during URI permission management without logging to `ApturaDiagnostics`.
 - **Proposed Solution:** Narrow exception types to `Exception` or specific checked types (`SecurityException`, `IllegalArgumentException`), and log suppressed failures to `ApturaDiagnostics.logEvent`.
 - **Acceptance Criteria:** System errors are never caught; suppressed operational exceptions are logged to local diagnostics.
+- **Status:** Verified
+- **Resolution & Evidence:** Replaced `catch (t: Throwable)` with `catch (e: Exception)` and mapped to `ApturaDiagnostics.logEvent` with `EV_006`, `EV_008`, `EV_015`. Verified via gate.
 
 ### ISSUE-015: Silent failure on external intent launch if no app handles intent
 - **Phase:** Phase 2
 - **Priority:** P3 (Low)
 - **Category:** UI / UX
-- **Affected Files:** `app/src/main/java/org/aptura/player/Navigation.kt:524, 534`
+- **Affected Files:** `app/src/main/java/org/aptura/player/Navigation.kt:524, 534`, `app/src/main/java/org/aptura/player/ui/library/MediaLibraryScreen.kt:1267, 1277`
 - **Root Cause:** In `Navigation.kt`, `onOpenWithClick` and `onShareClick` wrap `context.startActivity` in `try { ... } catch (_: Exception) {}` with an empty body. If no app handles the intent or the intent chooser fails, nothing happens on screen.
 - **Proposed Solution:** Show an informative `Toast` or snackbar (matching `MediaLibraryScreen.kt:1948`) informing the user that no app is available to open or share the video.
 - **Acceptance Criteria:** Actionable feedback shown on screen instead of a silent no-op.
+- **Status:** Verified
+- **Resolution & Evidence:** Added Toast feedback in `Navigation.kt` and `MediaLibraryScreen.kt`. Verified via gate.
 
 ### ISSUE-016: Unused dead query `deleteRemovedVideos` in `MediaItemDao`
 - **Phase:** Phase 2
@@ -153,6 +159,8 @@ Every finding progresses strictly through the following states:
 - **Root Cause:** `minSdkVersion` is 26, so `-v26` qualifier is completely redundant and triggers `ObsoleteSdkInt`.
 - **Proposed Solution:** Rename/merge `mipmap-anydpi-v26` to `mipmap-anydpi`.
 - **Acceptance Criteria:** `ObsoleteSdkInt` warning eliminated from `lintDebug`.
+- **Status:** Verified
+- **Resolution & Evidence:** Renamed directory to `mipmap-anydpi`. Verified warning eliminated in `lintDebug`.
 
 ### ISSUE-020: RedactionEngine misses removable SD card storage paths (`/storage/<uuid>/`)
 - **Phase:** Phase 3

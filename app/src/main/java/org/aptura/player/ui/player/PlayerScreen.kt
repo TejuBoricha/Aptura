@@ -11,6 +11,7 @@ import android.app.Activity
 import android.content.Context
 import android.media.AudioManager
 import android.view.ViewGroup
+import androidx.core.net.toUri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -1756,11 +1757,11 @@ fun PlayerScreen(
                                 onClick = {
                                     try {
                                         val intent = Intent(Intent.ACTION_VIEW).apply {
-                                            setDataAndType(Uri.parse(uiState.videoUri), "video/*")
+                                            setDataAndType(uiState.videoUri.toUri(), "video/*")
                                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                         }
                                         context.startActivity(Intent.createChooser(intent, "Open Video With"))
-                                    } catch (_: Throwable) {
+                                    } catch (_: Exception) {
                                         Toast.makeText(context, "No external video player found", Toast.LENGTH_SHORT).show()
                                     }
                                 },
@@ -1795,11 +1796,11 @@ fun PlayerScreen(
                                 onClick = {
                                     try {
                                         val intent = Intent(Intent.ACTION_VIEW).apply {
-                                            setDataAndType(Uri.parse(uiState.videoUri), "video/*")
+                                            setDataAndType(uiState.videoUri.toUri(), "video/*")
                                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                         }
                                         context.startActivity(Intent.createChooser(intent, "Open Video With"))
-                                    } catch (_: Throwable) {
+                                    } catch (_: Exception) {
                                         Toast.makeText(context, "No external video player found", Toast.LENGTH_SHORT).show()
                                     }
                                 },

@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
+import androidx.core.net.toUri
 import android.os.Build
 import android.util.Size
 import androidx.media3.common.AudioAttributes
@@ -114,7 +115,7 @@ object PlayerManager {
     private fun loadArtwork(context: Context, mediaUri: String): ByteArray? {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
         return try {
-            val bitmap = context.contentResolver.loadThumbnail(Uri.parse(mediaUri), Size(512, 288), null)
+            val bitmap = context.contentResolver.loadThumbnail(mediaUri.toUri(), Size(512, 288), null)
             ByteArrayOutputStream().use { out ->
                 bitmap.compress(Bitmap.CompressFormat.JPEG, 85, out)
                 out.toByteArray()
