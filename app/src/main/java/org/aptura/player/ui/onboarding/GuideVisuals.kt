@@ -1,5 +1,12 @@
 package org.aptura.player.ui.onboarding
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -9,11 +16,11 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -21,55 +28,49 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
-import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Bedtime
-import androidx.compose.material.icons.filled.BrightnessMedium
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.FastForward
-import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PictureInPictureAlt
 import androidx.compose.material.icons.filled.QueryStats
 import androidx.compose.material.icons.filled.Repeat
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Subtitles
-import androidx.compose.material.icons.filled.SwapHoriz
-import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.util.lerp
 import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
+import org.aptura.player.ui.library.ApturaMark
 
 /*
- * The guide's illustrations. They show how Aptura works rather than decorate: a miniature of the real library layout,
- * a map of the player's touch zones, and a grid of the tools that really exist. Illustrations are described once for
- * TalkBack and their parts are hidden from it, so a screen reader hears one clear sentence instead of fragments.
+ * The guide's pages. Each page says one thing: a headline, a picture of how it works that is built from the app's own
+ * parts (see GuideDemos.kt), and a short list. Pictures are described once for TalkBack and their parts are hidden from
+ * it, so a screen reader hears one clear sentence instead of fragments.
  */
 
-private val Hairline: Color get() = ApturaColors.BorderSubtle
+private val Hairline: Color @Composable get() = ApturaColors.BorderSubtle
 
 @Composable
 internal fun GuidePanel(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
@@ -84,7 +85,123 @@ internal fun GuidePanel(modifier: Modifier = Modifier, content: @Composable Colu
     )
 }
 
-// ---- page 1: privacy --------------------------------------------------------------------------------------------
+/** A heading block shared by the pages: a small label, then the title, then one sentence. Each part arrives in turn. */
+@Composable
+internal fun PageHeading(label: String, title: String, body: String) {
+    Column(horizontalAlignment = Alignment.Start, modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = label.uppercase(),
+            style = ApturaTypography.labelSmall.copy(letterSpacing = 1.8.sp),
+            color = ApturaColors.AccentPrimary,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.reveal(1)
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = title,
+            style = ApturaTypography.headlineLarge.copy(fontSize = 30.sp, lineHeight = 36.sp),
+            color = ApturaColors.TextHighEmphasis,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Start,
+            modifier = Modifier.reveal(2)
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            text = body,
+            style = ApturaTypography.bodyLarge,
+            color = ApturaColors.TextMediumEmphasis,
+            textAlign = TextAlign.Start,
+            modifier = Modifier.reveal(3)
+        )
+    }
+}
+
+/** A short list of what a page's picture cannot show, each with a plain-language outcome. */
+@Composable
+internal fun FeatureList(items: List<Pair<String, String>>, firstReveal: Int = 5) {
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        items.forEachIndexed { index, (title, detail) ->
+            Row(verticalAlignment = Alignment.Top, modifier = Modifier.reveal(firstReveal + index)) {
+                Box(
+                    modifier = Modifier
+                        .padding(top = 7.dp)
+                        .size(6.dp)
+                        .clip(CircleShape)
+                        .background(ApturaColors.AccentPrimary)
+                )
+                Spacer(Modifier.width(14.dp))
+                Column {
+                    Text(title, style = ApturaTypography.titleMedium, color = ApturaColors.TextHighEmphasis)
+                    Text(detail, style = ApturaTypography.bodyMedium, color = ApturaColors.TextMediumEmphasis)
+                }
+            }
+        }
+    }
+}
+
+// ---- page 1: welcome and privacy ----------------------------------------------------------------------------------
+
+/**
+ * The Aptura mark inside rings that spread outward and fade, with a lock on it: the page's one idea (this stays here)
+ * before a word is read. The rings move only when the guide's motion is on.
+ */
+@Composable
+internal fun WelcomeHero(modifier: Modifier = Modifier) {
+    val accent = ApturaColors.AccentPrimary
+    // Only while the page is the one in front: pages are kept built behind it, and rings that went on spreading out of
+    // sight would keep redrawing the pager's whole layer.
+    val phase: State<Float> = if (LocalGuideMotion.current && rememberGuidePageActive()) {
+        rememberInfiniteTransition(label = "welcome-rings").animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(3600, easing = LinearEasing), RepeatMode.Restart),
+            label = "ring-phase"
+        )
+    } else {
+        remember { mutableFloatStateOf(0.3f) }
+    }
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(132.dp)
+            .clearAndSetSemantics { },
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val inner = 34.dp.toPx()
+            val outer = 66.dp.toPx()
+            drawCircle(
+                brush = Brush.radialGradient(listOf(accent.copy(alpha = 0.24f), Color.Transparent), center = center, radius = outer),
+                radius = outer,
+                center = center
+            )
+            for (ring in 0 until 3) {
+                val p = (phase.value + ring / 3f) % 1f
+                drawCircle(
+                    color = accent.copy(alpha = (1f - p) * 0.34f),
+                    radius = lerp(inner, outer, p),
+                    center = center,
+                    style = Stroke(width = 1.5.dp.toPx())
+                )
+            }
+        }
+        Box {
+            ApturaMark(size = 64.dp)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .offset(x = 8.dp, y = 8.dp)
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(ApturaColors.SurfaceBase)
+                    .border(1.5.dp, accent, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Lock, contentDescription = null, tint = accent, modifier = Modifier.size(15.dp))
+            }
+        }
+    }
+}
 
 /** The offline promise as facts a person can check, not adjectives. */
 @Composable
@@ -99,7 +216,10 @@ internal fun PrivacyFacts() {
         )
         facts.forEachIndexed { index, (title, detail) ->
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .reveal(4 + index)
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.Top
             ) {
                 Icon(
@@ -121,218 +241,29 @@ internal fun PrivacyFacts() {
     }
 }
 
-// ---- page 2: library --------------------------------------------------------------------------------------------
+// ---- page 2: the library ------------------------------------------------------------------------------------------
 
-/** A miniature of the real library screen: search, folder filters, and a grid with a resumable video. */
-@Composable
-internal fun LibraryMock(modifier: Modifier = Modifier) {
-    val shape = RoundedCornerShape(18.dp)
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(ApturaColors.SurfaceBase)
-            .border(1.dp, Hairline, shape)
-            .padding(12.dp)
-            .clearAndSetSemantics {
-                contentDescription = "A picture of the library: a search bar, folder filters, and a grid of videos where one shows how far you watched."
-            },
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(36.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(ApturaColors.SurfaceElevated1)
-                .padding(horizontal = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(Icons.Default.Search, contentDescription = null, tint = ApturaColors.TextMediumEmphasis, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("Search videos", style = ApturaTypography.bodyMedium, color = ApturaColors.TextLowEmphasis)
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            MockChip("All Videos", selected = true)
-            MockChip("Camera", selected = false)
-            MockChip("Movies", selected = false)
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            MockThumb(Color(0xFF1C3A44), Color(0xFF0C1A20), "Beach day", progress = 0.62f, modifier = Modifier.weight(1f))
-            MockThumb(Color(0xFF2B2E40), Color(0xFF12131C), "Lecture 04", progress = null, modifier = Modifier.weight(1f))
-        }
-    }
-}
+/**
+ * The actions the ⋮ menu on a video offers, spelled as the menu spells them. A test opens the real menu and checks that
+ * each one is there, so the guide cannot name an action the menu does not have.
+ */
+internal val GuideMenuActions = listOf(
+    "Play next", "Add to queue", "Select", "Move to folder", "Share", "Hide from library", "Delete video"
+)
 
-@Composable
-private fun MockChip(text: String, selected: Boolean) {
-    val shape = RoundedCornerShape(10.dp)
-    Text(
-        text = text,
-        style = ApturaTypography.labelSmall,
-        color = if (selected) ApturaColors.AccentPrimary else ApturaColors.TextMediumEmphasis,
-        modifier = Modifier
-            .clip(shape)
-            .background(if (selected) ApturaColors.AccentPrimary.copy(alpha = 0.12f) else ApturaColors.SurfaceElevated1)
-            .border(1.dp, if (selected) ApturaColors.AccentPrimary.copy(alpha = 0.4f) else Hairline, shape)
-            .padding(horizontal = 10.dp, vertical = 6.dp)
-    )
-}
+/** What the library does beyond what its picture shows. Every line describes a control the library really has. */
+internal val LibraryFeatures = listOf(
+    "Search, filter and sort" to "Search by title, filter by folder, and order the list your way.",
+    "Grid or list, your size" to "The sliders button beside search sets grid or list, picture size and which details show. Aptura remembers your choice.",
+    "Swipe between folders" to "Swipe the videos left or right to move to the next folder. The folders button on the folder bar lists them all.",
+    "Continue watching" to "Videos you stopped partway sit at the top of All videos, with the time left.",
+    "The ⋮ menu on any video" to GuideMenuActions.joinToString(" · ") + ". Video details adds Rename and Open with.",
+    "More places" to "Add a folder or an SD card, or open a single file."
+)
 
-@Composable
-private fun MockThumb(top: Color, bottom: Color, title: String, progress: Float?, modifier: Modifier = Modifier) {
-    Column(modifier = modifier) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(16f / 10f)
-                .clip(RoundedCornerShape(10.dp))
-                .background(Brush.linearGradient(listOf(top, bottom)))
-        ) {
-            if (progress != null) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .fillMaxWidth()
-                        .height(3.dp)
-                        .background(Color.White.copy(alpha = 0.18f))
-                )
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .fillMaxWidth(progress)
-                        .height(3.dp)
-                        .background(ApturaColors.AccentPrimary)
-                )
-            }
-        }
-        Spacer(Modifier.height(6.dp))
-        Text(title, style = ApturaTypography.bodyMedium, color = ApturaColors.TextHighEmphasis)
-    }
-}
+// ---- page 3: the player -------------------------------------------------------------------------------------------
 
-/** A short list of what the library can do, each with a plain-language outcome. */
-@Composable
-internal fun FeatureList(items: List<Pair<String, String>>) {
-    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        items.forEach { (title, detail) ->
-            Row(verticalAlignment = Alignment.Top) {
-                Box(
-                    modifier = Modifier
-                        .padding(top = 7.dp)
-                        .size(6.dp)
-                        .clip(CircleShape)
-                        .background(ApturaColors.AccentPrimary)
-                )
-                Spacer(Modifier.width(14.dp))
-                Column {
-                    Text(title, style = ApturaTypography.titleMedium, color = ApturaColors.TextHighEmphasis)
-                    Text(detail, style = ApturaTypography.bodyMedium, color = ApturaColors.TextMediumEmphasis)
-                }
-            }
-        }
-    }
-}
-
-// ---- page 3: gestures -------------------------------------------------------------------------------------------
-
-/** The player as a landscape screen split into the two touch zones, with what each zone does. */
-@Composable
-internal fun GestureMap(modifier: Modifier = Modifier) {
-    val shape = RoundedCornerShape(18.dp)
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .aspectRatio(16f / 8.2f)
-            .clip(shape)
-            .background(ApturaColors.SurfacePureBlack)
-            .border(1.dp, Hairline, shape)
-            .drawBehind {
-                // The seam between the two halves.
-                drawLine(
-                    color = ApturaColors.BorderSubtle,
-                    start = Offset(size.width / 2, 14.dp.toPx()),
-                    end = Offset(size.width / 2, size.height - 38.dp.toPx()),
-                    strokeWidth = 1.dp.toPx(),
-                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f))
-                )
-            }
-            .clearAndSetSemantics {
-                contentDescription = "The player screen has two halves. Swipe up or down on the left half to change brightness and on the right half to change volume. " +
-                    "Double-tap the left to rewind and the right to fast-forward."
-            }
-    ) {
-        Row(modifier = Modifier.fillMaxSize().padding(bottom = 34.dp)) {
-            ZoneLabel(
-                icon = Icons.Default.BrightnessMedium,
-                name = "Brightness",
-                doubleTapIcon = Icons.Default.FastRewind,
-                doubleTapLabel = "double-tap",
-                modifier = Modifier.weight(1f)
-            )
-            ZoneLabel(
-                icon = Icons.AutoMirrored.Filled.VolumeUp,
-                name = "Volume",
-                doubleTapIcon = Icons.Default.FastForward,
-                doubleTapLabel = "double-tap",
-                modifier = Modifier.weight(1f)
-            )
-        }
-        // The scrubber along the bottom: a swipe anywhere moves along it.
-        Row(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(Icons.Default.SwapHoriz, contentDescription = null, tint = ApturaColors.AccentPrimary, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(4.dp)
-                    .clip(CircleShape)
-                    .background(ApturaColors.BorderSubtle)
-            ) {
-                Box(Modifier.fillMaxWidth(0.42f).fillMaxHeight().background(ApturaColors.AccentPrimary))
-            }
-            Spacer(Modifier.width(8.dp))
-            Text("swipe to seek", style = ApturaTypography.labelSmall, color = ApturaColors.TextMediumEmphasis)
-        }
-    }
-}
-
-@Composable
-private fun ZoneLabel(
-    icon: ImageVector,
-    name: String,
-    doubleTapIcon: ImageVector,
-    doubleTapLabel: String,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier.fillMaxHeight(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, contentDescription = null, tint = ApturaColors.TextHighEmphasis, modifier = Modifier.size(22.dp))
-            Spacer(Modifier.width(4.dp))
-            Icon(Icons.Default.SwapVert, contentDescription = null, tint = ApturaColors.AccentPrimary, modifier = Modifier.size(20.dp))
-        }
-        Spacer(Modifier.height(4.dp))
-        Text(name, style = ApturaTypography.titleMedium, color = ApturaColors.TextHighEmphasis)
-        Spacer(Modifier.height(10.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(doubleTapIcon, contentDescription = null, tint = ApturaColors.TextMediumEmphasis, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(4.dp))
-            Text(doubleTapLabel, style = ApturaTypography.labelSmall, color = ApturaColors.TextMediumEmphasis)
-        }
-    }
-}
-
-/** The gestures that are not obvious from the map. */
+/** The gestures that are not obvious from the picture. */
 internal val ExtraGestures = listOf(
     "Hold anywhere" to "Plays at 2× while you keep your finger down, then returns to your speed.",
     "Swipe left or right" to "Scrubs through the video; lift to jump there.",
@@ -340,7 +271,7 @@ internal val ExtraGestures = listOf(
     "Lock button" to "Ignores every touch until you unlock, handy in a pocket or for little hands."
 )
 
-// ---- page 4: tools ----------------------------------------------------------------------------------------------
+// ---- page 4: tools ------------------------------------------------------------------------------------------------
 
 internal data class GuideTool(val icon: ImageVector, val title: String, val detail: String)
 
@@ -363,9 +294,9 @@ internal val GuideTools = listOf(
 @Composable
 internal fun ToolGrid() {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        GuideTools.chunked(2).forEach { pair ->
+        GuideTools.chunked(2).forEachIndexed { row, pair ->
             Row(
-                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Max),
+                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Max).reveal(6 + row),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 pair.forEach { tool -> ToolTile(tool, Modifier.weight(1f).fillMaxHeight()) }
@@ -393,7 +324,43 @@ private fun ToolTile(tool: GuideTool, modifier: Modifier = Modifier) {
     }
 }
 
-// ---- page 5: access ---------------------------------------------------------------------------------------------
+// ---- page 5: access -----------------------------------------------------------------------------------------------
+
+/** A ring around the library icon, with a tick once access is granted. */
+@Composable
+internal fun AccessHero(hasAccess: Boolean, modifier: Modifier = Modifier) {
+    val accent = ApturaColors.AccentPrimary
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(104.dp)
+            .clearAndSetSemantics { },
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(80.dp)
+                .clip(CircleShape)
+                .background(accent.copy(alpha = 0.12f))
+                .border(1.dp, accent.copy(alpha = 0.4f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Default.VideoLibrary, contentDescription = null, tint = accent, modifier = Modifier.size(38.dp))
+        }
+        if (hasAccess) {
+            Box(
+                modifier = Modifier
+                    .offset(x = 34.dp, y = 30.dp)
+                    .size(30.dp)
+                    .clip(CircleShape)
+                    .background(ApturaColors.StatusSuccess),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+            }
+        }
+    }
+}
 
 /** What access is for, and what happens without it. */
 @Composable
@@ -402,8 +369,8 @@ internal fun AccessExplainer(hasAccess: Boolean) {
         val rows = if (hasAccess) {
             listOf(
                 "Your library is ready" to "Aptura already has permission to read your videos. New files appear after a scan.",
-                "Change this any time" to "Revoke access in Android settings, or add extra folders and SD cards in Aptura's Settings.",
-                "See this guide again" to "Open Settings from the library and choose Welcome Guide."
+                "Change this any time" to "Revoke access in Android settings, or add Extra folders and SD cards in Aptura's Settings.",
+                "See this guide again" to "Open Settings from the library and choose Welcome guide."
             )
         } else {
             listOf(
@@ -413,7 +380,12 @@ internal fun AccessExplainer(hasAccess: Boolean) {
             )
         }
         rows.forEachIndexed { index, (title, detail) ->
-            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .reveal(4 + index)
+                    .padding(horizontal = 16.dp, vertical = 14.dp)
+            ) {
                 Text(title, style = ApturaTypography.titleMedium, color = ApturaColors.TextHighEmphasis)
                 Text(detail, style = ApturaTypography.bodyMedium, color = ApturaColors.TextMediumEmphasis)
             }
@@ -423,32 +395,3 @@ internal fun AccessExplainer(hasAccess: Boolean) {
         }
     }
 }
-
-/** A heading block shared by the pages: a small label, then the title. */
-@Composable
-internal fun PageHeading(label: String, title: String, body: String) {
-    Column(horizontalAlignment = Alignment.Start, modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = label.uppercase(),
-            style = ApturaTypography.labelSmall.copy(letterSpacing = 1.8.sp),
-            color = ApturaColors.AccentPrimary,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = title,
-            style = ApturaTypography.headlineLarge.copy(fontSize = 30.sp, lineHeight = 36.sp),
-            color = ApturaColors.TextHighEmphasis,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Start
-        )
-        Spacer(Modifier.height(10.dp))
-        Text(
-            text = body,
-            style = ApturaTypography.bodyLarge,
-            color = ApturaColors.TextMediumEmphasis,
-            textAlign = TextAlign.Start
-        )
-    }
-}
-

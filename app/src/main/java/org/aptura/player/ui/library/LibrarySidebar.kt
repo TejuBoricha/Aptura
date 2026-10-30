@@ -41,6 +41,8 @@ import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,6 +54,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -100,6 +103,13 @@ internal fun LibrarySidebar(
         )
 
         val listState = rememberLazyListState()
+        val labels = remember(state.folders) { folderLabels(state.folders) }
+        // Items: 0 is the "Collections" header, 1 is "All videos", the folders follow. Whichever way a folder was
+        // selected (a tap, or a swipe that moved several folders along), its row must be on screen.
+        val selectedRow = if (state.selectedFolder == null) 1 else state.folders.indexOf(state.selectedFolder).takeIf { it >= 0 }?.plus(2)
+        LaunchedEffect(selectedRow) {
+            if (selectedRow != null) listState.scrollIntoView(selectedRow)
+        }
         Box(
             modifier = Modifier
                 .weight(1f)
@@ -131,7 +141,7 @@ internal fun LibrarySidebar(
                     val selected = state.selectedFolder == folder
                     SidebarCollectionRow(
                         icon = if (selected) Icons.Default.FolderOpen else Icons.Default.Folder,
-                        label = friendlyFolderName(folder),
+                        label = labels[folder] ?: friendlyFolderName(folder),
                         count = state.folderCounts[folder],
                         selected = selected,
                         onClick = { onFolderSelected(folder) }
@@ -148,20 +158,13 @@ internal fun LibrarySidebar(
                     }
                 }
             }
-            // On an 800 dp-tall tablet the list genuinely scrolls; the fade says so without a scrollbar.
+            // On an 800 dp-tall tablet the list genuinely scrolls. The edges say so without a scrollbar, and keep a row
+            // that has slid under the panel above (or the tools below) from being sliced through its text.
+            if (listState.canScrollBackward) {
+                ListEdgeFade(top = true, modifier = Modifier.align(Alignment.TopCenter).testTag(SIDEBAR_TOP_EDGE_TAG))
+            }
             if (listState.canScrollForward) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .height(28.dp)
-                        .background(
-                            Brush.verticalGradient(
-                                0f to Color.Transparent,
-                                1f to ApturaColors.SurfaceElevated1
-                            )
-                        )
-                )
+                ListEdgeFade(top = false, modifier = Modifier.align(Alignment.BottomCenter))
             }
         }
 
@@ -172,6 +175,32 @@ internal fun LibrarySidebar(
             onSettingsClick = onSettingsClick
         )
     }
+}
+
+internal const val SIDEBAR_TOP_EDGE_TAG = "sidebar_top_edge"
+
+/** How far a scrolling list's edge reaches into the list. */
+private val ListEdgeFadeHeight = 40.dp
+
+/**
+ * The edge of a list that continues beyond the panel it sits against. The first stretch is the panel's own colour, so a
+ * row that has scrolled under the edge is hidden rather than sliced through its text; the rest fades into the list so
+ * the edge reads as "more this way", not as a wall.
+ */
+@Composable
+private fun ListEdgeFade(top: Boolean, modifier: Modifier = Modifier) {
+    val panel = ApturaColors.SurfaceElevated1
+    val stops = if (top) {
+        arrayOf(0f to panel, 0.3f to panel, 1f to Color.Transparent)
+    } else {
+        arrayOf(0f to Color.Transparent, 0.7f to panel, 1f to panel)
+    }
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(ListEdgeFadeHeight)
+            .background(Brush.verticalGradient(colorStops = stops))
+    )
 }
 
 /** Collapsed fallback: the same information architecture, compressed to an icon rail. */
@@ -185,13 +214,15 @@ internal fun LibraryCompactRail(
     onOpenFilePicker: () -> Unit,
     onRefresh: () -> Unit,
     onSettingsClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    shortWindow: Boolean = false
 ) {
     val total = state.libraryVideoCount.takeIf { it > 0 } ?: state.totalCount
     // 88 dp cannot hold a wordmark or navigational labels at 200% type: "APTURA" wraps to two lines and
     // "Refresh" touches both edges. Below 150% the labels are the friendlier affordance; above it the rail
-    // becomes icon-only and the icons' content descriptions carry the names for TalkBack.
-    val showLabels = LocalDensity.current.fontScale < 1.5f
+    // becomes icon-only and the icons' content descriptions carry the names for TalkBack. The same on a short
+    // window (a phone held sideways), where four labelled items and the header are taller than the screen.
+    val showLabels = LocalDensity.current.fontScale < 1.5f && !shortWindow
     NavigationRail(
         modifier = modifier.fillMaxHeight(),
         containerColor = ApturaColors.SurfaceElevated1,
@@ -644,10 +675,21 @@ private fun railItemColors(selected: Boolean) = NavigationRailItemDefaults.color
     unselectedTextColor = ApturaColors.TextMediumEmphasis
 )
 
-/** Paths arrive as SAF tree identifiers; show the last segment, not a wall of percent-encoded path. */
-internal fun friendlyFolderName(folder: String): String =
-    if (folder.contains('/')) {
-        folder.trimEnd('/').substringAfterLast('/').ifBlank { "Internal Storage" }
-    } else {
-        folder.ifBlank { "Internal Storage" }
-    }
+/** A folder's own name: the last segment of its key, or the storage's name for a storage's top level. */
+internal fun friendlyFolderName(folder: String): String {
+    val place = folderPlace(folder)
+    return place.segments.lastOrNull() ?: place.storage ?: "Internal Storage"
+}
+
+/**
+ * Scrolls just far enough to show the item at [index], with some context around it, and not at all when it is already
+ * fully visible (so tapping a visible row does not make the list jump).
+ */
+internal suspend fun androidx.compose.foundation.lazy.LazyListState.scrollIntoView(index: Int) {
+    val visible = layoutInfo.visibleItemsInfo.firstOrNull { it.index == index }
+    val viewportStart = layoutInfo.viewportStartOffset
+    val viewportEnd = layoutInfo.viewportEndOffset
+    if (visible != null && visible.offset >= viewportStart && visible.offset + visible.size <= viewportEnd) return
+    // Leave the previous row visible above the target, so the list reads as continuing.
+    animateScrollToItem((index - 1).coerceAtLeast(0))
+}

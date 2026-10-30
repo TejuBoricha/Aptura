@@ -2,7 +2,9 @@ package org.aptura.player.ui.onboarding
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -36,12 +38,23 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -50,14 +63,25 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.abs
+import kotlin.math.min
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
+import org.aptura.player.ui.components.windowSizeDp
+import org.aptura.player.ui.library.MediaLibraryUiState
 
 private const val PAGE_COUNT = 5
 private const val LAST_PAGE = PAGE_COUNT - 1
+
+/** The first page is on screen and has played its entrance this long before the others start being built behind it. */
+internal const val GUIDE_BUILD_AHEAD_START_MS = 1_200L
+
+/** One more page is built behind the current one this often (a page is 50-130 ms of work; two at once would be a visible hitch). */
+internal const val GUIDE_BUILD_AHEAD_STEP_MS = 350L
 
 /**
  * The welcome guide (SCR-001, FR-LIB-001..003): what Aptura keeps private, how the library works, the player's touch
@@ -67,6 +91,12 @@ private const val LAST_PAGE = PAGE_COUNT - 1
  * page adapts: without access it asks for it (or offers Limited Mode); with access it simply lets you start.
  *
  * [onReachedLastPage] fires once the final page is shown, so the guide counts as seen even if the app is closed there.
+ *
+ * [animateDemos] lets the pictures move on their own (the welcome rings, the player gestures). It follows Android's
+ * animation setting by default; with it off every picture rests on one frame that says the same thing.
+ *
+ * [libraryState] is the person's library. When it holds enough videos, the library page shows them (their own frames
+ * and folders) instead of the samples, which is what the replay from Settings does.
  */
 @Composable
 fun OnboardingScreen(
@@ -75,9 +105,55 @@ fun OnboardingScreen(
     modifier: Modifier = Modifier,
     hasStorageAccess: Boolean = false,
     onFinishClick: () -> Unit = {},
-    onReachedLastPage: () -> Unit = {}
+    onReachedLastPage: () -> Unit = {},
+    animateDemos: Boolean = rememberGuideMotionEnabled(),
+    libraryState: MediaLibraryUiState.Success? = null
+) {
+    val library = remember(libraryState) { libraryState?.let(::guideLibraryFrom) } ?: SampleLibrary
+    CompositionLocalProvider(LocalGuideMotion provides animateDemos) {
+        GuideContent(
+            hasStorageAccess = hasStorageAccess,
+            onRequestPermissionClick = onRequestPermissionClick,
+            onContinueWithoutPermissionClick = onContinueWithoutPermissionClick,
+            onFinishClick = onFinishClick,
+            onReachedLastPage = onReachedLastPage,
+            animateDemos = animateDemos,
+            library = library,
+            modifier = modifier
+        )
+    }
+}
+
+@Composable
+private fun GuideContent(
+    hasStorageAccess: Boolean,
+    onRequestPermissionClick: () -> Unit,
+    onContinueWithoutPermissionClick: () -> Unit,
+    onFinishClick: () -> Unit,
+    onReachedLastPage: () -> Unit,
+    animateDemos: Boolean,
+    library: GuideLibrary,
+    modifier: Modifier
 ) {
     val pagerState = rememberPagerState(pageCount = { PAGE_COUNT })
+    val shortWindow = isShortWindow()
+    // The first page builds itself up when the guide opens; later pages do it as they are swiped in.
+    val intro = remember { Animatable(if (animateDemos) 0f else 1f) }
+    LaunchedEffect(Unit) {
+        if (animateDemos) intro.animateTo(1f, tween(durationMillis = 900, delayMillis = 100))
+    }
+    // Every page is a screen's worth of real composables (the library header, folder bar and cards, the player scene).
+    // Building one costs 50-130 ms; the pager built it on the frame a swipe began, and threw it away when the page was
+    // left, so every Next and Back, and every swipe, began with a hitch. Once the first page has settled, the others are
+    // built behind it one at a time, and then kept: a page turn is only a move.
+    var builtAhead by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        delay(GUIDE_BUILD_AHEAD_START_MS)
+        for (ahead in 1 until PAGE_COUNT) {
+            builtAhead = ahead
+            delay(GUIDE_BUILD_AHEAD_STEP_MS)
+        }
+    }
     val coroutineScope = rememberCoroutineScope()
     val page = pagerState.currentPage
 
@@ -100,17 +176,29 @@ fun OnboardingScreen(
                 .fillMaxWidth()
                 .clipToBounds()
         ) {
+            GuideBackdrop(
+                position = { pagerState.currentPage + pagerState.currentPageOffsetFraction },
+                modifier = Modifier.fillMaxSize()
+            )
             HorizontalPager(
                 state = pagerState,
-                modifier = Modifier.fillMaxSize(),
+                beyondViewportPageCount = builtAhead,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .fadeEdges(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 56.dp, bottom = GUIDE_BOTTOM_FADE_HEIGHT),
                 key = { it }
             ) { index ->
                 GuidePage(
-                    // Pages dim slightly as they slide away, so the swipe reads as one motion.
-                    distanceFromCenter = { abs((pagerState.currentPage - index) + pagerState.currentPageOffsetFraction) }
+                    // A page's parts arrive as it is swiped to the centre, and leave as it is swiped away. The first
+                    // page also waits for the guide's own opening.
+                    progress = {
+                        val centred = 1f - abs((pagerState.currentPage - index) + pagerState.currentPageOffsetFraction).coerceIn(0f, 1f)
+                        if (index == 0) min(centred, intro.value) else centred
+                    }
                 ) {
                     when (index) {
                         0 -> {
+                            if (!shortWindow) WelcomeHero(Modifier.reveal(0))
                             PageHeading(
                                 label = "Welcome to Aptura",
                                 title = "Everything stays on your device",
@@ -122,17 +210,10 @@ fun OnboardingScreen(
                             PageHeading(
                                 label = "Your library",
                                 title = "Find it, then pick up where you left off",
-                                body = "Videos appear on their own and stay up to date."
+                                body = "Videos appear on their own and stay up to date. Try the layouts below."
                             )
-                            LibraryMock()
-                            FeatureList(
-                                listOf(
-                                    "Search, filter and sort" to "Search by title, filter by folder, and order the grid your way.",
-                                    "Continue Watching" to "Videos you stopped partway sit at the top, with the time left.",
-                                    "The ⋮ menu on any video" to "Play next, add to queue, play audio only, share, open in another player, rename, hide or delete.",
-                                    "More places" to "Add a folder or an SD card, or open a single file."
-                                )
-                            )
+                            LibraryDemo(Modifier.reveal(4), library = library)
+                            FeatureList(LibraryFeatures)
                         }
                         2 -> {
                             PageHeading(
@@ -140,7 +221,7 @@ fun OnboardingScreen(
                                 title = "Control playback with your thumbs",
                                 body = "The screen is split in two. No buttons needed."
                             )
-                            GestureMap()
+                            PlayerDemo(Modifier.reveal(4))
                             FeatureList(ExtraGestures)
                         }
                         3 -> {
@@ -149,9 +230,11 @@ fun OnboardingScreen(
                                 title = "Tools for the details",
                                 body = "Tap the screen while a video plays to show the controls and menus. These are in there."
                             )
+                            SpeedTryIt(Modifier.reveal(4))
                             ToolGrid()
                         }
                         else -> {
+                            if (!shortWindow) AccessHero(hasAccess = hasStorageAccess, modifier = Modifier.reveal(0))
                             PageHeading(
                                 label = if (hasStorageAccess) "Ready" else "Access",
                                 title = if (hasStorageAccess) "You're all set" else "Let Aptura see your videos",
@@ -167,116 +250,150 @@ fun OnboardingScreen(
                 }
             }
 
-            // The same fade at the top, so scrolled content never runs under the status bar or the Skip button.
-            Box(
+            // Where you are, and Skip. Declared AFTER the pager: later siblings draw and receive touches on top. When
+            // Skip was declared before the full-screen pager, the pager swallowed every tap and Skip never worked
+            // (audit P1-03). Fully qualified: the imported name resolves to the ColumnScope extension of the footer.
+            Row(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
+                    .widthIn(max = 560.dp)
                     .fillMaxWidth()
-                    .height(WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 80.dp)
-                    .background(
-                        Brush.verticalGradient(
-                            0f to ApturaColors.SurfaceBase,
-                            0.65f to ApturaColors.SurfaceBase,
-                            1f to Color.Transparent
-                        )
-                    )
-            )
-
-            // Skip. Declared AFTER the pager: later siblings draw and receive touches on top. When it was declared
-            // before the full-screen pager, the pager swallowed every tap and Skip never worked (audit P1-03).
-            // Fully qualified: the imported name resolves to the ColumnScope extension of the outer footer column.
-            androidx.compose.animation.AnimatedVisibility(
-                visible = page < LAST_PAGE,
-                enter = fadeIn(),
-                exit = fadeOut(),
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
                     .statusBarsPadding()
-                    .padding(top = 8.dp, end = 16.dp)
+                    .padding(top = 8.dp, start = 24.dp, end = 16.dp)
+                    .height(48.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                TextButton(
-                    onClick = { coroutineScope.launch { pagerState.animateScrollToPage(LAST_PAGE) } }
+                // The capsules below already say "Page n of N" to a screen reader; this is the same fact for the eye.
+                Text(
+                    text = "${page + 1} / $PAGE_COUNT",
+                    style = ApturaTypography.labelLarge.copy(fontFeatureSettings = "tnum"),
+                    color = ApturaColors.TextMediumEmphasis,
+                    modifier = Modifier.clearAndSetSemantics { }
+                )
+                Spacer(Modifier.weight(1f))
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = page < LAST_PAGE,
+                    enter = fadeIn(),
+                    exit = fadeOut()
                 ) {
-                    Text(text = "Skip", style = ApturaTypography.labelLarge, color = ApturaColors.TextMediumEmphasis)
+                    TextButton(
+                        onClick = { coroutineScope.launch { pagerState.animateScrollToPage(LAST_PAGE) } }
+                    ) {
+                        Text(text = "Skip", style = ApturaTypography.labelLarge, color = ApturaColors.TextMediumEmphasis)
+                    }
                 }
             }
-
-            // A short fade at the page/footer boundary hints that the page scrolls without washing out a whole row.
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .height(GUIDE_BOTTOM_FADE_HEIGHT)
-                    .background(
-                        Brush.verticalGradient(
-                            0f to Color.Transparent,
-                            1f to ApturaColors.SurfaceBase
-                        )
-                    )
-            )
         }
 
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag("guide_footer")
-                .background(ApturaColors.SurfaceBase)
-                .navigationBarsPadding()
-                .padding(horizontal = 24.dp, vertical = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            PageIndicator(current = page)
-            Spacer(Modifier.height(20.dp))
+        val onNext: () -> Unit = { coroutineScope.launch { pagerState.animateScrollToPage(page + 1) } }
+        val onBack: () -> Unit = { coroutineScope.launch { pagerState.animateScrollToPage(page - 1) } }
+        // A landscape phone has barely 400 dp of height: stacked dots, button and Back would take half of it and hide the
+        // page. There the three share one row.
+        val window = windowSizeDp()
+        val compactFooter = window.height < 520.dp && window.width > window.height
 
-            val primaryColors = ButtonDefaults.buttonColors(
-                containerColor = ApturaColors.AccentPrimary,
-                contentColor = ApturaColors.TextOnAccent
+        if (compactFooter) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("guide_footer")
+                    .background(ApturaColors.SurfaceBase)
+                    .navigationBarsPadding()
+                    .padding(horizontal = 24.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                    GuideSecondaryAction(page, hasStorageAccess, onBack, onContinueWithoutPermissionClick)
+                }
+                PageIndicator(current = page)
+                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+                    GuidePrimaryButton(
+                        page = page,
+                        hasStorageAccess = hasStorageAccess,
+                        onNext = onNext,
+                        onFinish = onFinishClick,
+                        onRequestPermission = onRequestPermissionClick,
+                        modifier = Modifier.widthIn(min = 200.dp).height(48.dp)
+                    )
+                }
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("guide_footer")
+                    .background(ApturaColors.SurfaceBase)
+                    .navigationBarsPadding()
+                    .padding(horizontal = 24.dp, vertical = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                PageIndicator(current = page)
+                Spacer(Modifier.height(20.dp))
+                GuidePrimaryButton(
+                    page = page,
+                    hasStorageAccess = hasStorageAccess,
+                    onNext = onNext,
+                    onFinish = onFinishClick,
+                    onRequestPermission = onRequestPermissionClick,
+                    modifier = Modifier.widthIn(max = 560.dp).fillMaxWidth().height(52.dp)
+                )
+                // One fixed-height slot, so the layout never jumps between pages.
+                Box(modifier = Modifier.height(48.dp), contentAlignment = Alignment.Center) {
+                    GuideSecondaryAction(page, hasStorageAccess, onBack, onContinueWithoutPermissionClick)
+                }
+            }
+        }
+    }
+}
+
+/** The one thing to do on this page: go on, start watching, or allow access. */
+@Composable
+private fun GuidePrimaryButton(
+    page: Int,
+    hasStorageAccess: Boolean,
+    onNext: () -> Unit,
+    onFinish: () -> Unit,
+    onRequestPermission: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = ButtonDefaults.buttonColors(
+        containerColor = ApturaColors.AccentPrimary,
+        contentColor = ApturaColors.TextOnAccent
+    )
+    when {
+        page < LAST_PAGE -> Button(onClick = onNext, modifier = modifier, shape = CircleShape, colors = colors) {
+            Text(text = "Continue", style = ApturaTypography.labelLarge, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.width(8.dp))
+            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp))
+        }
+        hasStorageAccess -> Button(onClick = onFinish, modifier = modifier, shape = CircleShape, colors = colors) {
+            Text(text = "Start watching", style = ApturaTypography.labelLarge, fontWeight = FontWeight.Bold)
+        }
+        else -> Button(onClick = onRequestPermission, modifier = modifier, shape = CircleShape, colors = colors) {
+            Text(text = "Allow access", style = ApturaTypography.labelLarge, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+/** The quieter second choice: limited access on the last page without access, otherwise Back (never on the first page). */
+@Composable
+private fun GuideSecondaryAction(
+    page: Int,
+    hasStorageAccess: Boolean,
+    onBack: () -> Unit,
+    onContinueWithoutPermission: () -> Unit
+) {
+    when {
+        page == LAST_PAGE && !hasStorageAccess -> TextButton(onClick = onContinueWithoutPermission) {
+            Text(
+                text = "Continue with limited access",
+                style = ApturaTypography.bodyMedium,
+                color = ApturaColors.TextMediumEmphasis
             )
-            val buttonModifier = Modifier
-                .widthIn(max = 560.dp)
-                .fillMaxWidth()
-                .height(52.dp)
-
-            when {
-                page < LAST_PAGE -> {
-                    Button(
-                        onClick = { coroutineScope.launch { pagerState.animateScrollToPage(page + 1) } },
-                        modifier = buttonModifier,
-                        shape = CircleShape,
-                        colors = primaryColors
-                    ) {
-                        Text(text = "Continue", style = ApturaTypography.labelLarge, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.width(8.dp))
-                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp))
-                    }
-                }
-                hasStorageAccess -> {
-                    Button(onClick = onFinishClick, modifier = buttonModifier, shape = CircleShape, colors = primaryColors) {
-                        Text(text = "Start watching", style = ApturaTypography.labelLarge, fontWeight = FontWeight.Bold)
-                    }
-                }
-                else -> {
-                    Button(onClick = onRequestPermissionClick, modifier = buttonModifier, shape = CircleShape, colors = primaryColors) {
-                        Text(text = "Allow access", style = ApturaTypography.labelLarge, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-
-            // One fixed-height slot, so the layout never jumps between pages.
-            Box(modifier = Modifier.height(48.dp), contentAlignment = Alignment.Center) {
-                when {
-                    page == LAST_PAGE && !hasStorageAccess -> TextButton(onClick = onContinueWithoutPermissionClick) {
-                        Text(
-                            text = "Continue with limited access",
-                            style = ApturaTypography.bodyMedium,
-                            color = ApturaColors.TextMediumEmphasis
-                        )
-                    }
-                    page > 0 -> TextButton(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(page - 1) } }) {
-                        Text(text = "Back", style = ApturaTypography.bodyMedium, color = ApturaColors.TextMediumEmphasis)
-                    }
-                }
-            }
+        }
+        page > 0 -> TextButton(onClick = onBack) {
+            Text(text = "Back", style = ApturaTypography.bodyMedium, color = ApturaColors.TextMediumEmphasis)
         }
     }
 }
@@ -289,29 +406,75 @@ internal val GUIDE_BOTTOM_FADE_HEIGHT = 20.dp
  */
 internal val GUIDE_CONTENT_BOTTOM_PADDING = GUIDE_BOTTOM_FADE_HEIGHT + 16.dp
 
-/** One scrolling page: content is capped to a readable width and leaves room for Skip above and the fixed footer. */
+/** One scrolling page: content is capped to a readable width and leaves room for the top bar and the fixed footer. */
 @Composable
 private fun GuidePage(
-    distanceFromCenter: () -> Float,
+    progress: () -> Float,
     content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .graphicsLayer { alpha = 1f - distanceFromCenter().coerceIn(0f, 1f) * 0.6f },
-        contentAlignment = Alignment.TopCenter
-    ) {
-        Column(
-            modifier = Modifier
-                .widthIn(max = 560.dp)
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .statusBarsPadding()
-                .padding(start = 24.dp, end = 24.dp, top = 64.dp, bottom = GUIDE_CONTENT_BOTTOM_PADDING),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
-            content = content
+    GuidePageScope(progress) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            Column(
+                modifier = Modifier
+                    .widthIn(max = 560.dp)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .statusBarsPadding()
+                    .padding(start = 24.dp, end = 24.dp, top = 64.dp, bottom = GUIDE_CONTENT_BOTTOM_PADDING),
+                verticalArrangement = Arrangement.spacedBy(24.dp),
+                content = content
+            )
+        }
+    }
+}
+
+/**
+ * Fades the top and bottom edges of a scrolling page to transparent, so content that scrolls under the top bar (or
+ * towards the footer) dissolves into whatever is behind it, here the backdrop's glow, instead of being covered by a
+ * flat band of the page colour that would show as a seam against it.
+ */
+private fun Modifier.fadeEdges(top: Dp, bottom: Dp): Modifier = this
+    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+    .drawWithContent {
+        drawContent()
+        val topPx = top.toPx()
+        val bottomPx = bottom.toPx()
+        drawRect(
+            brush = Brush.verticalGradient(0f to Color.Transparent, 1f to Color.Black, startY = 0f, endY = topPx),
+            size = Size(size.width, topPx),
+            blendMode = BlendMode.DstIn
+        )
+        drawRect(
+            brush = Brush.verticalGradient(0f to Color.Black, 1f to Color.Transparent, startY = size.height - bottomPx, endY = size.height),
+            topLeft = Offset(0f, size.height - bottomPx),
+            size = Size(size.width, bottomPx),
+            blendMode = BlendMode.DstIn
         )
     }
+
+/**
+ * A soft glow of the accent colour behind the pages. It drifts sideways as the pages are swiped, so the whole guide
+ * feels like one surface moving under the finger instead of five separate screens. Drawn behind everything, and read in
+ * the draw phase, so a swipe costs no recomposition.
+ */
+@Composable
+private fun GuideBackdrop(position: () -> Float, modifier: Modifier = Modifier) {
+    val accent = ApturaColors.AccentPrimary
+    val strength = if (ApturaColors.IsDark) 0.20f else 0.11f
+    Box(
+        modifier = modifier.drawBehind {
+            val centre = Offset(size.width * (1.05f - 0.30f * position()), size.height * 0.08f)
+            val radius = size.width * 0.95f
+            drawCircle(
+                brush = Brush.radialGradient(listOf(accent.copy(alpha = strength), Color.Transparent), center = centre, radius = radius),
+                radius = radius,
+                center = centre
+            )
+        }
+    )
 }
 
 /** Capsules, the current one wider. Spoken once as "Page n of N" rather than as five unnamed shapes. */

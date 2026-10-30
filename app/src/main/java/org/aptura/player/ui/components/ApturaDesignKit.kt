@@ -67,12 +67,14 @@ enum class ApturaTone { Accent, Neutral, Destructive }
 private val ButtonShape = RoundedCornerShape(14.dp)
 private val ButtonMinHeight = 48.dp
 
+@Composable
 private fun toneContainer(tone: ApturaTone): Color = when (tone) {
     ApturaTone.Accent -> ApturaColors.AccentPrimary
     ApturaTone.Neutral -> ApturaColors.SurfaceElevated3
     ApturaTone.Destructive -> ApturaColors.StatusError
 }
 
+@Composable
 private fun toneContent(tone: ApturaTone): Color = when (tone) {
     ApturaTone.Accent -> ApturaColors.TextOnAccent
     ApturaTone.Neutral -> ApturaColors.TextHighEmphasis

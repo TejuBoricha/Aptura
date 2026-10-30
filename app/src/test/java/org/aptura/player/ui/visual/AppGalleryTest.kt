@@ -113,15 +113,32 @@ class SettingsGalleryTest : GalleryBase() {
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xhdpi")
 class OnboardingGalleryTest : GalleryBase() {
 
-    private fun pages(mode: ThemeMode, prefix: String, access: Boolean) {
+    private fun pages(
+        mode: ThemeMode,
+        prefix: String,
+        access: Boolean,
+        fontScale: Float = 1f,
+        library: org.aptura.player.ui.library.MediaLibraryUiState.Success? = null
+    ) {
         themed(mode) {
-            OnboardingScreen(onRequestPermissionClick = {}, onContinueWithoutPermissionClick = {}, hasStorageAccess = access)
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            androidx.compose.runtime.CompositionLocalProvider(
+                androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(density.density, fontScale)
+            ) {
+                OnboardingScreen(
+                    onRequestPermissionClick = {},
+                    onContinueWithoutPermissionClick = {},
+                    hasStorageAccess = access,
+                    animateDemos = false,
+                    libraryState = library
+                )
+            }
         }
         for (page in 0 until 5) {
             shoot("${prefix}_$page")
-            val next = composeRule.onAllNodes(hasText("Continue")).fetchSemanticsNodes()
-            if (next.isEmpty()) break
-            composeRule.onAllNodes(hasText("Continue"))[0].performClick()
+            val next = composeRule.onAllNodes(hasText("Continue"))
+            if (next.fetchSemanticsNodes().isEmpty()) break
+            next[0].performClick()
             settle()
         }
     }
@@ -131,6 +148,18 @@ class OnboardingGalleryTest : GalleryBase() {
 
     @Config(qualifiers = "w1280dp-h800dp-xhdpi")
     @Test fun tablet() = pages(ThemeMode.LIGHT, "onboarding_tablet", access = false)
+
+    @Config(qualifiers = "w320dp-h640dp-xhdpi")
+    @Test fun smallPhone() = pages(ThemeMode.DARK, "onboarding_small", access = false)
+
+    @Config(qualifiers = "w891dp-h411dp-xhdpi")
+    @Test fun landscape() = pages(ThemeMode.DARK, "onboarding_landscape", access = false)
+
+    @Test fun largeFont() = pages(ThemeMode.LIGHT, "onboarding_font200", access = false, fontScale = 2f)
+
+    /** The replay from Settings: the person's own videos, with their own frames, on the library page. */
+    @Test fun replayWithTheirOwnLibrary() =
+        pages(ThemeMode.DARK, "onboarding_replay", access = true, library = librarySuccess(continueWatching = false))
 }
 
 @RunWith(RobolectricTestRunner::class)
@@ -208,6 +237,47 @@ class PlayerGalleryTest : GalleryBase() {
     @Test fun queue() { player(base.copy(activeSheet = PlayerSheet.Queue)); shoot("sheet_queue") }
     @Test fun why() { player(base.copy(activeSheet = PlayerSheet.WhyCompatibility)); shoot("sheet_why") }
     @Test fun web() { player(base.copy(activeSheet = PlayerSheet.WebSearch, cleanSearchQuery = "Blade Runner 2049")); shoot("sheet_websearch") }
+
+    @Test fun audioOnly() { player(base.copy(isAudioOnly = true, videoTitle = "VID-20260928-WA0034")); shoot("player_audio_only") }
+
+    @Config(qualifiers = "w740dp-h360dp-xhdpi")
+    @Test fun audioOnlySmallSideways() { player(base.copy(isAudioOnly = true, videoTitle = "VID-20260928-WA0034")); shoot("player_audio_only_small_sideways") }
+
+    @Config(qualifiers = "w411dp-h891dp-xhdpi")
+    @Test fun portraitAudioOnly() { player(base.copy(isAudioOnly = true, videoTitle = "VID-20260928-WA0034")); shoot("player_audio_only_portrait") }
+
+    @Config(qualifiers = "w320dp-h640dp-xhdpi")
+    @Test fun smallPortraitAudioOnly() { player(base.copy(isAudioOnly = true, videoTitle = "VID-20260928-WA0034")); shoot("player_audio_only_small_portrait") }
+
+    @Config(qualifiers = "w740dp-h360dp-xhdpi")
+    @Test fun smallSidewaysHud() { player(base); shoot("player_small_sideways_hud") }
+
+    @Config(qualifiers = "w740dp-h360dp-xhdpi")
+    @Test fun smallSidewaysSubtitle() { player(base.copy(activeSheet = PlayerSheet.Subtitle)); shoot("sheet_subtitle_small_sideways") }
+
+    @Config(qualifiers = "w740dp-h360dp-xhdpi")
+    @Test fun smallSidewaysAdvanced() { player(base.copy(activeSheet = PlayerSheet.Advanced)); shoot("sheet_advanced_small_sideways") }
+
+    @Config(qualifiers = "w740dp-h360dp-xhdpi")
+    @Test fun smallSidewaysQueue() { player(base.copy(activeSheet = PlayerSheet.Queue)); shoot("sheet_queue_small_sideways") }
+
+    @Config(qualifiers = "w740dp-h360dp-xhdpi")
+    @Test fun smallSidewaysAbLoop() { player(base.copy(abRepeat = AbRepeatState(1_800_000, 2_400_000, true), sleepTimerEndsAtElapsedRealtime = SystemClock.elapsedRealtime() + 1_200_000)); shoot("player_small_sideways_ab_sleep") }
+
+    @Config(qualifiers = "w740dp-h360dp-xhdpi")
+    @Test fun smallSidewaysUpNext() { player(base.copy(isEnded = true, isPlaying = false, autoAdvanceCountdownSeconds = 6)); shoot("player_small_sideways_up_next") }
+
+    @Config(qualifiers = "w740dp-h360dp-xhdpi")
+    @Test fun smallSidewaysStats() { player(base.copy(isStatsOverlayVisible = true, isControlsVisible = true)); shoot("player_small_sideways_stats") }
+
+    @Config(qualifiers = "w740dp-h360dp-xhdpi")
+    @Test fun smallSidewaysCompat() { player(base.copy(isCompatibilityMode = true, compatibilityNotice = "Playing with software decoding")); shoot("player_small_sideways_compat") }
+
+    @Config(qualifiers = "w740dp-h360dp-xhdpi")
+    @Test fun smallSidewaysLocked() { player(base.copy(isLocked = true, isLockHintVisible = true)); shoot("player_small_sideways_locked") }
+
+    @Config(qualifiers = "w740dp-h360dp-xhdpi")
+    @Test fun smallSidewaysSwipeSeek() { player(base.copy(swipeSeekTargetMs = 2_160_000, swipeSeekDeltaMs = 60_000, isControlsVisible = true)); shoot("player_small_sideways_swipe_seek") }
 
     @Config(qualifiers = "w411dp-h891dp-xhdpi")
     @Test fun portraitHud() { player(base); shoot("player_portrait_hud") }

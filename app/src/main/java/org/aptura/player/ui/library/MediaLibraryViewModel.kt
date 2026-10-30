@@ -35,11 +35,21 @@ class MediaLibraryViewModel(
     private val computeDispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val searchDebounceMs: Long = SEARCH_DEBOUNCE_MS,
     /** Emits true while a library scan is queued/running. Null keeps the legacy "enqueue only" behaviour. */
-    private val scanActivity: kotlinx.coroutines.flow.Flow<Boolean>? = null
+    private val scanActivity: kotlinx.coroutines.flow.Flow<Boolean>? = null,
+    /** The sort the user picked in an earlier session, or null for the library's own choice by folder. */
+    initialSort: LibrarySortOrder? = null,
+    /** How long an empty library must stay empty, with no scan under way, before "No videos yet" is shown. */
+    private val emptySettleMs: Long = EMPTY_SETTLE_MS
 ) : ViewModel() {
 
     companion object {
         const val SEARCH_DEBOUNCE_MS = 250L
+
+        /**
+         * The database answers "nothing" a moment before the scan that fills it is reported as queued, so on a first
+         * install an empty library is not yet "No videos yet". It has to hold for this long first.
+         */
+        const val EMPTY_SETTLE_MS = 600L
     }
 
     /** Q-02: a failing repository call must never crash the process. */
@@ -52,7 +62,7 @@ class MediaLibraryViewModel(
     val selectedFolder: StateFlow<String?> = _selectedFolder
 
     /** The sort the user picked; null = automatic (newest first overall, episode order inside a folder). */
-    private val _chosenSort = MutableStateFlow<LibrarySortOrder?>(null)
+    private val _chosenSort = MutableStateFlow(initialSort)
 
     private val _isRefreshing = MutableStateFlow(false)
 
@@ -128,7 +138,13 @@ class MediaLibraryViewModel(
         filterState
     ) { allVideos: List<DomainMediaItem>, folders: List<String>, filter: FilterState ->
         if (allVideos.isEmpty() && filter.query.isBlank() && filter.folder == null) {
-            MediaLibraryUiState.Empty(isFiltered = false, isPermissionDenied = filter.isPermissionDenied)
+            // A scan that is queued or running may be about to fill the library (the first one after an install always
+            // is), so this is "still looking", not "nothing found". Without access there is no scan to wait for.
+            if (filter.isRefreshing && !filter.isPermissionDenied) {
+                MediaLibraryUiState.Loading
+            } else {
+                MediaLibraryUiState.Empty(isFiltered = false, isPermissionDenied = filter.isPermissionDenied)
+            }
         } else {
             var filtered = allVideos
 
@@ -142,7 +158,7 @@ class MediaLibraryViewModel(
                 val trimmedQuery = filter.query.trim()
                 filtered = filtered.filter { item ->
                     item.title.contains(trimmedQuery, ignoreCase = true) ||
-                        item.folderPath.contains(trimmedQuery, ignoreCase = true)
+                        friendlyFolderName(item.folderPath).contains(trimmedQuery, ignoreCase = true)
                 }
             }
 
@@ -170,7 +186,8 @@ class MediaLibraryViewModel(
                     libraryVideoCount = allVideos.size,
                     libraryDurationMs = allVideos.sumOf { it.durationMs },
                     librarySizeBytes = allVideos.sumOf { it.sizeBytes },
-                    folderCounts = allVideos.groupingBy { it.folderPath }.eachCount()
+                    folderCounts = allVideos.groupingBy { it.folderPath }.eachCount(),
+                    folderSummaries = allVideos.summarizeFolders()
                 )
             }
         }
@@ -181,7 +198,11 @@ class MediaLibraryViewModel(
      * overlay runs per keystroke while the expensive [libraryContent] pass stays debounced.
      */
     val uiState: StateFlow<MediaLibraryUiState> = combine(
-        libraryContent,
+        // "No videos yet" has to hold for a moment before it is shown: on a first install the database is empty for a
+        // few milliseconds before the scan is reported, and showing it then flashed an empty screen in between.
+        libraryContent.debounce { state ->
+            if (state is MediaLibraryUiState.Empty && !state.isFiltered && !state.isPermissionDenied) emptySettleMs else 0L
+        },
         _searchQuery
     ) { content, rawQuery ->
         when (content) {
@@ -290,13 +311,22 @@ class MediaLibraryViewModel(
         }
     }
 
+    private fun List<DomainMediaItem>.summarizeFolders(): Map<String, FolderSummary> =
+        groupBy { it.folderPath }.mapValues { (_, items) ->
+            // The newest addition that can still be read stands for the folder; a missing file has no frame to show.
+            val cover = items.filterNot { it.isMissing }.maxByOrNull { it.dateAddedSec }
+            FolderSummary(
+                videoCount = items.size,
+                totalBytes = items.sumOf { it.sizeBytes },
+                totalDurationMs = items.sumOf { it.durationMs },
+                coverUri = cover?.uri,
+                coverDateModifiedSec = cover?.dateModifiedSec ?: 0L
+            )
+        }
+
     private fun DomainMediaItem.toCardUiModel(): VideoCardUiModel {
         val progress = MediaFormatters.calculateProgressFraction(playbackPositionMs, durationMs)
-        val folderDisplay = if (folderPath.contains('/')) {
-            folderPath.trimEnd('/').substringAfterLast('/').ifBlank { "Internal Storage" }
-        } else {
-            folderPath.ifBlank { "Internal Storage" }
-        }
+        val folderDisplay = friendlyFolderName(folderPath)
 
         return VideoCardUiModel(
             uri = uri,

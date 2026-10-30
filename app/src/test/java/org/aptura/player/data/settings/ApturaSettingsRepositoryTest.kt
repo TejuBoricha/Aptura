@@ -14,6 +14,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.aptura.player.domain.model.FolderLayout
+import org.aptura.player.domain.model.LibraryDensity
+import org.aptura.player.domain.model.LibraryDetail
+import org.aptura.player.domain.model.LibraryLayout
 import org.aptura.player.theme.AccentColor
 import org.aptura.player.theme.ThemeMode
 
@@ -171,5 +175,50 @@ class ApturaSettingsRepositoryTest {
         assertFalse(loaded.enabled)
         assertTrue(loaded.bandLevelsMb.isEmpty())
         assertEquals(0, loaded.bassBoostPercent)
+    }
+
+    @Test
+    fun libraryLayout_defaultsToAComfortableGridWithStandardDetails() = runTest {
+        val initial = repository.settingsFlow.first()
+
+        assertEquals(LibraryLayout.GRID, initial.libraryLayout)
+        assertEquals(LibraryDensity.COMFORTABLE, initial.libraryDensity)
+        assertEquals(LibraryDetail.STANDARD, initial.libraryDetail)
+        assertEquals(FolderLayout.LIST, initial.folderLayout)
+        assertEquals("the library chooses its own sort until the user picks one", null, initial.librarySortName)
+    }
+
+    @Test
+    fun libraryLayout_survivesANewProcess() = runTest {
+        repository.updateLibraryLayout(LibraryLayout.LIST)
+        repository.updateLibraryDensity(LibraryDensity.LARGE)
+        repository.updateLibraryDetail(LibraryDetail.DETAILED)
+        repository.updateFolderLayout(FolderLayout.GRID)
+        repository.updateLibrarySortName("TITLE_ASC")
+
+        // a brand-new repository instance reads the same file, like a new process would
+        val reloaded = ApturaSettingsRepository(context).settingsFlow.first()
+
+        assertEquals(LibraryLayout.LIST, reloaded.libraryLayout)
+        assertEquals(LibraryDensity.LARGE, reloaded.libraryDensity)
+        assertEquals(LibraryDetail.DETAILED, reloaded.libraryDetail)
+        assertEquals(FolderLayout.GRID, reloaded.folderLayout)
+        assertEquals("TITLE_ASC", reloaded.librarySortName)
+    }
+
+    @Test
+    fun clearingTheSort_returnsToTheLibrarysOwnChoice() = runTest {
+        repository.updateLibrarySortName("SIZE_DESC")
+        repository.updateLibrarySortName(null)
+
+        assertEquals(null, repository.settingsFlow.first().librarySortName)
+    }
+
+    @Test
+    fun anUnknownStoredLayout_fallsBackToTheDefault_insteadOfCrashing() = runTest {
+        // A name from a newer build, or a damaged file, must not take the library down.
+        repository.writeRawForTesting("library_layout", "MOSAIC")
+
+        assertEquals(LibraryLayout.GRID, repository.settingsFlow.first().libraryLayout)
     }
 }

@@ -68,7 +68,7 @@ import org.aptura.player.theme.ApturaTypography
  * green only for the offline guarantee. Nothing here is decoration; the one piece of craft is the selector switch.
  */
 
-private val Hairline: Color get() = ApturaColors.BorderSubtle
+private val Hairline: Color @Composable get() = ApturaColors.BorderSubtle
 
 // ---- structure --------------------------------------------------------------------------------------------------
 
@@ -266,6 +266,7 @@ internal fun SegmentedPicker(
     val thumbAlpha by animateFloatAsState(if (selectedIndex in options.indices) 1f else 0f, tween(180), label = "selector-alpha")
     val trackShape = RoundedCornerShape(15.dp)
     val inset = 3.dp
+    val thumbColor = ApturaColors.AccentPrimary
 
     Row(
         modifier = modifier
@@ -279,7 +280,7 @@ internal fun SegmentedPicker(
                 val pad = inset.toPx()
                 val segment = (size.width - pad * 2) / options.size
                 drawRoundRect(
-                    color = ApturaColors.AccentPrimary.copy(alpha = thumbAlpha),
+                    color = thumbColor.copy(alpha = thumbAlpha),
                     topLeft = Offset(pad + position * segment, pad),
                     size = Size(segment, size.height - pad * 2),
                     cornerRadius = CornerRadius(12.dp.toPx())

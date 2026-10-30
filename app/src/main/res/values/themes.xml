@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="aptura_surface_base">#0D0E11</color>
+    <!--
+        The colour behind the first frame (and the system's launch screen on Android 12 and newer). It follows the
+        phone's day or night mode, as the app does by default, so a light phone does not open on a dark screen that
+        then turns light. It matches ApturaPalettes.light().surfaceBase; a test holds the two together.
+    -->
+    <color name="aptura_surface_base">#F5F6F8</color>
 
     <style name="Theme.Aptura" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/aptura_surface_base</item>

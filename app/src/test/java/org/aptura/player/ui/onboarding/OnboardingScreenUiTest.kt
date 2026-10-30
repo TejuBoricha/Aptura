@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import org.aptura.player.theme.ApturaTheme
+import org.aptura.player.ui.library.CONTINUE_WATCHING_TITLE
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -40,7 +41,8 @@ class OnboardingScreenUiTest {
                     onRequestPermissionClick = { permissionRequests++ },
                     onContinueWithoutPermissionClick = { limitedModeChosen++ },
                     onFinishClick = { finished++ },
-                    onReachedLastPage = { seen++ }
+                    onReachedLastPage = { seen++ },
+                    animateDemos = false
                 )
             }
         }
@@ -108,7 +110,7 @@ class OnboardingScreenUiTest {
 
         next()
         composeRule.onNodeWithText("Search, filter and sort").assertExists()
-        composeRule.onNodeWithText("Continue Watching").assertExists()
+        composeRule.onNodeWithText(CONTINUE_WATCHING_TITLE, ignoreCase = true).assertExists()
         composeRule.onNodeWithText("The ⋮ menu on any video").assertExists()
 
         next()

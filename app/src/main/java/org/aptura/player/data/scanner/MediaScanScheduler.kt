@@ -58,6 +58,31 @@ object MediaScanScheduler {
         )
     }
 
+    /** Unique-work name for the scan that follows a fresh grant of access. */
+    const val UNIQUE_AFTER_ACCESS_SCAN = "aptura_media_scan_after_access"
+
+    /** A second look this long after access was granted; see [scheduleScansAfterAccessGranted]. */
+    const val AFTER_ACCESS_DELAY_SECONDS = 5L
+
+    /**
+     * Access to the videos was just granted. Scan now, and once more a few seconds later: on some phones the first scan
+     * after a grant sees nothing (the system's media index is still catching up, or still answering as if access were
+     * not there), and the person was left with an empty library until the app was closed and opened again. The second
+     * scan is a cheap comparison when the first one found everything. It is not tagged as a visible scan, so the
+     * library does not show a refresh spinner for the five seconds it waits.
+     */
+    fun scheduleScansAfterAccessGranted(context: Context) {
+        scheduleImmediateScan(context)
+        val followUp = OneTimeWorkRequestBuilder<MediaScanWorker>()
+            .setInitialDelay(AFTER_ACCESS_DELAY_SECONDS, TimeUnit.SECONDS)
+            .build()
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            UNIQUE_AFTER_ACCESS_SCAN,
+            ExistingWorkPolicy.REPLACE,
+            followUp
+        )
+    }
+
     /**
      * Schedules a periodic background scan (every 6 hours) with battery-not-low constraint.
      */

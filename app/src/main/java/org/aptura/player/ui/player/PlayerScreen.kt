@@ -180,6 +180,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -392,6 +393,14 @@ fun PlayerScreen(
             .background(Color.Black)
     ) {
         val screenWidth = maxWidth
+        val transport = TransportSizing(screenWidth)
+        // The stats panel hangs from the top right and the transport buttons are centred, so in a landscape window that
+        // is too narrow for both side by side (every phone held sideways, and small tablets) the panel covered the
+        // forward and next buttons and swallowed their taps. While the panel is open there the buttons move to the
+        // left. In a tall window the panel is kept above the buttons instead.
+        val isLandscape = screenWidth > maxHeight
+        val statsDocked = uiState.isStatsOverlayVisible && !isPipMode && isLandscape &&
+            screenWidth / 2 + transport.clusterWidth / 2 + STATS_CLUSTER_GAP > screenWidth - STATS_OVERLAY_MAX_WIDTH - STATS_END_MARGIN
         // 1. Video Surface (Media3 PlayerView isolated from position ticks)
         PlayerVideoSurface(
             player = player,
@@ -825,11 +834,32 @@ fun PlayerScreen(
         // 2b. Audio-only panel (the video view is not composed in this mode). It must sit ABOVE the gesture layer:
         // the full-screen gesture detector otherwise swallows the touch and "Show video" can never be pressed.
         if (uiState.isAudioOnly && !isPipMode) {
-            AudioOnlyPanel(
-                title = uiState.videoTitle,
-                onShowVideo = { onAudioOnlyChanged(false) },
-                modifier = Modifier.align(Alignment.Center)
-            )
+            // The transport cluster is centred on the screen and the top bar sits above, so the panel has its own region
+            // between them (the same whether the controls are showing or not, so it never jumps). Centring both on the
+            // screen drew the buttons over the artwork and the title. When the region is short (a phone held sideways, a
+            // small screen) the panel switches to one row, and if even that does not fit it scrolls rather than overlap.
+            BoxWithConstraints(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.5f)
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
+                    .padding(top = AUDIO_PANEL_TOP_CLEARANCE, bottom = AUDIO_PANEL_CLUSTER_CLEARANCE)
+            ) {
+                val compact = maxHeight < AUDIO_PANEL_COLUMN_HEIGHT
+                Column(
+                    modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    AudioOnlyPanel(
+                        title = uiState.videoTitle,
+                        onShowVideo = { onAudioOnlyChanged(false) },
+                        compact = compact
+                    )
+                }
+            }
         }
 
         // 3. Transient Feedback Overlays (Volume, Brightness, Double-Tap Seek, Horizontal Swipe Seek, Lock Hint)
@@ -1173,18 +1203,26 @@ fun PlayerScreen(
                 // Center Transport Cluster (⏮ Prev • ⏪10s • ⏯ • ⏩10s • ⏭ Next)
                 // Window-aware adaptive cluster sizing (R-B09, R-A10):
                 // Protects gesture seek zones from being swallowed on narrow split windows (< 340dp).
-                val isNarrowWindow = screenWidth < 340.dp
-                val isCompactCluster = screenWidth < 480.dp
-                val clusterSpacing = if (isNarrowWindow) 6.dp else if (isCompactCluster) 10.dp else 16.dp
-                val playSize = if (isNarrowWindow) 52.dp else if (isCompactCluster) 62.dp else 72.dp
-                val playIconSize = if (isNarrowWindow) 28.dp else if (isCompactCluster) 34.dp else 40.dp
-                val seekSize = if (isNarrowWindow) 48.dp else if (isCompactCluster) 48.dp else 52.dp
-                val seekIconSize = if (isNarrowWindow) 22.dp else if (isCompactCluster) 26.dp else 30.dp
-                val skipSize = 48.dp // never below the 48 dp touch-target minimum, even in narrow split windows
-                val skipIconSize = if (isNarrowWindow) 20.dp else if (isCompactCluster) 24.dp else 28.dp
+                val clusterSpacing = transport.spacing
+                val playSize = transport.play
+                val playIconSize = transport.playIcon
+                val seekSize = transport.seek
+                val seekIconSize = transport.seekIcon
+                val skipSize = transport.skip
+                val skipIconSize = transport.skipIcon
 
                 Row(
-                    modifier = Modifier.align(Alignment.Center),
+                    modifier = Modifier
+                        .align(if (statsDocked) Alignment.CenterStart else Alignment.Center)
+                        .then(
+                            if (statsDocked) {
+                                Modifier
+                                    .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Start))
+                                    .padding(start = STATS_DOCK_CLUSTER_MARGIN)
+                            } else {
+                                Modifier
+                            }
+                        ),
                     horizontalArrangement = Arrangement.spacedBy(clusterSpacing),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -1324,6 +1362,10 @@ fun PlayerScreen(
                             )
 
                             val scrubberStepMs = uiState.seekStepMs
+                            // Read in composition: a draw lambda cannot read theme tokens.
+                            val scrubberTrackColor = ApturaColors.SurfaceElevated3
+                            val scrubberBufferedColor = ApturaColors.TextMediumEmphasis.copy(alpha = 0.35f)
+                            val scrubberAccent = ApturaColors.AccentPrimary
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
@@ -1417,7 +1459,7 @@ fun PlayerScreen(
 
                                     // 1. Background Inactive Track
                                     drawRoundRect(
-                                        color = ApturaColors.SurfaceElevated3,
+                                        color = scrubberTrackColor,
                                         topLeft = Offset(0f, cy - trackH / 2f),
                                         size = Size(totalW, trackH),
                                         cornerRadius = CornerRadius(trackH / 2f, trackH / 2f)
@@ -1427,7 +1469,7 @@ fun PlayerScreen(
                                     if (uiState.bufferedFraction > 0f) {
                                         val buffW = totalW * uiState.bufferedFraction.coerceIn(0f, 1f)
                                         drawRoundRect(
-                                            color = ApturaColors.TextMediumEmphasis.copy(alpha = 0.35f),
+                                            color = scrubberBufferedColor,
                                             topLeft = Offset(0f, cy - trackH / 2f),
                                             size = Size(buffW, trackH),
                                             cornerRadius = CornerRadius(trackH / 2f, trackH / 2f)
@@ -1438,7 +1480,7 @@ fun PlayerScreen(
                                     val activeW = totalW * uiState.progressFraction.coerceIn(0f, 1f)
                                     if (activeW > 0f) {
                                         drawRoundRect(
-                                            color = ApturaColors.AccentPrimary,
+                                            color = scrubberAccent,
                                             topLeft = Offset(0f, cy - trackH / 2f),
                                             size = Size(activeW, trackH),
                                             cornerRadius = CornerRadius(trackH / 2f, trackH / 2f)
@@ -1471,7 +1513,7 @@ fun PlayerScreen(
                                             val xA = totalW * (ptA.toFloat() / uiState.durationMs.toFloat()).coerceIn(0f, 1f)
                                             val xB = totalW * (ptB.toFloat() / uiState.durationMs.toFloat()).coerceIn(0f, 1f)
                                             drawRoundRect(
-                                                color = ApturaColors.AccentPrimary.copy(alpha = 0.32f),
+                                                color = scrubberAccent.copy(alpha = 0.32f),
                                                 topLeft = Offset(xA, cy - trackH),
                                                 size = Size((xB - xA).coerceAtLeast(0f), trackH * 2f),
                                                 cornerRadius = CornerRadius(trackH, trackH)
@@ -1480,7 +1522,7 @@ fun PlayerScreen(
                                         if (ptA != null) {
                                             val xA = totalW * (ptA.toFloat() / uiState.durationMs.toFloat()).coerceIn(0f, 1f)
                                             drawRoundRect(
-                                                color = ApturaColors.AccentPrimary,
+                                                color = scrubberAccent,
                                                 topLeft = Offset(xA - markerW / 2f, cy - markerH / 2f),
                                                 size = Size(markerW, markerH),
                                                 cornerRadius = CornerRadius(markerW / 2f, markerW / 2f)
@@ -1489,7 +1531,7 @@ fun PlayerScreen(
                                         if (ptB != null) {
                                             val xB = totalW * (ptB.toFloat() / uiState.durationMs.toFloat()).coerceIn(0f, 1f)
                                             drawRoundRect(
-                                                color = ApturaColors.AccentPrimary,
+                                                color = scrubberAccent,
                                                 topLeft = Offset(xB - markerW / 2f, cy - markerH / 2f),
                                                 size = Size(markerW, markerH),
                                                 cornerRadius = CornerRadius(markerW / 2f, markerW / 2f)
@@ -1504,7 +1546,7 @@ fun PlayerScreen(
                                         totalW / 2f
                                     }
                                     drawCircle(
-                                        color = ApturaColors.AccentPrimary,
+                                        color = scrubberAccent,
                                         radius = thumbR,
                                         center = Offset(clampedThumbX, cy)
                                     )
@@ -1646,13 +1688,22 @@ fun PlayerScreen(
 
         // 5b. Playback Stats Studio HUD Overlay (SCR-010e, FR-DIAG-001)
         if (uiState.isStatsOverlayVisible && !isPipMode) {
+            // Never taller than the room it has (it scrolls inside): above the seek bar in a wide window, above the
+            // buttons in a tall one. When the buttons have moved aside it is never wider than the room to their right;
+            // a window too narrow even for that keeps a readable width rather than a sliver.
+            val dockedMaxWidth = (screenWidth - STATS_DOCK_CLUSTER_MARGIN - transport.clusterWidth - STATS_CLUSTER_GAP - STATS_END_MARGIN)
+                .coerceAtLeast(STATS_MIN_DOCKED_WIDTH)
+            val bottomClearance = if (isLandscape) STATS_BOTTOM_CLEARANCE else maxHeight / 2 + transport.play / 2 + STATS_CLUSTER_GAP
             StatsOverlay(
                 stats = uiState.playbackStats,
                 onCloseClick = onToggleStatsOverlay,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .windowInsetsPadding(WindowInsets.statusBars)
-                    .padding(top = 64.dp, end = 16.dp)
+                    .windowInsetsPadding(WindowInsets.navigationBars)
+                    .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.End))
+                    .padding(top = 64.dp, end = STATS_END_MARGIN, bottom = bottomClearance)
+                    .then(if (statsDocked) Modifier.widthIn(max = dockedMaxWidth) else Modifier)
             )
         }
 
@@ -2077,6 +2128,45 @@ fun PlayerScreen(
 
 /** Width below which the top bar keeps only the title and the most important chips and moves the rest to a menu. */
 private val TOP_BAR_INLINE_MIN_WIDTH = 560.dp
+
+// The audio-only panel's region (see the panel's call site): clear of the top bar above and of the centred transport
+// cluster below (half of its largest button, 36 dp, plus a gap).
+/** Where the transport buttons sit from the left edge while the stats panel is open on a short window. */
+private val STATS_DOCK_CLUSTER_MARGIN = 24.dp
+
+/** The seek bar and the bottom row of buttons (two 48 dp rows and their padding), which the stats panel must stay above. */
+private val STATS_BOTTOM_CLEARANCE = 120.dp
+
+private val STATS_MIN_DOCKED_WIDTH = 240.dp
+private val STATS_END_MARGIN = 16.dp
+
+/** The breathing room kept between the stats panel and the transport buttons. */
+private val STATS_CLUSTER_GAP = 12.dp
+
+/**
+ * The sizes of the centre transport buttons for a window this wide (R-B09, R-A10): smaller on a narrow split window so
+ * the gesture seek zones are not swallowed, but never below the 48 dp touch-target minimum.
+ */
+private class TransportSizing(width: Dp) {
+    private val narrow = width < 340.dp
+    private val compact = width < 480.dp
+    val spacing = if (narrow) 6.dp else if (compact) 10.dp else 16.dp
+    val play = if (narrow) 52.dp else if (compact) 62.dp else 72.dp
+    val playIcon = if (narrow) 28.dp else if (compact) 34.dp else 40.dp
+    val seek = if (narrow) 48.dp else if (compact) 48.dp else 52.dp
+    val seekIcon = if (narrow) 22.dp else if (compact) 26.dp else 30.dp
+    val skip = 48.dp
+    val skipIcon = if (narrow) 20.dp else if (compact) 24.dp else 28.dp
+
+    /** The whole row: previous, rewind, play, forward, next, and the gaps between them. */
+    val clusterWidth = play + seek * 2 + skip * 2 + spacing * 4
+}
+
+private val AUDIO_PANEL_TOP_CLEARANCE = 72.dp
+private val AUDIO_PANEL_CLUSTER_CLEARANCE = 44.dp
+
+/** Below this much height the panel is one row instead of a column; the column itself needs about 230 dp. */
+private val AUDIO_PANEL_COLUMN_HEIGHT = 250.dp
 
 /** A top-bar action with the full 48 dp touch target. */
 @Composable

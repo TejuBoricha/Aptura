@@ -1,5 +1,7 @@
 package org.aptura.player.ui.settings
 
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
@@ -55,10 +57,19 @@ class SettingsTopBarTest {
 
     @Test
     fun theCompactBarBackground_isAnOpaqueFill() {
-        val solid = SettingsTopBarBackground as? SolidColor
+        var background: Brush? = null
+        var base: Color? = null
+        composeRule.setContent {
+            ApturaTheme {
+                background = SettingsTopBarBackground
+                base = ApturaColors.SurfaceBase
+            }
+        }
+        composeRule.waitForIdle()
+        val solid = background as? SolidColor
         assertTrue("the compact bar must not use a translucent/gradient scrim", solid != null)
         assertEquals(1f, solid!!.value.alpha, 0f)
-        assertEquals(ApturaColors.SurfaceBase, solid.value)
+        assertEquals(base, solid.value)
     }
 
     @Test

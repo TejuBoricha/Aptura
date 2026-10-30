@@ -7,6 +7,7 @@ import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import android.util.Rational
+import android.view.View
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -22,6 +23,8 @@ import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.VideoSize
 import kotlinx.coroutines.launch
 import org.aptura.player.core.platform.DeviceCapabilities
+import org.aptura.player.core.platform.FirstFrameGate
+import org.aptura.player.core.platform.holdFirstFrameUntil
 import org.aptura.player.data.playback.PlayerManager
 import org.aptura.player.data.settings.ApturaSettingsRepository
 import org.aptura.player.ui.player.PipSupport
@@ -68,8 +71,11 @@ class MainActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
         )
+        // The first frame waits for the saved theme, so it is never drawn in the wrong one (see FirstFrameGate).
+        val firstFrameGate = FirstFrameGate()
         setContent {
             MainNavigation(
+                onThemeApplied = firstFrameGate::themeApplied,
                 initialLaunchUri = pendingLaunchUri,
                 onLaunchUriConsumed = { pendingLaunchUri = null },
                 isPipMode = isPipMode.value,
@@ -81,6 +87,8 @@ class MainActivity : ComponentActivity() {
                 }
             )
         }
+
+        findViewById<View>(android.R.id.content).holdFirstFrameUntil(firstFrameGate)
 
         observePlayerForPictureInPicture()
 

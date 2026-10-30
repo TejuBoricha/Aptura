@@ -7,6 +7,7 @@ import android.graphics.Paint
 import android.graphics.RadialGradient
 import android.graphics.Shader
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.ViewRootForTest
 import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -16,6 +17,7 @@ import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.theme.AccentColor
 import org.aptura.player.theme.ApturaTheme
 import org.aptura.player.theme.ThemeMode
+import org.aptura.player.ui.library.LocalThumbnailDecodeContext
 import org.aptura.player.ui.library.MediaFormatters
 import org.aptura.player.ui.library.MediaLibraryUiState
 import org.aptura.player.ui.library.VideoCardUiModel
@@ -56,7 +58,10 @@ abstract class GalleryBase {
         }
         seedThumbnails()
         composeRule.setContent {
-            ApturaTheme(themeMode = mode, accentColor = accent) { content() }
+            // Same reason as the image loader above: decode thumbnails on the main looper.
+            CompositionLocalProvider(LocalThumbnailDecodeContext provides kotlinx.coroutines.Dispatchers.Main.immediate) {
+                ApturaTheme(themeMode = mode, accentColor = accent) { content() }
+            }
         }
         settle()
     }

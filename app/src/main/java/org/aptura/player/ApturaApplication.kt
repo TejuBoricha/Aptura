@@ -64,6 +64,11 @@ open class ApturaApplication : Application(), SingletonImageLoader.Factory, Conf
         )
     }
 
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        org.aptura.player.core.media.ThumbnailBitmapCache.trim(level)
+    }
+
     private companion object {
         const val MEDIASTORE_RESCAN_DEBOUNCE_MS = 4_000L
     }
