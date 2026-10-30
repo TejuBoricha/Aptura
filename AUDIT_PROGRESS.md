@@ -11,9 +11,9 @@
 | **Phase 3** | Security & Privacy Invariants Audit | Complete | 100% | 2026-10-30 | 2026-10-30 |
 | **Phase 4** | Performance & Resource Lifecycle Audit | Complete | 100% | 2026-10-30 | 2026-10-30 |
 | **Phase 5** | Functional Integrity & Regression Audit | Complete | 100% | 2026-10-30 | 2026-10-30 |
-| **Phase 6** | Prioritization & Remediation Planning | In Progress | 10% | 2026-10-30 | — |
-| **Phase 7** | Controlled Refactoring & Fix Implementation | Pending | 0% | — | — |
-| **Phase 8** | Continuous Testing & Regression Validation | Pending | 0% | — | — |
+| **Phase 6** | Prioritization & Remediation Planning | Complete | 100% | 2026-10-30 | 2026-10-30 |
+| **Phase 7** | Controlled Refactoring & Fix Implementation | In Progress | 10% | 2026-10-30 | — |
+| **Phase 8** | Continuous Testing & Regression Validation | In Progress | 10% | 2026-10-30 | — |
 | **Phase 9** | Final Production Readiness Audit | Pending | 0% | — | — |
 | **Phase 10**| Final Report & Handover | Pending | 0% | — | — |
 
@@ -91,14 +91,25 @@
 ---
 
 ### Phase 6 — Prioritization & Remediation Planning
-- **Status:** In Progress (10%)
-- **Planned Work:**
-  - Consolidate all 26 identified issues into a prioritized remediation plan.
-  - Classify into P0 (Critical), P1 (High), P2 (Medium), P3 (Low).
-  - Establish sequential remediation batches minimizing regression risks.
-  - Generate `phase6_remediation_plan.md` artifact.
+- **Status:** Complete (100%)
+- **Completed Checkpoints:**
+  - [x] Consolidate all 26 identified issues into a prioritized remediation plan.
+  - [x] Classify into P0 (0), P1 (3), P2 (14), P3 (9).
+  - [x] Establish sequential remediation batches minimizing regression risks (Batches 1 to 5).
+  - [x] Deliverable `phase6_remediation_plan.md` artifact generated.
 
 ---
 
-### Phases 7 through 10
-- Scheduled sequentially following completion of Phase 6.
+### Phase 7 — Controlled Refactoring & Fix Implementation
+- **Status:** In Progress (Starting Batch 1: Security & Privacy Invariants)
+- **Active Batches:**
+  - [ ] **Batch 1 (Security & Privacy Invariants):** ISSUE-020 (SD card path leakage in `RedactionEngine`), ISSUE-021 (Zip bomb guard in `SubtitleZipExtractor`).
+  - [ ] **Batch 2 (Exception Hygiene & Lint Cleanliness):** ISSUE-014, ISSUE-015, ISSUE-006, ISSUE-017, ISSUE-018.
+  - [ ] **Batch 3 (Functional Integrity & Lifecycle Resiliency):** ISSUE-001, ISSUE-002, ISSUE-004, ISSUE-024, ISSUE-026.
+  - [ ] **Batch 4 (Performance & Recomposition Optimization):** ISSUE-022, ISSUE-023, ISSUE-013.
+  - [ ] **Batch 5 (Deferred Architectural Modularization):** ISSUE-008, ISSUE-009, ISSUE-019.
+
+---
+
+### Phase 8 — Continuous Testing & Regression Validation
+- **Status:** In Progress (Validating at every batch checkpoint via `tools/gate.ps1`).
