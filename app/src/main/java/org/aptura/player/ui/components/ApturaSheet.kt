@@ -11,7 +11,9 @@ import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetState
+import androidx.compose.material3.SheetValue
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.Color
@@ -54,23 +56,34 @@ fun ApturaModalBottomSheet(
         containerColor = containerColor,
         scrimColor = scrimColor,
         shape = shape,
-        dragHandle = { Box(Modifier.sheetDragsAreNestedScrolls()) { BottomSheetDefaults.DragHandle() } },
+        dragHandle = { Box(Modifier.sheetDragsAreNestedScrolls(sheetState)) { BottomSheetDefaults.DragHandle() } },
         modifier = modifier
     ) {
-        Column(Modifier.fillMaxWidth().sheetDragsAreNestedScrolls()) { content() }
+        Column(Modifier.fillMaxWidth().sheetDragsAreNestedScrolls(sheetState)) { content() }
     }
 }
 
 /** Makes every vertical drag on this part of a sheet a nested scroll (which moves nothing itself) with the spring removed. */
-private fun Modifier.sheetDragsAreNestedScrolls(): Modifier = composed {
+@OptIn(ExperimentalMaterial3Api::class)
+private fun Modifier.sheetDragsAreNestedScrolls(sheet: SheetState): Modifier = composed {
     val noScroll = rememberScrollableState { 0f }
+    val connection = remember(sheet) { UpwardFlingSettlesGently(sheet) }
     this
-        .nestedScroll(SwallowUpwardLeftoverFling)
+        .nestedScroll(connection)
         .scrollable(state = noScroll, orientation = Orientation.Vertical)
 }
 
-/** Sits inside the sheet, so it hears about a fling's leftover speed before the sheet does. */
-internal val SwallowUpwardLeftoverFling = object : NestedScrollConnection {
-    override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity =
-        if (available.y < 0f) Velocity(0f, available.y) else Velocity.Zero
+/**
+ * Sits inside the sheet, so it hears about a fling's leftover speed before the sheet does. Upward speed that nothing in the
+ * content could use would make the sheet settle with it and swing past its top. If the sheet is already all the way up, that
+ * speed is simply dropped. If it is only half open, the flick meant "open it": the sheet is opened with no speed at all, which
+ * is smooth (handing it the speed let a short, quick flick end back at half open, or fly past the top).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+internal class UpwardFlingSettlesGently(private val sheet: SheetState) : NestedScrollConnection {
+    override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+        if (available.y >= 0f) return Velocity.Zero
+        if (sheet.currentValue != SheetValue.Expanded && sheet.hasExpandedState) sheet.expand()
+        return Velocity(0f, available.y)
+    }
 }

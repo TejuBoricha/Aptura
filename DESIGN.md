@@ -306,9 +306,10 @@ So the wrapper makes the content and the handle **behave like a list**: they sit
 Three rules learned the hard way, one per wrong build:
 - **Never consume pointer events above what the person is touching.** Android cancels the taps and scrolls under a parent that consumes movement (a tap detector checks for consumption after the fact), so a build that took upward movement away from the sheet felt dead.
 - **Never switch sheet dragging off.** A build with `sheetGesturesEnabled = false` made the tilted player's half-open sheets impossible to pull up, so their options were unreachable.
+- **A quick short flick up on a half-open sheet must open it.** Dropping all upward speed made such a flick end back at half open (the settle was decided by distance alone), which felt like "unable to pull". So when the sheet is not all the way up the flick opens it with no speed (smooth, no spring); only when it is already all the way up is the speed dropped (`UpwardFlingSettlesGently`).
 - The scrollable adds a scroll action to the accessibility tree of the content and the handle; it does nothing, which is harmless.
 
-`ApturaSheetTest` measures the heading's top frame by frame after flicks on the list, on the title, on the handle and at the end of a list; checks that a flick down still closes the sheet, that a tap that drifts upward by 3 dp still taps, that repeated flicks still scroll and that a half-open Subtitles sheet on a tilted phone can be pulled up; and fails if any source file opens a plain `ModalBottomSheet`.
+`ApturaSheetTest` measures the heading's top frame by frame after flicks on the list, on the title, on the handle and at the end of a list; checks that a flick down still closes the sheet, that a tap that drifts upward by 3 dp still taps, that repeated flicks still scroll and that a half-open Subtitles sheet on a tilted phone can be pulled up; `PlayerSheetsTiltedTest` does the same for every options sheet of the player (Subtitles, Audio, Playback speed, Playback tools, Software decoding) on a tilted-phone-shaped screen (pull up, no swing above the top, flicks on the handle close it); and fails if any source file opens a plain `ModalBottomSheet`.
 
 ### 5.6 Player Sheets and Settings Controls
 
