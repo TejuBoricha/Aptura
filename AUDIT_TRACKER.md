@@ -43,6 +43,8 @@ Every finding progresses strictly through the following states:
 | **ISSUE-019** | Phase 2 | P2 | Architecture / Maintainability | Decompose `PlayerScreen.kt` and `MediaLibraryScreen.kt` into modular sub-composables | `PlayerScreen.kt`, `MediaLibraryScreen.kt` | Pending | TBD |
 | **ISSUE-020** | Phase 3 | P1 | Security / Privacy | `RedactionEngine` misses removable SD card storage paths (`/storage/<uuid>/`) | `RedactionEngine.kt` | Pending | TBD |
 | **ISSUE-021** | Phase 3 | P2 | Security / DoS | `SubtitleZipExtractor` lacks byte ceiling during extraction (Zip Bomb risk) | `SubtitleZipExtractor.kt` | Pending | TBD |
+| **ISSUE-022** | Phase 4 | P2 | Performance / Compose | 4 Hz position ticker triggers full `PlayerScreen` recomposition when controls hidden | `PlayerScreen.kt`, `Media3PlaybackController.kt` | Pending | TBD |
+| **ISSUE-023** | Phase 4 | P2 | Performance / Database | Room table invalidation re-queries entire library on 5s playback checkpoints | `MediaLibraryViewModel.kt`, `MediaItemDao.kt` | Pending | TBD |
 
 ---
 
@@ -166,5 +168,24 @@ Every finding progresses strictly through the following states:
 - **Root Cause:** Subtitle ZIP extraction uses unbounded `zis.copyTo(fos)`. A specially crafted zip bomb archive can decompress gigabytes of data into the application cache directory, leading to device storage exhaustion and app crash.
 - **Proposed Solution:** Implement bounded stream copying (e.g. capping total extracted bytes at 20 MB, matching `SubtitleFileValidator.MAX_SUBTITLE_BYTES`). Fail cleanly with `ZipExtractionResult.Failure` if extraction exceeds ceiling.
 - **Acceptance Criteria:** Uncompressing an entry exceeding 20 MB terminates immediately without filling disk.
+
+### ISSUE-022: 4 Hz position ticker triggers full `PlayerScreen` recomposition when controls hidden
+- **Phase:** Phase 4
+- **Priority:** P2 (Medium)
+- **Category:** Performance / Compose
+- **Affected Files:** `app/src/main/java/org/aptura/player/ui/player/PlayerScreen.kt:203`, `app/src/main/java/org/aptura/player/data/playback/Media3PlaybackController.kt:153`
+- **Root Cause:** `PlayerScreen` directly collects `PlayerUiState`. Every 250 ms, `Media3PlaybackController` updates `currentPositionMs`, triggering recomposition of the outer 2,172-line `PlayerScreen` composable even when `isControlsVisible == false` and the user is simply watching video.
+- **Proposed Solution:** Isolate `currentPositionMs` updates into the bottom scrubber/timeline composable scope using lambdas or derived state holders so the outer video container and hidden control scrims skip recomposition.
+- **Acceptance Criteria:** Recomposition counts for `PlayerVideoSurface` and outer container remain 0 during continuous playback with controls hidden.
+
+### ISSUE-023: Room table invalidation re-queries entire library on 5s playback checkpoints
+- **Phase:** Phase 4
+- **Priority:** P2 (Medium)
+- **Category:** Performance / Database
+- **Affected Files:** `app/src/main/java/org/aptura/player/ui/library/MediaLibraryViewModel.kt:100`, `app/src/main/java/org/aptura/player/data/database/MediaItemDao.kt:22`
+- **Root Cause:** Room table invalidation tracks writes at table granularity. Every 5 seconds during playback, `PlayerViewModel` writes `mediaItemDao.updatePlaybackPosition(...)`. This invalidates `getAllVideosSortedByDate()`, causing `MediaLibraryViewModel` to re-fetch all rows from SQLite, re-sort, and re-allocate UI card models even when library contents have not changed.
+- **Proposed Solution:** Add `distinctUntilChanged` on key entity fields or separate playback position tracking from static media metadata, or decouple checkpoint updates so the library flow only updates when titles, completion, or membership change.
+- **Acceptance Criteria:** Inactive library view does not re-allocate all card UI models every 5s during active video playback.
+
 
 
