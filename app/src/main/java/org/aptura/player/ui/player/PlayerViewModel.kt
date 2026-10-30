@@ -1,6 +1,5 @@
 package org.aptura.player.ui.player
 
-import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CoroutineDispatcher
@@ -8,7 +7,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,7 +19,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.aptura.player.core.diagnostics.ApturaErrorHandler
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.domain.model.DomainPlaybackState
@@ -29,6 +26,7 @@ import org.aptura.player.domain.model.PlayMode
 import org.aptura.player.domain.repository.AudioEffectsStore
 import org.aptura.player.domain.repository.MediaRepository
 import org.aptura.player.domain.repository.PlaybackController
+import org.aptura.player.domain.usecase.SleepTimerState
 import org.aptura.player.data.playback.AudioEnhancementController
 import org.aptura.player.domain.model.AbRepeatState
 import org.aptura.player.domain.model.AudioEnhancementState
@@ -52,9 +50,7 @@ class PlayerViewModel(
     private val dispatcher: CoroutineDispatcher = Dispatchers.Main,
     private val audioEffectsStore: AudioEffectsStore? = settingsRepository,
     /** The default decoder from Settings (0 Auto, 1 Hardware, 2 Software). Videos without a choice of their own follow it. */
-    private val defaultDecoderFlow: Flow<Int>? = settingsRepository?.settingsFlow?.map { it.defaultDecoderStrategy },
-    /** Monotonic clock for the sleep timer. Tests pass the virtual scheduler's time so deadlines are exact. */
-    private val clock: () -> Long = { SystemClock.elapsedRealtime() }
+    private val defaultDecoderFlow: Flow<Int>? = settingsRepository?.settingsFlow?.map { it.defaultDecoderStrategy }
 ) : ViewModel() {
 
     constructor(
@@ -99,7 +95,6 @@ class PlayerViewModel(
     private var brightnessFeedbackJob: Job? = null
     private var seekFeedbackJob: Job? = null
     private var lockHintJob: Job? = null
-    private var sleepTimerJob: Job? = null
     private var audioSyncJob: Job? = null
     private var subtitleSyncJob: Job? = null
     private var autoAdvanceJob: Job? = null
@@ -128,9 +123,6 @@ class PlayerViewModel(
         const val FEEDBACK_OVERLAY_DELAY_MS = 1200L
         const val SEEK_ACCUMULATION_THRESHOLD_MS = 800L
         const val CHECKPOINT_INTERVAL_MS = 5000L // TST-REST-01, spec/12A §3.3
-        const val SLEEP_FADE_MS = 10_000L
-        const val SLEEP_FADE_STEPS = 10
-        const val SLEEP_FADE_STEP_MS = SLEEP_FADE_MS / SLEEP_FADE_STEPS
         const val AUDIO_EFFECTS_SAVE_DEBOUNCE_MS = 400L
 
         /**
@@ -152,6 +144,32 @@ class PlayerViewModel(
         observeAudioSession()
         restoreAndPersistAudioEffects()
         observeDefaultDecoder()
+        observeSleepTimer()
+    }
+
+    /** The playback controller owns the sleep timer (it outlives this screen); the UI state is a copy of it. */
+    private val sleepTimer get() = playbackController.sleepTimer
+
+    private fun observeSleepTimer() {
+        viewModelScope.launch(dispatcher + errorHandler) {
+            sleepTimer.state.collect { showSleepTimer(it) }
+        }
+    }
+
+    /**
+     * Copies the timer's state into the UI state. Called by the collector for the changes the timer makes by itself
+     * (it fired, the video it waited for ended) and right after each command, so the screen never lags a tap.
+     */
+    private fun showSleepTimer(timer: SleepTimerState = sleepTimer.state.value) {
+        val expiredNow = timer == SleepTimerState.Expired && !_uiState.value.sleepTimerExpired
+        _uiState.update {
+            it.copy(
+                sleepTimerEndsAtElapsedRealtime = (timer as? SleepTimerState.Counting)?.endsAtElapsedRealtime,
+                sleepTimerExpired = timer == SleepTimerState.Expired,
+                sleepAtEndOfVideo = timer == SleepTimerState.AtEndOfItem
+            )
+        }
+        if (expiredNow) persistCurrentPosition()
     }
 
     private fun observeDefaultDecoder() {
@@ -311,10 +329,13 @@ class PlayerViewModel(
                                 durationMs = state.durationMs,
                                 bufferedPositionMs = state.bufferedPositionMs,
                                 playbackSpeed = state.playbackSpeed,
-                                // Resuming after a fired sleep timer dismisses the "+5 min" offer: the user chose to stay up.
-                                sleepTimerExpired = if (state.isPlaying) false else it.sleepTimerExpired,
                                 errorMessage = null
                             )
+                        }
+                        if (state.isPlaying && sleepTimer.state.value == SleepTimerState.Expired) {
+                            // Resuming after a fired sleep timer dismisses the "+5 min" offer: the user chose to stay up.
+                            sleepTimer.dismissOffer()
+                            showSleepTimer()
                         }
                         if (wasPlaying && !state.isPlaying) {
                             // Paused by the notification, a headset, the sleep timer...: nothing else will save this.
@@ -359,12 +380,13 @@ class PlayerViewModel(
                                 isCompleted = true
                             )
                         }
-                        if (_uiState.value.sleepAtEndOfVideo) {
-                            // The sleep timer's "end of this video": stop here, don't count down to the next one.
-                            clearStopAtEndOfVideo()
-                        } else {
-                            handleAutoAdvanceOnEnded()
-                        }
+                        // The sleep timer's "end of this video" stops here: no countdown to the next one. Both states
+                        // count, because the timer may see this end before or after we do; it disarms itself (it has
+                        // to, with no screen left after the task is swiped away).
+                        val timer = sleepTimer.state.value
+                        val stoppedBySleepTimer =
+                            timer == SleepTimerState.AtEndOfItem || timer == SleepTimerState.StoppedAtEndOfItem
+                        if (!stoppedBySleepTimer) handleAutoAdvanceOnEnded()
                     }
                     is DomainPlaybackState.Error -> {
                         _uiState.update {
@@ -447,6 +469,9 @@ class PlayerViewModel(
         }
         val ownDecoder = item.decoderStrategy
         val effectiveDecoder = ownDecoder ?: defaultDecoderStrategy
+        // The offer belongs to the video that was playing when the timer fired.
+        sleepTimer.dismissOffer()
+        showSleepTimer()
         _uiState.update {
             it.copy(
                 resizeMode = restoredResizeMode,
@@ -456,8 +481,6 @@ class PlayerViewModel(
                 audioDelayMs = item.audioDelayMs,
                 subtitleDelayMs = item.subtitleDelayMs,
                 abRepeat = AbRepeatState(),
-                // The offer belongs to the video that was playing when the timer fired.
-                sleepTimerExpired = false,
                 isEnded = false
             )
         }
@@ -1274,7 +1297,8 @@ class PlayerViewModel(
     }
 
     fun startSleepTimer(minutes: Int) {
-        scheduleSleepTimer(clock() + minutes * 60_000L)
+        sleepTimer.start(minutes)
+        showSleepTimer()
     }
 
     /**
@@ -1283,76 +1307,24 @@ class PlayerViewModel(
      * a dead end.
      */
     fun extendSleepTimer(minutes: Int) {
-        val state = _uiState.value
-        val endsAt = state.sleepTimerEndsAtElapsedRealtime
-        val wasExpired = state.sleepTimerExpired
-        val nextEndsAt = when {
-            endsAt != null -> endsAt + minutes * 60_000L
-            wasExpired -> clock() + minutes * 60_000L
-            else -> return
-        }
-        scheduleSleepTimer(nextEndsAt)
+        val wasExpired = sleepTimer.state.value == SleepTimerState.Expired
+        sleepTimer.extend(minutes)
+        showSleepTimer()
         if (wasExpired) {
             // Accepting the offer means "I am still awake": the timer is only useful if playback comes back.
             viewModelScope.launch(dispatcher + errorHandler) { playbackController.play() }
         }
     }
 
-    /**
-     * The deadline, not a running total, is the source of truth. `delay` guarantees only a minimum, so subtracting
-     * each tick let every late wake-up shorten the sleep by that much. Here the pause is one deadline and the fade
-     * paces itself against the same deadline; nothing ticks for the UI, which derives the countdown from
-     * [PlayerUiState.sleepTimerEndsAtElapsedRealtime] while it is on screen.
-     */
-    private fun scheduleSleepTimer(endsAt: Long) {
-        sleepTimerJob?.cancel()
-        clearStopAtEndOfVideo()
-        _uiState.update { it.copy(sleepTimerEndsAtElapsedRealtime = endsAt, sleepTimerExpired = false) }
-        sleepTimerJob = viewModelScope.launch(dispatcher + errorHandler) {
-            try {
-                val fadeStart = endsAt - SLEEP_FADE_MS
-                val untilFade = fadeStart - clock()
-                if (untilFade > 0L) delay(untilFade)
-                for (step in 1..SLEEP_FADE_STEPS) {
-                    // Re-anchor every step to the deadline so a late wake-up is caught up, not added on.
-                    val wait = fadeStart + step * SLEEP_FADE_STEP_MS - clock()
-                    if (wait > 0L) delay(wait)
-                    playbackController.setVolume(1f - step / SLEEP_FADE_STEPS.toFloat())
-                }
-                playbackController.pause()
-                // Offer a way out instead of a dead end: the HUD and the sheet both point at "+5 min".
-                _uiState.update {
-                    it.copy(sleepTimerEndsAtElapsedRealtime = null, sleepTimerExpired = true)
-                }
-                persistCurrentPosition()
-            } finally {
-                // Paused, cancelled or extended: the next play starts at full volume.
-                withContext(NonCancellable) { playbackController.setVolume(1f) }
-            }
-        }
-    }
-
     /** Pause when this video ends; Up Next does not start. Replaces a timed countdown. */
     fun startSleepAtEndOfVideo() {
-        sleepTimerJob?.cancel()
-        sleepTimerJob = null
-        _uiState.update {
-            it.copy(sleepTimerEndsAtElapsedRealtime = null, sleepTimerExpired = false, sleepAtEndOfVideo = true)
-        }
-        viewModelScope.launch(dispatcher + errorHandler) { playbackController.setStopAfterCurrentItem(true) }
+        sleepTimer.stopAtEndOfItem()
+        showSleepTimer()
     }
 
     fun cancelSleepTimer() {
-        sleepTimerJob?.cancel()
-        sleepTimerJob = null
-        clearStopAtEndOfVideo()
-        _uiState.update { it.copy(sleepTimerEndsAtElapsedRealtime = null, sleepTimerExpired = false) }
-    }
-
-    private fun clearStopAtEndOfVideo() {
-        if (!_uiState.value.sleepAtEndOfVideo) return
-        _uiState.update { it.copy(sleepAtEndOfVideo = false) }
-        viewModelScope.launch(dispatcher + errorHandler) { playbackController.setStopAfterCurrentItem(false) }
+        sleepTimer.cancel()
+        showSleepTimer()
     }
 
     fun setAdvancedSheetVisible(visible: Boolean) {
@@ -1562,11 +1534,8 @@ class PlayerViewModel(
         brightnessFeedbackJob?.cancel()
         seekFeedbackJob?.cancel()
         lockHintJob?.cancel()
-        sleepTimerJob?.cancel()
-        if (_uiState.value.sleepAtEndOfVideo) {
-            // The controller outlives this screen; don't leave it stopping after every item.
-            persistScope.launch { playbackController.setStopAfterCurrentItem(false) }
-        }
+        // The sleep timer is left alone on purpose: it belongs to the playback controller, and the sound goes on
+        // after this screen is gone (the task swiped out of Recents), so the timer must too.
         autoAdvanceJob?.cancel()
         bookmarksJob?.cancel()
         flushPendingSyncEdits()

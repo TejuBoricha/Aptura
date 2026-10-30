@@ -27,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -318,9 +319,12 @@ private fun AppNavHost(
         onPlayerRouteActiveChanged(isPlayerRouteActive)
     }
 
+    var isExternalLaunch by rememberSaveable { mutableStateOf(initialLaunchUri != null) }
+
     // Handle initial ACTION_VIEW launch intent (F-17: replace existing PlayerKey if already on player route)
     LaunchedEffect(initialLaunchUri) {
         if (initialLaunchUri != null) {
+            isExternalLaunch = true
             playerViewModel.loadAndPlay(initialLaunchUri)
             if (backStack.lastOrNull() is PlayerKey) {
                 backStack.removeLastOrNull()
@@ -334,6 +338,9 @@ private fun AppNavHost(
     val dismissPlayerAndResetOrientation: () -> Unit = {
         activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         playerViewModel.onPlayerDismissed()
+        if (isExternalLaunch) {
+            activity?.finish()
+        }
     }
 
     NavDisplay(

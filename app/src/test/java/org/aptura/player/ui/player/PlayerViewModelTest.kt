@@ -25,6 +25,8 @@ import org.aptura.player.domain.model.PlaybackStatsInfo
 import org.aptura.player.domain.model.PlayMode
 import org.aptura.player.domain.repository.MediaRepository
 import org.aptura.player.domain.repository.PlaybackController
+import org.aptura.player.domain.usecase.SleepTimer
+import kotlinx.coroutines.CoroutineScope
 import org.aptura.player.ui.library.MediaLibraryUiState
 import org.aptura.player.ui.library.MediaLibraryViewModel
 import org.aptura.player.ui.library.buildPlayQueueRequest
@@ -49,7 +51,11 @@ class PlayerViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
 
-    private class FakePlaybackController : PlaybackController {
+    /**
+     * `inner` so its sleep timer runs on this test's scheduler: the timer belongs to the controller (it outlives the
+     * screen), so the fake owns a real one, wired to the fake player like Media3PlaybackController wires its own.
+     */
+    private inner class FakePlaybackController : PlaybackController {
         val _playbackState = MutableStateFlow<DomainPlaybackState>(DomainPlaybackState.Idle)
         override val playbackState: StateFlow<DomainPlaybackState> = _playbackState.asStateFlow()
 
@@ -144,6 +150,15 @@ class PlayerViewModelTest {
         override suspend fun setStopAfterCurrentItem(enabled: Boolean) {
             stopAfterCurrentItem = enabled
         }
+
+        override val sleepTimer = SleepTimer(
+            scope = CoroutineScope(testDispatcher),
+            clock = { testDispatcher.scheduler.currentTime },
+            playbackState = playbackState,
+            pause = { pause() },
+            setVolume = { setVolume(it) },
+            setStopAfterCurrentItem = { setStopAfterCurrentItem(it) }
+        )
 
         var lastSubtitleDelay: Long? = null
         var lastAudioDelay: Long? = null
@@ -971,8 +986,7 @@ class PlayerViewModelTest {
         val viewModel = PlayerViewModel(
             playbackController = controller,
             mediaRepository = repository,
-            dispatcher = testDispatcher,
-            clock = { testScheduler.currentTime }
+            dispatcher = testDispatcher
         )
 
         viewModel.setSubtitleDelay(150L)
@@ -1254,8 +1268,7 @@ class PlayerViewModelTest {
         val viewModel = PlayerViewModel(
             playbackController = controller,
             mediaRepository = FakeMediaRepository(),
-            dispatcher = testDispatcher,
-            clock = { testScheduler.currentTime }
+            dispatcher = testDispatcher
         )
         viewModel.loadAndPlay(sampleVideo.uri)
         runCurrent()
@@ -1285,8 +1298,7 @@ class PlayerViewModelTest {
         val viewModel = PlayerViewModel(
             playbackController = controller,
             mediaRepository = FakeMediaRepository(),
-            dispatcher = testDispatcher,
-            clock = { testScheduler.currentTime }
+            dispatcher = testDispatcher
         )
 
         viewModel.startSleepTimer(1)
@@ -1311,8 +1323,7 @@ class PlayerViewModelTest {
         val viewModel = PlayerViewModel(
             playbackController = controller,
             mediaRepository = FakeMediaRepository(),
-            dispatcher = testDispatcher,
-            clock = { testScheduler.currentTime }
+            dispatcher = testDispatcher
         )
 
         viewModel.startSleepTimer(1)
@@ -1340,8 +1351,7 @@ class PlayerViewModelTest {
         val viewModel = PlayerViewModel(
             playbackController = controller,
             mediaRepository = FakeMediaRepository(),
-            dispatcher = testDispatcher,
-            clock = { testScheduler.currentTime }
+            dispatcher = testDispatcher
         )
         viewModel.loadAndPlay(sampleVideo.uri)
         runCurrent()
@@ -1378,8 +1388,7 @@ class PlayerViewModelTest {
         val viewModel = PlayerViewModel(
             playbackController = controller,
             mediaRepository = FakeMediaRepository(),
-            dispatcher = testDispatcher,
-            clock = { testScheduler.currentTime }
+            dispatcher = testDispatcher
         )
 
         viewModel.loadAndPlay(sampleVideo.uri)
@@ -1424,8 +1433,7 @@ class PlayerViewModelTest {
         val viewModel = PlayerViewModel(
             playbackController = controller,
             mediaRepository = FakeMediaRepository(),
-            dispatcher = testDispatcher,
-            clock = { testScheduler.currentTime }
+            dispatcher = testDispatcher
         )
 
         viewModel.startSleepAtEndOfVideo()
@@ -1436,6 +1444,92 @@ class PlayerViewModelTest {
         assertFalse(controller.stopAfterCurrentItem)
         assertEquals(15 * 60_000L, viewModel.uiState.value.sleepTimerEndsAtElapsedRealtime)
         viewModel.clearForTesting()
+    }
+
+    /**
+     * Galaxy S24 device test, 2026-10-29: swiping the app out of Recents clears this ViewModel while the playback
+     * service keeps playing. The timer ran in `viewModelScope`, so it died and the sound went on past the deadline.
+     */
+    @Test
+    fun sleepTimer_stillPausesAfterTheScreenIsGone() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val viewModel = PlayerViewModel(controller, FakeMediaRepository(), testDispatcher)
+        viewModel.loadAndPlay(sampleVideo.uri)
+        runCurrent()
+        controller.play()
+        runCurrent()
+
+        viewModel.startSleepTimer(3)
+        runCurrent()
+        viewModel.clearForTesting() // the task is swiped away; the service plays on
+        runCurrent()
+        assertTrue("the screen going away does not stop the sound", controller.isPlaying)
+
+        advanceTimeBy(3 * 60_000L - 5_000L)
+        runCurrent()
+        assertTrue("still fading out with no screen", controller.volume < 1f)
+
+        advanceTimeBy(5_000L)
+        runCurrent()
+        assertFalse("paused at the deadline", controller.isPlaying)
+        assertEquals("the next play is not silent", 1f, controller.volume, 0f)
+        assertEquals(org.aptura.player.domain.usecase.SleepTimerState.Expired, controller.sleepTimer.state.value)
+    }
+
+    @Test
+    fun sleepAtEndOfVideo_stillStopsAfterTheScreenIsGone_andThenDisarms() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val first = PlayerViewModel(controller, FakeMediaRepository(), testDispatcher)
+        val next = sampleVideo.copy(uri = "content://media/2", title = "Next Video")
+        first.playQueue(listOf(sampleVideo, next), 0)
+        runCurrent()
+
+        first.startSleepAtEndOfVideo()
+        runCurrent()
+        first.clearForTesting()
+        runCurrent()
+        assertTrue("clearing the screen used to disarm it, so the whole queue played on", controller.stopAfterCurrentItem)
+
+        controller._playbackState.value = DomainPlaybackState.Ended(sampleVideo.durationMs)
+        runCurrent()
+        assertFalse("one-shot, even with no screen to clear it", controller.stopAfterCurrentItem)
+
+        controller.play()
+        controller._playbackState.value = DomainPlaybackState.Ready(0L, next.durationMs, isPlaying = true, playbackSpeed = 1f)
+        runCurrent()
+        assertEquals(org.aptura.player.domain.usecase.SleepTimerState.Off, controller.sleepTimer.state.value)
+    }
+
+    @Test
+    fun aNewPlayerScreen_showsTheTimerAlreadyRunning_andHonoursEndOfVideo() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val first = PlayerViewModel(controller, FakeMediaRepository(), testDispatcher)
+        first.startSleepTimer(20)
+        runCurrent()
+        val endsAt = first.uiState.value.sleepTimerEndsAtElapsedRealtime
+        first.clearForTesting()
+
+        val second = PlayerViewModel(controller, FakeMediaRepository(), testDispatcher)
+        runCurrent()
+        assertEquals("the countdown is the controller's, not the screen's", endsAt, second.uiState.value.sleepTimerEndsAtElapsedRealtime)
+
+        // This screen subscribes to the player after the timer did, so it sees the end of the video second.
+        val next = sampleVideo.copy(uri = "content://media/2", title = "Next Video")
+        second.playQueue(listOf(sampleVideo, next), 0)
+        runCurrent()
+        second.startSleepAtEndOfVideo()
+        runCurrent()
+        val third = PlayerViewModel(controller, FakeMediaRepository(), testDispatcher)
+        runCurrent()
+        assertTrue(third.uiState.value.sleepAtEndOfVideo)
+        controller._playbackQueue.value = DomainPlaybackQueue(listOf(sampleVideo, next), 0)
+        controller._playbackState.value = DomainPlaybackState.Ended(sampleVideo.durationMs)
+        runCurrent()
+        assertNull("no Up Next countdown whichever side saw the end first", third.uiState.value.autoAdvanceCountdownSeconds)
+        assertNull(second.uiState.value.autoAdvanceCountdownSeconds)
+        assertFalse(third.uiState.value.sleepAtEndOfVideo)
+        second.clearForTesting()
+        third.clearForTesting()
     }
 
     @Test

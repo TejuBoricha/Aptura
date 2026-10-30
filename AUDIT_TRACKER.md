@@ -22,10 +22,10 @@ Every finding progresses strictly through the following states:
 
 | ID | Phase | Priority | Category | Summary | Affected Files | Status | Verification Evidence |
 |---|---|---|---|---|---|---|---|
-| **ISSUE-001** | Phase 1 | P1 | Lifecycle / Playback | Swiping app out of Recents keeps audio playing but kills sleep timer | `PlayerViewModel.kt`, `Media3PlaybackController.kt` | Investigating | Regression test in `PlayerViewModelTest` |
-| **ISSUE-002** | Phase 1 | P2 | Platform / UI | PiP tap is silent no-op when PiP permission/app-op is disabled | `PlayerScreen.kt`, `MainActivity.kt` | Pending | TBD |
+| **ISSUE-001** | Phase 1 | P1 | Lifecycle / Playback | Swiping app out of Recents keeps audio playing but kills sleep timer | `PlayerViewModel.kt`, `Media3PlaybackController.kt` | Verified | `SleepTimerTest` & `PlayerViewModelTest` in full gate |
+| **ISSUE-002** | Phase 1 | P2 | Platform / UI | PiP tap is silent no-op when PiP permission/app-op is disabled | `PlayerScreen.kt`, `MainActivity.kt` | Verified | `AppOpsManager` check + user feedback Toast |
 | **ISSUE-003** | Phase 1 | P2 | Lifecycle / Configuration | Paused video resumes playing after configuration change (font scale / display size) | `PlayerViewModel.kt`, `MainActivity.kt` | Pending | TBD |
-| **ISSUE-004** | Phase 1 | P2 | Storage / Playback | A/V offsets set on video opened via VIEW intent lost if not indexed in Room library | `PlayerViewModel.kt`, `MediaRepositoryImpl.kt` | Pending | TBD |
+| **ISSUE-004** | Phase 1 | P2 | Storage / Playback | A/V offsets set on video opened via VIEW intent lost if not indexed in Room library | `PlayerViewModel.kt`, `MediaRepositoryImpl.kt` | Verified | Upsert minimal `MediaItemEntity` via synthetic ID |
 | **ISSUE-005** | Phase 1 | P2 | UI / Accessibility | Stats overlay text wraps awkwardly at 200% accessibility font scale | `StatsOverlay.kt` | Pending | TBD |
 | **ISSUE-006** | Phase 1 | P3 | Android Lint | 3 `ApplySharedPref` warnings using blocking `commit()` in `MediaTransferJournal` | `MediaTransferJournal.kt` | Verified | Suppressed with architectural justification; verified 0 errors |
 | **ISSUE-007** | Phase 1 | P3 | Android Lint / Platform | Android 12+ PiP transition recommendation: `setAutoEnterEnabled(true)` and `setSourceRectHint` missing | `AndroidManifest.xml`, `MainActivity.kt` | Pending | TBD |
@@ -45,9 +45,9 @@ Every finding progresses strictly through the following states:
 | **ISSUE-021** | Phase 3 | P2 | Security / DoS | `SubtitleZipExtractor` lacks byte ceiling during extraction (Zip Bomb risk) | `SubtitleZipExtractor.kt` | Verified | `SubtitleZipExtractorTest.extractSubtitleFromStream_exceedsMaxBytes_abortsWithFailure` PASSED |
 | **ISSUE-022** | Phase 4 | P2 | Performance / Compose | 4 Hz position ticker triggers full `PlayerScreen` recomposition when controls hidden | `PlayerScreen.kt`, `Media3PlaybackController.kt` | Pending | TBD |
 | **ISSUE-023** | Phase 4 | P2 | Performance / Database | Room table invalidation re-queries entire library on 5s playback checkpoints | `MediaLibraryViewModel.kt`, `MediaItemDao.kt` | Pending | TBD |
-| **ISSUE-024** | Phase 5 | P2 | Navigation / Lifecycle | In-app Back arrow from external `ACTION_VIEW` launch drops user into Welcome / Onboarding flow | `Navigation.kt` | Pending | TBD |
+| **ISSUE-024** | Phase 5 | P2 | Navigation / Lifecycle | In-app Back arrow from external `ACTION_VIEW` launch drops user into Welcome / Onboarding flow | `Navigation.kt` | Verified | `isExternalLaunch` tracking cleanly finishes Activity |
 | **ISSUE-025** | Phase 5 | P2 | Audio / Platform | Bluetooth auto-sync hint (`Try −200 ms`) reflects connected devices rather than active audio output route | `AudioEnhancementSheet.kt` | Pending | TBD |
-| **ISSUE-026** | Phase 5 | P3 | Accessibility / UI | Sleep timer presets lack selected accessibility state for TalkBack screen reader | `SleepTimerSheet.kt` | Pending | TBD |
+| **ISSUE-026** | Phase 5 | P3 | Accessibility / UI | Sleep timer presets lack selected accessibility state for TalkBack screen reader | `PlayerToolsTabs.kt` | Verified | `activePresetMinutes` selected state passed to chips |
 
 ---
 
@@ -63,6 +63,8 @@ Every finding progresses strictly through the following states:
 - **Regression Risks:** Disarming of `stopAfterCurrentItem` when a video ends must be self-contained in the service layer if the UI is dead.
 - **Acceptance Criteria:** Clearing the ViewModel or destroying the Activity while a sleep timer is active does not cancel the timer; audio continues fading at deadline - 10s and pauses at deadline.
 - **Verification Plan:** Unit tests with mock clock simulating ViewModel clearing during active countdown.
+- **Status:** Verified
+- **Resolution & Evidence:** Implemented pure Kotlin `domain/usecase/SleepTimer.kt` bound to `PlaybackController` / `Media3PlaybackController.kt`. Verified via `SleepTimerTest` and `PlayerViewModelTest.sleepTimer_survivesViewModelClearing` in full gate.
 
 ### ISSUE-002: PiP affordance silent no-op when Picture-in-Picture app-op is disabled
 - **Phase:** Phase 1 / Phase 5
@@ -72,6 +74,8 @@ Every finding progresses strictly through the following states:
 - **Root Cause:** When Picture-in-Picture permission/app-op is revoked in system settings on a device that supports PiP, clicking the PiP button triggers `enterPictureInPictureMode()` which returns false or fails silently without providing user feedback or disabling the option.
 - **Proposed Solution:** Check `AppOpsManager` or `activity.isInPictureInPictureMode` / capability before rendering or show an explanatory snackbar/notice directing the user to system settings.
 - **Acceptance Criteria:** Tapping PiP when denied displays an informative message or the control is visibly disabled with an explanation.
+- **Status:** Verified
+- **Resolution & Evidence:** Added `AppOpsManager.OPSTR_PICTURE_IN_PICTURE` verification and Toast feedback in `MainActivity.kt`. Verified via full gate.
 
 ### ISSUE-003: Video resumes playing after configuration change (font scale)
 - **Phase:** Phase 1 / Phase 5
@@ -81,6 +85,17 @@ Every finding progresses strictly through the following states:
 - **Root Cause:** Activity recreation on `font_scale` change triggers re-initialization of playback or auto-resumes playback state unexpectedly.
 - **Proposed Solution:** Ensure paused state is strictly preserved during activity configuration changes without auto-play triggering.
 - **Acceptance Criteria:** If video was paused prior to configuration change, it remains strictly paused after recreation.
+
+### ISSUE-004: A/V offsets set on video opened via VIEW intent lost if not indexed in Room library
+- **Phase:** Phase 1 / Phase 5
+- **Priority:** P2 (Medium)
+- **Category:** Storage / Playback
+- **Affected Files:** `app/src/main/java/org/aptura/player/data/repository/MediaRepositoryImpl.kt`, `app/src/main/java/org/aptura/player/data/scanner/SafTreeScanner.kt`
+- **Root Cause:** Videos opened via `ACTION_VIEW` or SAF file pickers do not exist in the `media_items` Room table. When the user sets audio/subtitle sync offsets or reaches a playback position, `mediaItemDao.updatePlaybackPreferences()` and `updatePlaybackPosition()` execute SQL `UPDATE` queries matching 0 rows. Thus, all preferences and playback progress were discarded upon closing.
+- **Proposed Solution:** In `MediaRepositoryImpl.savePlaybackPreferences` and `savePlaybackPosition`, if no existing item matches the URI, auto-upsert a minimal `MediaItemEntity` using deterministic synthetic ID (`SafTreeScanner.computeSyntheticId`).
+- **Acceptance Criteria:** Offsets, speed, and resume position persist across playback sessions for external videos.
+- **Status:** Verified
+- **Resolution & Evidence:** Implemented minimal entity auto-upsert using `SafTreeScanner.computeSyntheticId` in `MediaRepositoryImpl.kt`. Verified via full gate.
 
 ### ISSUE-006: Synchronous `commit()` used on SharedPreferences in `MediaTransferJournal`
 - **Phase:** Phase 1 / Phase 4
@@ -210,6 +225,8 @@ Every finding progresses strictly through the following states:
 - **Root Cause:** When Aptura is launched via an external `ACTION_VIEW` intent on a clean install (or before onboarding was completed), `backStack` is initialized with `[Onboarding]`. The launch effect pushes `PlayerKey` so the stack is `[Onboarding, PlayerKey]`. Pressing Back or the top-bar arrow pops `PlayerKey`, dropping the user into the `Onboarding` welcome screen instead of finishing the activity. Even if onboarding was already completed, `backStack` has `[MediaLibrary, PlayerKey]`, dropping the user into `MediaLibrary` instead of finishing the activity to return to the calling app.
 - **Proposed Solution:** In `handleBack`, if the activity was launched with an external `ACTION_VIEW` intent, finish the activity when popping the player instead of dropping the user into the library or onboarding.
 - **Acceptance Criteria:** Opening a video from an external file manager and pressing Back cleanly exits Aptura and returns to the calling app.
+- **Status:** Verified
+- **Resolution & Evidence:** Tracked `isExternalLaunch` with `rememberSaveable` in `Navigation.kt` and invoke `(context as? Activity)?.finish()` on exit. Verified via full gate.
 
 ### ISSUE-025: Bluetooth auto-sync hint (`Try −200 ms`) reflects connected devices rather than active audio output route
 - **Phase:** Phase 5
@@ -224,10 +241,12 @@ Every finding progresses strictly through the following states:
 - **Phase:** Phase 5
 - **Priority:** P3 (Low)
 - **Category:** Accessibility / UI
-- **Affected Files:** `app/src/main/java/org/aptura/player/ui/player/SleepTimerSheet.kt`
+- **Affected Files:** `app/src/main/java/org/aptura/player/ui/player/PlayerToolsTabs.kt`
 - **Root Cause:** When a sleep timer is actively counting down, no chip is marked selected in the UI (`selected = false` for all chips because `activeTimerMinutes` is 0 or countdown is in progress). TalkBack announces all chips as unselected, so visually impaired users cannot hear which preset was chosen.
 - **Proposed Solution:** Ensure the matching preset chip corresponding to the active timer duration announces selected or has an active indicator for screen readers.
 - **Acceptance Criteria:** Screen readers announce which sleep timer preset is currently active.
+- **Status:** Verified
+- **Resolution & Evidence:** Added `activePresetMinutes` state tracking in `PlayerToolsTabs.kt` to mark selected chip during countdown. Verified via full gate.
 
 
 

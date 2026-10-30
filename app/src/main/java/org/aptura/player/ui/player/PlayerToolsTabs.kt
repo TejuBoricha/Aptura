@@ -32,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -110,6 +111,7 @@ internal fun PlaybackToolsTab(
         val expired = uiState.sleepTimerExpired
         var customTimerOpen by remember { mutableStateOf(false) }
         var customMinutesText by remember { mutableStateOf("") }
+        var activePresetMinutes by rememberSaveable { mutableStateOf<Int?>(null) }
         SheetSection(
             "Sleep timer",
             trailing = if (remaining != null || expired) {
@@ -142,15 +144,26 @@ internal fun PlaybackToolsTab(
                 SheetChip(
                     label = "Off",
                     selected = remaining == null && !expired && !atEnd,
-                    onClick = onCancelSleepTimer
+                    onClick = {
+                        activePresetMinutes = null
+                        onCancelSleepTimer()
+                    }
                 )
                 SLEEP_TIMER_PRESET_MINUTES.forEach { minutes ->
-                    // A running timer is reported by the line above; it does not need a guessed selected chip.
-                    SheetChip(label = "$minutes min", selected = false, onClick = { onStartSleepTimer(minutes) })
+                    val isSelected = remaining != null && activePresetMinutes == minutes
+                    SheetChip(
+                        label = "$minutes min",
+                        selected = isSelected,
+                        onClick = {
+                            activePresetMinutes = minutes
+                            onStartSleepTimer(minutes)
+                        }
+                    )
                 }
+                val isCustomSelected = remaining != null && activePresetMinutes != null && activePresetMinutes !in SLEEP_TIMER_PRESET_MINUTES
                 SheetChip(
-                    label = "Custom…",
-                    selected = false,
+                    label = if (isCustomSelected) "Custom ($activePresetMinutes m)" else "Custom…",
+                    selected = isCustomSelected,
                     onClick = {
                         customMinutesText = ""
                         customTimerOpen = true
@@ -161,7 +174,14 @@ internal fun PlaybackToolsTab(
                 title = "At the end of this video",
                 subtitle = "Instead of a set time",
                 checked = atEnd,
-                onCheckedChange = { on -> if (on) onSleepAtEndOfVideo() else onCancelSleepTimer() }
+                onCheckedChange = { on ->
+                    if (on) {
+                        activePresetMinutes = null
+                        onSleepAtEndOfVideo()
+                    } else {
+                        onCancelSleepTimer()
+                    }
+                }
             )
         }
 
@@ -174,6 +194,7 @@ internal fun PlaybackToolsTab(
                 confirmLabel = "Start timer",
                 onConfirm = {
                     customMinutes?.let {
+                        activePresetMinutes = it
                         onStartSleepTimer(it)
                         customTimerOpen = false
                     }

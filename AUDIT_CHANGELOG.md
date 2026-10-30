@@ -3,6 +3,32 @@
 > Permanent log of code refactoring, bug fixes, architecture improvements, and design decisions made throughout the audit.
 > Formatted in reverse chronological order with traceability to Audit Tracker Issue IDs.
 
+## [Phase 7 Batch 3 — Functional Integrity & Lifecycle Resiliency] — 2026-10-30
+
+### Fixed & Verified Issues
+- **ISSUE-001 (P1): Sleep Timer Survives App Task Removal**
+  - *Files Changed:* `app/src/main/java/org/aptura/player/domain/usecase/SleepTimer.kt`, `app/src/main/java/org/aptura/player/domain/repository/PlaybackController.kt`, `app/src/main/java/org/aptura/player/data/playback/Media3PlaybackController.kt`, `app/src/main/java/org/aptura/player/ui/player/PlayerViewModel.kt`, `app/src/test/java/org/aptura/player/domain/usecase/SleepTimerTest.kt`, `app/src/test/java/org/aptura/player/ui/player/PlayerViewModelTest.kt`
+  - *Remediation:* Extracted `SleepTimer` into pure Kotlin `domain/usecase` bound to `PlaybackController` (held by `ApturaPlaybackService`). `PlayerViewModel` delegates commands and observes state. Unit test suite and ViewModel clear test prove timer survives activity destruction.
+- **ISSUE-002 (P2): User Feedback on Revoked PiP Permission**
+  - *Files Changed:* `app/src/main/java/org/aptura/player/MainActivity.kt`
+  - *Remediation:* Added explicit `AppOpsManager` verification and user Toast feedback ("Picture-in-Picture is disabled in Android settings") when PiP permission is denied or entry fails.
+- **ISSUE-004 (P2): Persistence of A/V Offsets on External Videos**
+  - *Files Changed:* `app/src/main/java/org/aptura/player/data/repository/MediaRepositoryImpl.kt`, `app/src/main/java/org/aptura/player/data/scanner/SafTreeScanner.kt`
+  - *Remediation:* In `MediaRepositoryImpl.savePlaybackPreferences` and `savePlaybackPosition`, if the video row is not in Room (external `ACTION_VIEW` or SAF file), upsert a minimal `MediaItemEntity` using deterministic synthetic ID (`SafTreeScanner.computeSyntheticId`). A/V offsets, playback speed, and progress now persist across app restarts for external videos.
+- **ISSUE-024 (P2): Clean Exit on Back from External Launch Intent**
+  - *Files Changed:* `app/src/main/java/org/aptura/player/Navigation.kt`
+  - *Remediation:* Tracked `isExternalLaunch` via `rememberSaveable`. In `dismissPlayerAndResetOrientation`, finish the activity if opened via an external `ACTION_VIEW` intent rather than trapping the user in internal onboarding/library screens.
+- **ISSUE-026 (P3): Sleep Timer Preset Accessibility State for TalkBack**
+  - *Files Changed:* `app/src/main/java/org/aptura/player/ui/player/PlayerToolsTabs.kt`
+  - *Remediation:* Added `activePresetMinutes` state tracking so TalkBack announces `selected = true` on the active preset chip during sleep timer countdown.
+
+### Verification Evidence
+- Full gate passed cleanly via `tools/gate.ps1`:
+  - 691 unit tests passing (0 failures).
+  - Android Lint passed with 0 errors.
+  - Release APK minified with R8, zero forbidden packages.
+  - 147 Python tests passed.
+
 ## [Phase 7 Batch 2 — Exception Hygiene & Lint Cleanliness] — 2026-10-30
 
 ### Fixed & Verified Issues
