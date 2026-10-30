@@ -715,6 +715,14 @@ private fun AppNavHost(
                     onUpdateAccentColor = { accent ->
                         coroutineScope.launch { settingsRepository.updateAccentColor(accent) }
                     },
+                    onUpdateSupporter = { isSupporter ->
+                        coroutineScope.launch {
+                            settingsRepository.updateSupporter(isSupporter)
+                            if (!isSupporter && settings.accentColor == AccentColor.GOLD) {
+                                settingsRepository.updateAccentColor(AccentColor.CYAN)
+                            }
+                        }
+                    },
                     onClearThumbnailCache = {
                         coroutineScope.launch(Dispatchers.IO) {
                             try {

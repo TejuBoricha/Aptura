@@ -42,13 +42,15 @@ class SettingsAppearanceTest {
     private fun show(
         mode: ThemeMode = ThemeMode.DARK,
         accent: AccentColor = AccentColor.CYAN,
+        isSupporter: Boolean = false,
         onMode: (ThemeMode) -> Unit = {},
-        onAccent: (AccentColor) -> Unit = {}
+        onAccent: (AccentColor) -> Unit = {},
+        onSupporter: (Boolean) -> Unit = {}
     ) {
         composeRule.setContent {
             ApturaTheme(themeMode = mode, accentColor = accent) {
                 SettingsScreen(
-                    settings = ApturaSettings(themeMode = mode, accentColor = accent),
+                    settings = ApturaSettings(themeMode = mode, accentColor = accent, isSupporter = isSupporter),
                     libraryStats = LibraryStatistics(),
                     onBackClick = {},
                     onUpdateSpeed = {},
@@ -59,7 +61,8 @@ class SettingsAppearanceTest {
                     onRescanClick = {},
                     onReplayOnboardingClick = {},
                     onUpdateThemeMode = onMode,
-                    onUpdateAccentColor = onAccent
+                    onUpdateAccentColor = onAccent,
+                    onUpdateSupporter = onSupporter
                 )
             }
         }
@@ -96,5 +99,38 @@ class SettingsAppearanceTest {
 
         composeRule.onNode(hasScrollAction()).performScrollToNode(hasContentDescription("Rose accent"))
         composeRule.onNodeWithContentDescription("Rose accent").assertIsSelected()
+    }
+
+    @Test
+    fun choosingGoldWhenSupporter_reportsGold() {
+        var chosen: AccentColor? = null
+        show(isSupporter = true, onAccent = { chosen = it })
+
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasContentDescription("Gold accent"))
+        composeRule.onNodeWithContentDescription("Gold accent")
+            .assertIsDisplayed()
+            .assertHasClickAction()
+            .performClick()
+
+        assertEquals(AccentColor.GOLD, chosen)
+    }
+
+    @Test
+    fun togglingSupporter_callsCallback() {
+        var toggled: Boolean? = null
+        show(isSupporter = false, onSupporter = { toggled = it })
+
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("I Supported Aptura 🏅"))
+        composeRule.onNode(hasText("I Supported Aptura 🏅")).performClick()
+
+        assertEquals(true, toggled)
+    }
+
+    @Test
+    fun supporterBadge_isDisplayedWhenSupporter() {
+        show(isSupporter = true)
+
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("⭐ Supporter"))
+        composeRule.onNode(hasText("⭐ Supporter")).assertIsDisplayed()
     }
 }

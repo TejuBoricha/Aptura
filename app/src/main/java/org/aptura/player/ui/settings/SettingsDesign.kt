@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -353,7 +354,9 @@ internal fun AccentPickerRow(
     title: String,
     subtitle: String,
     selected: AccentColor,
-    onSelect: (AccentColor) -> Unit
+    onSelect: (AccentColor) -> Unit,
+    isSupporter: Boolean = false,
+    onLockedAccentClick: (() -> Unit)? = null
 ) {
     val haptic = LocalHapticFeedback.current
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
@@ -365,6 +368,7 @@ internal fun AccentPickerRow(
         ) {
             AccentColor.entries.forEach { accent ->
                 val isSelected = accent == selected
+                val isLocked = accent == AccentColor.GOLD && !isSupporter
                 Column(
                     modifier = Modifier
                         .clip(RoundedCornerShape(12.dp))
@@ -372,8 +376,13 @@ internal fun AccentPickerRow(
                             selected = isSelected,
                             role = Role.RadioButton,
                             onClick = {
-                                if (!isSelected) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                onSelect(accent)
+                                if (isLocked) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onLockedAccentClick?.invoke()
+                                } else if (!isSelected) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onSelect(accent)
+                                }
                             }
                         )
                         .semantics { contentDescription = "${accent.label} accent" }
@@ -382,14 +391,14 @@ internal fun AccentPickerRow(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(44.dp)
+                            .size(40.dp)
                             .clip(CircleShape)
                             .border(
                                 width = 2.dp,
                                 color = if (isSelected) ApturaColors.TextHighEmphasis else Color.Transparent,
                                 shape = CircleShape
                             )
-                            .padding(4.dp)
+                            .padding(3.dp)
                             .clip(CircleShape)
                             .background(accent.previewPrimary(ApturaColors.IsDark)),
                         contentAlignment = Alignment.Center
@@ -399,13 +408,24 @@ internal fun AccentPickerRow(
                                 imageVector = Icons.Default.Check,
                                 contentDescription = null,
                                 tint = if (ApturaColors.IsDark) Color(0xFF001217) else Color.White,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(16.dp)
+                            )
+                        } else if (isLocked) {
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = "Locked",
+                                tint = if (ApturaColors.IsDark) Color(0xFF001217) else Color.White,
+                                modifier = Modifier.size(14.dp)
                             )
                         }
                     }
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        text = accent.label,
+                        text = when {
+                            accent == AccentColor.GOLD && isSupporter -> "Gold ⭐"
+                            accent == AccentColor.GOLD -> "Gold 🔒"
+                            else -> accent.label
+                        },
                         style = ApturaTypography.labelMedium.copy(fontFeatureSettings = ""),
                         color = if (isSelected) ApturaColors.TextHighEmphasis else ApturaColors.TextMediumEmphasis,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
