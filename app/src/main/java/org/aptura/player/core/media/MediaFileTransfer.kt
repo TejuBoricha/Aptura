@@ -3,6 +3,7 @@ package org.aptura.player.core.media
 import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
+import androidx.core.net.toUri
 import android.os.SystemClock
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
@@ -73,7 +74,7 @@ object MediaFileTransfer {
         }
         val destination = DocumentsContract.buildDocumentUriUsingTree(treeUri, destinationId)
         val sources = sourceUris.distinct()
-        val sizes = sources.associateWith { sourceSize(resolver, Uri.parse(it)) }
+        val sizes = sources.associateWith { sourceSize(resolver, it.toUri()) }
         val totalBytes = sizes.values.sum()
         // A resumed job already has these at the destination. They count as copied so the caller can report and
         // (for a move) delete exactly the files that now exist, but they are never written a second time.
@@ -113,7 +114,7 @@ object MediaFileTransfer {
         report(currentName = "", force = true)
         for (sourceString in sources.filterNot { it in skipCopied }) {
             coroutineContext.ensureActive()
-            val source = Uri.parse(sourceString)
+            val source = sourceString.toUri()
             var created: Uri? = null
             try {
                 val sourceDocumentId = try {
@@ -179,7 +180,7 @@ object MediaFileTransfer {
     /** Sum of the readable source sizes and the destination's advertised free space, if it reports one. */
     fun measureSpace(context: Context, sourceUris: List<String>, treeUri: Uri): MediaTransferSpace {
         val resolver = context.contentResolver
-        val required = sourceUris.distinct().sumOf { sourceSize(resolver, Uri.parse(it)) }
+        val required = sourceUris.distinct().sumOf { sourceSize(resolver, it.toUri()) }
         if (!DocumentsContract.isTreeUri(treeUri)) {
             return MediaTransferSpace(required, availableBytes = 0L)
         }

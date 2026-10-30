@@ -5,6 +5,7 @@ import android.content.ContentResolver
 import android.content.Context
 import android.content.IntentSender
 import android.net.Uri
+import androidx.core.net.toUri
 import android.os.Build
 import android.provider.DocumentsContract
 import android.provider.MediaStore
@@ -49,7 +50,7 @@ class MediaDeleter(
 
     fun delete(uriString: String): DeleteOutcome {
         val uri = try {
-            Uri.parse(uriString)
+            uriString.toUri()
         } catch (_: Throwable) {
             return DeleteOutcome.Failed("Invalid file location.")
         }

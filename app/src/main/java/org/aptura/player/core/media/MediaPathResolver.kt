@@ -2,6 +2,7 @@ package org.aptura.player.core.media
 
 import android.content.Context
 import android.net.Uri
+import androidx.core.net.toUri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
@@ -23,7 +24,7 @@ object MediaPathResolver {
         uriString: String,
         primaryStorageRoot: () -> String = { Environment.getExternalStorageDirectory().absolutePath }
     ): String? {
-        val uri = try { Uri.parse(uriString) } catch (_: Throwable) { return null }
+        val uri = try { uriString.toUri() } catch (_: Throwable) { return null }
         return when {
             uri.scheme == "file" -> uri.path?.takeIf { it.isNotBlank() }
             uri.scheme == "content" && uri.authority == MediaStore.AUTHORITY -> fromMediaStore(context, uri, primaryStorageRoot)

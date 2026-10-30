@@ -1,6 +1,7 @@
 package org.aptura.player.ui.library
 
 import androidx.activity.compose.BackHandler
+import androidx.core.net.toUri
 import androidx.compose.foundation.layout.offset
 import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
@@ -651,7 +652,7 @@ private fun MediaLibraryContentView(
                 when (
                     val outcome = ApturaMediaFileManager.renameMediaFile(
                         context = context,
-                        uri = Uri.parse(uri),
+                        uri = uri.toUri(),
                         newNameWithExt = title
                     )
                 ) {
@@ -1258,22 +1259,26 @@ private fun MediaLibraryContentView(
                     },
                     onOpenWithClick = {
                         val viewIntent = Intent(Intent.ACTION_VIEW).apply {
-                            setDataAndType(Uri.parse(item.uri), item.mimeType ?: "video/*")
+                            setDataAndType(item.uri.toUri(), item.mimeType ?: "video/*")
                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         }
                         try {
                             context.startActivity(Intent.createChooser(viewIntent, "Open Video With..."))
                         } catch (_: Exception) {
-                            // ignore if no handler
+                            Toast.makeText(context, "No app available to open this video", Toast.LENGTH_SHORT).show()
                         }
                     },
                     onShareClick = {
                         val shareIntent = Intent(Intent.ACTION_SEND).apply {
                             type = item.mimeType ?: "video/*"
-                            putExtra(Intent.EXTRA_STREAM, Uri.parse(item.uri))
+                            putExtra(Intent.EXTRA_STREAM, item.uri.toUri())
                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         }
-                        context.startActivity(Intent.createChooser(shareIntent, "Share Video"))
+                        try {
+                            context.startActivity(Intent.createChooser(shareIntent, "Share Video"))
+                        } catch (_: Exception) {
+                            Toast.makeText(context, "No app available to share this video", Toast.LENGTH_SHORT).show()
+                        }
                     },
                     onResetProgressClick = {
                         onResetProgress(item.uri)
@@ -1343,7 +1348,7 @@ private fun MediaLibraryContentView(
                         when (
                             val outcome = ApturaMediaFileManager.renameMediaFile(
                                 context = context,
-                                uri = Uri.parse(item.uri),
+                                uri = item.uri.toUri(),
                                 newNameWithExt = newName
                             )
                         ) {

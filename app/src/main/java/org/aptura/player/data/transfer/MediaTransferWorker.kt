@@ -2,6 +2,7 @@ package org.aptura.player.data.transfer
 
 import android.content.Context
 import android.net.Uri
+import androidx.core.net.toUri
 import androidx.work.CoroutineWorker
 import androidx.work.Data
 import androidx.work.WorkerParameters
@@ -44,7 +45,7 @@ class MediaTransferWorker(
                 MediaFileTransfer.measureSpace(
                     applicationContext,
                     remaining,
-                    Uri.parse(initial.destination)
+                    initial.destination.toUri()
                 )
             }
             if (!space.hasEnoughSpace) {
@@ -64,7 +65,7 @@ class MediaTransferWorker(
             val result = MediaFileTransfer.copyIntoTree(
                 context = applicationContext,
                 sourceUris = initial.sources,
-                treeUri = Uri.parse(initial.destination),
+                treeUri = initial.destination.toUri(),
                 skipCopied = initial.copiedUris.toSet(),
                 onDocumentCreated = { source, destination ->
                     update(jobId) {
@@ -127,7 +128,7 @@ class MediaTransferWorker(
     private suspend fun removePartialFromPreviousRun(job: MediaTransferJob) {
         val partial = job.inProgressDestination ?: return
         withContext(Dispatchers.IO) {
-            MediaFileTransfer.deletePartial(applicationContext, Uri.parse(partial))
+            MediaFileTransfer.deletePartial(applicationContext, partial.toUri())
         }
         update(job.id) {
             it.copy(inProgressSource = null, inProgressDestination = null)

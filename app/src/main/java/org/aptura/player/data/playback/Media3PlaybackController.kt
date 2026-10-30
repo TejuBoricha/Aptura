@@ -2,6 +2,7 @@
 
 package org.aptura.player.data.playback
 
+import androidx.core.net.toUri
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -543,7 +544,7 @@ class Media3PlaybackController(
             .setMediaId(item.uri)
             .setMediaMetadata(metadata)
             .setSubtitleConfigurations(subtitles.map { sub ->
-                MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(sub.uri))
+                MediaItem.SubtitleConfiguration.Builder(sub.uri.toUri())
                     .setMimeType(sub.mimeType)
                     .setLanguage(sub.language ?: "und")
                     .setLabel(sub.label)
@@ -982,13 +983,13 @@ class Media3PlaybackController(
         if (subtitles.isEmpty()) return
         val currentItem = player.currentMediaItem ?: return
         val existingConfigs = currentItem.localConfiguration?.subtitleConfigurations ?: emptyList()
-        val newUris = subtitles.map { android.net.Uri.parse(it.uri) }.toSet()
+        val newUris = subtitles.map { it.uri.toUri() }.toSet()
 
         val retainedConfigs = existingConfigs.filter { it.uri !in newUris }
 
         val newConfigs = subtitles.map { sub ->
             externalSubtitleLabels.add(sub.label)
-            MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(sub.uri))
+            MediaItem.SubtitleConfiguration.Builder(sub.uri.toUri())
                 .setMimeType(sub.mimeType)
                 .setLanguage(sub.language ?: "und")
                 .setLabel(sub.label)

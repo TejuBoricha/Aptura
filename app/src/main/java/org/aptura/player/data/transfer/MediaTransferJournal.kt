@@ -1,5 +1,6 @@
 package org.aptura.player.data.transfer
 
+import android.annotation.SuppressLint
 import android.content.Context
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -52,6 +53,11 @@ data class MediaTransferJob(
  * SharedPreferences is used with `commit()` because the worker writes from a background thread and a lost write
  * would turn a safe resume into a duplicate copy. There is only one small JSON value.
  */
+/**
+ * Synchronous durability via [commit] is strictly required (ADR-008, DEC-011) so crash recovery
+ * reads the exact state if the process is killed mid-transfer.
+ */
+@SuppressLint("ApplySharedPref")
 object MediaTransferJournal {
 
     private const val PREFS_NAME = "aptura_media_transfer_journal"

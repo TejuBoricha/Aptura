@@ -1,7 +1,7 @@
 package org.aptura.player.data.repository
 
 import android.content.Context
-import android.net.Uri
+import androidx.core.net.toUri
 import org.aptura.player.domain.model.DomainExternalSubtitle
 import org.aptura.player.domain.repository.SidecarSubtitleResolver
 
@@ -9,7 +9,7 @@ import org.aptura.player.domain.repository.SidecarSubtitleResolver
 class AndroidSidecarSubtitleResolver(private val context: Context) : SidecarSubtitleResolver {
 
     override suspend fun resolve(mediaUri: String): List<DomainExternalSubtitle> =
-        SidecarSubtitleDetector.detectSidecars(context, Uri.parse(mediaUri)).map { sidecar ->
+        SidecarSubtitleDetector.detectSidecars(context, mediaUri.toUri()).map { sidecar ->
             // A sidecar without a language tag must not read "External (Sidecar) (File.srt)" - the plain file
             // name is the clearest label for it (and the toast reads "Auto-paired: File.srt").
             DomainExternalSubtitle(

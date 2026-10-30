@@ -1,6 +1,7 @@
 package org.aptura.player.ui.library
 
 import android.net.Uri
+import androidx.core.net.toUri
 import org.aptura.player.data.transfer.MediaTransferJob
 
 internal data class TransferResultMessage(val title: String, val message: String)
@@ -60,7 +61,7 @@ internal fun moveResultMessage(
 /** A compact, bounded list: the dialog must not grow with a batch of hundreds of files. */
 internal fun describeVideoUris(uris: List<String>, titlesByUri: Map<String, String>): String {
     val names = uris.map { uri ->
-        titlesByUri[uri] ?: Uri.parse(uri).lastPathSegment ?: "Unknown video"
+        titlesByUri[uri] ?: uri.toUri().lastPathSegment ?: "Unknown video"
     }
     val displayed = names.take(3).joinToString()
     return if (names.size > 3) "$displayed, and ${names.size - 3} more" else displayed
