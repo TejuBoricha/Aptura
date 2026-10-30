@@ -76,9 +76,6 @@ internal const val MAX_SLOW_LOAD_WAITS = 3
 /** How much has to be loaded ahead of the position before a player that still does not start is called frozen. */
 internal const val ENOUGH_LOADED_TO_START_MS = 2_500L
 
-/** How long a video must have been playing before the rest of the queue is loaded behind it (see `QueueRestore`). */
-internal const val QUEUE_RESTORE_AFTER_MS = 2_000L
-
 /** A player and the pieces that were built with it and must be replaced with it. */
 class PlayerParts(
     val player: Player,
@@ -194,16 +191,10 @@ class Media3PlaybackController(
     private var stallRecoveries = 0
 
     /**
-     * Set once a stall was cured by starting afresh. From then on every start gets a brand-new player and loads one video
-     * first, which is what worked, instead of waiting for the stall to happen again on every video.
+     * Set once a stall was cured by starting afresh. From then on every start gets a brand-new player, which is what
+     * worked, instead of waiting for the stall to happen again on every video.
      */
     private var cautiousStart = false
-
-    /** The rest of the queue, held back while the first video starts; see [completeQueueRestore]. */
-    private var queueRestore: QueueRestore? = null
-    private var queueRestoreJob: Job? = null
-
-    private class QueueRestore(val before: List<MediaItem>, val after: List<MediaItem>)
 
     /** Why play-when-ready last changed (a person, an audio-focus loss, the end of an item...), for the stall report. */
     private var lastPlayWhenReadyChangeReason = -1
@@ -275,7 +266,6 @@ class Media3PlaybackController(
                 stalledReason = null
                 logPlaybackStarted()
                 learnFromRecovery()
-                scheduleQueueRestore()
             }
             checkPositionTicker(isPlaying)
             updatePlaybackState()
@@ -741,20 +731,14 @@ class Media3PlaybackController(
 
     /** Pushes the player's real queue state (index, next/previous availability incl. shuffle order) to the domain. */
     private fun publishQueue() {
-        // While the rest of the queue is held back the player knows one video; the queue is still the whole list.
-        val held = queueRestore
-        val index = when {
-            queueItems.isEmpty() -> -1
-            held != null -> held.before.size.coerceIn(0, queueItems.lastIndex)
-            else -> player.currentMediaItemIndex.coerceIn(0, queueItems.lastIndex)
-        }
+        val index = if (queueItems.isEmpty()) -1 else player.currentMediaItemIndex.coerceIn(0, queueItems.lastIndex)
         _playbackQueue.value = DomainPlaybackQueue(
             items = queueItems.toList(),
             currentIndex = index,
             playMode = playMode,
-            nextAvailable = if (held != null) held.after.isNotEmpty() else player.hasNextMediaItem(),
-            previousAvailable = if (held != null) held.before.isNotEmpty() else player.hasPreviousMediaItem(),
-            nextIndex = if (held != null) (index + 1).takeIf { it <= queueItems.lastIndex } else player.nextMediaItemIndex.takeIf { it != C.INDEX_UNSET }
+            nextAvailable = player.hasNextMediaItem(),
+            previousAvailable = player.hasPreviousMediaItem(),
+            nextIndex = player.nextMediaItemIndex.takeIf { it != C.INDEX_UNSET }
         )
     }
 
@@ -834,7 +818,7 @@ class Media3PlaybackController(
         val software = step >= 1 && currentDecoderStrategy != 2
         logRecovery(if (software) "fresh_player_software" else "fresh_player", facts)
         if (software) engageSoftwareDecoder("Playback did not start within ${PLAYBACK_START_RUNG_MS / 1000} s ($facts). Automatically engaged software fallback.")
-        if (!startOnFreshPlayer(if (software) "software decoder" else "no start in ${PLAYBACK_START_RUNG_MS / 1000} s", software)) {
+        if (!startOnFreshPlayer(if (software) "software decoder" else "no start in ${PLAYBACK_START_RUNG_MS / 1000} s", software, onlyThisVideo = software)) {
             // No way to make a new player: restart this one. Keeps the playlist and the position.
             player.stop()
             player.prepare()
@@ -896,19 +880,17 @@ class Media3PlaybackController(
     }
 
     /**
-     * Replaces the player with a brand-new one and starts the current video on it, where it was, with one video loaded
-     * first and the rest of the queue behind it. A player whose codec or audio output has wedged cannot be repaired
-     * from outside (the hardware decoder may never answer), but a new one starts clean, like the first video after the
-     * app opens. @return false when no new player can be made.
+     * Replaces the player with a brand-new one and starts the current video on it, where it was, with the same queue. A
+     * player whose codec or audio output has wedged cannot be repaired from outside (the hardware decoder may never
+     * answer), but a new one starts clean, like the first video after the app opens. When [onlyThisVideo] is set (the
+     * last attempt) the queue is dropped to the one video: better to play it than to fail on the queue around it.
+     * @return false when no new player can be made.
      */
-    internal fun startOnFreshPlayer(reason: String, software: Boolean): Boolean {
+    internal fun startOnFreshPlayer(reason: String, software: Boolean, onlyThisVideo: Boolean = false): Boolean {
         val old = player
         if (old.mediaItemCount == 0) return false
-        val held = queueRestore
         val index = old.currentMediaItemIndex.coerceIn(0, old.mediaItemCount - 1)
-        val here = (0 until old.mediaItemCount).map { old.getMediaItemAt(it) }
-        val playlist = if (held != null) held.before + here + held.after else here
-        val currentIndex = if (held != null) held.before.size else index
+        val playlist = (0 until old.mediaItemCount).map { old.getMediaItemAt(it) }
         val position = old.currentPosition.coerceAtLeast(0L)
         if (!swapInFreshPlayer(reason)) return false
         if (software && currentDecoderStrategy != 2) engageSoftwareDecoder("Software decoder engaged: $reason.")
@@ -916,8 +898,17 @@ class Media3PlaybackController(
         slowLoadWaits = 0
         loadedAtLastCheck = 0L
         trace.restart()
-        trace.note("fresh player: $reason position=${position}ms items=${playlist.size} index=$currentIndex decoder=$currentDecoderStrategy")
-        loadHoldingBackQueue(playlist, currentIndex, position)
+        trace.note("fresh player: $reason position=${position}ms items=${playlist.size} index=$index decoder=$currentDecoderStrategy only=$onlyThisVideo")
+        if (onlyThisVideo && playlist.size > 1) {
+            val keep = queueItems.getOrNull(index)
+            queueItems.clear()
+            if (keep != null) queueItems.add(keep)
+            player.setMediaItems(listOf(playlist[index]), 0, position)
+        } else {
+            player.setMediaItems(playlist, index, position)
+        }
+        applyPlayModeToPlayer()
+        if (playMode == PlayMode.SHUFFLE) shuffleRemainingAfterCurrent()
         player.prepare()
         player.play()
         playRequestedAtNanos = System.nanoTime()
@@ -927,20 +918,6 @@ class Media3PlaybackController(
         updatePlaybackState()
         updatePlaybackStats()
         return true
-    }
-
-    /** Loads [playlist] starting at [index]: only that video now, the rest once it plays, unless it is a single video. */
-    private fun loadHoldingBackQueue(playlist: List<MediaItem>, index: Int, positionMs: Long) {
-        queueRestoreJob?.cancel()
-        queueRestoreJob = null
-        if (playlist.size > 1) {
-            player.setMediaItems(listOf(playlist[index]), 0, positionMs)
-            queueRestore = QueueRestore(playlist.subList(0, index).toList(), playlist.subList(index + 1, playlist.size).toList())
-        } else {
-            player.setMediaItems(playlist, index, positionMs)
-            queueRestore = null
-        }
-        applyPlayModeToPlayer()
     }
 
     /** Puts a new player in the old one's place, with the old one's settings, and releases the old one. @return false when none can be made. */
@@ -983,29 +960,6 @@ class Media3PlaybackController(
         return true
     }
 
-    /** Loads the rest of the queue behind the video that is playing. Safe to call at any time and more than once. */
-    private fun completeQueueRestore() {
-        queueRestoreJob?.cancel()
-        queueRestoreJob = null
-        val held = queueRestore ?: return
-        queueRestore = null
-        if (player.mediaItemCount != 1) return
-        if (held.after.isNotEmpty()) player.addMediaItems(held.after)
-        if (held.before.isNotEmpty()) player.addMediaItems(0, held.before)
-        if (playMode == PlayMode.SHUFFLE) shuffleRemainingAfterCurrent()
-        publishQueue()
-        prefetchNeighbours()
-    }
-
-    /** Waits until the video has been playing for a moment, then loads the rest of the queue behind it. */
-    private fun scheduleQueueRestore() {
-        if (queueRestore == null || queueRestoreJob?.isActive == true) return
-        queueRestoreJob = scope.launch(mainDispatcher) {
-            delay(QUEUE_RESTORE_AFTER_MS)
-            if (player.isPlaying) completeQueueRestore() else queueRestoreJob = null
-        }
-    }
-
     /** The other half of the "requested" line: how long it took for the picture to move, so a slow start shows in the report. */
     private fun logPlaybackStarted() {
         val requestedAt = playRequestedAtNanos
@@ -1034,7 +988,6 @@ class Media3PlaybackController(
 
     /** Moves on to the next queue item after the current one could not be opened. @return false when there is nowhere to go. */
     private fun skipUnopenableItem(): Boolean {
-        completeQueueRestore()
         if (queueItems.size < 2 || !player.hasNextMediaItem()) return false
         if (consecutiveSkips >= queueItems.size - 1) return false
         consecutiveSkips++
@@ -1204,15 +1157,8 @@ class Media3PlaybackController(
         val mediaItems = items.mapIndexed { index, item ->
             if (index == clampedIndex) buildMediaItem(item, subtitles, artwork) else buildMediaItem(item, emptyList(), null)
         }
-        if (cautiousStart) {
-            loadHoldingBackQueue(mediaItems, clampedIndex, 0L)
-        } else {
-            queueRestoreJob?.cancel()
-            queueRestoreJob = null
-            queueRestore = null
-            player.setMediaItems(mediaItems, clampedIndex, 0L)
-            applyPlayModeToPlayer()
-        }
+        player.setMediaItems(mediaItems, clampedIndex, 0L)
+        applyPlayModeToPlayer()
         if (playMode == PlayMode.SHUFFLE) shuffleRemainingAfterCurrent()
         player.prepare()
         player.play()
@@ -1256,7 +1202,6 @@ class Media3PlaybackController(
     }
 
     override suspend fun skipToNext() {
-        completeQueueRestore()
         if (!player.hasNextMediaItem()) return
         pausedAtItemEnd = false
         player.seekToNextMediaItem()
@@ -1264,7 +1209,6 @@ class Media3PlaybackController(
     }
 
     override suspend fun skipToPrevious() {
-        completeQueueRestore()
         val currentPosition = player.currentPosition.coerceAtLeast(0L)
         val queue = _playbackQueue.value
         pausedAtItemEnd = false
@@ -1278,7 +1222,6 @@ class Media3PlaybackController(
     }
 
     override suspend fun playQueueItem(index: Int) {
-        completeQueueRestore()
         if (index !in queueItems.indices) return
         pausedAtItemEnd = false
         player.seekToDefaultPosition(index)
@@ -1287,7 +1230,6 @@ class Media3PlaybackController(
     }
 
     override suspend fun addToQueue(item: DomainMediaItem) {
-        completeQueueRestore()
         if (queueItems.isEmpty()) {
             playQueue(listOf(item), 0)
             return
@@ -1298,7 +1240,6 @@ class Media3PlaybackController(
     }
 
     override suspend fun playNext(item: DomainMediaItem) {
-        completeQueueRestore()
         if (queueItems.isEmpty()) {
             playQueue(listOf(item), 0)
             return
@@ -1310,7 +1251,6 @@ class Media3PlaybackController(
     }
 
     override suspend fun removeFromQueue(index: Int) {
-        completeQueueRestore()
         if (index !in queueItems.indices) return
         queueItems.removeAt(index)
         player.removeMediaItem(index)
@@ -1326,7 +1266,6 @@ class Media3PlaybackController(
     }
 
     override suspend fun moveQueueItem(fromIndex: Int, toIndex: Int) {
-        completeQueueRestore()
         if (fromIndex !in queueItems.indices || toIndex !in queueItems.indices || fromIndex == toIndex) return
         queueItems.add(toIndex, queueItems.removeAt(fromIndex))
         player.moveMediaItem(fromIndex, toIndex)
@@ -1334,7 +1273,6 @@ class Media3PlaybackController(
     }
 
     override suspend fun clearQueue() {
-        completeQueueRestore()
         if (queueItems.isEmpty()) return
         val current = player.currentMediaItemIndex
         if (current !in queueItems.indices) {
@@ -1360,7 +1298,6 @@ class Media3PlaybackController(
     }
 
     override suspend fun setPlayMode(mode: PlayMode) {
-        completeQueueRestore()
         val enteringShuffle = mode == PlayMode.SHUFFLE && playMode != PlayMode.SHUFFLE
         playMode = mode
         applyPlayModeToPlayer()
@@ -1693,8 +1630,6 @@ class Media3PlaybackController(
      * decoders are let go first, the way the platform expects. The playlist and position are kept.
      */
     fun stopForDismissal() {
-        queueRestoreJob?.cancel()
-        queueRestoreJob = null
         startWatchdog?.cancel()
         startWatchdog = null
         checkPositionTicker(false)
@@ -1706,8 +1641,6 @@ class Media3PlaybackController(
     override suspend fun release() {
         positionTickerJob?.cancel()
         positionTickerJob = null
-        queueRestoreJob?.cancel()
-        queueRestoreJob = null
         detach(player)
         player.release()
         _playbackState.value = DomainPlaybackState.Idle

@@ -375,7 +375,7 @@ class Media3PlaybackControllerStallTest {
     }
 
     @Test
-    fun aStallThatAFreshStartCured_makesEveryLaterStartFreshAndHoldsBackTheRestOfTheQueue() = runTest(dispatcher) {
+    fun aStallThatAFreshStartCured_makesEveryLaterStartBeginOnAFreshPlayer() = runTest(dispatcher) {
         val first = StuckPlayer("first")
         val controller = controllerWith(first)
 
@@ -388,55 +388,35 @@ class Media3PlaybackControllerStallTest {
         assertEquals(1, made.size)
 
         // The next video, picked from a folder of five.
-        val folder = (1..5).map { video(it) }
-        controller.playQueue(folder, 3)
+        controller.playQueue((1..5).map { video(it) }, 3)
         runCurrent()
 
         assertEquals("a new player before the video is loaded", 2, made.size)
         val player = made[1]
-        assertEquals("only the video asked for is loaded at first: ${player.calls}", 1, player.items.size)
-        assertTrue(player.calls.contains("setMediaItems(1 at 0, 0ms)"))
-        val queue = controller.playbackQueue.value
-        assertEquals("the queue is still all five", 5, queue.items.size)
-        assertEquals("and still on the video that was picked", 3, queue.currentIndex)
-        assertEquals(true, queue.nextAvailable)
-        assertEquals(true, queue.previousAvailable)
-
-        player.startPlaying()
-        advanceTimeBy(QUEUE_RESTORE_AFTER_MS + 1)
-        runCurrent()
-
-        assertEquals("the rest follows once it plays", 5, player.items.size)
-        assertEquals("the playing video did not move", "content://media/4", player.items[player.index].mediaId)
+        assertTrue("the whole queue is loaded, at the video that was picked: ${player.calls}", player.calls.contains("setMediaItems(5 at 3, 0ms)"))
+        assertEquals(5, controller.playbackQueue.value.items.size)
         assertEquals(3, controller.playbackQueue.value.currentIndex)
+        assertTrue(first.released)
+        assertTrue("and the first fresh player was let go: ${made[0].calls}", made[0].released)
     }
 
     @Test
-    fun theRestOfTheQueue_isLoadedBeforeAnythingThatNeedsIt() = runTest(dispatcher) {
-        val first = StuckPlayer("first")
-        val controller = controllerWith(first)
-        controller.playQueue(listOf(video(1)), 0)
+    fun theFirstRecoveryKeepsTheQueue_theLastAttemptPlaysOnlyTheVideoAsked() = runTest(dispatcher) {
+        val controller = controllerWith(StuckPlayer("first"))
+
+        controller.playQueue((1..5).map { video(it) }, 2)
         runCurrent()
         advanceTimeBy(rung)
         runCurrent()
-        liveHandler(controller).startPlaying()
-        runCurrent()
+        assertEquals("the first recovery keeps the queue", 5, made[0].items.size)
+        assertEquals(5, controller.playbackQueue.value.items.size)
 
-        controller.playQueue((1..5).map { video(it) }, 1)
+        advanceTimeBy(rung)
         runCurrent()
-        val player = made[1]
-        player.startPlaying()
-        runCurrent()
-        assertEquals("not yet: the video has only just started", 1, player.items.size)
-
-        controller.skipToNext()
-
-        val added = player.calls.indexOfFirst { it.startsWith("addMediaItems") }
-        val skipped = player.calls.indexOf("seekToNextMediaItem")
-        assertTrue("the rest was loaded first: ${player.calls}", added in 0 until skipped)
-        assertEquals(5, player.items.size)
+        assertEquals("the last attempt plays only the video that was asked for", 1, made[1].items.size)
+        assertEquals(1, controller.playbackQueue.value.items.size)
+        assertEquals("content://media/3", made[1].items[0].mediaId)
     }
-
 
     @Test
     fun loadingThatKeepsArriving_isGivenTimeToFinish_andThenReplacedAnyway() = runTest(dispatcher) {

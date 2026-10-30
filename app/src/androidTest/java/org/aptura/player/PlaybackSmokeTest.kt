@@ -233,12 +233,15 @@ class PlaybackSmokeTest {
         override fun close() = closed.countDown()
     }
 
+    /** Must be called on the main thread (the controller's factory is). */
     @UnstableApi
-    private fun stuckPlayer(): ExoPlayer = onMain {
+    private fun buildStuckPlayer(): ExoPlayer =
         ExoPlayer.Builder(context)
             .setMediaSourceFactory(DefaultMediaSourceFactory(DataSource.Factory { NeverDeliversDataSource() }))
             .build()
-    }
+
+    @UnstableApi
+    private fun stuckPlayer(): ExoPlayer = onMain { buildStuckPlayer() }
 
     @UnstableApi
     private fun recoveringController(first: ExoPlayer, made: MutableList<ExoPlayer>, fresh: () -> ExoPlayer): Media3PlaybackController = onMain {
@@ -272,7 +275,7 @@ class PlaybackSmokeTest {
 
     /**
      * The player the owner's phone had: it was asked to play and never did. Nothing can repair it, so it must be
-     * replaced, and the video must then play on the new one, with the rest of the queue behind it.
+     * replaced, and the video must then play on the new one, with the same queue.
      */
     @UnstableApi
     @Test
@@ -288,7 +291,7 @@ class PlaybackSmokeTest {
             assertTrue("the wedged player was not let go", onMain { first.isReleased })
             assertNotSame(first, onMain { controller.player })
             assertEquals("one replacement was enough", 1, made.size)
-            waitFor(10_000, "the rest of the queue to follow the video") { controller.player.mediaItemCount == 3 }
+            assertEquals("the whole queue went to the new player", 3, onMain { controller.player.mediaItemCount })
             assertEquals("the video that is playing is still the one that was picked", 1, onMain { controller.player.currentMediaItemIndex })
             assertEquals(3, controller.playbackQueue.value.items.size)
             assertEquals(1, controller.playbackQueue.value.currentIndex)
@@ -309,7 +312,7 @@ class PlaybackSmokeTest {
     fun aPlayerThatStaysWedged_endsInAMessage_andRetryStartsAgain() {
         val made = mutableListOf<ExoPlayer>()
         val first = stuckPlayer()
-        val controller = recoveringController(first, made) { stuckPlayer() }
+        val controller = recoveringController(first, made) { buildStuckPlayer() }
         try {
             runBlocking(Dispatchers.Main) { controller.playQueue(listOf(item(clipUri, "never starts")), 0) }
 

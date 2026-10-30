@@ -71,7 +71,8 @@ PR's Verification section and in CI, not here, so most pull requests never need 
 - **A video that does not start is retried on a brand-new player** (`Media3PlaybackController.startOnFreshPlayer`, DESIGN.md §5.5b):
   4 s without starting, then a new player; 4 s more, a new player with the software decoder; 4 s more, "Playback Did Not Start".
   `controller.currentPlayer` is the player in use; the player screen and the media session follow it. Later starts in a session
-  that needed a recovery are "cautious": a new player and one video first, the queue behind it. `PlaybackSmokeTest` (`connected`)
+  that needed a recovery are "cautious": every start begins on a new player. Never add media items *before* the playing one with
+  a MediaSession attached (Media3 1.5.1 crashed the process on it in the connected tests). `PlaybackSmokeTest` (`connected`)
   plays H.264, HEVC, a 558-item queue and a second video, and wedges a real player to prove the replacement plays. Not checked on a
   Samsung S24 yet.
 - **Every bottom sheet is `ApturaModalBottomSheet`** (`ui/components/ApturaSheet.kt`): it swallows the upward fling speed left over
