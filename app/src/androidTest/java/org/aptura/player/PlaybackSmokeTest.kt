@@ -47,6 +47,7 @@ class PlaybackSmokeTest {
 
     private val context: Context get() = InstrumentationRegistry.getInstrumentation().targetContext
     private var clipUri: Uri? = null
+    private var hevcUri: Uri? = null
 
     private class SeedRule : TestRule {
         override fun apply(base: Statement, description: Description) = object : Statement() {
@@ -68,42 +69,68 @@ class PlaybackSmokeTest {
     val chain: RuleChain = RuleChain.outerRule(SeedRule()).around(composeRule)
 
     @Before
-    fun putClipInMediaStore() {
+    fun putClipsInMediaStore() {
+        clipUri = insertClip(CLIP_NAME, "smoke_clip.mp4")
+        hevcUri = insertClip(HEVC_NAME, "smoke_hevc.mp4")
+    }
+
+    private fun insertClip(displayName: String, asset: String): Uri {
         val resolver = context.contentResolver
         val values = ContentValues().apply {
-            put(MediaStore.Video.Media.DISPLAY_NAME, CLIP_NAME)
+            put(MediaStore.Video.Media.DISPLAY_NAME, displayName)
             put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
             put(MediaStore.Video.Media.RELATIVE_PATH, "${Environment.DIRECTORY_MOVIES}/Checks")
             put(MediaStore.Video.Media.IS_PENDING, 1)
         }
         val uri = resolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)
-            ?: error("MediaStore refused to create the test clip")
+            ?: error("MediaStore refused to create $displayName")
         resolver.openOutputStream(uri)!!.use { out ->
-            InstrumentationRegistry.getInstrumentation().context.assets.open("smoke_clip.mp4").use { it.copyTo(out) }
+            InstrumentationRegistry.getInstrumentation().context.assets.open(asset).use { it.copyTo(out) }
         }
         resolver.update(uri, ContentValues().apply { put(MediaStore.Video.Media.IS_PENDING, 0) }, null, null)
-        clipUri = uri
+        return uri
     }
 
     @After
-    fun removeClip() {
+    fun removeClips() {
         runCatching { PlayerManager.activeController?.player?.let { p -> onMain { p.stop() } } }
-        clipUri?.let { runCatching { context.contentResolver.delete(it, null, null) } }
+        listOfNotNull(clipUri, hevcUri).forEach { runCatching { context.contentResolver.delete(it, null, null) } }
+    }
+
+    private fun item(uri: Uri?, title: String) = DomainMediaItem(
+        uri = uri.toString(),
+        title = title,
+        durationMs = 3_000L,
+        sizeBytes = 50_000L,
+        mimeType = "video/mp4"
+    )
+
+    @Test
+    fun theController_playsAnH264Video() {
+        val controller = PlayerManager.getOrCreate(context)
+        runBlocking(Dispatchers.Main) { controller.playQueue(listOf(item(clipUri, "zqprobe clip")), 0) }
+
+        assertPlays(controller.player, "the controller, one H.264 video")
     }
 
     @Test
-    fun theController_playsAVideo() {
-        val item = DomainMediaItem(
-            uri = clipUri.toString(),
-            title = "zqprobe clip",
-            durationMs = 4_000L,
-            sizeBytes = 44_000L,
-            mimeType = "video/mp4"
-        )
+    fun theController_playsAnHevcVideo() {
         val controller = PlayerManager.getOrCreate(context)
-        runBlocking(Dispatchers.Main) { controller.playQueue(listOf(item), 0) }
+        runBlocking(Dispatchers.Main) { controller.playQueue(listOf(item(hevcUri, "zqhevc clip")), 0) }
 
-        assertPlays(controller.player, "the controller, one item")
+        assertPlays(controller.player, "the controller, one HEVC video")
+    }
+
+    /** A real library holds hundreds of videos and a tap queues all of them: the owner's phone showed 558. */
+    @Test
+    fun aQueueOfHundredsStartedInTheMiddle_plays() {
+        val controller = PlayerManager.getOrCreate(context)
+        val queue = List(558) { index -> item(if (index % 2 == 0) clipUri else hevcUri, "queue item $index") }
+        runBlocking(Dispatchers.Main) { controller.playQueue(queue, 300) }
+
+        assertPlays(controller.player, "the controller, 558 items starting at 301")
+        val index = onMain { controller.player.currentMediaItemIndex }
+        if (index != 300) fail("The queue started at item ${index + 1}, not 301.")
     }
 
     @Test
@@ -196,6 +223,7 @@ class PlaybackSmokeTest {
     private companion object {
         const val CLIP_NAME = "zqprobe_clip.mp4"
         const val CLIP_WORD = "zqprobe"
+        const val HEVC_NAME = "zqhevc_clip.mp4"
         const val PLAY_TIMEOUT_MS = 20_000L
         const val MIN_POSITION_MS = 700L
     }

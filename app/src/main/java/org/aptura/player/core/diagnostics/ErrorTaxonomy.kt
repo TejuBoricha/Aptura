@@ -46,6 +46,33 @@ object ErrorTaxonomy {
             )
     }
 
+    /**
+     * The video was opened and asked to play, and nothing played. There is no exception to map: the player simply never
+     * got going (see the start watchdog in the playback controller). Said plainly, with what is left to try.
+     */
+    fun playbackNotStarted(seconds: Long, isSoftwareAlreadyAttempted: Boolean): TaxonomyError =
+        TaxonomyError(
+            code = "PLAYBACK_STALLED",
+            title = "Playback Did Not Start",
+            whatHappened = if (isSoftwareAlreadyAttempted) {
+                "The video opened but did not start playing within $seconds seconds, even after switching to the software decoder."
+            } else {
+                "The video opened but did not start playing within $seconds seconds."
+            },
+            whatWasTried = if (isSoftwareAlreadyAttempted) {
+                "Hardware decoding and then platform software decoding were both tried."
+            } else {
+                "Playback was requested and the player was waited on."
+            },
+            suggestedActions = listOf(
+                "Retry playback",
+                "Open video in an external player app",
+                "Copy diagnostic report"
+            ),
+            canSwitchToSoftware = false,
+            isRecoverable = true
+        )
+
     fun mapException(
         exception: PlaybackException,
         isSoftwareAlreadyAttempted: Boolean = false
@@ -262,6 +289,7 @@ object ErrorTaxonomy {
         "IO_STORAGE_UNAVAILABLE" -> "Storage Inaccessible"
         "DRM_PROTECTED" -> "DRM Protected Content"
         "AUDIO_INIT_FAILED" -> "Audio Track Incompatible"
+        "PLAYBACK_STALLED" -> "Playback Did Not Start"
         else -> code.replace('_', ' ').lowercase().split(' ').joinToString(" ") { word ->
             word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
         }
