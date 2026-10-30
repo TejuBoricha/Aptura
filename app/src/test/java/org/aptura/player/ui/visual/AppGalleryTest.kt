@@ -37,9 +37,14 @@ import org.robolectric.annotation.GraphicsMode
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xhdpi")
 class SettingsGalleryTest : GalleryBase() {
 
-    private fun settings(mode: ThemeMode, accent: AccentColor = AccentColor.CYAN) = themed(mode, accent) {
+    private fun settings(mode: ThemeMode, accent: AccentColor = AccentColor.CYAN, isSupporter: Boolean = false) = themed(mode, accent) {
         SettingsScreen(
-            settings = ApturaSettings(themeMode = mode, accentColor = accent, persistedSafFolders = setOf("content://com.android.externalstorage.documents/tree/primary%3AMovies")),
+            settings = ApturaSettings(
+                themeMode = mode,
+                accentColor = accent,
+                isSupporter = isSupporter,
+                persistedSafFolders = setOf("content://com.android.externalstorage.documents/tree/primary%3AMovies")
+            ),
             libraryStats = LibraryStatistics(totalVideos = 8, totalDurationMs = 33_802_000, totalSizeBytes = 14_400_000_000),
             onBackClick = {}, onUpdateSpeed = {}, onUpdateResizeMode = {}, onUpdateSeekDelta = {},
             onUpdateBackgroundAudio = {}, onUpdateAutoAdvanceCountdown = {}, onRescanClick = {},
@@ -52,6 +57,19 @@ class SettingsGalleryTest : GalleryBase() {
 
     @Config(qualifiers = "w411dp-h5200dp-xhdpi")
     @Test fun fullDark() { settings(ThemeMode.DARK, AccentColor.VIOLET); shoot("settings_full_dark") }
+
+    @Config(qualifiers = "w411dp-h5200dp-xhdpi")
+    @Test fun fullSupporterGoldDark() { settings(ThemeMode.DARK, AccentColor.GOLD, isSupporter = true); shoot("settings_supporter_gold_dark") }
+
+    @Config(qualifiers = "w411dp-h5200dp-xhdpi")
+    @Test fun fullSupporterGoldLight() { settings(ThemeMode.LIGHT, AccentColor.GOLD, isSupporter = true); shoot("settings_supporter_gold_light") }
+
+    @Test fun phoneSupportSection() {
+        settings(ThemeMode.DARK, AccentColor.GOLD, isSupporter = true)
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("I Supported Aptura 🏅"))
+        settle()
+        shoot("settings_phone_support_section")
+    }
 
     @Test fun phoneTop() { settings(ThemeMode.LIGHT); shoot("settings_phone_top") }
 
