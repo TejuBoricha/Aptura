@@ -6,6 +6,7 @@ import androidx.media3.common.C
 import androidx.media3.common.audio.AudioProcessor.AudioFormat
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.nio.ByteBuffer
@@ -125,6 +126,10 @@ class AudioDelayProcessorTest {
         val p = AudioDelayProcessor()
         p.configure(AudioFormat(sampleRate, 2, C.ENCODING_PCM_FLOAT))
         assertFalse(p.isActive)
+        val event = org.aptura.player.core.diagnostics.ApturaDiagnostics.ringBuffer.getAllEvents()
+            .find { it.code == org.aptura.player.core.diagnostics.EventCode.EV_014 }
+        assertNotNull(event)
+        assertEquals("bypass_audio_delay", event?.payload?.get("action"))
     }
 
     @Test

@@ -2950,4 +2950,41 @@ class PlayerViewModelTest {
         assertEquals("My Vacation Clip", viewModel.uiState.value.videoTitle)
         viewModel.clearForTesting()
     }
+
+    @Test
+    fun positionTicks_whenControlsHidden_suppressUiStateUpdates_untilControlsRevealed() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        repository.items[sampleVideo.uri] = sampleVideo
+
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+        viewModel.loadAndPlay(sampleVideo.uri)
+        runCurrent()
+        assertTrue(viewModel.uiState.value.isControlsVisible)
+
+        // Initial tick while controls are visible updates currentPositionMs
+        controller.emitPlayingTick(1000L)
+        runCurrent()
+        assertEquals(1000L, viewModel.uiState.value.currentPositionMs)
+
+        // User hides controls
+        viewModel.toggleControlsVisibility()
+        assertFalse(viewModel.uiState.value.isControlsVisible)
+
+        // Position ticks while controls hidden must NOT update uiState.currentPositionMs (avoids 4 Hz Compose recomposition)
+        controller.emitPlayingTick(1250L)
+        runCurrent()
+        controller.emitPlayingTick(1500L)
+        runCurrent()
+        controller.emitPlayingTick(1750L)
+        runCurrent()
+        assertEquals(1000L, viewModel.uiState.value.currentPositionMs)
+
+        // Revealing controls immediately syncs the latest position
+        viewModel.toggleControlsVisibility()
+        assertTrue(viewModel.uiState.value.isControlsVisible)
+        assertEquals(1750L, viewModel.uiState.value.currentPositionMs)
+
+        viewModel.clearForTesting()
+    }
 }

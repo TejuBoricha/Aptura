@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -98,7 +99,31 @@ class MediaLibraryViewModel(
     }
 
     private val libraryContent: kotlinx.coroutines.flow.Flow<MediaLibraryUiState> = combine(
-        mediaRepository.getAllVideos(),
+        mediaRepository.getAllVideos().distinctUntilChanged { old, new ->
+            if (old.size != new.size) return@distinctUntilChanged false
+            for (i in old.indices) {
+                val a = old[i]
+                val b = new[i]
+                if (a.uri != b.uri ||
+                    a.title != b.title ||
+                    a.durationMs != b.durationMs ||
+                    a.sizeBytes != b.sizeBytes ||
+                    a.folderPath != b.folderPath ||
+                    a.isMissing != b.isMissing ||
+                    a.isCompleted != b.isCompleted ||
+                    a.lastPlayedTimestamp != b.lastPlayedTimestamp
+                ) {
+                    return@distinctUntilChanged false
+                }
+                // Suppress re-allocations if progress delta is under 1%
+                val oldFraction = if (a.durationMs > 0) a.playbackPositionMs.toFloat() / a.durationMs else 0f
+                val newFraction = if (b.durationMs > 0) b.playbackPositionMs.toFloat() / b.durationMs else 0f
+                if (kotlin.math.abs(oldFraction - newFraction) >= 0.01f) {
+                    return@distinctUntilChanged false
+                }
+            }
+            true
+        },
         mediaRepository.getAllFolders(),
         filterState
     ) { allVideos: List<DomainMediaItem>, folders: List<String>, filter: FilterState ->

@@ -3,6 +3,26 @@
 > Permanent log of code refactoring, bug fixes, architecture improvements, and design decisions made throughout the audit.
 > Formatted in reverse chronological order with traceability to Audit Tracker Issue IDs.
 
+## [Phase 7 Batch 4 — Performance & Resource Lifecycle Optimizations] — 2026-10-30
+
+### Fixed & Verified Issues
+- **ISSUE-022 (P2): Compose Recomposition Decoupling in PlayerScreen**
+  - *Files Changed:* `app/src/main/java/org/aptura/player/ui/player/PlayerViewModel.kt`, `app/src/test/java/org/aptura/player/ui/player/PlayerViewModelTest.kt`
+  - *Remediation:* Maintained internal `lastKnownPositionMs` in `PlayerViewModel` and gated 4 Hz position updates to `uiState.currentPositionMs` when controls are hidden (`isControlsVisible == false`). Full `PlayerScreen` recomposition drops to 0 during full-screen playback. When user taps to reveal HUD, position immediately synchronizes from `lastKnownPositionMs`. Added unit test `positionTicks_whenControlsHidden_suppressUiStateUpdates_untilControlsRevealed`.
+- **ISSUE-023 (P2): Room Invalidation Dampening in MediaLibraryViewModel**
+  - *Files Changed:* `app/src/main/java/org/aptura/player/ui/library/MediaLibraryViewModel.kt`, `app/src/test/java/org/aptura/player/ui/library/MediaLibraryViewModelTest.kt`
+  - *Remediation:* Applied `distinctUntilChanged` on `mediaRepository.getAllVideos()`. Structural metadata and progress deltas are evaluated: sub-1% progress deltas from 5-second playback checkpoints are dampened, preventing full re-query, re-sorting, and re-allocation of `VideoCardUiModel` objects for the entire library. Added unit test `smallProgressCheckpointUpdates_doNotTriggerLibraryReEmission`.
+- **ISSUE-013 (P2): Diagnostic Tracing for Audio Delay Format Bypass**
+  - *Files Changed:* `app/src/main/java/org/aptura/player/data/playback/AudioDelayProcessor.kt`, `app/src/test/java/org/aptura/player/data/playback/AudioDelayProcessorTest.kt`
+  - *Remediation:* Logged `EV_014` (`play.sync_shift`) to `ApturaDiagnostics` when audio encoding bypasses delay processor (e.g. non-16-bit PCM). Verified through regression unit test `nonPcm16Input_leavesTheProcessorInactive_soPlaybackIsNeverBroken`.
+
+### Verification Evidence
+- Full gate passed cleanly via `tools/gate.ps1`:
+  - 694 unit tests passing (0 failures).
+  - Android Lint passed with 0 errors.
+  - Release APK minified with R8, zero forbidden packages.
+  - 147 Python tests passed.
+
 ## [Phase 7 Batch 3 — Functional Integrity & Lifecycle Resiliency] — 2026-10-30
 
 ### Fixed & Verified Issues

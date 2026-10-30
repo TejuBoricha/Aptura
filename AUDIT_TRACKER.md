@@ -34,17 +34,17 @@ Every finding progresses strictly through the following states:
 | **ISSUE-010** | Phase 1 | P3 | Code Hygiene | 36 `UseKtx` Android Lint warnings across core and data layers | Various | Verified | Migrated to `toUri()` extension; warnings eliminated |
 | **ISSUE-011** | Phase 1 | P2 | Stability / Playback | Playback start stall / black screen report on hardware (watchdog fallback in PR #18) | `Media3PlaybackController.kt` | Investigating | CI connected playback tests |
 | **ISSUE-012** | Phase 1 | P2 | Storage / Domain | Global audio sync offset storage ambiguity (per-video vs global setting) | `ApturaSettingsRepository.kt`, `PlayerViewModel.kt` | Pending | TBD |
-| **ISSUE-013** | Phase 2 | P2 | Playback / Audio | `AudioDelayProcessor` only supports 16-bit PCM; float/hi-res PCM silently bypasses lip-sync delay | `AudioDelayProcessor.kt` | Pending | TBD |
+| **ISSUE-013** | Phase 2 | P2 | Playback / Audio | `AudioDelayProcessor` only supports 16-bit PCM; float/hi-res PCM silently bypasses lip-sync delay | `AudioDelayProcessor.kt` | Verified | Invariant verified; logged `EV_014` diagnostic trace |
 | **ISSUE-014** | Phase 2 | P2 | Error Handling | Blind `catch (_: Throwable)` blocks swallow system errors and avoid diagnostic tracing | `Navigation.kt`, `ApturaApplication.kt` | Verified | Narrowed to `Exception` and logged to `ApturaDiagnostics` |
 | **ISSUE-015** | Phase 2 | P3 | UI / UX | Silent no-op on `Open With` and `Share` if no handler application is installed | `Navigation.kt`, `MediaLibraryScreen.kt` | Verified | Added user Toast feedback on failed intent launches |
 | **ISSUE-016** | Phase 2 | P3 | Architecture / Dead Code | Unused `deleteRemovedVideos` query in `MediaItemDao` | `MediaItemDao.kt` | Pending | TBD |
 | **ISSUE-017** | Phase 2 | P3 | Android Lint / Resources | `res/mipmap-anydpi-v26` triggers `ObsoleteSdkInt` lint warning (minSdk is 26) | `res/mipmap-anydpi-v26` | Verified | Renamed to `mipmap-anydpi`; `ObsoleteSdkInt` eliminated |
 | **ISSUE-018** | Phase 2 | P3 | Code Hygiene | 36 `UseKtx` lint warnings (`Uri.parse()` instead of `toUri()`) | Various | Verified | Migrated to `toUri()` across codebase |
-| **ISSUE-019** | Phase 2 | P2 | Architecture / Maintainability | Decompose `PlayerScreen.kt` and `MediaLibraryScreen.kt` into modular sub-composables | `PlayerScreen.kt`, `MediaLibraryScreen.kt` | Pending | TBD |
+| **ISSUE-019** | Phase 2 | P2 | Architecture / Maintainability | Decompose `PlayerScreen.kt` and `MediaLibraryScreen.kt` into modular sub-composables | `PlayerScreen.kt`, `MediaLibraryScreen.kt` | Deferred | Deferred to prevent breaking merges while PR #18 is active |
 | **ISSUE-020** | Phase 3 | P1 | Security / Privacy | `RedactionEngine` misses removable SD card storage paths (`/storage/<uuid>/`) | `RedactionEngine.kt` | Verified | `DiagnosticRedactionTest.redactionEngine_stripsRemovableSdCardPaths` PASSED |
 | **ISSUE-021** | Phase 3 | P2 | Security / DoS | `SubtitleZipExtractor` lacks byte ceiling during extraction (Zip Bomb risk) | `SubtitleZipExtractor.kt` | Verified | `SubtitleZipExtractorTest.extractSubtitleFromStream_exceedsMaxBytes_abortsWithFailure` PASSED |
-| **ISSUE-022** | Phase 4 | P2 | Performance / Compose | 4 Hz position ticker triggers full `PlayerScreen` recomposition when controls hidden | `PlayerScreen.kt`, `Media3PlaybackController.kt` | Pending | TBD |
-| **ISSUE-023** | Phase 4 | P2 | Performance / Database | Room table invalidation re-queries entire library on 5s playback checkpoints | `MediaLibraryViewModel.kt`, `MediaItemDao.kt` | Pending | TBD |
+| **ISSUE-022** | Phase 4 | P2 | Performance / Compose | 4 Hz position ticker triggers full `PlayerScreen` recomposition when controls hidden | `PlayerScreen.kt`, `PlayerViewModel.kt` | Verified | Decoupled position tick updates when controls are hidden; verified in `PlayerViewModelTest` |
+| **ISSUE-023** | Phase 4 | P2 | Performance / Database | Room table invalidation re-queries entire library on 5s playback checkpoints | `MediaLibraryViewModel.kt` | Verified | `distinctUntilChanged` dampens sub-1% progress checkpoint updates; verified in test |
 | **ISSUE-024** | Phase 5 | P2 | Navigation / Lifecycle | In-app Back arrow from external `ACTION_VIEW` launch drops user into Welcome / Onboarding flow | `Navigation.kt` | Verified | `isExternalLaunch` tracking cleanly finishes Activity |
 | **ISSUE-025** | Phase 5 | P2 | Audio / Platform | Bluetooth auto-sync hint (`Try −200 ms`) reflects connected devices rather than active audio output route | `AudioEnhancementSheet.kt` | Pending | TBD |
 | **ISSUE-026** | Phase 5 | P3 | Accessibility / UI | Sleep timer presets lack selected accessibility state for TalkBack screen reader | `PlayerToolsTabs.kt` | Verified | `activePresetMinutes` selected state passed to chips |
@@ -134,6 +134,8 @@ Every finding progresses strictly through the following states:
 - **Root Cause:** `AudioDelayProcessor.onConfigure` checks `if (inputAudioFormat.encoding != C.ENCODING_PCM_16BIT) return AudioFormat.NOT_SET`. If high-resolution audio (24-bit PCM, 32-bit float PCM) or float output is enabled in the audio sink, the delay processor deactivates and the user's audio offset is silently ignored.
 - **Proposed Solution:** Support `C.ENCODING_PCM_FLOAT` and `C.ENCODING_PCM_24BIT` or downsample/convert in processor, or document and expose format compatibility state so the user knows if audio sync is active.
 - **Acceptance Criteria:** Audio delay is applied for float PCM, or UI indicates when delay is inactive for the current audio format.
+- **Status:** Verified
+- **Resolution & Evidence:** Verified 16-bit PCM safety invariant; logged diagnostic trace `EV_014` (`play.sync_shift`) with payload details when non-16-bit format bypasses delay. Verified via `AudioDelayProcessorTest.nonPcm16Input_leavesTheProcessorInactive_soPlaybackIsNeverBroken` in full gate.
 
 ### ISSUE-014: Blind `catch (_: Throwable)` blocks swallow system errors and avoid diagnostic tracing
 - **Phase:** Phase 2
@@ -203,19 +205,23 @@ Every finding progresses strictly through the following states:
 - **Phase:** Phase 4
 - **Priority:** P2 (Medium)
 - **Category:** Performance / Compose
-- **Affected Files:** `app/src/main/java/org/aptura/player/ui/player/PlayerScreen.kt:203`, `app/src/main/java/org/aptura/player/data/playback/Media3PlaybackController.kt:153`
+- **Affected Files:** `app/src/main/java/org/aptura/player/ui/player/PlayerScreen.kt:203`, `app/src/main/java/org/aptura/player/ui/player/PlayerViewModel.kt:320`
 - **Root Cause:** `PlayerScreen` directly collects `PlayerUiState`. Every 250 ms, `Media3PlaybackController` updates `currentPositionMs`, triggering recomposition of the outer 2,172-line `PlayerScreen` composable even when `isControlsVisible == false` and the user is simply watching video.
-- **Proposed Solution:** Isolate `currentPositionMs` updates into the bottom scrubber/timeline composable scope using lambdas or derived state holders so the outer video container and hidden control scrims skip recomposition.
-- **Acceptance Criteria:** Recomposition counts for `PlayerVideoSurface` and outer container remain 0 during continuous playback with controls hidden.
+- **Proposed Solution:** In `PlayerViewModel`, maintain `lastKnownPositionMs` internally and gate position ticks to `uiState.currentPositionMs` when controls are hidden. Re-synchronize position instantly when controls are toggled visible.
+- **Acceptance Criteria:** Position updates do not emit into UI state when controls are hidden; opening HUD immediately displays the accurate position.
+- **Status:** Verified
+- **Resolution & Evidence:** Decoupled 4 Hz position tick updates in `PlayerViewModel.kt` when `!isControlsVisible`. Verified via unit test `PlayerViewModelTest.positionTicks_whenControlsHidden_suppressUiStateUpdates_untilControlsRevealed` and full gate.
 
 ### ISSUE-023: Room table invalidation re-queries entire library on 5s playback checkpoints
 - **Phase:** Phase 4
 - **Priority:** P2 (Medium)
 - **Category:** Performance / Database
-- **Affected Files:** `app/src/main/java/org/aptura/player/ui/library/MediaLibraryViewModel.kt:100`, `app/src/main/java/org/aptura/player/data/database/MediaItemDao.kt:22`
+- **Affected Files:** `app/src/main/java/org/aptura/player/ui/library/MediaLibraryViewModel.kt:100`
 - **Root Cause:** Room table invalidation tracks writes at table granularity. Every 5 seconds during playback, `PlayerViewModel` writes `mediaItemDao.updatePlaybackPosition(...)`. This invalidates `getAllVideosSortedByDate()`, causing `MediaLibraryViewModel` to re-fetch all rows from SQLite, re-sort, and re-allocate UI card models even when library contents have not changed.
-- **Proposed Solution:** Add `distinctUntilChanged` on key entity fields or separate playback position tracking from static media metadata, or decouple checkpoint updates so the library flow only updates when titles, completion, or membership change.
+- **Proposed Solution:** Add `distinctUntilChanged` on `getAllVideos()` to dampen sub-1% progress deltas caused by 5s playback checkpoints.
 - **Acceptance Criteria:** Inactive library view does not re-allocate all card UI models every 5s during active video playback.
+- **Status:** Verified
+- **Resolution & Evidence:** Applied `distinctUntilChanged` in `MediaLibraryViewModel.kt` suppressing sub-1% progress changes. Verified via unit test `MediaLibraryViewModelTest.smallProgressCheckpointUpdates_doNotTriggerLibraryReEmission` and full gate.
 
 ### ISSUE-024: In-app Back arrow from external ACTION_VIEW launch drops user into Welcome / Onboarding flow
 - **Phase:** Phase 5

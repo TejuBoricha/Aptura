@@ -570,4 +570,32 @@ class MediaLibraryViewModelTest {
         assertEquals(10, rail.size)
         assertEquals("the most recently played is first", "Show.S01E15", rail.first().title)
     }
+
+    @Test
+    fun smallProgressCheckpointUpdates_doNotTriggerLibraryReEmission() = runTest(testDispatcher) {
+        val repo = FakeMediaRepository()
+        val item = episode(1).copy(durationMs = 600_000L, playbackPositionMs = 10_000L)
+        repo.videosFlow.value = listOf(item)
+
+        val viewModel = MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 0L)
+
+        viewModel.uiState.test {
+            awaitItem() // Loading
+            val first = awaitItem() as MediaLibraryUiState.Success
+            assertEquals(1, first.videos.size)
+
+            // 5s checkpoint update: advances by 5s (< 1% of 600s)
+            repo.videosFlow.value = listOf(item.copy(playbackPositionMs = 15_000L))
+
+            // Sub-1% progress changes are dampened; expect no new emission
+            expectNoEvents()
+
+            // Progress advances by > 1% (from 10s to 25s = 2.5% delta)
+            repo.videosFlow.value = listOf(item.copy(playbackPositionMs = 25_000L))
+            val updated = awaitItem() as MediaLibraryUiState.Success
+            assertEquals(25_000L, updated.videos.first().rawItem.playbackPositionMs)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
 }
