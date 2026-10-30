@@ -6,6 +6,7 @@ import org.aptura.player.domain.model.DomainPlaybackQueue
 import org.aptura.player.domain.model.DomainPlaybackState
 import org.aptura.player.domain.model.DomainTrackSelection
 import org.aptura.player.domain.model.PlayMode
+import org.aptura.player.domain.usecase.SleepTimer
 
 /**
  * Pure domain interface for playback orchestration.
@@ -70,6 +71,12 @@ interface PlaybackController {
 
     /** The player's own gain, 0..1, under the system volume; the sleep timer fades the sound out with it. */
     suspend fun setVolume(volume: Float) {}
+
+    /**
+     * The sleep timer belongs to the player, not to a screen: playback outlives the activity (background audio, the
+     * task swiped out of Recents), and the timer has to outlive it too. Every controller owns exactly one.
+     */
+    val sleepTimer: SleepTimer
 
     /** Steps exactly one video frame (pauses first). */
     suspend fun stepFrame(forward: Boolean) {}

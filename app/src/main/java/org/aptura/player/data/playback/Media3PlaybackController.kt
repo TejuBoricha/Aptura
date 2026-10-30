@@ -48,6 +48,7 @@ import org.aptura.player.domain.repository.PlaybackController
 import org.aptura.player.domain.repository.SidecarSubtitleResolver
 import org.aptura.player.domain.usecase.PlaybackNavigationRules
 import org.aptura.player.domain.usecase.PreviousActionOutcome
+import org.aptura.player.domain.usecase.SleepTimer
 import kotlin.math.abs
 import kotlin.math.roundToLong
 
@@ -70,7 +71,9 @@ class Media3PlaybackController(
     private val sidecarResolver: SidecarSubtitleResolver? = null,
     private val artworkProvider: (suspend (mediaUri: String) -> ByteArray?)? = null,
     var audioDelayProcessor: AudioDelayProcessor? = null,
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    /** Monotonic clock for the sleep timer's deadline. */
+    elapsedRealtime: () -> Long = { android.os.SystemClock.elapsedRealtime() }
 ) : PlaybackController {
 
     var currentDecoderStrategy: Int = initialDecoderStrategy
@@ -119,6 +122,19 @@ class Media3PlaybackController(
 
     private val _playbackState = MutableStateFlow<DomainPlaybackState>(DomainPlaybackState.Idle)
     override val playbackState: StateFlow<DomainPlaybackState> = _playbackState.asStateFlow()
+
+    /**
+     * Lives with the player, which [PlayerManager] keeps for the whole process: swiping the task away clears the
+     * player screen's ViewModel, but playback and this timer go on until the timer pauses it.
+     */
+    override val sleepTimer = SleepTimer(
+        scope = CoroutineScope(scope.coroutineContext + mainDispatcher),
+        clock = elapsedRealtime,
+        playbackState = playbackState,
+        pause = { pause() },
+        setVolume = { setVolume(it) },
+        setStopAfterCurrentItem = { setStopAfterCurrentItem(it) }
+    )
 
     private val _skippedItems = MutableSharedFlow<String>(extraBufferCapacity = 8)
     override val skippedItems: SharedFlow<String> = _skippedItems.asSharedFlow()
@@ -1163,6 +1179,7 @@ class Media3PlaybackController(
     }
 
     override suspend fun release() {
+        sleepTimer.close()
         positionTickerJob?.cancel()
         positionTickerJob = null
         player.removeListener(playerListener)
