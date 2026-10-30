@@ -10,7 +10,7 @@ import java.util.regex.Pattern
 object RedactionEngine {
 
     private val STORAGE_PATH_PATTERN = Pattern.compile(
-        """(?:/storage/emulated/\d+/|/sdcard/|/data/user/\d+/|/data/data/)[^\s,\]}"]+""",
+        """(?:/storage/(?:emulated/\d+|[^/\s,\]}"]+)/|/sdcard/|/data/user/\d+/|/data/data/)[^\s,\]}"]+""",
         Pattern.CASE_INSENSITIVE
     )
 

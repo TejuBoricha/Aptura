@@ -97,4 +97,27 @@ class SubtitleZipExtractorTest {
         assertEquals("captions.ttml", success.entryName)
         assertEquals("application/ttml+xml", success.mimeType)
     }
+
+    @Test
+    fun extractSubtitleFromStream_exceedsMaxBytes_abortsWithFailure() {
+        val baos = ByteArrayOutputStream()
+        ZipOutputStream(baos).use { zos ->
+            zos.putNextEntry(ZipEntry("huge_bomb.srt"))
+            val zeroChunk = ByteArray(64 * 1024)
+            val totalNeeded = SubtitleZipExtractor.MAX_SUBTITLE_BYTES + 1024
+            var written = 0L
+            while (written < totalNeeded) {
+                val toWrite = minOf(zeroChunk.size.toLong(), totalNeeded - written).toInt()
+                zos.write(zeroChunk, 0, toWrite)
+                written += toWrite
+            }
+            zos.closeEntry()
+        }
+        val zipStream = ByteArrayInputStream(baos.toByteArray())
+        val result = SubtitleZipExtractor.extractSubtitleFromStream(context, zipStream)
+
+        assertTrue(result is ZipExtractionResult.Failure)
+        val failure = result as ZipExtractionResult.Failure
+        assertTrue(failure.reason.contains("exceeds maximum allowed size"))
+    }
 }

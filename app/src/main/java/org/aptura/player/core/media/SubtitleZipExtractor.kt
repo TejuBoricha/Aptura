@@ -24,6 +24,9 @@ sealed class ZipExtractionResult {
  */
 object SubtitleZipExtractor {
 
+    /** 20 MB ceiling prevents disk exhaustion / Zip Bomb DoS attacks (FR-SUB-006). */
+    const val MAX_SUBTITLE_BYTES = 20L * 1024L * 1024L
+
     private val SUPPORTED_SUBTITLE_EXTENSIONS = mapOf(
         "srt" to "application/x-subrip",
         "vtt" to "text/vtt",
@@ -68,9 +71,26 @@ object SubtitleZipExtractor {
                                 return ZipExtractionResult.Failure("Security error: Zip entry path escapes output directory")
                             }
 
-                            // Write extracted file
+                            // Write extracted file with bounded size check to defend against zip bombs
+                            var exceededCeiling = false
                             FileOutputStream(destinationFile).use { fos ->
-                                zis.copyTo(fos)
+                                val buffer = ByteArray(8192)
+                                var bytesWritten = 0L
+                                var read = zis.read(buffer)
+                                while (read >= 0) {
+                                    bytesWritten += read
+                                    if (bytesWritten > MAX_SUBTITLE_BYTES) {
+                                        exceededCeiling = true
+                                        break
+                                    }
+                                    fos.write(buffer, 0, read)
+                                    read = zis.read(buffer)
+                                }
+                            }
+
+                            if (exceededCeiling) {
+                                destinationFile.delete()
+                                return ZipExtractionResult.Failure("Security error: Subtitle file exceeds maximum allowed size (20 MB)")
                             }
 
                             // Prioritize English or .srt if multiple exist

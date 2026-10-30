@@ -41,8 +41,8 @@ Every finding progresses strictly through the following states:
 | **ISSUE-017** | Phase 2 | P3 | Android Lint / Resources | `res/mipmap-anydpi-v26` triggers `ObsoleteSdkInt` lint warning (minSdk is 26) | `res/mipmap-anydpi-v26` | Pending | TBD |
 | **ISSUE-018** | Phase 2 | P3 | Code Hygiene | 36 `UseKtx` lint warnings (`Uri.parse()` instead of `toUri()`) | Various | Pending | TBD |
 | **ISSUE-019** | Phase 2 | P2 | Architecture / Maintainability | Decompose `PlayerScreen.kt` and `MediaLibraryScreen.kt` into modular sub-composables | `PlayerScreen.kt`, `MediaLibraryScreen.kt` | Pending | TBD |
-| **ISSUE-020** | Phase 3 | P1 | Security / Privacy | `RedactionEngine` misses removable SD card storage paths (`/storage/<uuid>/`) | `RedactionEngine.kt` | Pending | TBD |
-| **ISSUE-021** | Phase 3 | P2 | Security / DoS | `SubtitleZipExtractor` lacks byte ceiling during extraction (Zip Bomb risk) | `SubtitleZipExtractor.kt` | Pending | TBD |
+| **ISSUE-020** | Phase 3 | P1 | Security / Privacy | `RedactionEngine` misses removable SD card storage paths (`/storage/<uuid>/`) | `RedactionEngine.kt` | Verified | `DiagnosticRedactionTest.redactionEngine_stripsRemovableSdCardPaths` PASSED |
+| **ISSUE-021** | Phase 3 | P2 | Security / DoS | `SubtitleZipExtractor` lacks byte ceiling during extraction (Zip Bomb risk) | `SubtitleZipExtractor.kt` | Verified | `SubtitleZipExtractorTest.extractSubtitleFromStream_exceedsMaxBytes_abortsWithFailure` PASSED |
 | **ISSUE-022** | Phase 4 | P2 | Performance / Compose | 4 Hz position ticker triggers full `PlayerScreen` recomposition when controls hidden | `PlayerScreen.kt`, `Media3PlaybackController.kt` | Pending | TBD |
 | **ISSUE-023** | Phase 4 | P2 | Performance / Database | Room table invalidation re-queries entire library on 5s playback checkpoints | `MediaLibraryViewModel.kt`, `MediaItemDao.kt` | Pending | TBD |
 | **ISSUE-024** | Phase 5 | P2 | Navigation / Lifecycle | In-app Back arrow from external `ACTION_VIEW` launch drops user into Welcome / Onboarding flow | `Navigation.kt` | Pending | TBD |
@@ -158,19 +158,23 @@ Every finding progresses strictly through the following states:
 - **Phase:** Phase 3
 - **Priority:** P1 (High)
 - **Category:** Security / Privacy
-- **Affected Files:** `app/src/main/java/org/aptura/player/core/diagnostics/RedactionEngine.kt:13`
+- **Affected Files:** `app/src/main/java/org/aptura/player/core/diagnostics/RedactionEngine.kt:13`, `app/src/test/java/org/aptura/player/core/diagnostics/DiagnosticRedactionTest.kt`
 - **Root Cause:** `STORAGE_PATH_PATTERN` matches only `/storage/emulated/\d+/`, `/sdcard/`, `/data/user/\d+/`, and `/data/data/`. On physical Android devices with MicroSD cards, paths follow `/storage/XXXX-XXXX/` (e.g. `/storage/4CE2-1407/Movies/video.mp4`). These paths are NOT redacted by the pattern and can leak file names and directory paths into exported diagnostic logs.
-- **Proposed Solution:** Generalize `STORAGE_PATH_PATTERN` to match `/storage/[^/\s,\]}"]+/` in addition to `/sdcard/` and `/data/`.
+- **Proposed Solution:** Generalize `STORAGE_PATH_PATTERN` to match `/storage/(?:emulated/\d+|[^/\s,\]}"]+)/` in addition to `/sdcard/` and `/data/`.
 - **Acceptance Criteria:** Diagnostic export redaction test proves that `/storage/ABCD-1234/Movies/PersonalVideo.mp4` is redacted to `[PATH_REDACTED]` or `[FILE_REDACTED].mp4`.
+- **Status:** Verified
+- **Resolution & Evidence:** Implemented in `RedactionEngine.kt`. Verified via `DiagnosticRedactionTest.redactionEngine_stripsRemovableSdCardPaths` and full gate.
 
 ### ISSUE-021: SubtitleZipExtractor lacks byte extraction ceiling (Zip Bomb vulnerability)
 - **Phase:** Phase 3
 - **Priority:** P2 (Medium)
 - **Category:** Security / Denial of Service
-- **Affected Files:** `app/src/main/java/org/aptura/player/core/media/SubtitleZipExtractor.kt:73`
+- **Affected Files:** `app/src/main/java/org/aptura/player/core/media/SubtitleZipExtractor.kt:73`, `app/src/test/java/org/aptura/player/core/media/SubtitleZipExtractorTest.kt`
 - **Root Cause:** Subtitle ZIP extraction uses unbounded `zis.copyTo(fos)`. A specially crafted zip bomb archive can decompress gigabytes of data into the application cache directory, leading to device storage exhaustion and app crash.
 - **Proposed Solution:** Implement bounded stream copying (e.g. capping total extracted bytes at 20 MB, matching `SubtitleFileValidator.MAX_SUBTITLE_BYTES`). Fail cleanly with `ZipExtractionResult.Failure` if extraction exceeds ceiling.
 - **Acceptance Criteria:** Uncompressing an entry exceeding 20 MB terminates immediately without filling disk.
+- **Status:** Verified
+- **Resolution & Evidence:** Implemented bounded stream copy with `MAX_SUBTITLE_BYTES = 20 MB` in `SubtitleZipExtractor.kt`. Verified via `SubtitleZipExtractorTest.extractSubtitleFromStream_exceedsMaxBytes_abortsWithFailure` and full gate.
 
 ### ISSUE-022: 4 Hz position ticker triggers full `PlayerScreen` recomposition when controls hidden
 - **Phase:** Phase 4

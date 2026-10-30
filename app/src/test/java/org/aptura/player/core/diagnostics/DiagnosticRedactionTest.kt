@@ -34,6 +34,20 @@ class DiagnosticRedactionTest {
     }
 
     @Test
+    fun redactionEngine_stripsRemovableSdCardPaths() {
+        val rawPath = "/storage/4CE2-1407/DCIM/Family/vacation_clip.mp4"
+        val redactedDefault = RedactionEngine.redactText(rawPath, includeFileName = false)
+
+        assertEquals("[FILE_REDACTED].mp4", redactedDefault)
+        assertFalse(redactedDefault.contains("vacation_clip"))
+        assertFalse(redactedDefault.contains("4CE2-1407"))
+
+        val redactedOptIn = RedactionEngine.redactText(rawPath, includeFileName = true)
+        assertEquals("[PATH_REDACTED]/vacation_clip.mp4", redactedOptIn)
+        assertFalse(redactedOptIn.contains("4CE2-1407"))
+    }
+
+    @Test
     fun redactionEngine_stripsEmailsAndIps() {
         val rawLog = "Contact user test.author+tag@gmail.com on server 192.168.1.55"
         val redacted = RedactionEngine.redactText(rawLog)
