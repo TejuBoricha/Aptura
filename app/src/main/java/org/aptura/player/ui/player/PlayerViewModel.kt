@@ -100,6 +100,7 @@ class PlayerViewModel(
     private var autoAdvanceJob: Job? = null
     private var bookmarksJob: Job? = null
     private var lastPersistedPositionMs: Long = 0L
+    private var lastKnownPositionMs: Long = 0L
 
     /** URI whose saved per-video preferences were last applied (so they are applied once per item, not per emission). */
     private var lastAppliedPreferencesUri: String? = null
@@ -307,6 +308,7 @@ class PlayerViewModel(
                         }
                     }
                     is DomainPlaybackState.Buffering -> {
+                        lastKnownPositionMs = state.positionMs
                         _uiState.update {
                             it.copy(
                                 isBuffering = true,
@@ -320,17 +322,29 @@ class PlayerViewModel(
                     is DomainPlaybackState.Ready -> {
                         val wasPlaying = _uiState.value.isPlaying
                         val startedPlaying = state.isPlaying && !wasPlaying
-                        _uiState.update {
-                            it.copy(
-                                isBuffering = false,
-                                isPlaying = state.isPlaying,
-                                isEnded = false,
-                                currentPositionMs = state.positionMs,
-                                durationMs = state.durationMs,
-                                bufferedPositionMs = state.bufferedPositionMs,
-                                playbackSpeed = state.playbackSpeed,
-                                errorMessage = null
-                            )
+                        lastKnownPositionMs = state.positionMs
+
+                        val isControlsOrSheetVisible = _uiState.value.isControlsVisible || _uiState.value.activeSheet != null
+                        val shouldUpdateUi = isControlsOrSheetVisible ||
+                            !state.isPlaying ||
+                            _uiState.value.currentPositionMs == 0L ||
+                            state.durationMs != _uiState.value.durationMs ||
+                            state.playbackSpeed != _uiState.value.playbackSpeed ||
+                            startedPlaying || (wasPlaying && !state.isPlaying)
+
+                        if (shouldUpdateUi) {
+                            _uiState.update {
+                                it.copy(
+                                    isBuffering = false,
+                                    isPlaying = state.isPlaying,
+                                    isEnded = false,
+                                    currentPositionMs = state.positionMs,
+                                    durationMs = state.durationMs,
+                                    bufferedPositionMs = state.bufferedPositionMs,
+                                    playbackSpeed = state.playbackSpeed,
+                                    errorMessage = null
+                                )
+                            }
                         }
                         if (state.isPlaying && sleepTimer.state.value == SleepTimerState.Expired) {
                             // Resuming after a fired sleep timer dismisses the "+5 min" offer: the user chose to stay up.
@@ -340,7 +354,7 @@ class PlayerViewModel(
                         if (wasPlaying && !state.isPlaying) {
                             // Paused by the notification, a headset, the sleep timer...: nothing else will save this.
                             lastPersistedPositionMs = state.positionMs
-                            persistCurrentPosition()
+                            persistCurrentPosition(state.positionMs)
                         }
                         val ab = _uiState.value.abRepeat
                         if (ab.isLooping && ab.pointA != null && ab.pointB != null &&
@@ -351,7 +365,7 @@ class PlayerViewModel(
                         if (state.isPlaying) {
                             if (Math.abs(state.positionMs - lastPersistedPositionMs) >= CHECKPOINT_INTERVAL_MS) {
                                 lastPersistedPositionMs = state.positionMs
-                                persistCurrentPosition()
+                                persistCurrentPosition(state.positionMs)
                             }
                             // Only (re)arm the 5 s timer when playback *starts*. The controller emits a new Ready
                             // state every 250 ms; rearming here on every tick would cancel the timer forever.
@@ -362,6 +376,7 @@ class PlayerViewModel(
                         }
                     }
                     is DomainPlaybackState.Ended -> {
+                        lastKnownPositionMs = state.durationMs
                         _uiState.update {
                             it.copy(
                                 isPlaying = false,
@@ -567,6 +582,7 @@ class PlayerViewModel(
         if (_uiState.value.videoUri != currentItem.uri) {
             persistCurrentPosition() // the video being replaced keeps where it stopped
             lastPersistedPositionMs = 0L
+            lastKnownPositionMs = 0L
         }
         _uiState.update {
             it.copy(
@@ -802,13 +818,14 @@ class PlayerViewModel(
                 accumulatedTargetPosMs!!
             } else {
                 accumulatedSeekDeltaMs = deltaMs
-                _uiState.value.currentPositionMs
+                if (lastKnownPositionMs > 0L) lastKnownPositionMs else _uiState.value.currentPositionMs
             }
             lastSeekTimestampMs = now
 
             val duration = _uiState.value.durationMs
             val targetPos = (baseTarget + deltaMs).coerceIn(0L, duration.coerceAtLeast(0L))
             accumulatedTargetPosMs = targetPos
+            lastKnownPositionMs = targetPos
 
             playbackController.seekTo(targetPos)
 
@@ -906,7 +923,8 @@ class PlayerViewModel(
 
     fun onScrubEnd() {
         val targetMs = _uiState.value.scrubPositionMs
-        _uiState.update { it.copy(isScrubbing = false) }
+        lastKnownPositionMs = targetMs
+        _uiState.update { it.copy(isScrubbing = false, currentPositionMs = targetMs) }
         viewModelScope.launch(dispatcher + errorHandler) {
             playbackController.seekTo(targetMs)
             scheduleAutoHide()
@@ -928,7 +946,12 @@ class PlayerViewModel(
             return
         }
         val willBeVisible = !_uiState.value.isControlsVisible
-        _uiState.update { it.copy(isControlsVisible = willBeVisible) }
+        _uiState.update {
+            it.copy(
+                isControlsVisible = willBeVisible,
+                currentPositionMs = if (willBeVisible && lastKnownPositionMs > 0L) lastKnownPositionMs else it.currentPositionMs
+            )
+        }
         if (willBeVisible) {
             scheduleAutoHide()
         } else {
@@ -938,7 +961,12 @@ class PlayerViewModel(
 
     fun showControls() {
         if (!_uiState.value.isLocked) {
-            _uiState.update { it.copy(isControlsVisible = true) }
+            _uiState.update {
+                it.copy(
+                    isControlsVisible = true,
+                    currentPositionMs = if (lastKnownPositionMs > 0L) lastKnownPositionMs else it.currentPositionMs
+                )
+            }
             scheduleAutoHide()
         }
     }
@@ -1453,9 +1481,9 @@ class PlayerViewModel(
         }
     }
 
-    private fun persistCurrentPosition() {
+    private fun persistCurrentPosition(positionOverride: Long? = null) {
         val uri = _uiState.value.videoUri
-        val pos = _uiState.value.currentPositionMs
+        val pos = positionOverride ?: lastKnownPositionMs.takeIf { it > 0L } ?: _uiState.value.currentPositionMs
         val isEnded = _uiState.value.isEnded
         if (uri.isNotBlank() && pos > 0L) {
             // Captured above, written from a scope that survives the ViewModel (see persistScope).

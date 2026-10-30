@@ -39,6 +39,16 @@ class AudioDelayProcessor : BaseAudioProcessor() {
 
     override fun onConfigure(inputAudioFormat: AudioFormat): AudioFormat {
         if (inputAudioFormat.encoding != C.ENCODING_PCM_16BIT || inputAudioFormat.sampleRate <= 0) {
+            if (inputAudioFormat.encoding != C.ENCODING_PCM_16BIT) {
+                org.aptura.player.core.diagnostics.ApturaDiagnostics.logEvent(
+                    code = org.aptura.player.core.diagnostics.EventCode.EV_014,
+                    payload = mapOf(
+                        "action" to "bypass_audio_delay",
+                        "encoding" to inputAudioFormat.encoding.toString(),
+                        "reason" to "unsupported_pcm_format"
+                    )
+                )
+            }
             return AudioFormat.NOT_SET // inactive: pass the stream through untouched
         }
         sampleRate = inputAudioFormat.sampleRate
