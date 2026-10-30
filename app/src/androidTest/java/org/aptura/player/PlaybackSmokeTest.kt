@@ -348,10 +348,31 @@ class PlaybackSmokeTest {
     private fun describeScreen(controller: Media3PlaybackController): String = onMain {
         val activity = resumedActivity()
         val view = activity?.let { findPlayerView(it.window.decorView) }
-        "resumed activity=${activity?.javaClass?.simpleName}; player view found=${view != null}; " +
+        "resumed activity=${activity?.javaClass?.simpleName} pip=${activity?.isInPictureInPictureMode} " +
+            "orientation=${activity?.resources?.configuration?.orientation}; player view found=${view != null}; " +
+            "views=${activity?.let { describeViews(it.window.decorView) }}; on screen=${onScreenTexts()}; " +
             "view's player=${view?.player?.let { System.identityHashCode(it) }}; controller's player=${System.identityHashCode(controller.player)}; " +
             "state=${controller.player.playbackState} items=${controller.player.mediaItemCount}"
     }
+
+    /** The first few kinds of view in a tree, to see what a screen is made of. */
+    private fun describeViews(root: View): String {
+        val names = mutableListOf<String>()
+        fun walk(v: View, depth: Int) {
+            if (names.size >= 24 || depth > 12) return
+            names += "${v.javaClass.simpleName}@$depth"
+            if (v is ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i), depth + 1)
+        }
+        walk(root, 0)
+        return names.joinToString(",")
+    }
+
+    /** The text and descriptions the device sees on screen right now. */
+    private fun onScreenTexts(): String = runCatching {
+        val device = androidx.test.uiautomator.UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+        val xml = java.io.ByteArrayOutputStream().also { device.dumpWindowHierarchy(it) }.toString()
+        Regex("(?:text|content-desc)=\"([^\"]+)\"").findAll(xml).map { it.groupValues[1] }.filter { it.isNotBlank() }.take(30).joinToString(" | ")
+    }.getOrDefault("(unavailable)")
 
     /** What the system Back key does in the app, without depending on the system's input injection. */
     private fun pressAppBack() {
