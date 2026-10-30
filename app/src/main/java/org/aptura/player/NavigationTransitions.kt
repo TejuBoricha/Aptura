@@ -67,13 +67,7 @@ internal val Scene<*>.isPlayerRoute: Boolean
     get() = metadata[PLAYER_ROUTE_KEY] == true
 
 /** How long a page takes to slide in or out. */
-internal const val SCREEN_SLIDE_MS = 300
-
-/** The page underneath moves this fraction of its width while the page above slides over it. */
-private const val UNDERLAY_SHIFT = 5
-
-/** The page being dragged away by the Back gesture shrinks to this much of its size. */
-private const val GESTURE_SCALE = 0.92f
+internal const val SCREEN_SLIDE_MS = 200
 
 /** Quick to start, long soft landing (Material's emphasized decelerate). */
 private val SlideEasing = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
@@ -91,7 +85,7 @@ internal fun <T : Any> AnimatedContentTransitionScope<Scene<T>>.appTransition():
     } else {
         ContentTransform(
             targetContentEnter = slideInHorizontally(slideSpec()) { fullWidth -> fullWidth },
-            initialContentExit = slideOutHorizontally(slideSpec()) { fullWidth -> -fullWidth / UNDERLAY_SHIFT },
+            initialContentExit = ExitTransition.None,
             sizeTransform = null
         )
     }
@@ -106,18 +100,16 @@ internal fun <T : Any> AnimatedContentTransitionScope<Scene<T>>.appPopTransition
         )
     } else {
         ContentTransform(
-            targetContentEnter = slideInHorizontally(slideSpec()) { fullWidth -> -fullWidth / UNDERLAY_SHIFT },
-            initialContentExit = slideOutHorizontally(slideSpec()) { fullWidth -> fullWidth } +
-                scaleOut(slideSpec(), targetScale = GESTURE_SCALE),
+            targetContentEnter = EnterTransition.None,
+            initialContentExit = slideOutHorizontally(slideSpec()) { fullWidth -> fullWidth },
             sizeTransform = null
         )
     }
 
 /**
  * The system Back gesture. Out of the player it previews the same cover, driven by the finger. Out of any other page
- * the page is dragged the way it will leave (slide and a little shrink, the same properties as [appPopTransition]), so
- * letting go carries on from where the finger left it instead of jumping, and linearly so that the page moves exactly
- * as far as the finger has.
+ * the page is dragged the way it will leave, linearly so that the page moves exactly as far as the finger has, at 100%
+ * full scale with no underlay drift.
  */
 internal fun <T : Any> AnimatedContentTransitionScope<Scene<T>>.appPredictivePopTransition(
     @NavigationEvent.SwipeEdge swipeEdge: Int
@@ -127,11 +119,9 @@ internal fun <T : Any> AnimatedContentTransitionScope<Scene<T>>.appPredictivePop
     } else {
         val toTheRight = swipeEdge != NavigationEvent.EDGE_RIGHT
         val drag = tween<androidx.compose.ui.unit.IntOffset>(durationMillis = SCREEN_SLIDE_MS, easing = LinearEasing)
-        val shrink = tween<Float>(durationMillis = SCREEN_SLIDE_MS, easing = LinearEasing)
         ContentTransform(
-            targetContentEnter = slideInHorizontally(drag) { fullWidth -> -fullWidth / UNDERLAY_SHIFT },
-            initialContentExit = slideOutHorizontally(drag) { fullWidth -> if (toTheRight) fullWidth else -fullWidth } +
-                scaleOut(shrink, targetScale = GESTURE_SCALE),
+            targetContentEnter = EnterTransition.None,
+            initialContentExit = slideOutHorizontally(drag) { fullWidth -> if (toTheRight) fullWidth else -fullWidth },
             sizeTransform = null
         )
     }
