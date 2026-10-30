@@ -133,4 +133,12 @@ class SettingsAppearanceTest {
         composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("⭐ Supporter"))
         composeRule.onNode(hasText("⭐ Supporter")).assertIsDisplayed()
     }
+
+    @Test
+    fun helpAndFeedback_isDisplayed() {
+        show()
+
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("Help & feedback"))
+        composeRule.onNode(hasText("Help & feedback")).assertIsDisplayed()
+    }
 }
