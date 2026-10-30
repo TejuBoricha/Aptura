@@ -35,6 +35,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -529,6 +530,7 @@ fun SettingsScreen(
                                 val markdown = ApturaDiagnostics.generateDiagnosticMarkdown(context)
                                 val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                     type = "text/plain"
+                                    putExtra(Intent.EXTRA_EMAIL, arrayOf("tejasboricha225@gmail.com"))
                                     putExtra(Intent.EXTRA_SUBJECT, "Aptura Redacted Diagnostic Report")
                                     putExtra(Intent.EXTRA_TEXT, markdown)
                                 }
@@ -550,6 +552,27 @@ fun SettingsScreen(
                             title = "Welcome guide",
                             subtitle = "Gestures, tools and what stays private",
                             onClick = onReplayOnboardingClick,
+                            trailing = { NavigationChevron() }
+                        )
+                        PanelDivider()
+                        ActionRow(
+                            icon = Icons.AutoMirrored.Filled.HelpOutline,
+                            title = "Help & feedback",
+                            subtitle = "Questions, suggestions or bug reports directly to the developer",
+                            onClick = {
+                                val subject = "Aptura Feedback (${AppVersion.label(context)})"
+                                val body = "\n\n---\nApp: ${AppVersion.label(context)}\nDevice: ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} (Android ${android.os.Build.VERSION.RELEASE}, API ${android.os.Build.VERSION.SDK_INT})\n"
+                                val mailIntent = Intent(Intent.ACTION_SENDTO).apply {
+                                    data = android.net.Uri.parse("mailto:tejasboricha225@gmail.com")
+                                    putExtra(Intent.EXTRA_SUBJECT, subject)
+                                    putExtra(Intent.EXTRA_TEXT, body)
+                                }
+                                try {
+                                    context.startActivity(Intent.createChooser(mailIntent, "Contact Developer"))
+                                } catch (_: Exception) {
+                                    Toast.makeText(context, "Contact: tejasboricha225@gmail.com", Toast.LENGTH_LONG).show()
+                                }
+                            },
                             trailing = { NavigationChevron() }
                         )
                     }
