@@ -49,6 +49,7 @@ class ApturaSettingsRepositoryTest {
             assertEquals("#FFFFFF", initial.subtitleTextColorHex)
             assertFalse(initial.subtitleBackgroundEnabled)
             assertEquals(0, initial.defaultDecoderStrategy)
+            assertFalse(initial.isSupporter)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -117,6 +118,9 @@ class ApturaSettingsRepositoryTest {
             repository.removeSafFolder(sampleFolder)
             val withoutFolder = awaitItem()
             assertFalse(withoutFolder.persistedSafFolders.contains(sampleFolder))
+
+            repository.updateSupporter(true)
+            assertTrue(awaitItem().isSupporter)
 
             cancelAndIgnoreRemainingEvents()
         }

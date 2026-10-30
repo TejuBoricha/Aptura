@@ -42,7 +42,8 @@ data class ApturaSettings(
     val subtitleBackgroundEnabled: Boolean = false,
     val defaultDecoderStrategy: Int = 0, // 0: Auto, 1: Hardware, 2: Software
     val persistedSafFolders: Set<String> = emptySet(),
-    val audioEffects: AudioEffectsSettings = AudioEffectsSettings()
+    val audioEffects: AudioEffectsSettings = AudioEffectsSettings(),
+    val isSupporter: Boolean = false
 )
 
 /**
@@ -72,6 +73,7 @@ class ApturaSettingsRepository(private val context: Context) : AudioEffectsStore
         val FX_BASS = intPreferencesKey("fx_bass_percent")
         val FX_VIRTUALIZER = intPreferencesKey("fx_virtualizer_percent")
         val FX_LOUDNESS = intPreferencesKey("fx_loudness_percent")
+        val IS_SUPPORTER = booleanPreferencesKey("is_supporter")
     }
 
     val settingsFlow: Flow<ApturaSettings> = context.dataStore.data
@@ -112,7 +114,8 @@ class ApturaSettingsRepository(private val context: Context) : AudioEffectsStore
                     bassBoostPercent = preferences[PreferencesKeys.FX_BASS] ?: 0,
                     virtualizerPercent = preferences[PreferencesKeys.FX_VIRTUALIZER] ?: 0,
                     loudnessBoostPercent = preferences[PreferencesKeys.FX_LOUDNESS] ?: 0
-                )
+                ),
+                isSupporter = preferences[PreferencesKeys.IS_SUPPORTER] ?: false
             )
         }
 
@@ -161,6 +164,12 @@ class ApturaSettingsRepository(private val context: Context) : AudioEffectsStore
     suspend fun updateAccentColor(accent: AccentColor) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.ACCENT_COLOR] = accent.name
+        }
+    }
+
+    suspend fun updateSupporter(isSupporter: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.IS_SUPPORTER] = isSupporter
         }
     }
 

@@ -35,11 +35,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Info
@@ -47,6 +49,7 @@ import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -64,6 +67,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -151,6 +155,7 @@ fun SettingsScreen(
     missingVideoCount: Int = 0,
     onClearMissingVideos: () -> Unit = {},
     onDeleteDiagnosticData: () -> Unit = { ApturaDiagnostics.clearAll() },
+    onUpdateSupporter: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -291,7 +296,15 @@ fun SettingsScreen(
                             title = "Accent color",
                             subtitle = "Controls, selection and progress",
                             selected = settings.accentColor,
-                            onSelect = onUpdateAccentColor
+                            onSelect = onUpdateAccentColor,
+                            isSupporter = settings.isSupporter,
+                            onLockedAccentClick = {
+                                Toast.makeText(
+                                    context,
+                                    "Champagne Gold is unlocked with the Supporter Badge below! 🏅",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
                         )
                     }
                 }
@@ -543,6 +556,93 @@ fun SettingsScreen(
                 }
             }
 
+            // Support Independent Development
+            item(key = "support", contentType = "section") {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SectionLabel("Support Aptura")
+                    SettingsPanel {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Favorite,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFF6E9C),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Text(
+                                    text = "Support Independent Development",
+                                    style = ApturaTypography.titleMedium,
+                                    color = ApturaColors.TextHighEmphasis,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                text = "Aptura is 100% free, offline, and private with zero ads or tracking. If you'd like to support continued development, voluntary patronage is deeply appreciated.",
+                                style = ApturaTypography.bodyMedium,
+                                color = ApturaColors.TextMediumEmphasis
+                            )
+                            Spacer(Modifier.height(14.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                PillButton(
+                                    text = "Tip on Ko-fi",
+                                    onClick = {
+                                        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://ko-fi.com/aptura"))
+                                        context.startActivity(intent)
+                                    },
+                                    leading = {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                                            contentDescription = null,
+                                            tint = ApturaColors.AccentPrimary,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+                                )
+                                PillButton(
+                                    text = "GitHub Sponsors",
+                                    onClick = {
+                                        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/sponsors/TejuBoricha"))
+                                        context.startActivity(intent)
+                                    },
+                                    leading = {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                                            contentDescription = null,
+                                            tint = ApturaColors.AccentPrimary,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+                                )
+                            }
+                        }
+                        PanelDivider()
+                        ToggleRow(
+                            title = "I Supported Aptura 🏅",
+                            subtitle = "Honor-system toggle. Unlocks the Champagne Gold theme accent and a golden supporter badge.",
+                            checked = settings.isSupporter,
+                            onCheckedChange = { supported ->
+                                onUpdateSupporter(supported)
+                                if (supported) {
+                                    onUpdateAccentColor(AccentColor.GOLD)
+                                    Toast.makeText(context, "Thank you for supporting Aptura! Champagne Gold unlocked ⭐", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+
             item(key = "footer", contentType = "footer") {
                 Column(
                     modifier = Modifier
@@ -550,11 +650,24 @@ fun SettingsScreen(
                         .padding(vertical = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(
-                        text = AppVersion.label(LocalContext.current),
-                        style = ApturaTypography.labelMedium,
-                        color = ApturaColors.TextLowEmphasis
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = AppVersion.label(LocalContext.current),
+                            style = ApturaTypography.labelMedium,
+                            color = ApturaColors.TextLowEmphasis
+                        )
+                        if (settings.isSupporter) {
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = "⭐ Supporter",
+                                style = ApturaTypography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = Color(0xFFFFD700)
+                            )
+                        }
+                    }
                     Spacer(Modifier.height(4.dp))
                     Text(
                         text = "Media3 · Jetpack Compose · Room · Coil",
