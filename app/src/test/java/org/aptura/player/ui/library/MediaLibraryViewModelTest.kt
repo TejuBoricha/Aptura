@@ -5,6 +5,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.domain.repository.MediaRepository
@@ -402,6 +404,73 @@ class MediaLibraryViewModelTest {
     }
 
 
+    // ---- folders that share a name ----------------------------------------------------------------------------------------
+
+    private val phoneCameraClip = item1.copy(uri = "content://media/10", title = "Birthday", folderPath = "/storage/emulated/0/DCIM/Camera")
+    private val cardCameraClip = item2.copy(uri = "content://media/11", title = "Holiday", folderPath = "/storage/1A2B-3C4D/DCIM/Camera")
+
+    @Test
+    fun twoFoldersCalledCamera_areTwoFolders_eachWithItsOwnVideos() = runTest(testDispatcher) {
+        val repo = FakeMediaRepository()
+        repo.videosFlow.value = listOf(phoneCameraClip, cardCameraClip)
+        repo.foldersFlow.value = listOf(phoneCameraClip.folderPath, cardCameraClip.folderPath)
+        val viewModel = MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 0L)
+
+        viewModel.uiState.test {
+            assertEquals(MediaLibraryUiState.Loading, awaitItem())
+            val all = awaitItem() as MediaLibraryUiState.Success
+            assertEquals(2, all.folders.size)
+            assertEquals(mapOf(phoneCameraClip.folderPath to 1, cardCameraClip.folderPath to 1), all.folderCounts)
+
+            viewModel.onFolderSelected(cardCameraClip.folderPath)
+            val card = awaitItem() as MediaLibraryUiState.Success
+            assertEquals(listOf("Holiday"), card.videos.map { it.title })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun searching_matchesTheFolderNameYouSee_notThePathItIsStoredUnder() = runTest(testDispatcher) {
+        val repo = FakeMediaRepository()
+        repo.videosFlow.value = listOf(phoneCameraClip, cardCameraClip)
+        val viewModel = MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 0L)
+
+        viewModel.uiState.test {
+            assertEquals(MediaLibraryUiState.Loading, awaitItem())
+            awaitItem()
+
+            // "storage" is in every path and in no folder's name: it must not match everything.
+            viewModel.onSearchQueryChanged("storage")
+            awaitState("no results for a word that is only in the storage path") { it is MediaLibraryUiState.Empty && it.isFiltered }
+
+            viewModel.onSearchQueryChanged("Camera")
+            awaitState("both videos, found by the name of their folder") {
+                it is MediaLibraryUiState.Success && it.searchQuery == "Camera" && it.videos.size == 2
+            }
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    /**
+     * The results of a search are computed off the test scheduler (the pipeline's debounce runs on the wall clock), so the
+     * state is waited for rather than read: items are taken until one fits, and the test fails naming the last one seen.
+     */
+    private suspend fun app.cash.turbine.ReceiveTurbine<MediaLibraryUiState>.awaitState(
+        expected: String,
+        matches: (MediaLibraryUiState) -> Boolean
+    ) {
+        var last: MediaLibraryUiState? = null
+        try {
+            while (true) {
+                val item = awaitItem()
+                last = item
+                if (matches(item)) return
+            }
+        } catch (error: AssertionError) {
+            throw AssertionError("expected $expected; the last state was $last", error)
+        }
+    }
+
     @Test
     fun mediaFormatters_formatDurationAccurately() {
         assertEquals("0:00", MediaFormatters.formatDuration(0L))
@@ -594,7 +663,142 @@ class MediaLibraryViewModelTest {
             repo.videosFlow.value = listOf(item.copy(playbackPositionMs = 25_000L))
             val updated = awaitItem() as MediaLibraryUiState.Success
             assertEquals(25_000L, updated.videos.first().rawItem.playbackPositionMs)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
 
+    @Test
+    fun folderSummaries_describeEachFolder_andPickTheNewestReadableVideoAsItsCover() = runTest(testDispatcher) {
+        val repo = FakeMediaRepository()
+        // Movies holds item1 (added 1000), item2 (2000) and a newer one that is missing, which cannot give a picture.
+        val missingNewest = item2.copy(uri = "content://media/9", title = "Gone", dateAddedSec = 9000L, isMissing = true)
+        repo.videosFlow.value = listOf(item1, item2, missingNewest, item3)
+        repo.foldersFlow.value = listOf("Camera", "Movies")
+
+        val viewModel = MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 0L)
+
+        viewModel.uiState.test {
+            assertEquals(MediaLibraryUiState.Loading, awaitItem())
+            val success = awaitItem() as MediaLibraryUiState.Success
+
+            val movies = success.folderSummaries.getValue("Movies")
+            assertEquals(3, movies.videoCount)
+            assertEquals(item1.sizeBytes + item2.sizeBytes + missingNewest.sizeBytes, movies.totalBytes)
+            assertEquals("the missing video cannot be the cover", item2.uri, movies.coverUri)
+
+            val camera = success.folderSummaries.getValue("Camera")
+            assertEquals(1, camera.videoCount)
+            assertEquals(item3.uri, camera.coverUri)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun theSortTheUserPickedLastTime_isUsedFromTheFirstEmission() = runTest(testDispatcher) {
+        val repo = FakeMediaRepository()
+        repo.videosFlow.value = listOf(item1, item2, item3)
+        repo.foldersFlow.value = listOf("Camera", "Movies")
+
+        val viewModel = MediaLibraryViewModel(
+            repo, testDispatcher, testDispatcher, searchDebounceMs = 0L, initialSort = LibrarySortOrder.TITLE_ASC
+        )
+
+        viewModel.uiState.test {
+            assertEquals(MediaLibraryUiState.Loading, awaitItem())
+            val success = awaitItem() as MediaLibraryUiState.Success
+
+            assertEquals(LibrarySortOrder.TITLE_ASC, success.sortOrder)
+            assertEquals(listOf("Avatar", "Inception", "Vacation Clip"), success.videos.map { it.title })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    // ---- the first scan after an install -----------------------------------------------------------------------------
+    //
+    // These run on the wall clock, as the view model's pipeline does under test (its debounce is not on the test
+    // scheduler), with a short hold so they stay quick. `runCurrent()` lets the scan flag, which is collected on the
+    // test dispatcher, reach the view model.
+
+    private val hold = 150L
+
+    private fun viewModel(repo: FakeMediaRepository, scan: Flow<Boolean>, settleMs: Long = hold) =
+        MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 0L, scanActivity = scan, emptySettleMs = settleMs)
+
+    /**
+     * A fresh install has an empty database and a scan that is queued or running. The library used to say "No videos
+     * yet" (with a Scan device button) the moment the database answered, while the scan was about to fill it.
+     */
+    @Test
+    fun firstInstall_whileTheFirstScanRuns_staysLoading_andNeverSaysNoVideosYet() = runTest(testDispatcher) {
+        val repo = FakeMediaRepository()
+        val viewModel = viewModel(repo, MutableStateFlow(true))
+
+        viewModel.uiState.test {
+            assertEquals(MediaLibraryUiState.Loading, awaitItem())
+            runCurrent()
+            Thread.sleep(hold * 4) // the hold on "No videos yet" is long over
+            expectNoEvents()
+
+            repo.videosFlow.value = listOf(item1)
+            assertTrue(awaitItem() is MediaLibraryUiState.Success)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    /** The database is empty for a moment before WorkManager reports the scan: that moment must not show anything. */
+    @Test
+    fun anEmptyAnswerBeforeTheScanIsReported_doesNotFlashNoVideosYet() = runTest(testDispatcher) {
+        val repo = FakeMediaRepository()
+        val scan = MutableStateFlow(false)
+        val viewModel = viewModel(repo, scan)
+
+        viewModel.uiState.test {
+            assertEquals(MediaLibraryUiState.Loading, awaitItem())
+            runCurrent()
+            Thread.sleep(hold / 3) // the empty answer is in and is being held back
+            scan.value = true // the scan is reported before the hold is over
+            runCurrent()
+            Thread.sleep(hold * 4)
+            expectNoEvents()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun whenTheScanFindsNothing_noVideosYetAppears_afterTheHold() = runTest(testDispatcher) {
+        val repo = FakeMediaRepository()
+        val scan = MutableStateFlow(true)
+        val viewModel = viewModel(repo, scan)
+
+        viewModel.uiState.test {
+            assertEquals(MediaLibraryUiState.Loading, awaitItem())
+            runCurrent()
+            scan.value = false // the scan ended with nothing
+            runCurrent()
+            val startedAt = System.nanoTime()
+            val state = awaitItem()
+            val waitedMs = (System.nanoTime() - startedAt) / 1_000_000
+            assertTrue("Expected Empty but got $state", state is MediaLibraryUiState.Empty)
+            assertFalse((state as MediaLibraryUiState.Empty).isFiltered)
+            assertTrue("the empty screen came after only $waitedMs ms", waitedMs >= hold * 2 / 3)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    /** With no access there is no scan to wait for, so the permission screen is not held back. */
+    @Test
+    fun withoutAccess_thePermissionScreenAppearsAtOnce() = runTest(testDispatcher) {
+        val repo = FakeMediaRepository()
+        val viewModel = viewModel(repo, MutableStateFlow(false), settleMs = 2_000L)
+        viewModel.setPermissionDenied(true)
+
+        viewModel.uiState.test {
+            assertEquals(MediaLibraryUiState.Loading, awaitItem())
+            val startedAt = System.nanoTime()
+            val state = awaitItem()
+            val waitedMs = (System.nanoTime() - startedAt) / 1_000_000
+            assertTrue(state is MediaLibraryUiState.Empty && state.isPermissionDenied)
+            assertTrue("the permission screen was held back for $waitedMs ms", waitedMs < 1_000)
             cancelAndIgnoreRemainingEvents()
         }
     }

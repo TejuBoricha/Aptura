@@ -37,9 +37,22 @@ sealed interface MediaLibraryUiState {
         val libraryDurationMs: Long = 0L,
         val librarySizeBytes: Long = 0L,
         /** Videos per folder path, including folders that are not in the current filtered result. */
-        val folderCounts: Map<String, Int> = emptyMap()
+        val folderCounts: Map<String, Int> = emptyMap(),
+        /** What each folder holds and which video stands in for it, for the folder browser. Whole-library, like the counts. */
+        val folderSummaries: Map<String, FolderSummary> = emptyMap()
     ) : MediaLibraryUiState
 }
+
+/** A folder at a glance: how much is in it and a picture to show for it. */
+@Immutable
+data class FolderSummary(
+    val videoCount: Int,
+    val totalBytes: Long,
+    val totalDurationMs: Long,
+    /** The video whose frame stands for the folder (the one added last that is not missing), or null if none can. */
+    val coverUri: String? = null,
+    val coverDateModifiedSec: Long = 0L
+)
 
 enum class LibrarySortOrder(val displayName: String) {
     DATE_ADDED_DESC("Recently added"),

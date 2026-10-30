@@ -50,6 +50,32 @@ PR's Verification section and in CI, not here, so most pull requests never need 
   The player offers "Try −200 ms" only when Bluetooth output is connected and sync is at 0.
 - **Player sheets** are built from the shared controls in `ui/player/PlayerControls.kt` and
   `PlayerSheetChrome.kt` (DESIGN.md §5.6), not from per-sheet pills and steppers.
+- **Theme and navigation:** the palette is a `CompositionLocal` (`LocalApturaPalette`), never a global; the always-dark
+  player wraps itself in `ApturaTheme(DARK)`. The player route is never animated (its video is a `SurfaceView`): a cover
+  above the picture opens and closes it (`NavigationTransitions.kt`, DESIGN.md §4.3). A global palette flipped a frame
+  late was the cause of the back-navigation flicker; do not bring one back.
+- **Library view choices** (layout, size, details, sort, folder browser layout) live in DataStore, not Room. The welcome
+  guide's pictures are built from the library's and player's own composables, and tests check its claims against the
+  real menus (DESIGN.md §6.5): change a menu action and `GuideAccuracyTest` says so.
+- **Short windows:** layouts depend on height as well as width. The collection index needs 600 dp of height, the rail
+  drops its labels below 480 dp, and a phone held sideways (891 x 411 and 740 x 360 dp) gets the rail with the folder bar
+  (DESIGN.md §4). `LandscapePhoneGalleryTest` renders the screens at both sizes; do not measure a size inside a
+  scrolling box (it is given unlimited height and never reads as short). Below 480 dp (`SHORT_WINDOW_HEIGHT`) Settings
+  has no large title and the Continue watching cards shrink; the stats panel and the transport buttons are kept apart
+  at every window shape (§5.3c).
+- **Transitions never fade a screen** (`NavigationTransitions.kt`, DESIGN.md §4.3): Navigation 3's default is a 700 ms
+  cross-fade and a shrink-then-vanish for the Back gesture, which is the flicker. Pages slide, solid, and a route must paint
+  its own opaque background. `ScreenTransitionTest` fails on any blended pixel.
+- **Playback is tested on a real codec in CI:** `PlaybackSmokeTest` (`connected` job) plays H.264, HEVC and a 558-item queue and
+  taps a video in the library. The player never stays silently stuck: 8 s without starting tries the software decoder once,
+  then shows "Playback Did Not Start" (DESIGN.md §5.5b). Not checked on a Samsung S24 yet.
+- **Video access** is read from the system every time the app comes to the front (`rememberVideoAccess`); a grant scans now
+  and again after 5 s; Settings has a Video access row (DESIGN.md §4.2c).
+- **Folder identity:** the folder key (`folderPath` in Room) is the folder's path on its storage volume, from `MediaFolderKey`;
+  labels add the parent and then the storage only when two names collide (`folderLabels`). No schema change: a rescan
+  rewrites the value. A SAF folder the person added keeps its own relative key. DESIGN.md §4.2.
+- **Cold start:** the launch colour follows day/night and the first frame waits for the saved theme (`FirstFrameGate`,
+  §4.3). Not checked on a real phone.
 - **Delete:** "Move to trash" is the primary action where the platform supports it; "Delete permanently" is a red
   outlined alternative.
 - **Merge queue is unavailable** (it needs an organization-owned repo). `main` has a ruleset (active since

@@ -37,24 +37,32 @@ import org.aptura.player.ui.components.SectionTitle
 
 const val CONTINUE_WATCHING_TITLE = "Continue watching"
 
+private val CARD_WIDTH = 248.dp
+
+/** On a short window (a phone held sideways) the cards are smaller, so the library under the shelf stays in view. */
+private val COMPACT_CARD_WIDTH = 168.dp
+
 /**
  * A horizontal "pick up where you left off" shelf shown above the library grid. It uses the grid's own thumbnail,
- * progress line and type scale, so the two read as one library rather than two different card systems.
+ * progress line and type scale, so the two read as one library rather than two different card systems. [compact] is for
+ * a short window: smaller cards, because 248 dp wide cards are 140 dp tall pictures, and on a sideways phone that is
+ * nearly half the screen.
  */
 @Composable
 fun ContinueWatchingRow(
     cards: List<VideoCardUiModel>,
     onResume: (VideoCardUiModel) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    compact: Boolean = false
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
-        SectionTitle(title = CONTINUE_WATCHING_TITLE, modifier = Modifier.padding(bottom = 12.dp))
+        SectionTitle(title = CONTINUE_WATCHING_TITLE, modifier = Modifier.padding(bottom = if (compact) 8.dp else 12.dp))
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             contentPadding = PaddingValues(end = 16.dp)
         ) {
             items(cards, key = { it.uri }, contentType = { "continue_watching_card" }) { card ->
-                ContinueWatchingCard(card = card, onClick = { onResume(card) })
+                ContinueWatchingCard(card = card, compact = compact, onClick = { onResume(card) })
             }
         }
     }
@@ -63,13 +71,14 @@ fun ContinueWatchingRow(
 @Composable
 private fun ContinueWatchingCard(
     card: VideoCardUiModel,
+    compact: Boolean,
     onClick: () -> Unit
 ) {
     val remaining = MediaFormatters.formatRemaining(card.rawItem.playbackPositionMs, card.rawItem.durationMs)
     val thumbShape = RoundedCornerShape(14.dp)
     Column(
         modifier = Modifier
-            .width(248.dp)
+            .width(if (compact) COMPACT_CARD_WIDTH else CARD_WIDTH)
             .clip(RoundedCornerShape(16.dp))
             // One TalkBack stop per card, announced as an action: "Resume Title, 12 min left".
             .clearAndSetSemantics { contentDescription = "Resume ${card.title}, $remaining" }
@@ -89,7 +98,7 @@ private fun ContinueWatchingCard(
             Box(
                 modifier = Modifier
                     .align(Alignment.Center)
-                    .size(44.dp)
+                    .size(if (compact) 36.dp else 44.dp)
                     .background(ApturaColors.SurfaceScrim, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
@@ -97,7 +106,7 @@ private fun ContinueWatchingCard(
                     imageVector = Icons.Filled.PlayArrow,
                     contentDescription = null,
                     tint = ApturaColors.TextOnScrim,
-                    modifier = Modifier.size(26.dp)
+                    modifier = Modifier.size(if (compact) 22.dp else 26.dp)
                 )
             }
 
@@ -108,7 +117,7 @@ private fun ContinueWatchingCard(
                 )
             }
         }
-        Column(modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 10.dp, bottom = 4.dp)) {
+        Column(modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = if (compact) 6.dp else 10.dp, bottom = 4.dp)) {
             Text(
                 text = card.title,
                 style = ApturaTypography.titleMedium,

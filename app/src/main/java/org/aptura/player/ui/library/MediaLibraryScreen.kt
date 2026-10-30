@@ -3,6 +3,10 @@ package org.aptura.player.ui.library
 import androidx.activity.compose.BackHandler
 import androidx.core.net.toUri
 import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import org.aptura.player.domain.model.LibraryLayout
+import org.aptura.player.ui.components.StableSystemBars
 import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
@@ -36,9 +40,12 @@ import androidx.compose.ui.semantics.contentDescription
 import org.aptura.player.ui.components.ApturaMenuCaption
 import org.aptura.player.ui.components.ApturaTextButton
 import org.aptura.player.ui.components.NoticeBanner
+import org.aptura.player.ui.components.SHORT_WINDOW_HEIGHT
 import org.aptura.player.ui.components.SectionTitle
 import org.aptura.player.ui.components.SkeletonBlock
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -155,6 +162,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.work.WorkInfo
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import coil3.compose.AsyncImage
@@ -192,9 +200,13 @@ internal sealed interface LibraryActiveModal {
     ) : LibraryActiveModal
 }
 
+/** The collection index needs at least this much height: below it the rail is used, however wide the window is. */
+private val SIDEBAR_MIN_HEIGHT = 600.dp
+
 /**
  * Media Library Grid Screen (SCR-001, FR-LIB-001..015).
- * Built with Jetpack Compose following anti-slop taste guidelines and adaptive breakpoints.
+ * Built with Jetpack Compose following anti-slop taste guidelines and adaptive breakpoints. In a short window
+ * ([SHORT_WINDOW_HEIGHT]) the rail drops its text labels, the shelf's cards shrink and the spacing tightens.
  */
 @Composable
 fun MediaLibraryScreen(
@@ -220,11 +232,17 @@ fun MediaLibraryScreen(
     showCrashNotice: Boolean = false,
     onShareCrashDetails: () -> Unit = {},
     onDismissCrashNotice: () -> Unit = {},
+    viewPrefs: LibraryViewPrefs = LibraryViewPrefs(),
+    onViewPrefsChanged: (LibraryViewPrefs) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        containerColor = ApturaColors.SurfaceBase
+        containerColor = ApturaColors.SurfaceBase,
+        // The player hides the system bars and shows them again as it closes. With the default, visibility-aware
+        // insets the library lays out without them for the first frames of the way back and then jumps down by the
+        // height of the status bar; the sizes themselves never change, so use those.
+        contentWindowInsets = StableSystemBars
     ) { innerPadding ->
         Box(modifier = Modifier.fillMaxSize()) {
             when (uiState) {
@@ -238,7 +256,10 @@ fun MediaLibraryScreen(
                             )
                     ) {
                         LibraryAppBar(onSettingsClick = onSettingsClick)
-                        MediaLibraryLoadingView(modifier = Modifier.weight(1f))
+                        Box(modifier = Modifier.weight(1f)) {
+                            // Loading that is over in a moment (every normal start) shows nothing, not a flash of skeleton.
+                            AfterDelay { MediaLibraryLoadingView() }
+                        }
                     }
                 }
 
@@ -292,6 +313,8 @@ fun MediaLibraryScreen(
                         showCrashNotice = showCrashNotice,
                         onShareCrashDetails = onShareCrashDetails,
                         onDismissCrashNotice = onDismissCrashNotice,
+                        viewPrefs = viewPrefs,
+                        onViewPrefsChanged = onViewPrefsChanged,
                         topPadding = innerPadding.calculateTopPadding(),
                         bottomPadding = innerPadding.calculateBottomPadding()
                     )
@@ -325,6 +348,8 @@ private fun MediaLibraryContentView(
     showCrashNotice: Boolean = false,
     onShareCrashDetails: () -> Unit = {},
     onDismissCrashNotice: () -> Unit = {},
+    viewPrefs: LibraryViewPrefs = LibraryViewPrefs(),
+    onViewPrefsChanged: (LibraryViewPrefs) -> Unit = {},
     topPadding: androidx.compose.ui.unit.Dp = 0.dp,
     bottomPadding: androidx.compose.ui.unit.Dp,
     modifier: Modifier = Modifier
@@ -335,7 +360,9 @@ private fun MediaLibraryContentView(
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     val coroutineScope = rememberCoroutineScope()
-    var sortMenuExpanded by remember { mutableStateOf(false) }
+    var viewSheetVisible by remember { mutableStateOf(false) }
+    var folderBrowserVisible by remember { mutableStateOf(false) }
+    var swipeHint by remember { mutableStateOf<FolderSwipeHint?>(null) }
     var selectionActionsExpanded by remember { mutableStateOf(false) }
     var activeModal by remember { mutableStateOf<LibraryActiveModal?>(null) }
     var selectedUris by rememberSaveable { mutableStateOf(emptySet<String>()) }
@@ -680,8 +707,13 @@ private fun MediaLibraryContentView(
         val isWideScreen = containerWidth >= 600.dp && windowAdaptiveInfo.windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND)
         // At 700 dp there is room for the full collection index. Above 150% font the labels cannot breathe in
         // 248 dp, so the rail compresses instead of truncating every folder name.
-        val canExpandSidebar = isWideScreen && containerWidth >= 700.dp && LocalDensity.current.fontScale < 1.5f
+        // The index's fixed parts (brand, summary, tools, the offline promise) take about 450 dp before a single folder
+        // row, so a phone held sideways (about 400 dp tall) has no room left for the folders: it gets the rail, with the
+        // folder bar in the content, whatever its width.
+        val tallEnoughForSidebar = maxHeight >= SIDEBAR_MIN_HEIGHT
+        val canExpandSidebar = isWideScreen && containerWidth >= 700.dp && tallEnoughForSidebar && LocalDensity.current.fontScale < 1.5f
         val isExpandedSidebar = canExpandSidebar && sidebarExpanded
+        val shortWindow = maxHeight < SHORT_WINDOW_HEIGHT
 
         Row(modifier = Modifier.fillMaxSize()) {
             if (isWideScreen) {
@@ -717,6 +749,7 @@ private fun MediaLibraryContentView(
                             topPadding = topPadding,
                             bottomPadding = bottomPadding,
                             canExpand = canExpandSidebar,
+                            shortWindow = shortWindow,
                             onExpand = { sidebarExpanded = true },
                             onOpenFilePicker = onOpenFilePicker,
                             onRefresh = onRefresh,
@@ -738,184 +771,36 @@ private fun MediaLibraryContentView(
                 // One page gutter for the header, chips, banners and grid, so every edge lines up.
                 val pagePadding = if (isWideScreen) 24.dp else 16.dp
 
-                // Search & Sort Bar
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = pagePadding, end = pagePadding - 4.dp, top = 12.dp, bottom = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedTextField(
-                        value = state.searchQuery,
-                        onValueChange = onSearchQueryChanged,
-                        placeholder = {
-                            Text(
-                                text = if (state.selectedFolder != null) {
-                                    "Search ${friendlyFolderName(state.selectedFolder)}"
-                                } else {
-                                    "Search videos"
-                                },
-                                style = ApturaTypography.bodyLarge,
-                                color = ApturaColors.TextLowEmphasis,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.Search,
-                                contentDescription = "Search",
-                                tint = ApturaColors.TextMediumEmphasis
-                            )
-                        },
-                        trailingIcon = {
-                            if (state.searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { onSearchQueryChanged("") }) {
-                                    Icon(
-                                        imageVector = Icons.Default.Clear,
-                                        contentDescription = "Clear search",
-                                        tint = ApturaColors.TextMediumEmphasis
-                                    )
-                                }
-                            }
-                        },
-                        textStyle = ApturaTypography.bodyLarge,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                        keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
-                        singleLine = true,
-                        shape = RoundedCornerShape(16.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = ApturaColors.AccentPrimary,
-                            unfocusedBorderColor = ApturaColors.BorderSubtle,
-                            focusedContainerColor = ApturaColors.SurfaceElevated1,
-                            unfocusedContainerColor = ApturaColors.SurfaceElevated1,
-                            focusedTextColor = ApturaColors.TextHighEmphasis,
-                            unfocusedTextColor = ApturaColors.TextHighEmphasis,
-                            cursorColor = ApturaColors.AccentPrimary
-                        ),
-                        modifier = Modifier
-                            .weight(1f)
-                            .widthIn(max = 720.dp)
-                    )
+                val labels = remember(state.folders) { folderLabels(state.folders) }
 
-                    Spacer(modifier = Modifier.width(4.dp))
+                LibraryHeader(
+                    query = state.searchQuery,
+                    scopeName = state.selectedFolder?.let { labels[it] ?: friendlyFolderName(it) },
+                    isRefreshing = state.isRefreshing,
+                    showRefreshAndSettings = !isWideScreen,
+                    pagePadding = pagePadding,
+                    onQueryChange = onSearchQueryChanged,
+                    onSearchDone = { focusManager.clearFocus() },
+                    onViewOptions = { viewSheetVisible = true },
+                    onRefresh = onRefresh,
+                    onSettingsClick = onSettingsClick
+                )
 
-                    // Plain icon buttons: three filled tiles beside the field made the header heavier than the content.
-                    Box {
-                        IconButton(onClick = { sortMenuExpanded = true }, modifier = Modifier.size(48.dp)) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Sort,
-                                contentDescription = "Sort library",
-                                tint = ApturaColors.TextMediumEmphasis
-                            )
-                        }
-
-                        DropdownMenu(
-                            expanded = sortMenuExpanded,
-                            onDismissRequest = { sortMenuExpanded = false },
-                            containerColor = ApturaColors.SurfaceElevated2,
-                            shape = RoundedCornerShape(16.dp)
-                        ) {
-                            ApturaMenuCaption("Sort by")
-                            LibrarySortOrder.entries.forEach { order ->
-                                ApturaMenuItem(
-                                    text = order.displayName,
-                                    icon = null,
-                                    selected = state.sortOrder == order,
-                                    onClick = {
-                                        onSortOrderChanged(order)
-                                        sortMenuExpanded = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-
-                    if (!isWideScreen) {
-                        IconButton(onClick = onRefresh, modifier = Modifier.size(48.dp)) {
-                            if (state.isRefreshing) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    strokeWidth = 2.dp,
-                                    color = ApturaColors.AccentPrimary
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Default.Refresh,
-                                    contentDescription = "Refresh library",
-                                    tint = ApturaColors.TextMediumEmphasis
-                                )
-                            }
-                        }
-
-                        IconButton(onClick = onSettingsClick, modifier = Modifier.size(48.dp)) {
-                            Icon(
-                                imageVector = Icons.Outlined.Settings,
-                                contentDescription = "Settings",
-                                tint = ApturaColors.TextMediumEmphasis
-                            )
-                        }
-                    }
-                }
-
-        // Folder Chips Row (FR-LIB-009, FR-LIB-018). The expanded sidebar owns this job on wide screens and keeps the
-        // top edge quiet; the compact rail still relies on the chips.
-        if (state.folders.isNotEmpty() && !isExpandedSidebar) {
-            LazyRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 4.dp),
-                contentPadding = PaddingValues(horizontal = pagePadding),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                item(key = "all_videos", contentType = "folder_chip") {
-                    FolderFilterChip(
-                        label = "All videos",
-                        selected = state.selectedFolder == null,
-                        onClick = { onFolderSelected(null) }
+                // The folder strip (FR-LIB-009, FR-LIB-018). The expanded sidebar owns this job on wide screens and
+                // keeps the top edge quiet; the compact rail still relies on the strip.
+                if (state.folders.isNotEmpty() && !isExpandedSidebar) {
+                    FolderStrip(
+                        folders = state.folders,
+                        labels = labels,
+                        counts = state.folderCounts,
+                        totalCount = state.libraryVideoCount,
+                        selectedFolder = state.selectedFolder,
+                        onFolderSelected = onFolderSelected,
+                        onBrowseFolders = { folderBrowserVisible = true },
+                        onAddFolder = onAddFolderClick,
+                        horizontalPadding = pagePadding
                     )
                 }
-
-                items(state.folders, key = { it }, contentType = { "folder_chip" }) { folder ->
-                    val friendlyName = remember(folder) { friendlyFolderName(folder) }
-                    FolderFilterChip(
-                        label = friendlyName,
-                        selected = state.selectedFolder == folder,
-                        onClick = { onFolderSelected(folder) }
-                    )
-                }
-
-                item(key = "add_folder", contentType = "add_folder_chip") {
-                    FilterChip(
-                        selected = false,
-                        onClick = onAddFolderClick,
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Outlined.CreateNewFolder,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = ApturaColors.AccentPrimary
-                            )
-                        },
-                        label = { Text("Add folder", style = ApturaTypography.labelLarge.copy(fontFeatureSettings = "")) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            containerColor = Color.Transparent,
-                            labelColor = ApturaColors.AccentPrimary
-                        ),
-                        border = FilterChipDefaults.filterChipBorder(
-                            enabled = true,
-                            selected = false,
-                            borderColor = ApturaColors.BorderSubtle
-                        ),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .height(48.dp)
-                            .padding(vertical = 6.dp)
-                            .semantics { contentDescription = "Add custom media folder" }
-                    )
-                }
-            }
-        }
 
         // Post-crash prompt (spec/14 §2): quiet, once, never blocks the library.
         if (showCrashNotice) {
@@ -1100,138 +985,101 @@ private fun MediaLibraryContentView(
             }
         }
 
-        // Adaptive Video Grid (Responds from 1 to 4+ columns automatically)
         val allRawVideos = remember(state.videos) { state.videos.map { it.rawItem } }
-
-        val baseGridMinSize = when {
-            containerWidth >= 1200.dp -> 240.dp
-            isWideScreen -> 200.dp
-            // 132 dp keeps two columns on a 320 dp phone (two 137 dp cells); 140 dp collapsed it to one huge column.
-            else -> 132.dp
-        }
-        // Fixed 140 dp cells at 200% font turn titles into "Aptura Audit Cl…" and make sibling episodes
-        // indistinguishable. Growing the cell with the font scale buys the extra line it needs (and at the
-        // extreme falls back to a single column) without changing the normal-density layout.
-        val fontScale = LocalDensity.current.fontScale
-        val gridMinSize = baseGridMinSize * fontScale.coerceIn(1f, 1.6f)
-
-        val folderOrder = state.folders
-        val layoutDirection = LocalLayoutDirection.current
-        val density = LocalDensity.current
         val isSelecting = selectedUris.isNotEmpty()
+        val haptic = LocalHapticFeedback.current
 
-        LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = gridMinSize),
-            modifier = Modifier
-                .weight(1f)
-                .testTag("library_video_grid")
-                .pointerInput(folderOrder, state.selectedFolder, isSelecting, layoutDirection) {
-                    if (!isSelecting && folderOrder.isNotEmpty()) {
-                        var horizontalDrag = 0f
-                        detectHorizontalDragGestures(
-                            onDragStart = { horizontalDrag = 0f },
-                            onHorizontalDrag = { change, dragAmount ->
-                                change.consume()
-                                horizontalDrag += dragAmount
-                            },
-                            onDragEnd = {
-                                val swipeThreshold = with(density) { 64.dp.toPx() }
-                                if (kotlin.math.abs(horizontalDrag) >= swipeThreshold) {
-                                    val swipedForward = if (layoutDirection == LayoutDirection.Ltr) {
-                                        horizontalDrag < 0f
-                                    } else {
-                                        horizontalDrag > 0f
-                                    }
-                                    val currentFolderIndex = state.selectedFolder
-                                        ?.let(folderOrder::indexOf)
-                                        ?.takeIf { it >= 0 }
-                                        ?.plus(1)
-                                        ?: 0
-                                    val folderCount = folderOrder.size + 1
-                                    val nextFolderIndex = (
-                                        currentFolderIndex +
-                                            (if (swipedForward) 1 else -1) +
-                                            folderCount
-                                        ) % folderCount
-                                    onFolderSelected(folderOrder.getOrNull(nextFolderIndex - 1))
-                                }
-                            }
-                        )
-                    }
-                },
-            contentPadding = PaddingValues(
-                start = pagePadding,
-                end = pagePadding,
-                top = 12.dp,
-                bottom = bottomPadding + 24.dp
-            ),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
-            horizontalArrangement = Arrangement.spacedBy(if (isWideScreen) 20.dp else 14.dp)
-        ) {
-            if (state.continueWatching.isNotEmpty()) {
-                item(
-                    key = "continue_watching",
-                    span = { GridItemSpan(maxLineSpan) },
-                    contentType = "continue_watching"
-                ) {
-                    ContinueWatchingRow(
-                        cards = state.continueWatching,
-                        onResume = { card -> onVideoClick(card.rawItem, allRawVideos) },
-                        modifier = Modifier.padding(bottom = 10.dp)
-                    )
-                }
+        // A swipe moves one folder along and says where it landed. At either end it stays put (no wrap-around) and
+        // the pill still names the folder, so the viewer sees it is the end rather than wondering if anything happened.
+        val swipeToFolder: (Int) -> Unit = { delta ->
+            val order = folderOrder(state.folders)
+            val target = neighbouringFolder(state.folders, state.selectedFolder, delta)
+            // "All videos" is the folder null, so a null folder from `target` is a destination, not "no target".
+            val landed = if (target != null) target.second else state.selectedFolder
+            val position = (target?.first ?: order.indexOf(state.selectedFolder).coerceAtLeast(0)) + 1
+            if (target != null) onFolderSelected(landed)
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            swipeHint = FolderSwipeHint(
+                label = landed?.let { labels[it] ?: friendlyFolderName(it) } ?: "All videos",
+                position = position,
+                total = order.size,
+                token = (swipeHint?.token ?: 0L) + 1L
+            )
+        }
+        LaunchedEffect(swipeHint?.token) {
+            if (swipeHint != null) {
+                kotlinx.coroutines.delay(1400)
+                swipeHint = null
             }
-            // The grid gets a title of its own, so it reads as a section rather than as leftovers under the shelf.
-            item(key = "grid_title", span = { GridItemSpan(maxLineSpan) }, contentType = "section_title") {
-                SectionTitle(
-                    title = when {
-                        state.searchQuery.isNotBlank() -> "Results"
-                        state.selectedFolder != null -> friendlyFolderName(state.selectedFolder)
+        }
+
+        Box(modifier = Modifier.weight(1f)) {
+            LibraryVideoPaneHost(
+                state = state,
+                swipeEnabled = !isSelecting && state.folders.isNotEmpty(),
+                onSwipe = swipeToFolder,
+                modifier = Modifier.fillMaxSize()
+            ) { paneState, paneModifier ->
+                LibraryVideoPane(
+                    state = paneState,
+                    prefs = viewPrefs,
+                    scopeTitle = when {
+                        paneState.searchQuery.isNotBlank() -> "Results"
+                        paneState.selectedFolder != null -> labels[paneState.selectedFolder] ?: friendlyFolderName(paneState.selectedFolder)
                         else -> "Library"
                     },
-                    count = state.videos.size
+                    isWideScreen = isWideScreen,
+                    containerWidth = containerWidth,
+                    pagePadding = pagePadding,
+                    bottomPadding = bottomPadding,
+                    onResumeContinueWatching = { card -> onVideoClick(card.rawItem, allRawVideos) },
+                    onToggleLayout = {
+                        onViewPrefsChanged(
+                            viewPrefs.copy(
+                                layout = if (viewPrefs.layout == LibraryLayout.LIST) LibraryLayout.GRID else LibraryLayout.LIST
+                            )
+                        )
+                    },
+                    isSelected = { card -> card.uri in selectedUris },
+                    callbacksFor = { card ->
+                        VideoCardCallbacks(
+                            onClick = {
+                                if (selectedUris.isNotEmpty()) {
+                                    selectedUris = if (card.uri in selectedUris) selectedUris - card.uri else selectedUris + card.uri
+                                } else {
+                                    onVideoClick(card.rawItem, allRawVideos)
+                                }
+                            },
+                            onLongClick = {
+                                selectedUris = if (card.uri in selectedUris) selectedUris else selectedUris + card.uri
+                            },
+                            onMore = {
+                                if (onShowDetails != null) {
+                                    onShowDetails(card.rawItem)
+                                } else {
+                                    activeModal = LibraryActiveModal.Details(card.rawItem)
+                                }
+                            },
+                            onPlayNext = { onPlayNext(card.rawItem) },
+                            onAddToQueue = { onAddToQueue(card.rawItem) },
+                            onHide = { activeModal = LibraryActiveModal.Hide(card.rawItem) },
+                            onDelete = { activeModal = LibraryActiveModal.Delete(card.rawItem) },
+                            onRemoveMissing = { activeModal = LibraryActiveModal.RemoveMissing(card.rawItem) },
+                            onMoreFileActions = { activeModal = LibraryActiveModal.MoreFileActions(card.rawItem) },
+                            onShare = { shareVideos(context, listOf(card.rawItem.uri)) },
+                            onMove = { activeModal = LibraryActiveModal.MoveToFolder(listOf(card.rawItem.uri)) },
+                            onSelect = { selectedUris = selectedUris + card.uri }
+                        )
+                    },
+                    modifier = paneModifier,
+                    shortWindow = shortWindow
                 )
             }
-            items(
-                items = state.videos,
-                key = { item -> item.uri },
-                contentType = { "video_card" }
-            ) { card ->
-                VideoGridCard(
-                    card = card,
-                    onClick = {
-                        if (selectedUris.isNotEmpty()) {
-                            selectedUris = if (card.uri in selectedUris) selectedUris - card.uri else selectedUris + card.uri
-                        } else {
-                            onVideoClick(card.rawItem, allRawVideos)
-                        }
-                    },
-                    onLongClick = {
-                        selectedUris = if (card.uri in selectedUris) selectedUris else selectedUris + card.uri
-                    },
-                    isSelected = card.uri in selectedUris,
-                    onMoreClick = {
-                        if (onShowDetails != null) {
-                            onShowDetails(card.rawItem)
-                        } else {
-                            activeModal = LibraryActiveModal.Details(card.rawItem)
-                        }
-                    },
-                    onPlayNextClick = { onPlayNext(card.rawItem) },
-                    onAddToQueueClick = { onAddToQueue(card.rawItem) },
-                    onHideClick = { activeModal = LibraryActiveModal.Hide(card.rawItem) },
-                    onDeleteClick = { activeModal = LibraryActiveModal.Delete(card.rawItem) },
-                    onRemoveMissingClick = {
-                        activeModal = LibraryActiveModal.RemoveMissing(card.rawItem)
-                    },
-                    onMoreFileActionsClick = { activeModal = LibraryActiveModal.MoreFileActions(card.rawItem) },
-                    onShareClick = { shareVideos(context, listOf(card.rawItem.uri)) },
-                    onMoveClick = {
-                        activeModal = LibraryActiveModal.MoveToFolder(listOf(card.rawItem.uri))
-                    },
-                    onSelectClick = { selectedUris = selectedUris + card.uri }
-                )
-            }
+            // At the bottom, where the thumb is and nothing is being read: it must not cover the folder's title.
+            FolderSwipeHintPill(
+                swipeHint,
+                Modifier.align(Alignment.BottomCenter).padding(bottom = bottomPadding + 24.dp)
+            )
         }
 
         // Single mutually-exclusive modal surface (Coding Standards §6, F-21)
@@ -1477,6 +1325,31 @@ private fun MediaLibraryContentView(
 
             null -> Unit
         }
+        if (viewSheetVisible) {
+            LibraryViewSheet(
+                prefs = viewPrefs,
+                sortOrder = state.sortOrder,
+                onPrefsChange = onViewPrefsChanged,
+                onSortChange = onSortOrderChanged,
+                onDismiss = { viewSheetVisible = false }
+            )
+        }
+        if (folderBrowserVisible) {
+            FolderBrowserSheet(
+                folders = state.folders,
+                labels = labels,
+                summaries = state.folderSummaries,
+                libraryVideoCount = state.libraryVideoCount,
+                libraryDurationMs = state.libraryDurationMs,
+                librarySizeBytes = state.librarySizeBytes,
+                selectedFolder = state.selectedFolder,
+                layout = viewPrefs.folderLayout,
+                onLayoutChange = { onViewPrefsChanged(viewPrefs.copy(folderLayout = it)) },
+                onSelect = onFolderSelected,
+                onAddFolder = onAddFolderClick,
+                onDismiss = { folderBrowserVisible = false }
+            )
+        }
         transferJob?.takeUnless { it.copyFinished }?.let { job ->
             val progress = transferWorkInfo?.progress?.let(MediaTransferWorker::progressFrom)
                 ?: MediaTransferProgress(
@@ -1581,271 +1454,7 @@ private fun TransferProgressDialog(
 }
 
 @Composable
-fun VideoGridCard(
-    card: VideoCardUiModel,
-    onClick: () -> Unit,
-    onLongClick: (() -> Unit)? = null,
-    isSelected: Boolean = false,
-    onMoreClick: (() -> Unit)? = null,
-    onPlayNextClick: (() -> Unit)? = null,
-    onAddToQueueClick: (() -> Unit)? = null,
-    onHideClick: (() -> Unit)? = null,
-    onDeleteClick: (() -> Unit)? = null,
-    onRemoveMissingClick: (() -> Unit)? = null,
-    onMoreFileActionsClick: (() -> Unit)? = null,
-    onShareClick: (() -> Unit)? = null,
-    onMoveClick: (() -> Unit)? = null,
-    onSelectClick: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
-) {
-    var overflowExpanded by remember { mutableStateOf(false) }
-    val thumbShape = RoundedCornerShape(14.dp)
-    // A flat card: the picture carries the shape and the text sits on the page below it. Without a container, a
-    // one-line title next to a two-line title no longer leaves a blank band inside one of the cards.
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .then(
-                if (onLongClick != null) {
-                    Modifier.combinedClickable(
-                        onClick = onClick,
-                        onLongClick = onLongClick,
-                        onLongClickLabel = "Select video"
-                    )
-                } else {
-                    Modifier.clickable(onClick = onClick)
-                }
-            )
-            .semantics { selected = isSelected }
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(16f / 9f)
-                .clip(thumbShape)
-                .background(ApturaColors.SurfaceElevated2)
-                .border(
-                    width = if (isSelected) 3.dp else 1.dp,
-                    color = if (isSelected) ApturaColors.AccentPrimary else ApturaColors.BorderSubtle,
-                    shape = thumbShape
-                )
-        ) {
-            VideoThumbnail(card = card, modifier = Modifier.fillMaxSize())
-
-            if (isSelected) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(ApturaColors.AccentPrimary.copy(alpha = 0.18f))
-                )
-                Surface(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(8.dp)
-                        .size(28.dp),
-                    shape = CircleShape,
-                    color = ApturaColors.AccentPrimary
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = "Selected",
-                        tint = ApturaColors.TextOnAccent,
-                        modifier = Modifier.padding(5.dp)
-                    )
-                }
-            } else if (card.isCompleted && !card.isMissing) {
-                ThumbnailPill(
-                    text = "Watched",
-                    icon = Icons.Default.Check,
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(8.dp)
-                )
-            }
-
-            if (card.rawItem.durationMs > 0L) {
-                ThumbnailPill(
-                    text = card.durationFormatted,
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(8.dp)
-                )
-            }
-
-            // Missing / Unmounted (FR-LIB-018, FR-LIB-021)
-            if (card.isMissing) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(ApturaColors.SurfaceScrim.copy(alpha = 0.55f))
-                )
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(8.dp)
-                        .background(ApturaColors.StatusError.copy(alpha = 0.92f), RoundedCornerShape(6.dp))
-                        .padding(horizontal = 7.dp, vertical = 3.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.FolderOff,
-                        contentDescription = null,
-                        tint = ApturaColors.TextOnScrim,
-                        modifier = Modifier.size(12.dp)
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text(text = "Missing", style = ApturaTypography.labelSmall, color = ApturaColors.TextOnScrim)
-                }
-            }
-
-            // Watch progress: a flush 3 dp line along the bottom edge (no stop dot, P2-05).
-            if (card.progressFraction > 0f && !card.isCompleted) {
-                WatchProgressLine(
-                    fraction = card.progressFraction,
-                    modifier = Modifier.align(Alignment.BottomCenter)
-                )
-            }
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 4.dp, top = 10.dp, bottom = 4.dp),
-            verticalAlignment = Alignment.Top
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = card.title,
-                    style = ApturaTypography.titleMedium,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    color = ApturaColors.TextHighEmphasis
-                )
-                Spacer(modifier = Modifier.height(3.dp))
-                Text(
-                    text = "${card.fileSizeFormatted}  ·  ${card.folderName}",
-                    style = ApturaTypography.bodySmall.copy(fontFeatureSettings = "tnum"),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = ApturaColors.TextMediumEmphasis
-                )
-            }
-            if (onMoreClick != null) {
-                val hasContextActions = onPlayNextClick != null || onAddToQueueClick != null ||
-                    onHideClick != null || onDeleteClick != null || onRemoveMissingClick != null ||
-                    onMoreFileActionsClick != null || onShareClick != null || onMoveClick != null ||
-                    onSelectClick != null
-                // The touch target stays 48 dp; the offset lines the visible glyph up with the title's first line and
-                // the card's right edge instead of floating in the middle of the text block.
-                Box(modifier = Modifier.offset(x = 12.dp, y = (-12).dp)) {
-                    IconButton(
-                        onClick = {
-                            if (hasContextActions) overflowExpanded = true else onMoreClick()
-                        },
-                        modifier = Modifier.size(48.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.MoreVert,
-                            // With a grid full of identical ellipses, "More actions" alone tells a
-                            // screen-reader user nothing about which video will be changed.
-                            contentDescription = "More actions for ${card.title}",
-                            tint = ApturaColors.TextMediumEmphasis,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    if (hasContextActions) {
-                        DropdownMenu(
-                            expanded = overflowExpanded,
-                            onDismissRequest = { overflowExpanded = false },
-                            containerColor = ApturaColors.SurfaceElevated2,
-                            shape = RoundedCornerShape(16.dp)
-                        ) {
-                            fun pick(action: () -> Unit) {
-                                overflowExpanded = false
-                                action()
-                            }
-                            ApturaMenuItem("Video details", Icons.Outlined.Info, onClick = { pick(onMoreClick) })
-                            if (card.isMissing) {
-                                // A missing file cannot play, move, share or be deleted again. The only
-                                // honest action is to remove its index row (and its saved progress).
-                                if (onRemoveMissingClick != null) {
-                                    MenuDivider()
-                                    ApturaMenuItem(
-                                        "Remove from library",
-                                        Icons.Default.RemoveCircleOutline,
-                                        onClick = { pick(onRemoveMissingClick) },
-                                        tone = ApturaTone.Destructive
-                                    )
-                                }
-                            } else {
-                                onPlayNextClick?.let { ApturaMenuItem("Play next", Icons.AutoMirrored.Filled.PlaylistPlay, onClick = { pick(it) }) }
-                                onAddToQueueClick?.let { ApturaMenuItem("Add to queue", Icons.AutoMirrored.Filled.PlaylistAdd, onClick = { pick(it) }) }
-                                onSelectClick?.let { ApturaMenuItem("Select", Icons.Outlined.CheckCircle, onClick = { pick(it) }) }
-                                if (onMoveClick != null || onShareClick != null || onMoreFileActionsClick != null) MenuDivider()
-                                onMoveClick?.let { ApturaMenuItem("Move to folder", Icons.AutoMirrored.Filled.DriveFileMove, onClick = { pick(it) }) }
-                                onShareClick?.let { ApturaMenuItem("Share", Icons.Default.Share, onClick = { pick(it) }) }
-                                onMoreFileActionsClick?.let { ApturaMenuItem("More file actions", Icons.Default.DriveFileRenameOutline, onClick = { pick(it) }) }
-                                if (onHideClick != null || onDeleteClick != null) MenuDivider()
-                                onHideClick?.let { ApturaMenuItem("Hide from library", Icons.Default.VisibilityOff, onClick = { pick(it) }) }
-                                onDeleteClick?.let {
-                                    ApturaMenuItem("Delete video", Icons.Default.DeleteOutline, onClick = { pick(it) }, tone = ApturaTone.Destructive)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/** A folder filter. Selection is shown by fill and a check, never by colour alone. */
-@Composable
-private fun FolderFilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        leadingIcon = if (selected) {
-            {
-                Icon(
-                    imageVector = Icons.Filled.Check,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                    tint = ApturaColors.AccentPrimary
-                )
-            }
-        } else null,
-        label = {
-            Text(
-                text = label,
-                style = ApturaTypography.labelLarge.copy(fontFeatureSettings = ""),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        },
-        colors = FilterChipDefaults.filterChipColors(
-            selectedContainerColor = ApturaColors.AccentSubtle,
-            selectedLabelColor = ApturaColors.AccentPrimary,
-            containerColor = ApturaColors.SurfaceElevated1,
-            labelColor = ApturaColors.TextHighEmphasis
-        ),
-        border = FilterChipDefaults.filterChipBorder(
-            enabled = true,
-            selected = selected,
-            borderColor = ApturaColors.BorderSubtle,
-            selectedBorderColor = ApturaColors.AccentPrimary.copy(alpha = 0.6f)
-        ),
-        shape = RoundedCornerShape(12.dp),
-        // 36 dp visible, 48 dp to touch.
-        modifier = Modifier
-            .height(48.dp)
-            .padding(vertical = 6.dp)
-    )
-}
-
-@Composable
-private fun MenuDivider() {
+internal fun MenuDivider() {
     HorizontalDivider(color = ApturaColors.BorderSubtle, modifier = Modifier.padding(vertical = 4.dp))
 }
 
@@ -1880,46 +1489,6 @@ internal fun WatchProgressLine(fraction: Float, modifier: Modifier = Modifier) {
                 .fillMaxHeight()
                 .fillMaxWidth(fraction.coerceIn(0f, 1f))
                 .background(ApturaColors.AccentPrimary)
-        )
-    }
-}
-
-/**
- * The cached frame for a video, generated on first use. While it loads (or when a frame cannot be read) a film glyph
- * on the elevated surface stands in, so an unreadable file never looks like a black hole in the grid.
- */
-@Composable
-internal fun VideoThumbnail(card: VideoCardUiModel, modifier: Modifier = Modifier) =
-    VideoThumbnail(card.uri, card.rawItem.dateModifiedSec, card.title, modifier)
-
-@Composable
-internal fun VideoThumbnail(uri: String, dateModifiedSec: Long, contentDescription: String?, modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    val cachedThumbnail = remember(uri, dateModifiedSec) {
-        ThumbnailRepository.getCachedThumbnailFile(context, uri, dateModifiedSec)
-    }
-    val thumbnailFile by produceState<File?>(initialValue = cachedThumbnail, uri, dateModifiedSec) {
-        if (value == null) {
-            value = ThumbnailRepository.getOrCreateThumbnail(context, uri, dateModifiedSec)
-        }
-    }
-    Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        if (thumbnailFile == null) {
-            Icon(
-                imageVector = Icons.Outlined.Movie,
-                contentDescription = null,
-                tint = ApturaColors.TextLowEmphasis,
-                modifier = Modifier.size(28.dp)
-            )
-        }
-        val imageRequest = remember(thumbnailFile) {
-            ImageRequest.Builder(context).data(thumbnailFile).build()
-        }
-        AsyncImage(
-            model = imageRequest,
-            contentDescription = contentDescription,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize()
         )
     }
 }
@@ -1993,101 +1562,124 @@ private fun MediaLibraryEmptyView(
     onAddFolderClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState()),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
+    // Measured outside the scrolling box, which is given unlimited height and would never read as short.
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        // A phone held sideways has about 360 dp of height: the same spacing would push the main button to the edge of
+        // the screen, so everything is tighter there and the button is in view without scrolling.
+        val short = maxHeight < SHORT_WINDOW_HEIGHT
+        Box(
             modifier = Modifier
-                .widthIn(max = 440.dp)
-                .padding(horizontal = 32.dp, vertical = 48.dp)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState()),
+            contentAlignment = Alignment.Center
         ) {
-            Box(
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
-                    .size(88.dp)
-                    .background(ApturaColors.AccentSubtle, CircleShape),
-                contentAlignment = Alignment.Center
+                    .widthIn(max = 440.dp)
+                    .padding(horizontal = 32.dp, vertical = if (short) 12.dp else 48.dp)
             ) {
-                Icon(
-                    imageVector = when {
-                        isPermissionDenied -> Icons.Outlined.Lock
-                        isFiltered -> Icons.Outlined.SearchOff
-                        else -> Icons.Outlined.VideoLibrary
-                    },
-                    contentDescription = null,
-                    modifier = Modifier.size(40.dp),
-                    tint = ApturaColors.AccentPrimary
-                )
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Text(
-                text = when {
-                    isPermissionDenied -> "Allow access to your videos"
-                    isFiltered -> "No results for “$query”"
-                    else -> "No videos yet"
-                },
-                style = ApturaTypography.headlineMedium,
-                color = ApturaColors.TextHighEmphasis,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = when {
-                    isPermissionDenied -> "Aptura needs permission to list the videos on this device. You can also add only the folders you choose."
-                    isFiltered -> "Check the spelling, or try a shorter part of the title."
-                    else -> "Aptura lists the videos on this device and its SD card. Scan again after adding files, or add a folder it can't see yet."
-                },
-                style = ApturaTypography.bodyLarge,
-                color = ApturaColors.TextMediumEmphasis,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(28.dp))
-
-            when {
-                isPermissionDenied -> {
-                    ApturaButton(
-                        text = "Allow access",
-                        onClick = onRequestPermission,
-                        modifier = Modifier.fillMaxWidth()
+                Box(
+                    modifier = Modifier
+                        .size(if (short) 56.dp else 88.dp)
+                        .background(ApturaColors.AccentSubtle, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = when {
+                            isPermissionDenied -> Icons.Outlined.Lock
+                            isFiltered -> Icons.Outlined.SearchOff
+                            else -> Icons.Outlined.VideoLibrary
+                        },
+                        contentDescription = null,
+                        modifier = Modifier.size(if (short) 28.dp else 40.dp),
+                        tint = ApturaColors.AccentPrimary
                     )
-                    Spacer(Modifier.height(10.dp))
-                    ApturaOutlinedButton(
-                        text = "Add a folder",
-                        icon = Icons.Outlined.CreateNewFolder,
-                        onClick = onAddFolderClick,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    ApturaTextButton(text = "Open a single file", onClick = onOpenFilePicker)
                 }
 
-                isFiltered -> ApturaButton(text = "Clear search", onClick = onClearSearch)
+                Spacer(modifier = Modifier.height(if (short) 10.dp else 24.dp))
 
-                else -> {
-                    ApturaButton(
-                        text = "Scan device",
-                        icon = Icons.Default.Refresh,
-                        onClick = onRefresh,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    ApturaOutlinedButton(
-                        text = "Add a folder",
-                        icon = Icons.Outlined.CreateNewFolder,
-                        onClick = onAddFolderClick,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                Text(
+                    text = when {
+                        isPermissionDenied -> "Allow access to your videos"
+                        isFiltered -> "No results for “$query”"
+                        else -> "No videos yet"
+                    },
+                    style = ApturaTypography.headlineMedium,
+                    color = ApturaColors.TextHighEmphasis,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(if (short) 4.dp else 8.dp))
+
+                Text(
+                    text = when {
+                        isPermissionDenied -> "Aptura needs permission to list the videos on this device. You can also add only the folders you choose."
+                        isFiltered -> "Check the spelling, or try a shorter part of the title."
+                        else -> "Aptura lists the videos on this device and its SD card. Scan again after adding files, or add a folder it can't see yet."
+                    },
+                    style = ApturaTypography.bodyLarge,
+                    color = ApturaColors.TextMediumEmphasis,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(if (short) 12.dp else 28.dp))
+
+                when {
+                    isPermissionDenied -> {
+                        ApturaButton(
+                            text = "Allow access",
+                            onClick = onRequestPermission,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        ApturaOutlinedButton(
+                            text = "Add a folder",
+                            icon = Icons.Outlined.CreateNewFolder,
+                            onClick = onAddFolderClick,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        ApturaTextButton(text = "Open a single file", onClick = onOpenFilePicker)
+                    }
+
+                    isFiltered -> ApturaButton(text = "Clear search", onClick = onClearSearch)
+
+                    else -> {
+                        ApturaButton(
+                            text = "Scan device",
+                            icon = Icons.Default.Refresh,
+                            onClick = onRefresh,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        ApturaOutlinedButton(
+                            text = "Add a folder",
+                            icon = Icons.Outlined.CreateNewFolder,
+                            onClick = onAddFolderClick,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
             }
         }
     }
+}
+
+/** How long loading has to last before the skeleton is worth showing. */
+internal const val SKELETON_DELAY_MS = 300L
+
+/**
+ * Shows [content] only if it is still wanted after [delayMs], fading in. Anything that loads faster never flashes a
+ * placeholder for a few milliseconds, which reads as a flicker rather than as progress.
+ */
+@Composable
+private fun AfterDelay(delayMs: Long = SKELETON_DELAY_MS, content: @Composable () -> Unit) {
+    var due by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(delayMs)
+        due = true
+    }
+    AnimatedVisibility(visible = due, enter = fadeIn(tween(220)), exit = ExitTransition.None) { content() }
 }
 
 /**
@@ -2103,7 +1695,7 @@ private fun MediaLibraryLoadingView(modifier: Modifier = Modifier) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = pagePadding)
-                .semantics(mergeDescendants = true) { contentDescription = "Looking for videos" }
+                .semantics(mergeDescendants = true) { contentDescription = "Looking for videos. The first scan can take a little while." }
         ) {
             SkeletonBlock(
                 modifier = Modifier
@@ -2116,6 +1708,12 @@ private fun MediaLibraryLoadingView(modifier: Modifier = Modifier) {
                 text = "Looking for videos…",
                 style = ApturaTypography.bodyMedium,
                 color = ApturaColors.TextMediumEmphasis
+            )
+            // The scan saves everything in one go, so nothing appears until it ends: say so, once, calmly.
+            Text(
+                text = "The first scan can take a little while.",
+                style = ApturaTypography.bodySmall,
+                color = ApturaColors.TextLowEmphasis
             )
             Spacer(Modifier.height(14.dp))
             repeat(3) {

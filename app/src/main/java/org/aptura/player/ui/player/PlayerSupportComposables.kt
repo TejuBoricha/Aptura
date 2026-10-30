@@ -4,10 +4,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Headphones
@@ -20,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -82,15 +87,70 @@ fun SeekStepIcon(forward: Boolean, seconds: Int, iconSize: Dp) {
     }
 }
 
-/** What the screen shows instead of the picture in audio-only mode. */
+internal const val AUDIO_ONLY_PANEL_TAG = "audio_only_panel"
+
+/**
+ * What the screen shows instead of the picture in audio-only mode.
+ *
+ * It is laid out for the room it is given: a column (artwork, title, reason, button) when there is height for it, and
+ * one row (smaller artwork beside the title and the button) when there is not, as on a phone held sideways. The caller
+ * gives it a region that the transport buttons and the top bar do not use.
+ */
 @Composable
 fun AudioOnlyPanel(
     title: String,
     onShowVideo: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    compact: Boolean = false
 ) {
+    val buttonColors = ButtonDefaults.buttonColors(
+        containerColor = ApturaColors.AccentPrimary,
+        contentColor = ApturaColors.TextOnAccent
+    )
+    if (compact) {
+        Row(
+            modifier = modifier.testTag(AUDIO_ONLY_PANEL_TAG).padding(horizontal = 32.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .background(ApturaColors.SurfaceElevated2, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Headphones,
+                    contentDescription = null,
+                    tint = ApturaColors.AccentPrimary,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.widthIn(max = 360.dp)) {
+                Text(
+                    text = title,
+                    style = ApturaTypography.titleMedium,
+                    color = ApturaColors.TextHighEmphasis,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Button(
+                    onClick = onShowVideo,
+                    colors = buttonColors,
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    modifier = Modifier.height(36.dp)
+                ) {
+                    Icon(Icons.Filled.Videocam, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.size(8.dp))
+                    Text("Show video")
+                }
+            }
+        }
+        return
+    }
     Column(
-        modifier = modifier.padding(horizontal = 32.dp),
+        modifier = modifier.testTag(AUDIO_ONLY_PANEL_TAG).padding(horizontal = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -124,13 +184,7 @@ fun AudioOnlyPanel(
             textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(20.dp))
-        Button(
-            onClick = onShowVideo,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = ApturaColors.AccentPrimary,
-                contentColor = ApturaColors.TextOnAccent
-            )
-        ) {
+        Button(onClick = onShowVideo, colors = buttonColors) {
             Icon(Icons.Filled.Videocam, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.size(8.dp))
             Text("Show video")

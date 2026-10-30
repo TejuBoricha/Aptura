@@ -209,6 +209,10 @@ internal fun ApturaSlider(
     val currentOnChange by rememberUpdatedState(onValueChange)
     val span = (valueRange.endInclusive - valueRange.start).takeIf { it > 0f } ?: 1f
     val thumbRadius = 10.dp
+    val trackColor = ApturaColors.SurfaceElevated3
+    val fillColor = ApturaColors.AccentPrimary
+    val originMarkColor = ApturaColors.TextMediumEmphasis
+    val thumbHaloColor = ApturaColors.SurfaceElevated2
     Canvas(
         modifier = modifier
             .fillMaxWidth()
@@ -242,7 +246,7 @@ internal fun ApturaSlider(
         val cy = size.height / 2f
         val track = 4.dp.toPx()
         drawRoundRect(
-            color = ApturaColors.SurfaceElevated3,
+            color = trackColor,
             topLeft = Offset(pad, cy - track / 2),
             size = Size(usable, track),
             cornerRadius = CornerRadius(track / 2)
@@ -250,7 +254,7 @@ internal fun ApturaSlider(
         val from = xOf(origin)
         val to = xOf(value)
         drawRoundRect(
-            color = ApturaColors.AccentPrimary,
+            color = fillColor,
             topLeft = Offset(minOf(from, to), cy - track / 2),
             size = Size(abs(to - from), track),
             cornerRadius = CornerRadius(track / 2)
@@ -258,13 +262,13 @@ internal fun ApturaSlider(
         if (origin != valueRange.start) {
             // The zero mark of a two-sided offset.
             drawRect(
-                color = ApturaColors.TextMediumEmphasis,
+                color = originMarkColor,
                 topLeft = Offset(from - 1.dp.toPx(), cy - 7.dp.toPx()),
                 size = Size(2.dp.toPx(), 14.dp.toPx())
             )
         }
-        drawCircle(color = ApturaColors.SurfaceElevated2, radius = thumbRadius.toPx() + 2.dp.toPx(), center = Offset(to, cy))
-        drawCircle(color = ApturaColors.AccentPrimary, radius = thumbRadius.toPx(), center = Offset(to, cy))
+        drawCircle(color = thumbHaloColor, radius = thumbRadius.toPx() + 2.dp.toPx(), center = Offset(to, cy))
+        drawCircle(color = fillColor, radius = thumbRadius.toPx(), center = Offset(to, cy))
     }
 }
 

@@ -69,11 +69,12 @@ class LibraryGalleryTest : GalleryBase() {
         shoot("library_phone_card_menu")
     }
 
-    @Test fun phoneSortMenu() {
+    @Config(qualifiers = "w411dp-h1100dp-xhdpi")
+    @Test fun phoneViewSheet() {
         library(librarySuccess())
-        composeRule.onAllNodesWithContentDescription("Sort library").onFirst().performClick()
+        composeRule.onAllNodesWithContentDescription("View options").onFirst().performClick()
         settle()
-        shoot("library_phone_sort_menu")
+        shoot("library_phone_view_sheet")
     }
 
     @Test fun phoneSelection() {

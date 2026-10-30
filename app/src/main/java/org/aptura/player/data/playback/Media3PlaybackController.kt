@@ -54,6 +54,13 @@ import kotlin.math.abs
 import kotlin.math.roundToLong
 
 /**
+ * How long a video that was asked to play may sit without playing before the player is considered stuck. A local file
+ * starts in well under a second; this is long enough for a slow card or a very large first frame, and short enough
+ * that a person is not left looking at a black, paused player (the owner's Samsung S24, where nothing said why).
+ */
+internal const val PLAYBACK_START_TIMEOUT_MS = 8_000L
+
+/**
  * Concrete implementation of domain PlaybackController backed by Media3 Player.
  * Maps low-level ExoPlayer/MediaController events into immutable domain states
  * and enforces platform navigation rules (FR-CTRL-002, W8, W9).
@@ -143,6 +150,18 @@ class Media3PlaybackController(
     /** Items skipped in a row because they could not be opened; bounds the skipping so an all-broken queue cannot loop. */
     private var consecutiveSkips = 0
 
+    /** Counts down while playback has been asked for and has not started; see [updateStartWatch]. */
+    private var startWatchdog: Job? = null
+
+    /** What the player was doing when playback was asked for, never started and nothing was left to try; shown as an error. */
+    private var stalledReason: String? = null
+
+    /** Why play-when-ready last changed (a person, an audio-focus loss, the end of an item...), for the stall report. */
+    private var lastPlayWhenReadyChangeReason = -1
+
+    /** When the current request to play was made (nanoTime), so the diagnostic log can say how long the start took; 0 once logged. */
+    private var playRequestedAtNanos = 0L
+
     private val _autoPairedSubtitles = MutableSharedFlow<String>(extraBufferCapacity = 4)
     override val autoPairedSubtitles: SharedFlow<String> = _autoPairedSubtitles.asSharedFlow()
 
@@ -194,19 +213,29 @@ class Media3PlaybackController(
             updatePlaybackState()
             updatePlaybackStats()
             publishQueue()
+            updateStartWatch()
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             if (isPlaying) {
                 pausedAtItemEnd = false
                 consecutiveSkips = 0
+                stalledReason = null
+                logPlaybackStarted()
             }
             checkPositionTicker(isPlaying)
             updatePlaybackState()
             updatePlaybackStats()
+            updateStartWatch()
+        }
+
+        override fun onPlaybackSuppressionReasonChanged(playbackSuppressionReason: Int) {
+            updateStartWatch()
         }
 
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            lastPlayWhenReadyChangeReason = reason
+            updateStartWatch()
             // `pauseAtEndOfMediaItems`: the player parks at the end of a finished item instead of advancing.
             // Surface that as "Ended" so the Up Next countdown can run (same contract as the last item ending).
             if (!playWhenReady && reason == Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM) {
@@ -426,6 +455,17 @@ class Media3PlaybackController(
     }
 
     private fun updatePlaybackState() {
+        stalledReason?.let { facts ->
+            val taxonomy = ErrorTaxonomy.playbackNotStarted(PLAYBACK_START_TIMEOUT_MS / 1000, hasAttemptedSoftwareFallback || currentDecoderStrategy == 2)
+            _playbackState.value = DomainPlaybackState.Error(
+                errorCode = taxonomy.code,
+                message = "${taxonomy.title}: ${taxonomy.whatHappened}",
+                isRecoverable = taxonomy.isRecoverable,
+                suggestedAction = taxonomy.suggestedActions.firstOrNull()
+            )
+            _failureReason.value = facts
+            return
+        }
         val error = player.playerError
         if (error != null) {
             val isSoftwareAlreadyAttempted = hasAttemptedSoftwareFallback || currentDecoderStrategy == 2
@@ -568,6 +608,83 @@ class Media3PlaybackController(
                     .build()
             })
             .build()
+    }
+
+    /**
+     * Playback that was asked for and does not start must never end as a silent, paused, black player. While the player
+     * is meant to be playing but is not (and nothing explains it: not an error, not the end, not the system holding
+     * audio back), a timer runs; when it fires the software decoder is tried once, and if that does not start either
+     * the player says so, with what it was doing. Any sign of life (playing, paused by a person, an error) stops it.
+     */
+    private fun updateStartWatch() {
+        val waiting = player.playWhenReady && !player.isPlaying && player.mediaItemCount > 0 &&
+            player.playbackState != Player.STATE_ENDED && player.playerError == null &&
+            player.playbackSuppressionReason == Player.PLAYBACK_SUPPRESSION_REASON_NONE &&
+            stalledReason == null
+        if (!waiting) {
+            startWatchdog?.cancel()
+            startWatchdog = null
+        } else if (startWatchdog?.isActive != true) {
+            startWatchdog = scope.launch(mainDispatcher) {
+                delay(PLAYBACK_START_TIMEOUT_MS)
+                onStartTimeout()
+            }
+        }
+    }
+
+    private fun onStartTimeout() {
+        val facts = describePlayerForStall()
+        ApturaDiagnostics.logEvent(
+            code = EventCode.EV_011,
+            payload = mapOf("errorCode" to "PLAYBACK_STALLED", "stage" to "start", "reason" to facts)
+        )
+        val canTrySoftware = !hasAttemptedSoftwareFallback && currentDecoderStrategy != 2 && player.currentMediaItem != null
+        if (canTrySoftware) {
+            hasAttemptedSoftwareFallback = true
+            currentDecoderStrategy = 2
+            _decoderStrategy.value = 2
+            _isCompatibilityMode.value = true
+            _failedCodecName.value = currentVideoDecoderName.ifBlank { "Hardware Decoder" }
+            _failureReason.value = "Playback did not start within ${PLAYBACK_START_TIMEOUT_MS / 1000} s ($facts). Automatically engaged software fallback."
+            _compatibilityNotice.value = "Playing in compatibility mode (Software Decoder)"
+            updatePlaybackStats()
+            // Keeps the playlist and the position; prepare() re-creates the codecs with the new strategy.
+            player.stop()
+            player.prepare()
+            player.play()
+            startWatchdog = null
+            updateStartWatch()
+        } else {
+            startWatchdog = null
+            stalledReason = facts
+            updatePlaybackState()
+            updatePlaybackStats()
+        }
+    }
+
+    /** The other half of the "requested" line: how long it took for the picture to move, so a slow start shows in the report. */
+    private fun logPlaybackStarted() {
+        val requestedAt = playRequestedAtNanos
+        if (requestedAt == 0L) return
+        playRequestedAtNanos = 0L
+        ApturaDiagnostics.logEvent(
+            code = EventCode.EV_009,
+            payload = mapOf("stage" to "playing", "afterMs" to ((System.nanoTime() - requestedAt) / 1_000_000L).toString())
+        )
+    }
+
+    private fun describePlayerForStall(): String =
+        "state=${stateName(player.playbackState)} playWhenReady=${player.playWhenReady} " +
+            "suppression=${player.playbackSuppressionReason} lastPlayChange=$lastPlayWhenReadyChangeReason " +
+            "position=${player.currentPosition}ms item=${player.currentMediaItemIndex + 1}/${player.mediaItemCount} " +
+            "skipped=$consecutiveSkips decoder=${currentDecoderStrategy}"
+
+    private fun stateName(state: Int) = when (state) {
+        Player.STATE_IDLE -> "IDLE"
+        Player.STATE_BUFFERING -> "BUFFERING"
+        Player.STATE_READY -> "READY"
+        Player.STATE_ENDED -> "ENDED"
+        else -> state.toString()
     }
 
     /** Moves on to the next queue item after the current one could not be opened. @return false when there is nowhere to go. */
@@ -721,6 +838,7 @@ class Media3PlaybackController(
 
         pausedAtItemEnd = false
         consecutiveSkips = 0
+        stalledReason = null
         queueItems.clear()
         queueItems.addAll(items)
         sidecarsByUri.clear()
@@ -739,6 +857,15 @@ class Media3PlaybackController(
         if (playMode == PlayMode.SHUFFLE) shuffleRemainingAfterCurrent()
         player.prepare()
         player.play()
+        playRequestedAtNanos = System.nanoTime()
+        ApturaDiagnostics.logEvent(
+            code = EventCode.EV_009,
+            payload = mapOf("stage" to "requested", "items" to items.size.toString(), "start" to clampedIndex.toString(), "decoder" to currentDecoderStrategy.toString())
+        )
+        // A new request starts its own wait; the one for the video it replaced no longer counts.
+        startWatchdog?.cancel()
+        startWatchdog = null
+        updateStartWatch()
 
         publishQueue()
         announceAutoPair(subtitles)
@@ -747,7 +874,9 @@ class Media3PlaybackController(
 
     override suspend fun play() {
         pausedAtItemEnd = false
+        stalledReason = null
         player.play()
+        updateStartWatch()
     }
 
     override suspend fun pause() {
@@ -1146,8 +1275,12 @@ class Media3PlaybackController(
 
     override suspend fun retryPlayback() {
         if (player.currentMediaItem == null) return
+        stalledReason = null
+        startWatchdog?.cancel()
+        startWatchdog = null
         player.prepare()
         player.play()
+        updateStartWatch()
     }
 
     /** Frame stepping: pauses, seeks *exactly* one frame (using the real frame rate), then restores seek mode. */

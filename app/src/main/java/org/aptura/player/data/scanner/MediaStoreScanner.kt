@@ -21,19 +21,30 @@ class MediaStoreScanner(
 ) {
 
     companion object {
-        val PROJECTION = arrayOf(
-            MediaStore.Video.Media._ID,
-            MediaStore.Video.Media.DISPLAY_NAME,
-            MediaStore.Video.Media.TITLE,
-            MediaStore.Video.Media.DURATION,
-            MediaStore.Video.Media.SIZE,
-            MediaStore.Video.Media.MIME_TYPE,
-            MediaStore.Video.Media.WIDTH,
-            MediaStore.Video.Media.HEIGHT,
-            MediaStore.Video.Media.DATE_ADDED,
-            MediaStore.Video.Media.DATE_MODIFIED,
-            MediaStore.Video.Media.BUCKET_DISPLAY_NAME
-        )
+        /**
+         * The columns read. The folder is identified by where it is (see [MediaFolderKey]): `RELATIVE_PATH` and
+         * `VOLUME_NAME` from Android 10, the file path before it. The bucket name stays as the last resort.
+         */
+        fun projection(sdk: Int = Build.VERSION.SDK_INT): Array<String> = buildList {
+            add(MediaStore.Video.Media._ID)
+            add(MediaStore.Video.Media.DISPLAY_NAME)
+            add(MediaStore.Video.Media.TITLE)
+            add(MediaStore.Video.Media.DURATION)
+            add(MediaStore.Video.Media.SIZE)
+            add(MediaStore.Video.Media.MIME_TYPE)
+            add(MediaStore.Video.Media.WIDTH)
+            add(MediaStore.Video.Media.HEIGHT)
+            add(MediaStore.Video.Media.DATE_ADDED)
+            add(MediaStore.Video.Media.DATE_MODIFIED)
+            add(MediaStore.Video.Media.BUCKET_DISPLAY_NAME)
+            if (sdk >= Build.VERSION_CODES.Q) {
+                add(MediaStore.MediaColumns.RELATIVE_PATH)
+                add(MediaStore.MediaColumns.VOLUME_NAME)
+            } else {
+                @Suppress("DEPRECATION")
+                add(MediaStore.Video.Media.DATA)
+            }
+        }.toTypedArray()
     }
 
     /**
@@ -55,7 +66,7 @@ class MediaStoreScanner(
 
         val cursor: Cursor? = contentResolver.query(
             uri,
-            PROJECTION,
+            projection(),
             selection,
             null,
             sortOrder
@@ -73,6 +84,10 @@ class MediaStoreScanner(
             val dateAddCol = c.getColumnIndex(MediaStore.Video.Media.DATE_ADDED)
             val dateModCol = c.getColumnIndex(MediaStore.Video.Media.DATE_MODIFIED)
             val bucketCol = c.getColumnIndex(MediaStore.Video.Media.BUCKET_DISPLAY_NAME)
+            val relativePathCol = c.getColumnIndex(MediaStore.MediaColumns.RELATIVE_PATH)
+            val volumeCol = c.getColumnIndex(MediaStore.MediaColumns.VOLUME_NAME)
+            @Suppress("DEPRECATION")
+            val dataCol = c.getColumnIndex(MediaStore.Video.Media.DATA)
 
             while (c.moveToNext()) {
                 val mediaStoreId = if (idCol >= 0) c.getLong(idCol) else 0L
@@ -85,7 +100,12 @@ class MediaStoreScanner(
                 val height = (if (heightCol >= 0 && !c.isNull(heightCol)) c.getInt(heightCol) else 0).coerceAtLeast(0)
                 val dateAdded = (if (dateAddCol >= 0 && !c.isNull(dateAddCol)) c.getLong(dateAddCol) else 0L).coerceAtLeast(0L)
                 val dateModified = (if (dateModCol >= 0 && !c.isNull(dateModCol)) c.getLong(dateModCol) else 0L).coerceAtLeast(0L)
-                val folder = if (bucketCol >= 0 && !c.isNull(bucketCol)) c.getString(bucketCol) else "Internal Storage"
+                val folder = MediaFolderKey.of(
+                    volumeName = if (volumeCol >= 0 && !c.isNull(volumeCol)) c.getString(volumeCol) else null,
+                    relativePath = if (relativePathCol >= 0 && !c.isNull(relativePathCol)) c.getString(relativePathCol) else null,
+                    filePath = if (dataCol >= 0 && !c.isNull(dataCol)) c.getString(dataCol) else null,
+                    bucketName = if (bucketCol >= 0 && !c.isNull(bucketCol)) c.getString(bucketCol) else null
+                )
 
                 val contentUri = ContentUris.withAppendedId(uri, mediaStoreId).toString()
 

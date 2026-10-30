@@ -22,10 +22,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
+import org.aptura.player.ui.components.StableNavigationBars
+import org.aptura.player.ui.components.StableStatusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -49,6 +49,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -105,12 +106,15 @@ import org.aptura.player.ui.components.ApturaDialog
 import org.aptura.player.ui.components.ApturaTone
 import org.aptura.player.theme.ThemeMode
 import org.aptura.player.ui.components.SpeedRail
+import org.aptura.player.ui.components.isShortWindowHeight
 import org.aptura.player.ui.library.MediaFormatters
 
 private val ResizeModeChoices = listOf("Fit", "Fill", "Zoom", "16:9", "4:3")
 private val SeekSteps = listOf(5, 10, 15, 30)
 private val CountdownChoices = listOf(5, 10, 15, 0) // seconds; 0 plays the next video straight away
 private val DecoderChoices = listOf("Auto", "Hardware", "Software")
+
+internal const val VIDEO_ACCESS_BUTTON_TAG = "settings_video_access_button"
 
 /** How far (in dp) the large title has to scroll before the compact title bar has fully taken over. */
 private const val TITLE_COLLAPSE_DP = 90
@@ -123,7 +127,7 @@ internal const val SETTINGS_TOP_BAR_HEIGHT_DP = 56
  * scrolling underneath show through the back button and title (audit 2026-10-24).
  */
 internal val SettingsTopBarBackground: Brush
-    get() = SolidColor(ApturaColors.SurfaceBase)
+    @Composable get() = SolidColor(ApturaColors.SurfaceBase)
 
 /**
  * Settings Root Screen (SCR-013, SCR-014, SCR-015, SCR-016).
@@ -145,6 +149,8 @@ fun SettingsScreen(
     onResetPlaybackDefaults: () -> Unit = {},
     onRescanClick: () -> Unit,
     onReplayOnboardingClick: () -> Unit,
+    hasVideoAccess: Boolean = true,
+    onVideoAccessClick: () -> Unit = {},
     onUpdateThemeMode: (ThemeMode) -> Unit = {},
     onUpdateAccentColor: (AccentColor) -> Unit = {},
     onUpdateDecoderStrategy: (Int) -> Unit = {},
@@ -222,17 +228,24 @@ fun SettingsScreen(
 
     // The compact title bar fades in as the large title scrolls away. The scroll position is read inside the
     // graphicsLayer lambdas, so scrolling redraws the bar but never recomposes the screen.
+    // On a short window (a phone held sideways) the large title would take a third of the screen above the first
+    // setting, so there is no large title: the compact bar is simply always there, and the list starts under it.
+    val shortWindow = isShortWindowHeight()
     val listState = rememberLazyListState()
     val collapseTravelPx = with(LocalDensity.current) { TITLE_COLLAPSE_DP.dp.toPx() }
-    val collapse = remember(listState, collapseTravelPx) {
+    val collapse = remember(listState, collapseTravelPx, shortWindow) {
         {
-            val scrolled = if (listState.firstVisibleItemIndex == 0) listState.firstVisibleItemScrollOffset.toFloat() else Float.MAX_VALUE
-            (scrolled / collapseTravelPx).coerceIn(0f, 1f)
+            if (shortWindow) {
+                1f
+            } else {
+                val scrolled = if (listState.firstVisibleItemIndex == 0) listState.firstVisibleItemScrollOffset.toFloat() else Float.MAX_VALUE
+                (scrolled / collapseTravelPx).coerceIn(0f, 1f)
+            }
         }
     }
 
-    val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val navigationBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val statusTop = StableStatusBars.asPaddingValues().calculateTopPadding()
+    val navigationBottom = StableNavigationBars.asPaddingValues().calculateBottomPadding()
 
     Box(
         modifier = modifier
@@ -249,20 +262,22 @@ fun SettingsScreen(
             contentPadding = PaddingValues(
                 start = 16.dp,
                 end = 16.dp,
-                top = statusTop,
+                top = if (shortWindow) statusTop + SETTINGS_TOP_BAR_HEIGHT_DP.dp + 8.dp else statusTop,
                 bottom = navigationBottom + 32.dp
             ),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            item(key = "title", contentType = "title") {
-                Text(
-                    text = "Settings",
-                    style = ApturaTypography.displayLarge.copy(fontSize = 36.sp, lineHeight = 42.sp),
-                    color = ApturaColors.TextHighEmphasis,
-                    modifier = Modifier
-                        .padding(top = 64.dp, start = 4.dp)
-                        .semantics { heading() }
-                )
+            if (!shortWindow) {
+                item(key = "title", contentType = "title") {
+                    Text(
+                        text = "Settings",
+                        style = ApturaTypography.displayLarge.copy(fontSize = 36.sp, lineHeight = 42.sp),
+                        color = ApturaColors.TextHighEmphasis,
+                        modifier = Modifier
+                            .padding(top = 64.dp, start = 4.dp)
+                            .semantics { heading() }
+                    )
+                }
             }
 
             item(key = "stats", contentType = "panel") {
@@ -404,6 +419,25 @@ fun SettingsScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     SectionLabel("Library & storage")
                     SettingsPanel {
+                        // Whether Aptura may list the videos on this device. It used to be answerable only in the first-run
+                        // dialog, so there was no way to look at it, give it later or take it back.
+                        ActionRow(
+                            icon = Icons.Default.VideoLibrary,
+                            title = "Video access",
+                            subtitle = if (hasVideoAccess) {
+                                "Allowed. Aptura can list the videos on this device."
+                            } else {
+                                "Not allowed. Aptura only sees videos you open or add."
+                            },
+                            trailing = {
+                                PillButton(
+                                    text = if (hasVideoAccess) "Manage" else "Allow",
+                                    onClick = onVideoAccessClick,
+                                    modifier = Modifier.testTag(VIDEO_ACCESS_BUTTON_TAG)
+                                )
+                            }
+                        )
+                        PanelDivider()
                         // Custom Storage Folders (SAF - FR-LIB-005)
                         ActionRow(
                             icon = Icons.Default.Folder,
@@ -753,8 +787,9 @@ fun SettingsScreen(
                 modifier = Modifier
                     .align(Alignment.Center)
                     .graphicsLayer { alpha = collapse() }
-                    // The large title is the heading; this one only appears visually, so TalkBack skips it.
-                    .clearAndSetSemantics { }
+                    // Normally the large title is the heading and this one only appears visually, so TalkBack skips it.
+                    // With no large title (a short window) this is the heading.
+                    .then(if (shortWindow) Modifier.semantics { heading() } else Modifier.clearAndSetSemantics { })
             )
         }
     }

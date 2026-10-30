@@ -206,6 +206,7 @@ object ThumbnailRepository {
      * Deletes any thumbnail associated with [uriString].
      */
     fun deleteThumbnail(context: Context, uriString: String) {
+        ThumbnailBitmapCache.removeForVideo(uriString)
         try {
             val dir = getThumbnailDir(context)
             val prefix = "thumb_${getCacheKey(uriString)}_"
@@ -234,6 +235,7 @@ object ThumbnailRepository {
      */
     fun clearCache(context: Context) {
         failedExtractionKeys.clear()
+        ThumbnailBitmapCache.clear()
         val dirs = listOf(
             File(context.cacheDir, THUMBNAIL_DIR_NAME),
             File(context.cacheDir, "subtitles_extracted"),

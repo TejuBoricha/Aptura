@@ -87,8 +87,29 @@ class MediaLibraryScreenUiTest {
             }
         }
 
-        // Verify scanning indicator text is displayed
+        // The skeleton waits a moment before it appears (loading that is over sooner shows nothing at all, not a flash),
+        // then fades in and stays for as long as the first scan runs.
+        composeTestRule.mainClock.advanceTimeBy(SKELETON_DELAY_MS + 400)
         composeTestRule.onNodeWithText("Looking for videos\u2026").assertIsDisplayed()
+    }
+
+    @Test
+    fun mediaLibraryScreen_whenLoadingIsQuick_neverFlashesTheSkeleton() {
+        composeTestRule.mainClock.autoAdvance = false
+        composeTestRule.setContent {
+            ApturaTheme {
+                MediaLibraryScreen(
+                    uiState = MediaLibraryUiState.Loading,
+                    onVideoClick = { _, _ -> },
+                    onSearchQueryChanged = {},
+                    onFolderSelected = {},
+                    onSortOrderChanged = {},
+                    onRefresh = {}
+                )
+            }
+        }
+        composeTestRule.mainClock.advanceTimeBy(SKELETON_DELAY_MS - 100)
+        composeTestRule.onNodeWithText("Looking for videos\u2026").assertDoesNotExist()
     }
 
     @Test
@@ -237,8 +258,11 @@ class MediaLibraryScreenUiTest {
         assertEquals(0, folderSelectionCount)
     }
 
+    // A tall window: the sheet is four sections and does not scroll under Robolectric. What the sheet reports is covered
+    // by LibraryViewSheetTest; a click inside a sheet's own window does not settle under Robolectric.
+    @Config(qualifiers = "w411dp-h1400dp")
     @Test
-    fun mediaLibraryScreen_displaysSortButton_andTriggersSortMenu() {
+    fun theViewOptionsButton_opensTheSheetWithEveryChoice() {
         composeTestRule.setContent {
             ApturaTheme {
                 MediaLibraryScreen(
@@ -258,8 +282,14 @@ class MediaLibraryScreenUiTest {
             }
         }
 
-        // Verify sort button is displayed with correct content description
-        composeTestRule.onNodeWithContentDescription("Sort library").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("View options").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("View options").performClick()
+        composeTestRule.waitForIdle()
+
+        // Layout, size, details and sort all live in this one sheet.
+        listOf("Layout", "Size", "Details", "Sort by").forEach {
+            composeTestRule.onNodeWithText(it, ignoreCase = true).assertIsDisplayed()
+        }
     }
 
     @Test

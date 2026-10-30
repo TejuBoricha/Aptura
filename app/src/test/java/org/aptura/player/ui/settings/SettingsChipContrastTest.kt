@@ -1,5 +1,7 @@
 package org.aptura.player.ui.settings
 
+import org.aptura.player.theme.AccentColor
+import org.aptura.player.theme.ApturaPalettes
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.semantics.SemanticsActions
@@ -98,7 +100,7 @@ class SettingsChipContrastTest {
 
         listOf("Auto", "Fit").forEach { label ->
             val color = resolvedTextColor(label)
-            val ratio = contrast(color, ApturaColors.AccentPrimary)
+            val ratio = contrast(color, ApturaPalettes.dark(AccentColor.CYAN).accentPrimary)
             assertTrue(
                 "selected option \"$label\" label contrast on the thumb is $ratio (< 4.5:1); colour=$color",
                 ratio >= 4.5
