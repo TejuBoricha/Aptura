@@ -40,6 +40,7 @@ import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.DeleteSweep
@@ -171,6 +172,7 @@ fun SettingsScreen(
     var isDeleteDiagnosticsDialogOpen by remember { mutableStateOf(false) }
     var isResetPlaybackDialogOpen by remember { mutableStateOf(false) }
     var isCodecDialogOpen by remember { mutableStateOf(false) }
+    var isPrivacyPolicyDialogOpen by remember { mutableStateOf(false) }
     var codecReport by remember { mutableStateOf<CodecSupportReport?>(null) }
     var cacheSizeBytes by remember { mutableStateOf(0L) }
 
@@ -224,6 +226,25 @@ fun SettingsScreen(
                 onResetPlaybackDefaults()
                 Toast.makeText(context, "Playback defaults restored", Toast.LENGTH_SHORT).show()
             }
+        )
+    }
+
+    if (isPrivacyPolicyDialogOpen) {
+        ApturaDialog(
+            onDismissRequest = { isPrivacyPolicyDialogOpen = false },
+            icon = Icons.Default.Security,
+            title = "Privacy Policy",
+            message = "Aptura is an offline video player built on zero-knowledge and zero-telemetry principles:\n\n" +
+                "• No Network Permission: Aptura does not request android.permission.INTERNET and cannot open any network connection.\n\n" +
+                "• 100% On-Device: Your files, playback progress, bookmarks, and settings never leave your device.\n\n" +
+                "• Zero Tracking: No analytics, crash reporting, advertising SDKs, or accounts.\n\n" +
+                "• Scoped Storage: Access is strictly confined to standard MediaStore video reads and user-selected SAF folders.",
+            confirmLabel = "View on GitHub",
+            onConfirm = {
+                val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/TejuBoricha/Aptura/blob/main/docs/PRIVACY.md"))
+                context.startActivity(intent)
+            },
+            dismissLabel = "Close"
         )
     }
 
@@ -625,6 +646,32 @@ fun SettingsScreen(
                                 }
                             },
                             trailing = { NavigationChevron() }
+                        )
+                        PanelDivider()
+                        ActionRow(
+                            icon = Icons.Default.Security,
+                            title = "Privacy policy",
+                            subtitle = "Zero data collection, 100% offline guarantee",
+                            onClick = { isPrivacyPolicyDialogOpen = true },
+                            trailing = { NavigationChevron() }
+                        )
+                        PanelDivider()
+                        ActionRow(
+                            icon = Icons.Default.Code,
+                            title = "Source code",
+                            subtitle = "Public Apache-2.0 repository on GitHub",
+                            onClick = {
+                                val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/TejuBoricha/Aptura"))
+                                context.startActivity(intent)
+                            },
+                            trailing = {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                                    contentDescription = null,
+                                    tint = ApturaColors.TextLowEmphasis,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
                         )
                     }
                 }

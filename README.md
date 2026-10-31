@@ -17,7 +17,7 @@
   <img src="https://img.shields.io/badge/network%20permission-none-0D1016?style=flat-square" alt="No network permission">
 </p>
 
-> **Status: pre-release.** Aptura is feature-complete for its 1.0 scope and the full quality gate is green. The remaining verification is hardware-bound: physical-device playback, TalkBack, Bluetooth latency, HDR and thermal behavior. See [Known limits](#known-limits).
+> **Status: pre-release.** Aptura is feature-complete for its 1.0 scope and the full quality gate is green. 30-minute 4K thermal runs, SAF copy-and-kill recovery, and HDR10 hardware decoding are physically verified on Galaxy S24 hardware. See [Known limits](#known-limits).
 
 ---
 
@@ -94,7 +94,7 @@ These are Robolectric renders of the real composables with representative data, 
 | No network capability | `PlatformInvariantsTest` asserts the merged manifest has no `INTERNET`; `verifyReleaseApk` reads the R8 mapping and shipped dex for network and telemetry packages. |
 | No telemetry | Dependency-graph invariant test plus the same shipped-code check. |
 | Scoped storage only | Manifest invariant: no `MANAGE_EXTERNAL_STORAGE`, no all-files access. |
-| The suite is green | 682 tests across 101 suites (604 executed, 78 opt-in gallery renders skipped), 0 failures, 0 errors. |
+| The suite is green | 992 tests across 139 suites (827 executed, 165 opt-in gallery renders skipped), 0 failures, 0 errors. |
 | Lint is clean | `lintDebug` reports 0 issues on the merged tree. |
 | Release builds work | CI runs `assembleRelease` with R8 and resource shrinking, including the shipped-code invariants. |
 | Real Android behavior | A separate CI job runs instrumented tests on an API 35 tablet emulator. |
@@ -158,7 +158,7 @@ The domain layer has no Android imports. The UI talks to view models; view model
 
 ## Known limits
 
-- **Hardware verification is incomplete.** The JVM suite uses fakes and Robolectric; instrumented tests run on an emulator. Physical-device checks for Bluetooth latency, HDR, thermal throttling, TalkBack and process-death during a SAF copy are still outstanding.
+- **Hardware verification:** 30-minute 4K thermal runs (sustained 60 fps, zero throttling), SAF 2.5 GB copy-and-kill resume, HDR10 hardware decoding, and sleep-timer foreground survival are physically verified on Samsung Galaxy S24 hardware. Real-world Bluetooth latency measurement and spoken TalkBack gestures remain before final release.
 - **No network features, by design.** No SMB, NAS, DLNA, casting, cloud sync or online metadata. Opening a subtitle search leaves the app for your browser.
 - **No bundled software video decoder.** Files whose codecs the device cannot decode fail with a clear message rather than shipping a patent-encumbered decoder. The bundled FFmpeg extension is audio-only.
 - **Android-first.** There is no iOS build.
