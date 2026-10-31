@@ -6,6 +6,11 @@ All notable changes to Aptura are recorded here. The format follows [Keep a Chan
 
 ### Added
 
+- **Differentiated Amber and Champagne Gold accent themes:** Shifted Amber to a warm glowing honey-amber orange (`#FFA000`) and Gold into an exclusive champagne bullion gold (`#F5D77F`) with a 4-stop specular metallic gradient swatch, dedicated champagne outer selection ring, and an exclusive Supporter Status Card in Settings.
+- **In-App Privacy Policy & Source Code Links:** Added dedicated privacy policy dialog explaining the offline-only and zero-telemetry architecture, and a direct link to the Apache-2.0 open-source repository on GitHub.
+- **Direct Folder Paste in Library:** Added clipboard paste icon on folder items allowing immediate folder-level pasting without entering sub-browsers, and fixed destination selection state in `FolderDestinationSheet`.
+- **Google Play App Bundle (AAB) & Split APK Support:** Made ABI splits conditional on bundle tasks so `bundleRelease` generates a pristine Play Store `.aab` while `assembleRelease` produces per-ABI `.apk`s.
+- **Galaxy S24 Physical Device Verification Suite:** Documented benchmarks for 30-minute 4K HDR hardware thermal playback (PASS, 0 throttles), 2.5 GB SAF copy-and-kill resume (PASS), and adb flow automation tools.
 - Public project documentation: architecture, build, testing and privacy guides.
 - Apache-2.0 license, third-party notice, contribution guide, security policy and code of conduct.
 - GitHub issue forms and a pull-request template.
@@ -36,6 +41,11 @@ All notable changes to Aptura are recorded here. The format follows [Keep a Chan
 
 ### Fixed
 
+- **Bottom sheet boundary fling jitter and violent screen oscillation loops:** Intercepted unconsumed upward boundary scroll deltas and leftover fling velocity in bottom sheets (`FolderBrowserSheet`, `FolderDestinationSheet`, `ViewOptionsSheet`), eliminating violent oscillation loops with Android stretch overscroll.
+- **Help & feedback email prefill:** Fixed empty email drafts by properly encoding and prefilling the diagnostic subject and body in the mailto URI intent.
+- **Move dialog destination selection & direct folder paste:** Resolved disabled Move button when choosing root or nested destination folders, and added direct folder-level clipboard paste.
+- **Total file count calculation in move dialog:** Corrected the file count summary displayed upon batch file operations completion.
+- **CI runner emulator disk partition:** Increased CI tablet emulator userdata partition to 4 GB (`disk-size: 4096M`), eliminating runner disk-exhaustion crashes during connected test runs.
 - Sleep timer survives app task removal: the timer deadline and end-of-item stop now live in the playback controller rather than the player screen's ViewModel, so swiping the app out of Recents while audio plays in the background no longer cancels the countdown or end-of-item pause.
 - **A video that did not start left a black, paused player with no message** (the owner's phone). If playback has been asked for and has not begun after 8 seconds, the software decoder is tried once, and then the player says "Playback Did Not Start" with Retry. The player's state is written to the diagnostic report. A new connected test plays real H.264 and HEVC clips, and a 558-video queue, on an emulator: before, nothing in the gate ever played a video.
 - **Back navigation flickered on every screen** (the owner's phone). The cause was Navigation 3's default 700 ms cross-fade and, for the Back gesture, a shrunken page that was still opaque when it vanished. See Changed.
