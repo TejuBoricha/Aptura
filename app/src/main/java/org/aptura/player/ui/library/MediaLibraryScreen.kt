@@ -104,6 +104,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import org.aptura.player.core.media.ApturaMediaFileManager
+import org.aptura.player.core.media.MediaMover
 import org.aptura.player.core.media.MediaRenameResult
 import androidx.compose.material.icons.filled.FolderOff
 import androidx.compose.material.icons.filled.MoreVert
@@ -379,6 +380,13 @@ private fun MediaLibraryContentView(
     var handledTransferId by remember { mutableStateOf<String?>(null) }
     var itemPendingRenameUri by remember { mutableStateOf<String?>(null) }
     var itemPendingRenameNewName by remember { mutableStateOf<String?>(null) }
+    val mover = remember(context) { MediaMover(context) }
+    val moveFlow = rememberMediaMoveFlow(onMoved = { uri ->
+        ThumbnailRepository.deleteThumbnail(context, uri)
+        clipboardUris = clipboardUris - uri
+        if (clipboardUris.isEmpty()) clipboardIsCut = false
+    })
+    var pendingCrossVolumeMoveJob by remember { mutableStateOf<MediaTransferJob?>(null) }
     val deleteFlow = rememberMediaDeleteFlow(onDeleted = { uri ->
         ThumbnailRepository.deleteThumbnail(context, uri)
         onVideoDeleted(uri)
@@ -504,20 +512,9 @@ private fun MediaLibraryContentView(
         }
         val titles = state.videos.associate { it.uri to it.title }
         if (job.isMove && job.copiedUris.isNotEmpty()) {
-            // Copy-before-delete is unchanged. The journal stays until Android confirms the deletion, so a process
-            // death at the consent dialog re-prompts on the next launch instead of silently leaving duplicates.
-            deleteFlow.deleteAll(job.copiedUris) { deletion ->
-                selectedUris = emptySet()
-                forgetTransferredClipboard(deletion.deletedUris, job.fromClipboard)
-                onRefresh()
-                transferResult = moveResultMessage(
-                    job = job,
-                    deletedUris = deletion.deletedUris,
-                    notDeletedUris = deletion.failedUris,
-                    titlesByUri = titles
-                )
-                clearTransferJournal(job.id)
-            }
+            // For cross-volume moves (e.g. into SAF SD card), copy succeeded. Show an educational heads-up
+            // dialog before invoking Android's delete confirmation so the user understands why Android asks to delete.
+            pendingCrossVolumeMoveJob = job
             return
         }
 
@@ -1318,7 +1315,23 @@ private fun MediaLibraryContentView(
                     currentFolder = state.selectedFolder,
                     onSelectDestination = { destinationFolder ->
                         activeModal = null
-                        launchTransfer(uris, destinationFolder, isMove, modal.fromClipboard)
+                        if (isMove && mover.canMoveAllInPlace(uris, destinationFolder)) {
+                            moveFlow.moveAll(uris, destinationFolder) { batch ->
+                                selectedUris = emptySet()
+                                forgetTransferredClipboard(batch.movedUris, modal.fromClipboard)
+                                onRefresh()
+                                if (batch.movedUris.isNotEmpty()) {
+                                    val count = batch.movedCount
+                                    val noun = if (count == 1) "video" else "videos"
+                                    transferResult = TransferResultMessage(
+                                        title = "Move complete",
+                                        message = "$count of ${uris.size} $noun moved to $destinationFolder."
+                                    )
+                                }
+                            }
+                        } else {
+                            launchTransfer(uris, destinationFolder, isMove, modal.fromClipboard)
+                        }
                     },
                     onBrowseStorage = {
                         activeModal = null
@@ -1385,6 +1398,54 @@ private fun MediaLibraryContentView(
                 confirmLabel = "OK",
                 onConfirm = { transferResult = null },
                 dismissLabel = null
+            )
+        }
+        pendingCrossVolumeMoveJob?.let { job ->
+            val count = job.copiedUris.size
+            val noun = if (count == 1) "video" else "videos"
+            val titles = state.videos.associate { it.uri to it.title }
+            ApturaDialog(
+                onDismissRequest = {
+                    pendingCrossVolumeMoveJob = null
+                    selectedUris = emptySet()
+                    forgetTransferredClipboard(job.copiedUris, job.fromClipboard)
+                    onRefresh()
+                    transferResult = TransferResultMessage(
+                        title = "Originals kept",
+                        message = "Every $noun was copied to the destination folder. The originals were kept in place."
+                    )
+                    clearTransferJournal(job.id)
+                },
+                title = "Remove original from device?",
+                message = "The $noun ${if (count == 1) "was" else "were"} copied to the selected folder. Android will now ask for permission to remove the original from your device to finish the move.",
+                confirmLabel = "Continue",
+                onConfirm = {
+                    pendingCrossVolumeMoveJob = null
+                    deleteFlow.deleteAll(job.copiedUris) { deletion ->
+                        selectedUris = emptySet()
+                        forgetTransferredClipboard(deletion.deletedUris, job.fromClipboard)
+                        onRefresh()
+                        transferResult = moveResultMessage(
+                            job = job,
+                            deletedUris = deletion.deletedUris,
+                            notDeletedUris = deletion.failedUris,
+                            titlesByUri = titles
+                        )
+                        clearTransferJournal(job.id)
+                    }
+                },
+                dismissLabel = "Keep original",
+                onDismiss = {
+                    pendingCrossVolumeMoveJob = null
+                    selectedUris = emptySet()
+                    forgetTransferredClipboard(job.copiedUris, job.fromClipboard)
+                    onRefresh()
+                    transferResult = TransferResultMessage(
+                        title = "Originals kept",
+                        message = "Every $noun was copied to the destination folder. The originals were kept in place."
+                    )
+                    clearTransferJournal(job.id)
+                }
             )
         }
             }
