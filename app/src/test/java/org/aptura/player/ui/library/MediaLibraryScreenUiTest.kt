@@ -574,7 +574,7 @@ class MediaLibraryScreenUiTest {
 
     @Test
     @Config(sdk = [34], qualifiers = "w900dp-h1100dp-xhdpi")
-    fun bulkMoveConfirmationExplainsCopyDeleteAndRetainBehavior() {
+    fun bulkMoveOpensInAppFolderDestinationPicker() {
         composeTestRule.setContent {
             ApturaTheme {
                 MediaLibraryScreen(
@@ -598,12 +598,10 @@ class MediaLibraryScreenUiTest {
         composeTestRule.onNodeWithText("Blade Runner 2049").performClick()
         composeTestRule.onNodeWithText("Move").performClick()
 
-        composeTestRule.onNodeWithText("Move 2 videos?").assertIsDisplayed()
-        composeTestRule.onNodeWithText(
-            "Aptura copies each video to the folder you choose, then asks Android to delete the original. If a copy fails or Android declines the deletion, that original stays where it is. Make sure the destination has enough free space."
-        ).assertIsDisplayed()
-        composeTestRule.onNodeWithText("Choose folder").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Cancel").performClick()
+        composeTestRule.onNodeWithText("Move 2 videos to...").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Choose a destination folder").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Browse device storage...").assertIsDisplayed()
+        composeTestRule.onAllNodesWithText("Movies").assertCountEquals(2)
     }
 
     @Test
