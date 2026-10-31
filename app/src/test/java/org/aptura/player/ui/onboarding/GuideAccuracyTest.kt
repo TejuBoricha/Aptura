@@ -90,6 +90,14 @@ class GuideAccuracyTest {
         }
     }
 
+    @Test
+    fun playerDemoDoubleTapCaption_accuratelyDescribesConfiguredSeekStep() {
+        listOf(5, 10, 15, 30).forEach { seconds ->
+            val caption = PlayerDemoStep.DOUBLE_TAP.caption(seconds)
+            assertTrue("caption '$caption' must contain '$seconds seconds'", caption.contains("$seconds seconds"))
+        }
+    }
+
     // ---- the drawn film frames ------------------------------------------------------------------------------------
 
     private var shownSeed by mutableIntStateOf(0)

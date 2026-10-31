@@ -413,6 +413,7 @@ private fun AppNavHost(
                 OnboardingScreen(
                     libraryState = libraryForGuide as? MediaLibraryUiState.Success,
                     hasStorageAccess = hasVideoAccess,
+                    seekDeltaSeconds = settings.seekDeltaSeconds,
                     onRequestPermissionClick = {
                         permissionLauncher.launch(PermissionHelper.getRequiredPermissions())
                     },

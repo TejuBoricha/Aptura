@@ -2,7 +2,7 @@
 
 The owner's list had six points. This file records points 1 to 5: what was found, the root cause, what changed, how it
 was tested, what is not verified and what remains. Point 6 (feedback from the owner's screenshots) has **not started**;
-the one defect a screenshot has already shown (the sidebar, below) is fixed and recorded here. Work is on PR #18.
+the one defect a screenshot has already shown (the sidebar, below) is fixed and recorded here. Work is merged in PR #29 (`5c87aed`).
 
 How to read the evidence: everything below was measured under Robolectric with native graphics (frame stepping, pixel
 capture, semantics), not on a phone. Hardware testing is on hold at the owner's request and stays listed as
