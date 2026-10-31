@@ -3,13 +3,14 @@ package org.aptura.player
 import android.Manifest
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.swipeUp
@@ -116,8 +117,10 @@ class ApturaUserJourneyTest {
         }
 
         // 3. Scroll to and click Privacy policy
+        composeTestRule.onNode(hasScrollAction())
+            .performScrollToNode(hasText("Privacy policy"))
+
         composeTestRule.onNodeWithText("Privacy policy")
-            .performScrollTo()
             .assertIsDisplayed()
             .performClick()
 
@@ -180,8 +183,8 @@ class ApturaUserJourneyTest {
 
         device.waitForIdle()
 
-        // 5. Restore Aptura Blue accent
-        composeTestRule.onNodeWithContentDescription("Aptura Blue accent")
+        // 5. Restore default Cyan accent
+        composeTestRule.onNodeWithContentDescription("Cyan accent")
             .assertIsDisplayed()
             .performClick()
 
