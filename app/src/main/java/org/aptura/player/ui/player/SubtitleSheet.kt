@@ -7,6 +7,7 @@ import androidx.compose.foundation.selection.selectable
 import org.aptura.player.ui.components.ApturaTextButton
 import org.aptura.player.ui.components.ApturaOutlinedButton
 import org.aptura.player.ui.components.ApturaButton
+import org.aptura.player.ui.components.bottomSheetScrollInterceptor
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -158,6 +159,7 @@ fun SubtitleSheet(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .bottomSheetScrollInterceptor()
                     .verticalScroll(rememberScrollState())
             ) {
                 when (selectedTab) {

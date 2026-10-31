@@ -88,6 +88,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.aptura.player.ui.components.ApturaTextButton
 import org.aptura.player.ui.components.ApturaTone
+import org.aptura.player.ui.components.bottomSheetScrollInterceptor
 import org.aptura.player.domain.model.AudioEnhancementState
 import org.aptura.player.domain.model.EqualizerBand
 import org.aptura.player.domain.model.EqualizerPreset
@@ -202,6 +203,7 @@ private fun AudioTracksAndSyncTab(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .bottomSheetScrollInterceptor()
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(22.dp)
     ) {
@@ -320,6 +322,7 @@ private fun EqualizerTab(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .bottomSheetScrollInterceptor()
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(22.dp)
     ) {
@@ -498,6 +501,7 @@ private fun SoundEffectsTab(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .bottomSheetScrollInterceptor()
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(22.dp)
     ) {

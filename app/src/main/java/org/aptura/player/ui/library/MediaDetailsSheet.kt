@@ -100,6 +100,7 @@ import org.aptura.player.ui.components.NoticeBanner
 import org.aptura.player.ui.components.ApturaDialog
 import org.aptura.player.ui.components.ApturaTone
 import org.aptura.player.ui.components.DialogAlternative
+import org.aptura.player.ui.components.bottomSheetScrollInterceptor
 
 /**
  * Media Details Content (FR-LIB-013, R-A02, R-A09).
@@ -150,6 +151,7 @@ fun MediaDetailsContent(
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .bottomSheetScrollInterceptor()
             .verticalScroll(rememberScrollState())
             .windowInsetsPadding(StableNavigationBars)
             .padding(horizontal = 20.dp)
