@@ -164,6 +164,15 @@ The domain layer has no Android imports. The UI talks to view models; view model
 - **Android-first.** There is no iOS build.
 - **Pre-release.** The Room schema and public APIs may change before 1.0 is tagged.
 
+## Support the Project
+
+Aptura is an independent, 100% offline open-source project with zero ads, zero tracking, and no corporate backing. If you enjoy using Aptura and want to support ongoing maintenance and new features, voluntary contributions are deeply appreciated:
+
+- **[Support on Ko-fi](https://ko-fi.com/tejuboricha)**
+- **[Donate via PayPal](https://paypal.me/tejuboricha)**
+
+Starring the repository on GitHub and sharing the app with others also helps immensely!
+
 ## Contributing
 
 Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first; the short version is: keep the zero-network invariant, run `tools/gate.ps1`, add tests for behavior changes, and use imperative commit subjects.
