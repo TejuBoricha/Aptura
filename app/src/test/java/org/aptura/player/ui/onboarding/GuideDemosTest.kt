@@ -1,5 +1,6 @@
 package org.aptura.player.ui.onboarding
 
+import android.view.ViewConfiguration
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -167,7 +168,7 @@ class GuideDemosTest {
         show(motion = true) { PlayerDemo() }
 
         fun caption(step: PlayerDemoStep) =
-            composeRule.onNodeWithText(step.caption, useUnmergedTree = true)
+            composeRule.onNodeWithText(step.caption(), useUnmergedTree = true)
 
         // Away from the page it does not run: it rests on its first gesture.
         composeRule.mainClock.advanceTimeBy(3_000)
@@ -198,6 +199,38 @@ class GuideDemosTest {
     }
 
     @Test
+    fun doubleTapInterval_staysBelowPlatformTimeout() {
+        val totalMs = STEP_MS + STEP_GAP_MS
+        val gapMs = ((DOUBLE_TAP_SECOND_AT - DOUBLE_TAP_FIRST_AT) * totalMs).toLong()
+        val platformTimeoutMs = ViewConfiguration.getDoubleTapTimeout().toLong()
+        assertTrue(
+            "double tap interval ($gapMs ms) must be inside platform double-tap window ($platformTimeoutMs ms)",
+            gapMs < platformTimeoutMs
+        )
+        assertTrue("double tap interval ($gapMs ms) must be positive and distinct", gapMs > 50)
+    }
+
+    @Test
+    fun playerDemo_reflectsCustomSeekDelta() {
+        assertEquals(
+            "Double-tap either side to jump 30 seconds",
+            PlayerDemoStep.DOUBLE_TAP.caption(30)
+        )
+        show(motion = false) { PlayerDemo(seekDeltaSeconds = 30) }
+        composeRule.onNodeWithText("Left half: brightness", substring = true, useUnmergedTree = true).assertExists()
+    }
+
+    @Config(fontScale = 2.0f)
+    @Test
+    fun at200PercentFont_playerDemoCaption_doesNotClip() {
+        show(motion = false) { PlayerDemo() }
+        val node = composeRule.onNodeWithText("Left half: brightness", substring = true, useUnmergedTree = true)
+        node.assertExists()
+        val bounds = node.fetchSemanticsNode().boundsInRoot
+        assertTrue("caption height at 200% font (${bounds.height}px) must be >= 40dp", bounds.height >= 40f)
+    }
+
+    @Test
     fun theGestureGauges_followTheFinger() {
         pageProgress = 1f
         show(motion = true) { PlayerDemo() }
@@ -209,6 +242,17 @@ class GuideDemosTest {
         val late = percentShown()
         assertTrue("brightness rose from $early% to $late%", late > early + 20)
         assertNotEquals(early, late)
+
+        // The volume gauge rises over the second gesture.
+        composeRule.mainClock.advanceTimeBy(700)
+        val earlyVolume = percentShown()
+        composeRule.mainClock.advanceTimeBy(1_800)
+        val lateVolume = percentShown()
+        assertTrue("volume rose from $earlyVolume% to $lateVolume%", lateVolume > earlyVolume + 15)
+
+        // Step 4 scrub caption appears.
+        composeRule.mainClock.advanceTimeBy(3_400)
+        composeRule.onNodeWithText("Swipe left or right to scrub through the video", useUnmergedTree = true).assertExists()
     }
 
     private fun percentShown(): Int {

@@ -66,8 +66,14 @@ class AudioOnlyLayoutTest {
 
     private fun overlap(a: Rect, b: Rect) = a.intersect(b).let { it.width > 1f && it.height > 1f }
 
-    private fun assertNothingCoversThePanel() {
+    private fun assertNothingCoversThePanel(windowWidth: Float = 411f, windowHeight: Float = 891f) {
         val panel = composeRule.onNodeWithTag(AUDIO_ONLY_PANEL_TAG).getUnclippedBoundsInRoot().toRect()
+        assertTrue(
+            "the panel at $panel must stay within window ($windowWidth x $windowHeight)",
+            panel.left >= 0f && panel.top >= 0f && panel.right <= windowWidth && panel.bottom <= windowHeight
+        )
+        assertTrue("the panel at $panel must have non-zero size", panel.width > 0f && panel.height > 0f)
+
         val pieces = mapOf(
             "the title" to composeRule.onNode(hasText("VID-20260928-WA0034") and hasAnyAncestor(hasTestTag(AUDIO_ONLY_PANEL_TAG)))
                 .getUnclippedBoundsInRoot().toRect(),
@@ -77,6 +83,11 @@ class AudioOnlyLayoutTest {
             composeRule.onNodeWithContentDescription(it).getUnclippedBoundsInRoot().toRect()
         }
         controls.forEach { (name, bounds) ->
+            assertTrue(
+                "the $name control at $bounds must stay within window ($windowWidth x $windowHeight)",
+                bounds.left >= 0f && bounds.top >= 0f && bounds.right <= windowWidth && bounds.bottom <= windowHeight
+            )
+            assertTrue("the $name control at $bounds must have non-zero size", bounds.width > 0f && bounds.height > 0f)
             assertTrue("the $name control at $bounds covers the audio-only panel at $panel", !overlap(panel, bounds))
             pieces.forEach { (piece, rect) ->
                 assertTrue("the $name control at $bounds covers $piece at $rect", !overlap(rect, bounds))
@@ -88,34 +99,34 @@ class AudioOnlyLayoutTest {
     @Test
     fun portraitPhone() {
         show()
-        assertNothingCoversThePanel()
+        assertNothingCoversThePanel(411f, 891f)
     }
 
     @Config(qualifiers = "w320dp-h640dp-xhdpi")
     @Test
     fun smallPortraitPhone() {
         show()
-        assertNothingCoversThePanel()
+        assertNothingCoversThePanel(320f, 640f)
     }
 
     @Config(qualifiers = "w411dp-h891dp-xhdpi")
     @Test
     fun portraitPhoneWithLargeText() {
         show(fontScale = 1.6f)
-        assertNothingCoversThePanel()
+        assertNothingCoversThePanel(411f, 891f)
     }
 
     @Config(qualifiers = "w891dp-h411dp-xhdpi")
     @Test
     fun sidewaysPhone() {
         show()
-        assertNothingCoversThePanel()
+        assertNothingCoversThePanel(891f, 411f)
     }
 
     @Config(qualifiers = "w740dp-h360dp-xhdpi")
     @Test
     fun smallSidewaysPhone() {
         show()
-        assertNothingCoversThePanel()
+        assertNothingCoversThePanel(740f, 360f)
     }
 }

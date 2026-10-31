@@ -147,6 +147,5 @@ class GuideFooterPixelTest {
 
         assertTrue("action top ${action.top} must stay below the footer top ${footer.top}", action.top >= footer.top)
         assertTrue("action bottom ${action.bottom} must stay above the screen edge ${footer.bottom}", action.bottom <= footer.bottom)
-        assertTrue("the action must not be pushed off screen", action.bottom <= footer.bottom)
     }
 }

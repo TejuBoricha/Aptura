@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -223,16 +224,25 @@ private fun DemoList(videos: List<GuideSample>) {
 // ---- the player ------------------------------------------------------------------------------------------------
 
 /** What the player demonstration is showing, in the order it plays them. */
-internal enum class PlayerDemoStep(val caption: String) {
-    BRIGHTNESS("Slide up or down on the left half to change brightness"),
-    VOLUME("Slide up or down on the right half to change volume"),
-    DOUBLE_TAP("Double-tap either side to jump 10 seconds"),
-    SCRUB("Swipe left or right to scrub through the video")
+internal enum class PlayerDemoStep {
+    BRIGHTNESS,
+    VOLUME,
+    DOUBLE_TAP,
+    SCRUB;
+
+    fun caption(seekDeltaSeconds: Int = 10): String = when (this) {
+        BRIGHTNESS -> "Slide up or down on the left half to change brightness"
+        VOLUME -> "Slide up or down on the right half to change volume"
+        DOUBLE_TAP -> "Double-tap either side to jump $seekDeltaSeconds seconds"
+        SCRUB -> "Swipe left or right to scrub through the video"
+    }
 }
 
 private const val STATIC_CAPTION = "Left half: brightness. Right half: volume. Double-tap to jump, swipe to scrub."
-private const val STEP_MS = 2100
-private const val STEP_GAP_MS = 450
+internal const val STEP_MS = 2100
+internal const val STEP_GAP_MS = 450
+internal const val DOUBLE_TAP_FIRST_AT = 0.12f
+internal const val DOUBLE_TAP_SECOND_AT = 0.18f
 
 /**
  * The player, with its two touch zones, and a finger showing what each gesture does. The brightness, volume and seek
@@ -240,7 +250,10 @@ private const val STEP_GAP_MS = 450
  * motion is off.
  */
 @Composable
-internal fun PlayerDemo(modifier: Modifier = Modifier) {
+internal fun PlayerDemo(
+    modifier: Modifier = Modifier,
+    seekDeltaSeconds: Int = 10
+) {
     val motion = LocalGuideMotion.current
     val pageProgress = LocalGuidePageProgress.current
     var step by remember { mutableStateOf(PlayerDemoStep.BRIGHTNESS) }
@@ -281,13 +294,18 @@ internal fun PlayerDemo(modifier: Modifier = Modifier) {
         ) {
             GuideDarkScene {
                 GuideScreenFrame(designWidth = 480.dp, background = Color.Black) {
-                    PlayerScene(step = step, progress = { t.value }, resting = !motion)
+                    PlayerScene(
+                        step = step,
+                        progress = { t.value },
+                        resting = !motion,
+                        seekDeltaSeconds = seekDeltaSeconds
+                    )
                 }
             }
         }
 
         AnimatedContent(
-            targetState = if (motion) step.caption else STATIC_CAPTION,
+            targetState = if (motion) step.caption(seekDeltaSeconds) else STATIC_CAPTION,
             transitionSpec = { fadeIn(tween(220, delayMillis = 90)) togetherWith fadeOut(tween(90)) },
             label = "guide-player-caption",
             modifier = Modifier.fillMaxWidth().clearAndSetSemantics { }
@@ -297,14 +315,19 @@ internal fun PlayerDemo(modifier: Modifier = Modifier) {
                 style = ApturaTypography.bodyMedium,
                 color = ApturaColors.TextMediumEmphasis,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().height(40.dp)
+                modifier = Modifier.fillMaxWidth().heightIn(min = 40.dp)
             )
         }
     }
 }
 
 @Composable
-private fun PlayerScene(step: PlayerDemoStep, progress: () -> Float, resting: Boolean) {
+private fun PlayerScene(
+    step: PlayerDemoStep,
+    progress: () -> Float,
+    resting: Boolean,
+    seekDeltaSeconds: Int = 10
+) {
     val seam = ApturaColors.BorderSubtle
     BoxWithConstraints(
         modifier = Modifier
@@ -403,17 +426,17 @@ private fun PlayerScene(step: PlayerDemoStep, progress: () -> Float, resting: Bo
                 Finger(Modifier.offset { IntOffset((widthPx * 0.70f).roundToInt(), (heightPx * lerp(0.84f, 0.46f, t)).roundToInt()) })
             }
             PlayerDemoStep.DOUBLE_TAP -> {
-                val resultAlpha = ((t - 0.42f) / 0.14f).coerceIn(0f, 1f)
+                val resultAlpha = ((t - 0.24f) / 0.14f).coerceIn(0f, 1f)
                 DoubleTapSeekRippleOverlay(
-                    seekDeltaSeconds = 10,
+                    seekDeltaSeconds = seekDeltaSeconds,
                     side = SeekTapSide.RIGHT,
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
                         .padding(end = 60.dp)
                         .graphicsLayer { alpha = resultAlpha }
                 )
-                TapRipple(at = 0.12f, now = t, x = 0.74f, y = 0.5f, widthPx = widthPx, heightPx = heightPx)
-                TapRipple(at = 0.30f, now = t, x = 0.74f, y = 0.5f, widthPx = widthPx, heightPx = heightPx)
+                TapRipple(at = DOUBLE_TAP_FIRST_AT, now = t, x = 0.74f, y = 0.5f, widthPx = widthPx, heightPx = heightPx)
+                TapRipple(at = DOUBLE_TAP_SECOND_AT, now = t, x = 0.74f, y = 0.5f, widthPx = widthPx, heightPx = heightPx)
             }
             PlayerDemoStep.SCRUB -> {
                 val delta = (t * 45_000f).toLong()
@@ -465,12 +488,13 @@ private fun TapRipple(at: Float, now: Float, x: Float, y: Float, widthPx: Float,
     if (p <= 0f || p >= 1f) return
     val size = lerp(30f, 88f, p)
     val sizeDp = with(LocalDensity.current) { size.toDp() }
+    val halfSizePx = size / 2f
     Box(
         modifier = Modifier
             .offset {
                 IntOffset(
-                    (widthPx * x - size.dp.roundToPx() / 2f).roundToInt(),
-                    (heightPx * y - size.dp.roundToPx() / 2f).roundToInt()
+                    (widthPx * x - halfSizePx).roundToInt(),
+                    (heightPx * y - halfSizePx).roundToInt()
                 )
             }
             .size(sizeDp)

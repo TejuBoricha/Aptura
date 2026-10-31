@@ -178,7 +178,7 @@ class OnboardingScreenUiTest {
     // ---- the guide counts as seen once its last page is shown ---------------------------------------------------------
 
     @Test
-    fun reachingTheLastPage_marksTheGuideAsSeen_exactlyOnce() {
+    fun reachingTheLastPage_marksTheGuideAsSeen() {
         show()
         assertEquals("not seen on page 1", 0, seen)
 

@@ -81,7 +81,11 @@ class StatsOverlayLayoutTest {
     /** Everything the viewer can press or drag, except the panel's own buttons, with the panel's room kept clear. */
     private fun assertPanelCoversNothing(windowWidth: Float, windowHeight: Float) {
         val panel = composeRule.onNodeWithTag(STATS_TAG).getUnclippedBoundsInRoot().toRect()
-        assertTrue("the panel at $panel leaves the window", panel.left >= 0f && panel.right <= windowWidth && panel.bottom <= windowHeight)
+        assertTrue(
+            "the panel at $panel leaves the window",
+            panel.left >= 0f && panel.top >= 0f && panel.right <= windowWidth && panel.bottom <= windowHeight
+        )
+        assertTrue("the panel at $panel must have non-zero size", panel.width > 0f && panel.height > 0f)
 
         val outsidePanel = hasClickAction() and !hasTestTag(STATS_TAG) and !hasAnyAncestor(hasTestTag(STATS_TAG))
         val controls = composeRule.onAllNodes(outsidePanel)
@@ -89,10 +93,19 @@ class StatsOverlayLayoutTest {
         assertTrue("expected the player's buttons to be found, found $count", count >= 8)
         for (index in 0 until count) {
             val bounds = controls[index].getUnclippedBoundsInRoot().toRect()
+            assertTrue(
+                "control $index at $bounds must be contained within the window",
+                bounds.left >= 0f && bounds.top >= 0f && bounds.right <= windowWidth && bounds.bottom <= windowHeight
+            )
+            assertTrue("control $index at $bounds must have non-zero size", bounds.width > 0f && bounds.height > 0f)
             assertTrue("a control at $bounds is covered by the stats panel at $panel", !overlap(panel, bounds))
         }
         // The seek bar is a drawing with semantics rather than a button, so it is named.
         val seekBar = composeRule.onNodeWithContentDescription("Seek bar").getUnclippedBoundsInRoot().toRect()
+        assertTrue(
+            "the seek bar at $seekBar must be on screen",
+            seekBar.left >= 0f && seekBar.top >= 0f && seekBar.right <= windowWidth && seekBar.bottom <= windowHeight
+        )
         assertTrue("the seek bar at $seekBar is covered by the stats panel at $panel", !overlap(panel, seekBar))
     }
 

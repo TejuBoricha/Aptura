@@ -104,6 +104,7 @@ fun OnboardingScreen(
     onContinueWithoutPermissionClick: () -> Unit,
     modifier: Modifier = Modifier,
     hasStorageAccess: Boolean = false,
+    seekDeltaSeconds: Int = 10,
     onFinishClick: () -> Unit = {},
     onReachedLastPage: () -> Unit = {},
     animateDemos: Boolean = rememberGuideMotionEnabled(),
@@ -113,6 +114,7 @@ fun OnboardingScreen(
     CompositionLocalProvider(LocalGuideMotion provides animateDemos) {
         GuideContent(
             hasStorageAccess = hasStorageAccess,
+            seekDeltaSeconds = seekDeltaSeconds,
             onRequestPermissionClick = onRequestPermissionClick,
             onContinueWithoutPermissionClick = onContinueWithoutPermissionClick,
             onFinishClick = onFinishClick,
@@ -127,6 +129,7 @@ fun OnboardingScreen(
 @Composable
 private fun GuideContent(
     hasStorageAccess: Boolean,
+    seekDeltaSeconds: Int,
     onRequestPermissionClick: () -> Unit,
     onContinueWithoutPermissionClick: () -> Unit,
     onFinishClick: () -> Unit,
@@ -221,7 +224,7 @@ private fun GuideContent(
                                 title = "Control playback with your thumbs",
                                 body = "The screen is split in two. No buttons needed."
                             )
-                            PlayerDemo(Modifier.reveal(4))
+                            PlayerDemo(Modifier.reveal(4), seekDeltaSeconds = seekDeltaSeconds)
                             FeatureList(ExtraGestures)
                         }
                         3 -> {
