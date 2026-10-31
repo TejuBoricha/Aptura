@@ -194,6 +194,7 @@ import org.aptura.player.domain.model.PlayMode
 import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
 import org.aptura.player.ui.components.SpeedRail
+import org.aptura.player.ui.components.bottomSheetScrollInterceptor
 import org.aptura.player.ui.library.MediaFormatters
 
 /**
@@ -2048,6 +2049,7 @@ fun PlayerScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .bottomSheetScrollInterceptor()
                         .windowInsetsPadding(WindowInsets.navigationBars)
                         .imePadding()
                         .verticalScroll(rememberScrollState())

@@ -43,6 +43,8 @@ import androidx.compose.ui.unit.dp
 import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
 import org.aptura.player.ui.components.ApturaOutlinedButton
+import org.aptura.player.ui.components.bottomSheetScrollInterceptor
+import org.aptura.player.ui.components.windowSizeDp
 
 internal const val FOLDER_DESTINATION_SHEET_TAG = "folder_destination_sheet"
 internal const val BROWSE_STORAGE_BUTTON_TAG = "browse_storage_button"
@@ -100,69 +102,72 @@ internal fun FolderDestinationSheetContent(
     onBrowseStorage: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier
-                .heightIn(max = maxHeight * 0.90f)
-                .padding(horizontal = 16.dp)
+    val maxSheetHeight = (windowSizeDp().height * 0.90f).coerceAtLeast(200.dp)
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(max = maxSheetHeight)
+            .padding(horizontal = 16.dp)
+    ) {
+        // Header
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
         ) {
-            // Header
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.DriveFileMove,
+                contentDescription = null,
+                tint = ApturaColors.AccentPrimary,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = ApturaTypography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = ApturaColors.TextHighEmphasis,
+                    modifier = Modifier.semantics { heading() }
+                )
+                Text(
+                    text = "Choose a destination folder",
+                    style = ApturaTypography.bodySmall,
+                    color = ApturaColors.TextMediumEmphasis
+                )
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        val entries = folders.map { folder ->
+            FolderEntry(
+                folder = folder,
+                label = labels[folder] ?: friendlyFolderName(folder),
+                summary = summaries[folder]
+            )
+        }
+
+        if (entries.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 32.dp),
+                contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.DriveFileMove,
-                    contentDescription = null,
-                    tint = ApturaColors.AccentPrimary,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = title,
-                        style = ApturaTypography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = ApturaColors.TextHighEmphasis,
-                        modifier = Modifier.semantics { heading() }
-                    )
-                    Text(
-                        text = "Choose a destination folder",
-                        style = ApturaTypography.bodySmall,
-                        color = ApturaColors.TextMediumEmphasis
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(16.dp))
-
-            val entries = folders.map { folder ->
-                FolderEntry(
-                    folder = folder,
-                    label = labels[folder] ?: friendlyFolderName(folder),
-                    summary = summaries[folder]
+                Text(
+                    text = "No in-app folders found",
+                    style = ApturaTypography.bodyMedium,
+                    color = ApturaColors.TextMediumEmphasis
                 )
             }
-
-            if (entries.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 32.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "No in-app folders found",
-                        style = ApturaTypography.bodyMedium,
-                        color = ApturaColors.TextMediumEmphasis
-                    )
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.weight(1f, fill = false),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(bottom = 12.dp)
-                ) {
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .bottomSheetScrollInterceptor(),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(bottom = 12.dp)
+            ) {
                     items(entries, key = { it.folder ?: "" }) { entry ->
                         val isCurrent = isMove && entry.folder != null && (entry.folder in currentFolders || entry.folder == currentFolder)
                         DestinationFolderRow(
@@ -191,7 +196,6 @@ internal fun FolderDestinationSheetContent(
                     .testTag(BROWSE_STORAGE_BUTTON_TAG)
             )
         }
-    }
 }
 
 @Composable

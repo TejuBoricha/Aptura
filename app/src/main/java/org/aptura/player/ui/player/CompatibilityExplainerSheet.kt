@@ -47,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
+import org.aptura.player.ui.components.bottomSheetScrollInterceptor
 
 /**
  * Factual explainer sheet launched from "Why?" on the compatibility mode chip (SCR-010h, FR-PLAY-003).
@@ -93,6 +94,7 @@ fun CompatibilityExplainerContent(
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .bottomSheetScrollInterceptor()
             .verticalScroll(rememberScrollState())
             .windowInsetsPadding(WindowInsets.navigationBars)
             .padding(horizontal = 24.dp)

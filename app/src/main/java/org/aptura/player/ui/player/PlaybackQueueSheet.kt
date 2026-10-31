@@ -72,6 +72,7 @@ import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.domain.model.PlayMode
 import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
+import org.aptura.player.ui.components.bottomSheetScrollInterceptor
 import org.aptura.player.ui.library.MediaFormatters
 
 /**
@@ -283,7 +284,8 @@ fun PlaybackQueueContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f, fill = false)
-                        .height(380.dp),
+                        .height(380.dp)
+                        .bottomSheetScrollInterceptor(),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     itemsIndexed(

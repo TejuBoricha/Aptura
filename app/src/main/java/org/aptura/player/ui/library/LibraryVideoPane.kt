@@ -94,6 +94,7 @@ import org.aptura.player.theme.ApturaTypography
 import org.aptura.player.ui.components.SectionTitle
 import org.aptura.player.ui.components.ChoiceCard
 import org.aptura.player.ui.components.TonalSegmentedPicker
+import org.aptura.player.ui.components.bottomSheetScrollInterceptor
 import org.aptura.player.ui.settings.SectionLabel
 
 /*
@@ -499,6 +500,7 @@ internal fun LibraryViewSheetContent(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .bottomSheetScrollInterceptor()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
             .padding(bottom = 24.dp),

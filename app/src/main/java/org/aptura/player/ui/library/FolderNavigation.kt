@@ -38,10 +38,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.VideoLibrary
+import androidx.compose.material.icons.automirrored.outlined.ViewList
 import androidx.compose.material.icons.outlined.CreateNewFolder
 import androidx.compose.material.icons.outlined.FolderCopy
 import androidx.compose.material.icons.outlined.GridView
-import androidx.compose.material.icons.outlined.ViewList
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -77,6 +77,8 @@ import org.aptura.player.domain.model.FolderLayout
 import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
 import org.aptura.player.ui.components.ApturaOutlinedButton
+import org.aptura.player.ui.components.bottomSheetScrollInterceptor
+import org.aptura.player.ui.components.windowSizeDp
 
 /*
  * Moving around the folders: the strip under the search field, the pill that says where a swipe landed, and the browser
@@ -341,71 +343,79 @@ internal fun FolderBrowserSheet(
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = ApturaColors.SurfaceElevated1
     ) {
-        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.heightIn(max = maxHeight * 0.92f).padding(horizontal = 16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = "Folders",
-                        style = ApturaTypography.headlineSmall,
-                        color = ApturaColors.TextHighEmphasis,
-                        modifier = Modifier.weight(1f).semantics { heading() }
-                    )
-                    IconButton(
-                        onClick = {
-                            onLayoutChange(if (layout == FolderLayout.LIST) FolderLayout.GRID else FolderLayout.LIST)
-                        },
-                        modifier = Modifier.size(48.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (layout == FolderLayout.LIST) Icons.Outlined.GridView else Icons.Outlined.ViewList,
-                            contentDescription = if (layout == FolderLayout.LIST) "Show folders as a grid" else "Show folders as a list",
-                            tint = ApturaColors.TextMediumEmphasis
-                        )
-                    }
-                }
-                ApturaOutlinedButton(
-                    text = "Add folder",
-                    icon = Icons.Outlined.CreateNewFolder,
+        val maxSheetHeight = (windowSizeDp().height * 0.92f).coerceAtLeast(200.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = maxSheetHeight)
+                .padding(horizontal = 16.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "Folders",
+                    style = ApturaTypography.headlineSmall,
+                    color = ApturaColors.TextHighEmphasis,
+                    modifier = Modifier.weight(1f).semantics { heading() }
+                )
+                IconButton(
                     onClick = {
-                        onDismiss()
-                        onAddFolder()
+                        onLayoutChange(if (layout == FolderLayout.LIST) FolderLayout.GRID else FolderLayout.LIST)
                     },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(12.dp))
-
-                val allEntry = FolderEntry(
-                    folder = null,
-                    label = "All videos",
-                    summary = FolderSummary(libraryVideoCount, librarySizeBytes, libraryDurationMs)
-                )
-                val entries = listOf(allEntry) + folders.map { folder ->
-                    FolderEntry(folder, labels[folder] ?: friendlyFolderName(folder), summaries[folder])
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Icon(
+                        imageVector = if (layout == FolderLayout.LIST) Icons.Outlined.GridView else Icons.AutoMirrored.Outlined.ViewList,
+                        contentDescription = if (layout == FolderLayout.LIST) "Show folders as a grid" else "Show folders as a list",
+                        tint = ApturaColors.TextMediumEmphasis
+                    )
                 }
-                val pick: (String?) -> Unit = { folder ->
-                    onSelect(folder)
+            }
+            ApturaOutlinedButton(
+                text = "Add folder",
+                icon = Icons.Outlined.CreateNewFolder,
+                onClick = {
                     onDismiss()
-                }
-                when (layout) {
-                    FolderLayout.LIST -> LazyColumn(
-                        modifier = Modifier.weight(1f, fill = false),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                        contentPadding = PaddingValues(bottom = 24.dp)
-                    ) {
-                        items(entries, key = { it.folder ?: "<all>" }) { entry ->
-                            FolderRow(entry, entry.folder == selectedFolder) { pick(entry.folder) }
-                        }
+                    onAddFolder()
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(12.dp))
+
+            val allEntry = FolderEntry(
+                folder = null,
+                label = "All videos",
+                summary = FolderSummary(libraryVideoCount, librarySizeBytes, libraryDurationMs)
+            )
+            val entries = listOf(allEntry) + folders.map { folder ->
+                FolderEntry(folder, labels[folder] ?: friendlyFolderName(folder), summaries[folder])
+            }
+            val pick: (String?) -> Unit = { folder ->
+                onSelect(folder)
+                onDismiss()
+            }
+            when (layout) {
+                FolderLayout.LIST -> LazyColumn(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .bottomSheetScrollInterceptor(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    contentPadding = PaddingValues(bottom = 24.dp)
+                ) {
+                    items(entries, key = { it.folder ?: "<all>" }) { entry ->
+                        FolderRow(entry, entry.folder == selectedFolder) { pick(entry.folder) }
                     }
-                    FolderLayout.GRID -> LazyVerticalGrid(
-                        columns = GridCells.Adaptive(minSize = 150.dp),
-                        modifier = Modifier.weight(1f, fill = false),
-                        verticalArrangement = Arrangement.spacedBy(14.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        contentPadding = PaddingValues(bottom = 24.dp)
-                    ) {
-                        items(entries, key = { it.folder ?: "<all>" }) { entry ->
-                            FolderCard(entry, entry.folder == selectedFolder) { pick(entry.folder) }
-                        }
+                }
+                FolderLayout.GRID -> LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 150.dp),
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .bottomSheetScrollInterceptor(),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(bottom = 24.dp)
+                ) {
+                    items(entries, key = { it.folder ?: "<all>" }) { entry ->
+                        FolderCard(entry, entry.folder == selectedFolder) { pick(entry.folder) }
                     }
                 }
             }
