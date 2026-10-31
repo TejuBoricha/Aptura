@@ -1,0 +1,1 @@
+100% offline, privacy-first video player with zero permissions and fluid UI.

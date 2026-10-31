@@ -1,0 +1,40 @@
+Aptura is an elegant, offline-first video player engineered for privacy, speed, and smooth Material 3 aesthetics.
+
+🔒 100% OFFLINE & PRIVATE BY DESIGN
+Aptura contains zero network stack and requires NO internet permission (zero android.permission.INTERNET). Your files, watch history, bookmarks, and settings never leave your device.
+• Zero Analytics, Telemetry, or Crash SDKs
+• Zero Third-Party Tracking or Ads
+• Zero Account Creation Required
+• Scoped Storage Safe (Standard MediaStore & user-selected SAF folders only)
+
+⚡ HARDWARE-ACCELERATED PLAYBACK
+Built on modern Android Media3 architecture:
+• Hardware decoding for 4K, 60fps, and HDR10 content.
+• Fine-grained playback speed control (0.25x to 3.0x in 0.05x increments).
+• Seamless A-B looping and frame-precise scrubbing.
+• Picture-in-Picture (PiP) support with smooth window transitions.
+
+🎨 BESPOKE MATERIAL 3 DESIGN
+Immerse yourself in clean dark elegance:
+• True OLED dark themes designed to conserve battery and eliminate eye fatigue.
+• Distinct Accent Themes: Amber, Emerald, Rose, Violet, Aptura Blue, and Champagne Gold.
+• Fluid, gesture-driven HUD: swipe for volume, brightness, and horizontal seeking.
+
+⏱️ INTELLIGENT SLEEP TIMER
+Fall asleep to your favorite shows without waking up to a dead battery:
+• Monotonic sleep timer (5 to 720 minutes) with a gradual, 10-second volume fade-out.
+• "At the end of this video" automatic pause option.
+• Background audio countdown that survives app minimization and task clearance.
+
+🎧 ADVANCED AUDIO & SUBTITLES
+• Multi-track audio selection with Bluetooth audio sync offset (±1000 ms).
+• Sidecar subtitle support (.srt, .vtt) with customizable timing, font sizing, and styling.
+• High-resolution PCM audio compatibility (24-bit, 32-bit float, and 5.1 multichannel).
+
+📁 EFFICIENT IN-APP MEDIA MANAGEMENT
+• Organize, move, copy, and rename videos directly within your storage.
+• Direct folder-level paste and folder destination selection.
+• Fast search, filtering, and customizable Grid / List layouts.
+
+Aptura is free and open-source under the Apache-2.0 license.
+Source code: https://github.com/TejuBoricha/Aptura

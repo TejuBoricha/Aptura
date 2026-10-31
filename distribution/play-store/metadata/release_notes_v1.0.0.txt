@@ -1,0 +1,8 @@
+Initial production release of Aptura Video Player (v1.0.0):
+• 100% offline, zero-network architecture with no internet permission required.
+• Hardware-accelerated 4K, 60fps, and HDR10 playback with Media3.
+• Material 3 dark OLED styling with bespoke accent themes (including Champagne Gold).
+• Intelligent sleep timer with 10-second volume fade-out.
+• Millisecond-accurate audio/subtitle delay adjustment with Bluetooth compensation.
+• Scoped storage media manager with move, copy, and rename support.
+• Full TalkBack screen reader accessibility and Picture-in-Picture support.
