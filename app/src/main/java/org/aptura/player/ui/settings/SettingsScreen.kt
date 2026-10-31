@@ -609,8 +609,11 @@ fun SettingsScreen(
                                     Android OS: ${android.os.Build.VERSION.RELEASE} (API ${android.os.Build.VERSION.SDK_INT})
                                     ---------------------------------------------
                                 """.trimIndent()
-                                val mailIntent = Intent(Intent.ACTION_SENDTO).apply {
-                                    data = android.net.Uri.parse("mailto:tejasboricha225@gmail.com")
+                                val encodedSubject = android.net.Uri.encode(subject)
+                                val encodedBody = android.net.Uri.encode(body)
+                                val mailtoUri = android.net.Uri.parse("mailto:tejasboricha225@gmail.com?subject=$encodedSubject&body=$encodedBody")
+                                val mailIntent = Intent(Intent.ACTION_SENDTO, mailtoUri).apply {
+                                    putExtra(Intent.EXTRA_EMAIL, arrayOf("tejasboricha225@gmail.com"))
                                     putExtra(Intent.EXTRA_SUBJECT, subject)
                                     putExtra(Intent.EXTRA_TEXT, body)
                                 }
