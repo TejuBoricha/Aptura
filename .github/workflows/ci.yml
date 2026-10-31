@@ -103,6 +103,10 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_tablet
+          # The AVD's default 6 GB data partition is checked at 1.2x that size (7.4 GB) before the emulator creates it,
+          # and a runner has about 7.1 GB free, so it exits with "Not enough space to create userdata partition" and
+          # never boots. 4 GB needs 4.9 GB, which fits with room for the build, and is plenty for one APK and test media.
+          disk-size: 4096M
           disable-animations: true
           emulator-options: -no-window -no-snapshot -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: ./gradlew connectedDebugAndroidTest --stacktrace
