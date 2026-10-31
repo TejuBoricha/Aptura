@@ -28,7 +28,7 @@ Every finding progresses strictly through the following states:
 | **ISSUE-004** | Phase 1 | P2 | Storage / Playback | A/V offsets set on video opened via VIEW intent lost if not indexed in Room library | `PlayerViewModel.kt`, `MediaRepositoryImpl.kt` | Verified | Upsert minimal `MediaItemEntity` via synthetic ID |
 | **ISSUE-005** | Phase 1 | P2 | UI / Accessibility | Stats overlay text wraps awkwardly at 200% accessibility font scale | `StatsOverlay.kt` | Deferred | Diagnostic HUD cosmetic wrap; deferred to diagnostic UX pass |
 | **ISSUE-006** | Phase 1 | P3 | Android Lint | 3 `ApplySharedPref` warnings using blocking `commit()` in `MediaTransferJournal` | `MediaTransferJournal.kt` | Verified | Suppressed with architectural justification; verified 0 errors |
-| **ISSUE-007** | Phase 1 | P3 | Android Lint / Platform | Android 12+ PiP transition recommendation: `setAutoEnterEnabled(true)` and `setSourceRectHint` missing | `AndroidManifest.xml`, `MainActivity.kt` | Deferred | Deferred to next platform migration to avoid manifest churn |
+| **ISSUE-007** | Phase 1 | P3 | Android Lint / Platform | Android 12+ PiP transition recommendation: `setAutoEnterEnabled(true)` and `setSourceRectHint` missing | `MainActivity.kt`, `PipSupport.kt` | Verified | `PipSupport.calculateSourceRect` and `setSourceRectHint` implemented and tested |
 | **ISSUE-008** | Phase 1 | P2 | Architecture / Maintainability | Massive God-composables (`PlayerScreen.kt` 2,172 lines; `MediaLibraryScreen.kt` 2,137 lines) | `PlayerScreen.kt`, `MediaLibraryScreen.kt` | Deferred | Deferred to avoid merge conflicts with active PR #18 |
 | **ISSUE-009** | Phase 1 | P2 | Architecture / Maintainability | `PlayerViewModel.kt` is 1,582 lines managing multiple disjoint feature states | `PlayerViewModel.kt` | Deferred | Deferred to avoid merge conflicts with active PR #18 |
 | **ISSUE-010** | Phase 1 | P3 | Code Hygiene | 36 `UseKtx` Android Lint warnings across core and data layers | Various | Verified | Migrated to `toUri()` extension; warnings eliminated |
@@ -112,10 +112,12 @@ Every finding progresses strictly through the following states:
 - **Phase:** Phase 1 / Phase 5
 - **Priority:** P3 (Low)
 - **Category:** Platform / Lint
-- **Affected Files:** `app/src/main/AndroidManifest.xml`, `app/src/main/java/org/aptura/player/MainActivity.kt`
+- **Affected Files:** `app/src/main/java/org/aptura/player/MainActivity.kt`, `app/src/main/java/org/aptura/player/ui/player/PipSupport.kt`
 - **Root Cause:** Target SDK 36 requires `setAutoEnterEnabled(true)` and `setSourceRectHint` on Android 12+ (API 31+) for smooth PiP entry transitions.
 - **Proposed Solution:** Provide source rect hint corresponding to video surface dimensions and enable auto-enter on API 31+.
 - **Acceptance Criteria:** Smooth transition into PiP without jarring cut or lint warning.
+- **Status:** Verified
+- **Resolution & Evidence:** Implemented pure Kotlin `PipSupport.calculateSourceRect()` computing letterboxed/pillarboxed video surface bounds and passed to `setSourceRectHint()` alongside `setAutoEnterEnabled()`. Verified via `PipSupportTest` and full gate.
 
 ### ISSUE-008: Monolithic composables exceeding 2,000 lines
 - **Phase:** Phase 1 / Phase 2
