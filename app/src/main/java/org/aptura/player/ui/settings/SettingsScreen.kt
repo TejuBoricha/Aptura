@@ -706,7 +706,7 @@ fun SettingsScreen(
                             }
                             Spacer(Modifier.height(8.dp))
                             Text(
-                                text = "Aptura is 100% free, offline, and private with zero ads or tracking. If you'd like to support continued development, voluntary patronage is deeply appreciated.",
+                                text = "Aptura is 100% free, offline, and private with zero ads or tracking. Support independent development by starring the repository on GitHub or sharing the app with friends.",
                                 style = ApturaTypography.bodyMedium,
                                 color = ApturaColors.TextMediumEmphasis
                             )
@@ -716,29 +716,38 @@ fun SettingsScreen(
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 PillButton(
-                                    text = "Tip on Ko-fi",
+                                    text = "Star on GitHub",
                                     onClick = {
-                                        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://ko-fi.com/aptura"))
+                                        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/TejuBoricha/Aptura"))
                                         context.startActivity(intent)
+                                        if (!settings.isSupporter) {
+                                            onUpdateSupporter(true)
+                                            onUpdateAccentColor(AccentColor.GOLD)
+                                            Toast.makeText(context, "Thank you for starring Aptura! Champagne Gold unlocked ⭐", Toast.LENGTH_SHORT).show()
+                                        }
                                     },
                                     leading = {
                                         Icon(
-                                            imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                                            imageVector = Icons.Default.Star,
                                             contentDescription = null,
-                                            tint = ApturaColors.AccentPrimary,
-                                            modifier = Modifier.size(14.dp)
+                                            tint = Color(0xFFF5D77F),
+                                            modifier = Modifier.size(16.dp)
                                         )
                                     }
                                 )
                                 PillButton(
-                                    text = "GitHub Sponsors",
+                                    text = "Share app",
                                     onClick = {
-                                        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/sponsors/TejuBoricha"))
-                                        context.startActivity(intent)
+                                        val sendIntent = Intent().apply {
+                                            action = Intent.ACTION_SEND
+                                            putExtra(Intent.EXTRA_TEXT, "Check out Aptura - a 100% offline, privacy-first Android video player with zero permissions: https://github.com/TejuBoricha/Aptura")
+                                            type = "text/plain"
+                                        }
+                                        context.startActivity(Intent.createChooser(sendIntent, "Share Aptura"))
                                     },
                                     leading = {
                                         Icon(
-                                            imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                                            imageVector = Icons.Default.Share,
                                             contentDescription = null,
                                             tint = ApturaColors.AccentPrimary,
                                             modifier = Modifier.size(14.dp)
