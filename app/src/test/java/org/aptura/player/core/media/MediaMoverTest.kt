@@ -31,9 +31,10 @@ class MediaMoverTest {
 
     private val context: Context = ApplicationProvider.getApplicationContext()
 
-    class StorageProvider : ContentProvider() {
+    open class StorageProvider : ContentProvider() {
         val updated = mutableListOf<Pair<Uri, ContentValues?>>()
         var refuse: SecurityException? = null
+        var rowsUpdated: Int = 1
 
         override fun onCreate() = true
         override fun query(uri: Uri, p: Array<out String>?, s: String?, a: Array<out String>?, o: String?): Cursor? = null
@@ -43,7 +44,7 @@ class MediaMoverTest {
         override fun update(uri: Uri, values: ContentValues?, selection: String?, selectionArgs: Array<out String>?): Int {
             refuse?.let { throw it }
             updated += uri to values
-            return 1
+            return rowsUpdated
         }
     }
 
@@ -162,6 +163,52 @@ class MediaMoverTest {
         val result = m.requestBatchWriteConsent(listOf(videoUri))
 
         assertNull(result)
+    }
+
+    @Test
+    fun canMoveInPlace_handlesSpecialCharactersAndSpacesInFolder() {
+        val m = mover()
+        assertTrue(m.canMoveInPlace(videoUri, "Movies/Family & Vacation (2026)"))
+        assertTrue(m.canMoveInPlace(videoUri, "Download/Sub Folder 🎬"))
+    }
+
+    @Test
+    fun canMoveAllInPlace_returnsFalseIfAnyItemIsSafOrInvalid() {
+        val m = mover()
+        assertFalse(m.canMoveAllInPlace(listOf(videoUri, safDocUri), "Movies/"))
+        assertFalse(m.canMoveAllInPlace(emptyList(), "Movies/"))
+        assertTrue(m.canMoveAllInPlace(listOf(videoUri, "content://media/external/video/media/8"), "Movies/"))
+    }
+
+    @Test
+    fun moveInPlace_normalizesNestedSubdirectorySlashes() {
+        val m = mover()
+        val result = m.moveInPlace(videoUri, "Movies/Nested/Subfolder")
+
+        assertEquals(MoveOutcome.Moved, result)
+        val (_, values) = mediaStore.updated.last()
+        assertEquals("Movies/Nested/Subfolder/", values?.getAsString("relative_path"))
+    }
+
+    @Test
+    fun moveInPlace_returnsFailedWhenProviderReportsZeroRows() {
+        mediaStore.rowsUpdated = 0
+        val m = mover()
+
+        val result = m.moveInPlace(videoUri, "Movies/")
+
+        assertEquals(MoveOutcome.Failed("Could not move video."), result)
+    }
+
+    @Test
+    fun moveInPlace_returnsFailedOnApi28WhenRefusedWithoutRecoverable() {
+        mediaStore.refuse = SecurityException("Permission denied")
+        val m = mover(sdk = Build.VERSION_CODES.P)
+
+        val result = m.moveInPlace(videoUri, "Movies/")
+
+        assertTrue(result is MoveOutcome.Failed)
+        assertTrue((result as MoveOutcome.Failed).message.contains("Browse device storage"))
     }
 
 
