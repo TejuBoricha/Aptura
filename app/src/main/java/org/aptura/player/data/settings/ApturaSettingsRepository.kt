@@ -37,7 +37,7 @@ private inline fun <reified E : Enum<E>> Preferences.enumOr(key: Preferences.Key
 data class ApturaSettings(
     val defaultPlaybackSpeed: Float = 1.0f,
     val defaultResizeMode: Int = 0,
-    val seekDeltaSeconds: Int = 10,
+    val seekDeltaSeconds: Int = DEFAULT_SEEK_DELTA_SECONDS,
     val backgroundAudioEnabled: Boolean = true,
     val onboardingCompleted: Boolean = false,
     /** The app version whose welcome guide was last completed. A mismatch means the guide is shown again. */
@@ -58,7 +58,11 @@ data class ApturaSettings(
     val folderLayout: FolderLayout = FolderLayout.LIST,
     /** The name of the sort the user picked in the library, or null to let the library choose by folder. */
     val librarySortName: String? = null
-)
+) {
+    companion object {
+        const val DEFAULT_SEEK_DELTA_SECONDS = 10
+    }
+}
 
 /**
  * Asynchronous, DataStore-backed repository for player and library settings (SCR-013, FR-SET-001).
@@ -107,7 +111,7 @@ class ApturaSettingsRepository(private val context: Context) : AudioEffectsStore
             ApturaSettings(
                 defaultPlaybackSpeed = preferences[PreferencesKeys.DEFAULT_PLAYBACK_SPEED] ?: 1.0f,
                 defaultResizeMode = preferences[PreferencesKeys.DEFAULT_RESIZE_MODE] ?: 0,
-                seekDeltaSeconds = preferences[PreferencesKeys.SEEK_DELTA_SECONDS] ?: 10,
+                seekDeltaSeconds = preferences[PreferencesKeys.SEEK_DELTA_SECONDS] ?: ApturaSettings.DEFAULT_SEEK_DELTA_SECONDS,
                 backgroundAudioEnabled = preferences[PreferencesKeys.BACKGROUND_AUDIO_ENABLED] ?: true,
                 onboardingCompleted = preferences[PreferencesKeys.ONBOARDING_COMPLETED] ?: false,
                 lastSeenGuideVersion = preferences[PreferencesKeys.LAST_SEEN_GUIDE_VERSION] ?: 0,

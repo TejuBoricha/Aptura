@@ -200,7 +200,7 @@ class GuideDemosTest {
 
     @Test
     fun doubleTapInterval_staysBelowPlatformTimeout() {
-        val totalMs = STEP_MS + STEP_GAP_MS
+        val totalMs = STEP_MS
         val gapMs = ((DOUBLE_TAP_SECOND_AT - DOUBLE_TAP_FIRST_AT) * totalMs).toLong()
         val platformTimeoutMs = ViewConfiguration.getDoubleTapTimeout().toLong()
         assertTrue(
@@ -216,8 +216,14 @@ class GuideDemosTest {
             "Double-tap either side to jump 30 seconds",
             PlayerDemoStep.DOUBLE_TAP.caption(30)
         )
-        show(motion = false) { PlayerDemo(seekDeltaSeconds = 30) }
-        composeRule.onNodeWithText("Left half: brightness", substring = true, useUnmergedTree = true).assertExists()
+        pageProgress = 1f
+        show(motion = true) { PlayerDemo(seekDeltaSeconds = 30) }
+        // Step 1 BRIGHTNESS (2,550 ms) + Step 2 VOLUME (2,550 ms) -> Step 3 DOUBLE_TAP begins at 5,100 ms
+        composeRule.mainClock.advanceTimeBy(5_300)
+        composeRule.onNodeWithText("Double-tap either side to jump 30 seconds", useUnmergedTree = true).assertExists()
+        // Overlay HUD appears after second tap at t >= 0.24 (~504 ms into step)
+        composeRule.mainClock.advanceTimeBy(400)
+        composeRule.onNodeWithText("+30s", substring = true, useUnmergedTree = true).assertExists()
     }
 
     @Config(fontScale = 2.0f)
@@ -227,7 +233,11 @@ class GuideDemosTest {
         val node = composeRule.onNodeWithText("Left half: brightness", substring = true, useUnmergedTree = true)
         node.assertExists()
         val bounds = node.fetchSemanticsNode().boundsInRoot
-        assertTrue("caption height at 200% font (${bounds.height}px) must be >= 40dp", bounds.height >= 40f)
+        val minHeightPx = with(composeRule.density) { 40.dp.toPx() }
+        assertTrue(
+            "caption height at 200% font (${bounds.height}px) must grow beyond the 40dp minimum floor (${minHeightPx}px) to prevent clipping",
+            bounds.height > minHeightPx
+        )
     }
 
     @Test

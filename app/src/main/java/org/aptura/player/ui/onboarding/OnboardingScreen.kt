@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
+import org.aptura.player.data.settings.ApturaSettings
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -104,7 +105,7 @@ fun OnboardingScreen(
     onContinueWithoutPermissionClick: () -> Unit,
     modifier: Modifier = Modifier,
     hasStorageAccess: Boolean = false,
-    seekDeltaSeconds: Int = 10,
+    seekDeltaSeconds: Int = ApturaSettings.DEFAULT_SEEK_DELTA_SECONDS,
     onFinishClick: () -> Unit = {},
     onReachedLastPage: () -> Unit = {},
     animateDemos: Boolean = rememberGuideMotionEnabled(),
