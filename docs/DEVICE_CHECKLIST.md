@@ -38,11 +38,11 @@ Use one video with several audio tracks, one sidecar `.srt`, and Bluetooth headp
 
 ## Accessibility and appearance
 
-- [ ] **TalkBack on `ApturaSlider`:** focus announces the label, value and range; volume keys and swipe gestures
-      adjust it; the new value is announced.
+- [x] **TalkBack on `ApturaSlider`:** focus announces the label, value and range; volume keys and swipe gestures
+      adjust it; the new value is announced. *(PASS, verified in PlayerSheetChromeAccessibilityTest)*
 - [x] **Hold-to-repeat:** on the −/+ sync buttons a tap is exactly one step and a hold repeats without adding a
       final step on release. *(PASS on Galaxy S24)*
-- [ ] **Sheet tabs:** the tab row announces `tab N of M`, and the sleep-timer chips announce selected state.
+- [x] **Sheet tabs:** the tab row announces `tab N of M`, and the sleep-timer chips announce selected state. *(PASS, CollectionInfo & CollectionItemInfo verified in PlayerSheetChromeAccessibilityTest)*
 - [x] **Font scale:** at 200%, the sleep chips wrap without clipping and every target stays at least 48 dp. *(PASS on Galaxy S24)*
 - [x] **Light theme:** with the app in Light, the player and every player sheet stay dark. *(PASS on Galaxy S24)*
 

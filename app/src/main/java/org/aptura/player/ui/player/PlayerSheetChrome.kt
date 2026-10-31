@@ -29,7 +29,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.CollectionInfo
+import androidx.compose.ui.semantics.CollectionItemInfo
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.collectionInfo
+import androidx.compose.ui.semantics.collectionItemInfo
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
@@ -129,6 +133,9 @@ internal fun PlayerSheetTabs(
             modifier = Modifier
                 .fillMaxWidth()
                 .selectableGroup()
+                .semantics {
+                    collectionInfo = CollectionInfo(rowCount = 1, columnCount = tabs.size)
+                }
                 .padding(4.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
@@ -143,6 +150,12 @@ internal fun PlayerSheetTabs(
                         .semantics {
                             role = Role.Tab
                             selected = isSelected
+                            collectionItemInfo = CollectionItemInfo(
+                                rowIndex = 0,
+                                rowSpan = 1,
+                                columnIndex = index,
+                                columnSpan = 1
+                            )
                         }
                         .clickable(role = Role.Tab) {
                             if (!isSelected) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)

@@ -4,6 +4,7 @@ import android.app.AppOpsManager
 import android.app.PictureInPictureParams
 import android.content.Intent
 import android.content.res.Configuration
+import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
 import android.util.Rational
@@ -173,8 +174,17 @@ class MainActivity : ComponentActivity() {
 
     private fun buildPictureInPictureParams(autoEnter: Boolean): PictureInPictureParams {
         val size = PlayerManager.activeController?.player?.videoSize
-        val (num, den) = PipSupport.aspectRatioFor(size?.width ?: 0, size?.height ?: 0)
+        val videoWidth = size?.width ?: 0
+        val videoHeight = size?.height ?: 0
+        val (num, den) = PipSupport.aspectRatioFor(videoWidth, videoHeight)
         val builder = PictureInPictureParams.Builder().setAspectRatio(Rational(num, den))
+        val decor = window?.decorView
+        val windowWidth = decor?.width ?: 0
+        val windowHeight = decor?.height ?: 0
+        val sourceRect = PipSupport.calculateSourceRect(videoWidth, videoHeight, windowWidth, windowHeight)
+        if (sourceRect != null) {
+            builder.setSourceRectHint(Rect(sourceRect.left, sourceRect.top, sourceRect.right, sourceRect.bottom))
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             builder.setAutoEnterEnabled(autoEnter)
         }
