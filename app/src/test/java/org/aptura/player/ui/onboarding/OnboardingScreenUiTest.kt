@@ -178,12 +178,26 @@ class OnboardingScreenUiTest {
     // ---- the guide counts as seen once its last page is shown ---------------------------------------------------------
 
     @Test
-    fun reachingTheLastPage_marksTheGuideAsSeen() {
+    fun skippingTheGuide_marksTheGuideAsSeen() {
         show()
         assertEquals("not seen on page 1", 0, seen)
 
         composeRule.onNodeWithText("Skip").performClick()
         composeRule.waitForIdle()
+
+        assertEquals(1, seen)
+    }
+
+    @Test
+    fun reachingTheLastPage_marksTheGuideAsSeen() {
+        show()
+        assertEquals("not seen on page 1", 0, seen)
+
+        // Advance through pages 1 to 5 using "Continue"
+        repeat(4) {
+            composeRule.onNodeWithText("Continue").performClick()
+            composeRule.waitForIdle()
+        }
 
         assertEquals(1, seen)
     }

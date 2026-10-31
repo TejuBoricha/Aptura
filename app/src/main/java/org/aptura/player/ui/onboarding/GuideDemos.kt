@@ -48,6 +48,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import org.aptura.player.data.settings.ApturaSettings
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
@@ -230,7 +231,7 @@ internal enum class PlayerDemoStep {
     DOUBLE_TAP,
     SCRUB;
 
-    fun caption(seekDeltaSeconds: Int = 10): String = when (this) {
+    fun caption(seekDeltaSeconds: Int = ApturaSettings.DEFAULT_SEEK_DELTA_SECONDS): String = when (this) {
         BRIGHTNESS -> "Slide up or down on the left half to change brightness"
         VOLUME -> "Slide up or down on the right half to change volume"
         DOUBLE_TAP -> "Double-tap either side to jump $seekDeltaSeconds seconds"
@@ -252,7 +253,7 @@ internal const val DOUBLE_TAP_SECOND_AT = 0.18f
 @Composable
 internal fun PlayerDemo(
     modifier: Modifier = Modifier,
-    seekDeltaSeconds: Int = 10
+    seekDeltaSeconds: Int = ApturaSettings.DEFAULT_SEEK_DELTA_SECONDS
 ) {
     val motion = LocalGuideMotion.current
     val pageProgress = LocalGuidePageProgress.current
@@ -326,7 +327,7 @@ private fun PlayerScene(
     step: PlayerDemoStep,
     progress: () -> Float,
     resting: Boolean,
-    seekDeltaSeconds: Int = 10
+    seekDeltaSeconds: Int = ApturaSettings.DEFAULT_SEEK_DELTA_SECONDS
 ) {
     val seam = ApturaColors.BorderSubtle
     BoxWithConstraints(
