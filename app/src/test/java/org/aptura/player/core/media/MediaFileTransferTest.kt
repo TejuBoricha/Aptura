@@ -240,4 +240,45 @@ class MediaFileTransferTest {
         assertTrue("cancelling must keep the original", source.exists())
         assertArrayEquals(bytes, source.readBytes())
     }
+
+    @Test
+    fun relativePathFor_formatsFolderKeysIntoRelativePaths() {
+        assertEquals("Movies/", MediaFileTransfer.relativePathFor("/storage/emulated/0/Movies"))
+        assertEquals("DCIM/Camera/", MediaFileTransfer.relativePathFor("/storage/emulated/0/DCIM/Camera"))
+        assertEquals("Download/", MediaFileTransfer.relativePathFor("/storage/emulated/0/Download"))
+        assertEquals("Movies/", MediaFileTransfer.relativePathFor("/storage/1234-5678/Movies"))
+        assertEquals("Movies/", MediaFileTransfer.relativePathFor("Movies"))
+        assertEquals("Movies/Action/", MediaFileTransfer.relativePathFor("Movies/Action"))
+        assertEquals("", MediaFileTransfer.relativePathFor("/storage/emulated/0"))
+    }
+
+    @Test
+    fun collectionUriFor_returnsExternalOrVolumeUri() {
+        assertEquals(
+            android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+            MediaFileTransfer.collectionUriFor("/storage/emulated/0/Movies")
+        )
+        assertEquals(
+            android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+            MediaFileTransfer.collectionUriFor("Movies")
+        )
+    }
+
+    @Test
+    fun copy_withSafTreeUri_delegatesToTreeCopy() = runBlocking {
+        val source = temporaryFolder.newFile("unified_tree_source.mp4")
+        val bytes = byteArrayOf(10, 20, 30)
+        source.writeBytes(bytes)
+        val destinationTree = "content://org.aptura.test.documents/tree/root"
+
+        val result = MediaFileTransfer.copy(
+            context,
+            listOf(Uri.fromFile(source).toString()),
+            destinationTree
+        )
+
+        assertEquals(1, result.copied)
+        assertTrue(result.failedUris.isEmpty())
+        assertArrayEquals(bytes, destinationFile.readBytes())
+    }
 }

@@ -45,7 +45,7 @@ class MediaTransferWorker(
                 MediaFileTransfer.measureSpace(
                     applicationContext,
                     remaining,
-                    initial.destination.toUri()
+                    initial.destination
                 )
             }
             if (!space.hasEnoughSpace) {
@@ -62,10 +62,10 @@ class MediaTransferWorker(
                 return Result.failure()
             }
 
-            val result = MediaFileTransfer.copyIntoTree(
+            val result = MediaFileTransfer.copy(
                 context = applicationContext,
                 sourceUris = initial.sources,
-                treeUri = initial.destination.toUri(),
+                destination = initial.destination,
                 skipCopied = initial.copiedUris.toSet(),
                 onDocumentCreated = { source, destination ->
                     update(jobId) {

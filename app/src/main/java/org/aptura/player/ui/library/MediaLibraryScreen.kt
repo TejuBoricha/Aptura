@@ -196,7 +196,8 @@ internal sealed interface LibraryActiveModal {
     data class HideSelection(val items: List<DomainMediaItem>) : LibraryActiveModal
     data class MoveToFolder(
         val uris: List<String>,
-        val fromClipboard: Boolean = false
+        val fromClipboard: Boolean = false,
+        val isMove: Boolean = true
     ) : LibraryActiveModal
 }
 
@@ -613,6 +614,50 @@ private fun MediaLibraryContentView(
         }
     }
 
+    val launchTransfer: (sources: List<String>, destination: String, shouldMove: Boolean, fromClipboard: Boolean) -> Unit =
+        { sources, destination, shouldMove, fromClipboard ->
+            if (sources.isNotEmpty()) {
+                if (destination.startsWith("content://")) {
+                    try {
+                        context.contentResolver.takePersistableUriPermission(
+                            destination.toUri(),
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                        )
+                    } catch (_: SecurityException) {
+                    }
+                }
+                val job = MediaTransferJob(
+                    id = UUID.randomUUID().toString(),
+                    sources = sources,
+                    destination = destination,
+                    isMove = shouldMove,
+                    fromClipboard = fromClipboard
+                )
+                transferCancelling = false
+                coroutineScope.launch {
+                    when (MediaTransferScheduler.start(context, job)) {
+                        MediaTransferScheduler.StartResult.Started -> transferJob = job
+                        MediaTransferScheduler.StartResult.AlreadyRunning -> {
+                            transferJob = withContext(Dispatchers.IO) { MediaTransferJournal.read(context) }
+                            Toast.makeText(
+                                context,
+                                "Another transfer is already running. Wait for it to finish.",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                        MediaTransferScheduler.StartResult.Unfinished -> {
+                            transferJob = withContext(Dispatchers.IO) { MediaTransferJournal.read(context) }
+                            Toast.makeText(
+                                context,
+                                "Finish or cancel the previous transfer before starting another.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                }
+            }
+        }
+
     val folderPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { destination ->
@@ -625,47 +670,8 @@ private fun MediaLibraryContentView(
 
         if (destination == null) {
             Toast.makeText(context, "Folder selection cancelled. Source files were kept.", Toast.LENGTH_SHORT).show()
-        } else if (sources.isNotEmpty()) {
-            try {
-                // The worker may outlive this screen and even this process. Keep both grants so it can still write
-                // to the chosen provider after WorkManager restores the journal.
-                context.contentResolver.takePersistableUriPermission(
-                    destination,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                )
-            } catch (_: SecurityException) {
-                // Some providers do not offer persistable grants. The current copy can still proceed; a provider
-                // failure after process death is reported as a failed transfer rather than deleting originals.
-            }
-            val job = MediaTransferJob(
-                id = UUID.randomUUID().toString(),
-                sources = sources,
-                destination = destination.toString(),
-                isMove = shouldMove,
-                fromClipboard = fromClipboard
-            )
-            transferCancelling = false
-            coroutineScope.launch {
-                when (MediaTransferScheduler.start(context, job)) {
-                    MediaTransferScheduler.StartResult.Started -> transferJob = job
-                    MediaTransferScheduler.StartResult.AlreadyRunning -> {
-                        transferJob = withContext(Dispatchers.IO) { MediaTransferJournal.read(context) }
-                        Toast.makeText(
-                            context,
-                            "Another transfer is already running. Wait for it to finish.",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                    MediaTransferScheduler.StartResult.Unfinished -> {
-                        transferJob = withContext(Dispatchers.IO) { MediaTransferJournal.read(context) }
-                        Toast.makeText(
-                            context,
-                            "Finish or cancel the previous transfer before starting another.",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
-                }
-            }
+        } else {
+            launchTransfer(sources, destination.toString(), shouldMove, fromClipboard)
         }
     }
 
@@ -958,17 +964,11 @@ private fun MediaLibraryContentView(
                                     modifier = Modifier.weight(1f)
                                 )
                                 TextButton(onClick = {
-                                    if (clipboardIsCut) {
-                                        activeModal = LibraryActiveModal.MoveToFolder(
-                                            uris = clipboardUris,
-                                            fromClipboard = true
-                                        )
-                                    } else {
-                                        transferUris = clipboardUris
-                                        transferIsMove = false
-                                        transferFromClipboard = true
-                                        folderPicker.launch(null)
-                                    }
+                                    activeModal = LibraryActiveModal.MoveToFolder(
+                                        uris = clipboardUris,
+                                        fromClipboard = true,
+                                        isMove = clipboardIsCut
+                                    )
                                 }) {
                                     Text("Paste", style = ApturaTypography.labelLarge, color = ApturaColors.AccentPrimary)
                                 }
@@ -1305,21 +1305,29 @@ private fun MediaLibraryContentView(
 
             is LibraryActiveModal.MoveToFolder -> {
                 val uris = modal.uris
-                ApturaDialog(
-                    onDismissRequest = { activeModal = null },
-                    icon = Icons.AutoMirrored.Filled.DriveFileMove,
-                    title = "Move ${uris.size} ${if (uris.size == 1) "video" else "videos"}?",
-                    message = "Aptura copies each video to the folder you choose, then asks Android to delete the original. " +
-                        "If a copy fails or Android declines the deletion, that original stays where it is. " +
-                        "Make sure the destination has enough free space.",
-                    confirmLabel = "Choose folder",
-                    onConfirm = {
+                val isMove = modal.isMove
+                FolderDestinationSheet(
+                    title = if (isMove) {
+                        "Move ${uris.size} ${if (uris.size == 1) "video" else "videos"} to..."
+                    } else {
+                        "Copy ${uris.size} ${if (uris.size == 1) "video" else "videos"} to..."
+                    },
+                    folders = state.folders,
+                    labels = labels,
+                    summaries = state.folderSummaries,
+                    currentFolder = state.selectedFolder,
+                    onSelectDestination = { destinationFolder ->
+                        activeModal = null
+                        launchTransfer(uris, destinationFolder, isMove, modal.fromClipboard)
+                    },
+                    onBrowseStorage = {
                         activeModal = null
                         transferUris = uris
-                        transferIsMove = true
+                        transferIsMove = isMove
                         transferFromClipboard = modal.fromClipboard
                         folderPicker.launch(null)
-                    }
+                    },
+                    onDismiss = { activeModal = null }
                 )
             }
 

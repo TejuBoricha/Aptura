@@ -1,12 +1,16 @@
 package org.aptura.player.core.media
 
 import android.content.ContentResolver
+import android.content.ContentValues
 import android.content.Context
 import android.net.Uri
-import androidx.core.net.toUri
+import android.os.Build
+import android.os.Environment
 import android.os.SystemClock
 import android.provider.DocumentsContract
+import android.provider.MediaStore
 import android.provider.OpenableColumns
+import androidx.core.net.toUri
 import java.io.File
 import java.io.IOException
 import kotlin.coroutines.coroutineContext
@@ -172,19 +176,214 @@ object MediaFileTransfer {
         return MediaTransferResult(copied, failed)
     }
 
+    /**
+     * Unified entry point: copies media into either a SAF tree or a MediaStore folder path.
+     */
+    suspend fun copy(
+        context: Context,
+        sourceUris: List<String>,
+        destination: String,
+        skipCopied: Set<String> = emptySet(),
+        onDocumentCreated: suspend (sourceUri: String, destinationUri: Uri) -> Unit = { _, _ -> },
+        onSourceCopied: suspend (sourceUri: String, destinationUri: Uri) -> Unit = { _, _ -> },
+        onProgress: suspend (MediaTransferProgress) -> Unit = {}
+    ): MediaTransferResult {
+        val destinationUri = destination.toUri()
+        return if (destination.startsWith("content://") && DocumentsContract.isTreeUri(destinationUri)) {
+            copyIntoTree(
+                context = context,
+                sourceUris = sourceUris,
+                treeUri = destinationUri,
+                skipCopied = skipCopied,
+                onDocumentCreated = onDocumentCreated,
+                onSourceCopied = onSourceCopied,
+                onProgress = onProgress
+            )
+        } else {
+            copyIntoMediaStore(
+                context = context,
+                sourceUris = sourceUris,
+                folderPath = destination,
+                skipCopied = skipCopied,
+                onDocumentCreated = onDocumentCreated,
+                onSourceCopied = onSourceCopied,
+                onProgress = onProgress
+            )
+        }
+    }
+
+    /**
+     * Copies media into a MediaStore destination folder path using Scoped Storage ContentResolver insertion.
+     */
+    suspend fun copyIntoMediaStore(
+        context: Context,
+        sourceUris: List<String>,
+        folderPath: String,
+        skipCopied: Set<String> = emptySet(),
+        onDocumentCreated: suspend (sourceUri: String, destinationUri: Uri) -> Unit = { _, _ -> },
+        onSourceCopied: suspend (sourceUri: String, destinationUri: Uri) -> Unit = { _, _ -> },
+        onProgress: suspend (MediaTransferProgress) -> Unit = {}
+    ): MediaTransferResult {
+        val resolver = context.contentResolver
+        val sources = sourceUris.distinct()
+        val sizes = sources.associateWith { sourceSize(resolver, it.toUri()) }
+        val totalBytes = sizes.values.sum()
+
+        val copied = sources.filter { it in skipCopied }.toMutableList()
+        val failed = mutableListOf<String>()
+        var copiedBytes = copied.sumOf { sizes[it] ?: 0L }
+        var completed = copied.size
+        var lastReportAt = 0L
+
+        suspend fun notify(block: suspend () -> Unit) {
+            try {
+                block()
+            } catch (cancel: CancellationException) {
+                throw cancel
+            } catch (_: Exception) {
+            }
+        }
+
+        suspend fun report(currentName: String, force: Boolean = false) {
+            val now = SystemClock.elapsedRealtime()
+            if (!force && now - lastReportAt < PROGRESS_INTERVAL_MS) return
+            lastReportAt = now
+            notify {
+                onProgress(
+                    MediaTransferProgress(
+                        completedFiles = completed,
+                        totalFiles = sources.size,
+                        copiedBytes = copiedBytes,
+                        totalBytes = totalBytes,
+                        currentName = currentName
+                    )
+                )
+            }
+        }
+
+        val relativePath = relativePathFor(folderPath)
+        val targetCollectionUri = collectionUriFor(folderPath)
+
+        report(currentName = "", force = true)
+        for (sourceString in sources.filterNot { it in skipCopied }) {
+            coroutineContext.ensureActive()
+            val source = sourceString.toUri()
+            var created: Uri? = null
+            try {
+                val name = displayName(resolver, source)
+                val mimeType = resolver.getType(source) ?: mimeTypeFromName(name)
+                val values = ContentValues().apply {
+                    put(MediaStore.Video.Media.DISPLAY_NAME, name)
+                    put(MediaStore.Video.Media.MIME_TYPE, mimeType)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        if (relativePath.isNotBlank()) {
+                            put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath)
+                        }
+                        put(MediaStore.MediaColumns.IS_PENDING, 1)
+                    }
+                }
+                val createdUri = resolver.insert(targetCollectionUri, values)
+                    ?: throw IOException("The selected folder refused to create a file.")
+                created = createdUri
+                notify { onDocumentCreated(sourceString, createdUri) }
+
+                val input = resolver.openInputStream(source)
+                    ?: throw IOException("The source video could not be opened.")
+                input.use { sourceStream ->
+                    val output = resolver.openOutputStream(createdUri, "w")
+                        ?: throw IOException("The selected folder could not be written.")
+                    output.use { targetStream ->
+                        val buffer = ByteArray(COPY_BUFFER_BYTES)
+                        while (true) {
+                            coroutineContext.ensureActive()
+                            val read = sourceStream.read(buffer)
+                            if (read < 0) break
+                            targetStream.write(buffer, 0, read)
+                            copiedBytes += read
+                            report(name)
+                            yield()
+                        }
+                    }
+                }
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    values.clear()
+                    values.put(MediaStore.MediaColumns.IS_PENDING, 0)
+                    resolver.update(createdUri, values, null, null)
+                }
+
+                copied += sourceString
+                completed++
+                notify { onSourceCopied(sourceString, createdUri) }
+                report(name, force = true)
+            } catch (cancel: CancellationException) {
+                created?.let { deleteQuietly(resolver, it) }
+                throw cancel
+            } catch (_: Exception) {
+                created?.let { deleteQuietly(resolver, it) }
+                failed += sourceString
+                completed++
+                report(source.lastPathSegment.orEmpty(), force = true)
+            }
+        }
+        return MediaTransferResult(copied, failed)
+    }
+
+    internal fun relativePathFor(folderPath: String): String {
+        val clean = folderPath.trim()
+        val relative = when {
+            clean.startsWith("/storage/emulated/0/") -> clean.removePrefix("/storage/emulated/0/")
+            clean.startsWith("/storage/emulated/0") -> ""
+            clean.startsWith("/storage/") -> {
+                val segments = clean.split('/').filter { it.isNotBlank() }
+                if (segments.size >= 3) segments.drop(2).joinToString("/") else ""
+            }
+            clean.startsWith("/") -> clean.trimStart('/')
+            else -> clean
+        }.trim('/')
+        return if (relative.isEmpty()) "" else "$relative/"
+    }
+
+    internal fun collectionUriFor(folderPath: String): Uri {
+        val clean = folderPath.trim()
+        if (clean.startsWith("/storage/") && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val segments = clean.split('/').filter { it.isNotBlank() }
+            if (segments.size >= 2 && segments[1] != "emulated") {
+                val volume = segments[1].lowercase()
+                try {
+                    return MediaStore.Video.Media.getContentUri(volume)
+                } catch (_: Exception) {
+                }
+            }
+        }
+        return MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+    }
+
     /** Removes a document that a previous process created but did not finish writing. */
     fun deletePartial(context: Context, uri: Uri) {
         deleteQuietly(context.contentResolver, uri)
     }
 
     /** Sum of the readable source sizes and the destination's advertised free space, if it reports one. */
-    fun measureSpace(context: Context, sourceUris: List<String>, treeUri: Uri): MediaTransferSpace {
+    fun measureSpace(context: Context, sourceUris: List<String>, treeUri: Uri): MediaTransferSpace =
+        measureSpace(context, sourceUris, treeUri.toString())
+
+    /** Sum of the readable source sizes and the destination's advertised free space, if it reports one. */
+    fun measureSpace(context: Context, sourceUris: List<String>, destination: String): MediaTransferSpace {
         val resolver = context.contentResolver
         val required = sourceUris.distinct().sumOf { sourceSize(resolver, it.toUri()) }
-        if (!DocumentsContract.isTreeUri(treeUri)) {
-            return MediaTransferSpace(required, availableBytes = 0L)
+        val destinationUri = destination.toUri()
+        if (destination.startsWith("content://") && DocumentsContract.isTreeUri(destinationUri)) {
+            return MediaTransferSpace(required, availableBytes(resolver, destinationUri))
         }
-        return MediaTransferSpace(required, availableBytes(resolver, treeUri))
+        val path = destination.removePrefix("file://")
+        val available = try {
+            val file = File(path)
+            if (file.exists()) file.usableSpace else Environment.getExternalStorageDirectory().usableSpace
+        } catch (_: Exception) {
+            null
+        }
+        return MediaTransferSpace(required, available)
     }
 
     /**
@@ -239,7 +438,14 @@ object MediaFileTransfer {
 
     private fun deleteQuietly(resolver: ContentResolver, uri: Uri) {
         try {
-            DocumentsContract.deleteDocument(resolver, uri)
+            val deleted = try {
+                DocumentsContract.deleteDocument(resolver, uri)
+            } catch (_: Exception) {
+                false
+            }
+            if (!deleted) {
+                resolver.delete(uri, null, null)
+            }
         } catch (_: Exception) {
             // The copy failed; the provider owns any partial document it refuses to remove.
         }
