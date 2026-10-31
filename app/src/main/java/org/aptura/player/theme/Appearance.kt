@@ -29,9 +29,9 @@ enum class AccentColor(
     CYAN("Cyan", Color(0xFF00E5FF), Color(0xFF00B4D8), Color(0xFF00707F), Color(0xFF005E6B)),
     BLUE("Blue", Color(0xFF6EA8FF), Color(0xFF3D6FD8), Color(0xFF1D4ED8), Color(0xFF173F9E)),
     VIOLET("Violet", Color(0xFFB388FF), Color(0xFF8C5CE0), Color(0xFF6D28D9), Color(0xFF4C1D95)),
-    AMBER("Amber", Color(0xFFFFC857), Color(0xFFD99A1F), Color(0xFF8A5300), Color(0xFF6B3F00)),
+    AMBER("Amber", Color(0xFFFFA000), Color(0xFFE67E00), Color(0xFF995200), Color(0xFF7A3300)),
     ROSE("Rose", Color(0xFFFF6E9C), Color(0xFFD94F7C), Color(0xFFB3124B), Color(0xFF8A0F38)),
-    GOLD("Gold", Color(0xFFFFD700), Color(0xFFE5B800), Color(0xFF7A5200), Color(0xFF5E3F00));
+    GOLD("Gold", Color(0xFFF5D77F), Color(0xFFD4AF37), Color(0xFF745700), Color(0xFF543E00));
 
     /** The colour a swatch should show in the palette that is currently on screen. */
     internal fun previewPrimary(dark: Boolean): Color = if (dark) darkPrimary else lightPrimary

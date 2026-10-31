@@ -38,6 +38,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,6 +46,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -360,6 +362,28 @@ internal fun AccentPickerRow(
     onLockedAccentClick: (() -> Unit)? = null
 ) {
     val haptic = LocalHapticFeedback.current
+    val isDark = ApturaColors.IsDark
+    val goldBrush = remember(isDark) {
+        if (isDark) {
+            Brush.linearGradient(
+                listOf(
+                    Color(0xFFFFEEB2), // Specular champagne highlight
+                    Color(0xFFF5D77F), // Luminous champagne primary
+                    Color(0xFFD4AF37), // Metallic bullion depth
+                    Color(0xFFF7E19A)  // Golden sheen edge
+                )
+            )
+        } else {
+            Brush.linearGradient(
+                listOf(
+                    Color(0xFF9E7C1F),
+                    Color(0xFF745700),
+                    Color(0xFFB89332),
+                    Color(0xFF6B4F00)
+                )
+            )
+        }
+    }
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
         RowText(title, subtitle)
         Spacer(Modifier.height(14.dp))
@@ -370,6 +394,7 @@ internal fun AccentPickerRow(
             AccentColor.entries.forEach { accent ->
                 val isSelected = accent == selected
                 val isLocked = accent == AccentColor.GOLD && !isSupporter
+                val isGold = accent == AccentColor.GOLD
                 Column(
                     modifier = Modifier
                         .clip(RoundedCornerShape(12.dp))
@@ -396,12 +421,19 @@ internal fun AccentPickerRow(
                             .clip(CircleShape)
                             .border(
                                 width = 2.dp,
-                                color = if (isSelected) ApturaColors.TextHighEmphasis else Color.Transparent,
+                                color = when {
+                                    isSelected && isGold -> if (ApturaColors.IsDark) Color(0xFFF5D77F) else Color(0xFF745700)
+                                    isSelected -> ApturaColors.TextHighEmphasis
+                                    else -> Color.Transparent
+                                },
                                 shape = CircleShape
                             )
                             .padding(3.dp)
                             .clip(CircleShape)
-                            .background(accent.previewPrimary(ApturaColors.IsDark)),
+                            .then(
+                                if (isGold) Modifier.background(goldBrush)
+                                else Modifier.background(accent.previewPrimary(ApturaColors.IsDark))
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         if (isSelected) {
