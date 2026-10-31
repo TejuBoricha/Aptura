@@ -985,10 +985,11 @@ private fun MediaLibraryContentView(
                                                 onRefresh()
                                                 if (batch.movedUris.isNotEmpty()) {
                                                     val count = batch.movedCount
+                                                    val total = batch.movedCount + batch.failedCount
                                                     val noun = if (count == 1) "video" else "videos"
                                                     transferResult = TransferResultMessage(
                                                         title = "Move complete",
-                                                        message = "$count of ${clipboardUris.size} $noun moved to $destLabel."
+                                                        message = if (total == 1) "Moved $count $noun to $destLabel." else "$count of $total $noun moved to $destLabel."
                                                     )
                                                 }
                                             }
@@ -1392,10 +1393,11 @@ private fun MediaLibraryContentView(
                                 onRefresh()
                                 if (batch.movedUris.isNotEmpty()) {
                                     val count = batch.movedCount
+                                    val total = batch.movedCount + batch.failedCount
                                     val noun = if (count == 1) "video" else "videos"
                                     transferResult = TransferResultMessage(
                                         title = "Move complete",
-                                        message = "$count of ${uris.size} $noun moved to $destLabel."
+                                        message = if (total == 1) "Moved $count $noun to $destLabel." else "$count of $total $noun moved to $destLabel."
                                     )
                                 }
                             }
