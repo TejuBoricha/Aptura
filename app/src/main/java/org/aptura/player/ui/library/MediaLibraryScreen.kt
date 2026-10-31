@@ -943,6 +943,13 @@ private fun MediaLibraryContentView(
                         }
                         if (clipboardUris.isNotEmpty()) {
                             if (selectedItems.isNotEmpty()) HorizontalDivider(color = ApturaColors.BorderSubtle)
+                            val clipboardSourceFolders = remember(clipboardUris, state.videos) {
+                                clipboardUris.mapNotNull { uri -> state.videos.firstOrNull { it.uri == uri }?.rawItem?.folderPath }.toSet()
+                            }
+                            val activeViewFolder = state.selectedFolder
+                            val canPasteDirectlyHere = activeViewFolder != null && (!clipboardIsCut || activeViewFolder !in clipboardSourceFolders)
+                            val activeFolderLabel = activeViewFolder?.let { labels[it] ?: friendlyFolderName(it) }
+
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.padding(start = 12.dp)
@@ -955,19 +962,77 @@ private fun MediaLibraryContentView(
                                 )
                                 Spacer(Modifier.width(12.dp))
                                 Text(
-                                    text = "${clipboardUris.size} ${if (clipboardUris.size == 1) "video" else "videos"} ${if (clipboardIsCut) "ready to move" else "copied"}",
+                                    text = buildString {
+                                        append("${clipboardUris.size} ${if (clipboardUris.size == 1) "video" else "videos"} ")
+                                        append(if (clipboardIsCut) "ready to move" else "copied")
+                                        if (canPasteDirectlyHere && activeFolderLabel != null) {
+                                            append(" · $activeFolderLabel")
+                                        }
+                                    },
                                     style = ApturaTypography.bodyMedium,
                                     color = ApturaColors.TextMediumEmphasis,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.weight(1f)
                                 )
-                                TextButton(onClick = {
-                                    activeModal = LibraryActiveModal.MoveToFolder(
-                                        uris = clipboardUris,
-                                        fromClipboard = true,
-                                        isMove = clipboardIsCut
-                                    )
-                                }) {
-                                    Text("Paste", style = ApturaTypography.labelLarge, color = ApturaColors.AccentPrimary)
+                                if (canPasteDirectlyHere) {
+                                    val dest = activeViewFolder
+                                    val destLabel = activeFolderLabel ?: friendlyFolderName(dest)
+                                    TextButton(onClick = {
+                                        if (clipboardIsCut && mover.canMoveAllInPlace(clipboardUris, dest)) {
+                                            moveFlow.moveAll(clipboardUris, dest) { batch ->
+                                                forgetTransferredClipboard(batch.movedUris, fromClipboard = true)
+                                                onRefresh()
+                                                if (batch.movedUris.isNotEmpty()) {
+                                                    val count = batch.movedCount
+                                                    val noun = if (count == 1) "video" else "videos"
+                                                    transferResult = TransferResultMessage(
+                                                        title = "Move complete",
+                                                        message = "$count of ${clipboardUris.size} $noun moved to $destLabel."
+                                                    )
+                                                }
+                                            }
+                                        } else {
+                                            launchTransfer(clipboardUris, dest, clipboardIsCut, true)
+                                        }
+                                    }) {
+                                        Text(
+                                            text = if (clipboardIsCut) "Move here" else "Paste here",
+                                            style = ApturaTypography.labelLarge,
+                                            color = ApturaColors.AccentPrimary
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = {
+                                            activeModal = LibraryActiveModal.MoveToFolder(
+                                                uris = clipboardUris,
+                                                fromClipboard = true,
+                                                isMove = clipboardIsCut
+                                            )
+                                        },
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.DriveFileMove,
+                                            contentDescription = "Choose another folder",
+                                            tint = ApturaColors.TextMediumEmphasis,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                } else {
+                                    TextButton(onClick = {
+                                        activeModal = LibraryActiveModal.MoveToFolder(
+                                            uris = clipboardUris,
+                                            fromClipboard = true,
+                                            isMove = clipboardIsCut
+                                        )
+                                    }) {
+                                        Text(
+                                            text = if (clipboardIsCut) "Move" else "Paste",
+                                            style = ApturaTypography.labelLarge,
+                                            color = ApturaColors.AccentPrimary
+                                        )
+                                    }
                                 }
                                 TextButton(onClick = {
                                     clipboardUris = emptyList()
@@ -1303,6 +1368,9 @@ private fun MediaLibraryContentView(
             is LibraryActiveModal.MoveToFolder -> {
                 val uris = modal.uris
                 val isMove = modal.isMove
+                val sourceFolders = remember(uris, state.videos) {
+                    uris.mapNotNull { uri -> state.videos.firstOrNull { it.uri == uri }?.rawItem?.folderPath }.toSet()
+                }
                 FolderDestinationSheet(
                     title = if (isMove) {
                         "Move ${uris.size} ${if (uris.size == 1) "video" else "videos"} to..."
@@ -1312,9 +1380,11 @@ private fun MediaLibraryContentView(
                     folders = state.folders,
                     labels = labels,
                     summaries = state.folderSummaries,
-                    currentFolder = state.selectedFolder,
+                    currentFolders = sourceFolders,
+                    isMove = isMove,
                     onSelectDestination = { destinationFolder ->
                         activeModal = null
+                        val destLabel = labels[destinationFolder] ?: friendlyFolderName(destinationFolder)
                         if (isMove && mover.canMoveAllInPlace(uris, destinationFolder)) {
                             moveFlow.moveAll(uris, destinationFolder) { batch ->
                                 selectedUris = emptySet()
@@ -1325,7 +1395,7 @@ private fun MediaLibraryContentView(
                                     val noun = if (count == 1) "video" else "videos"
                                     transferResult = TransferResultMessage(
                                         title = "Move complete",
-                                        message = "$count of ${uris.size} $noun moved to $destinationFolder."
+                                        message = "$count of ${uris.size} $noun moved to $destLabel."
                                     )
                                 }
                             }

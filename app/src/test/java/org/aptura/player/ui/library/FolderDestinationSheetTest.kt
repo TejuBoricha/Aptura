@@ -174,4 +174,57 @@ class FolderDestinationSheetTest {
         composeRule.onNodeWithText("Vacation & Family 🌴").assertIsDisplayed()
         composeRule.onNodeWithText("0 videos").assertIsDisplayed()
     }
+
+    @Test
+    fun copyMode_allowsSelectingCurrentFolder() {
+        var selectedDestination: String? = null
+        composeRule.setContent {
+            ApturaTheme {
+                FolderDestinationSheetContent(
+                    title = "Copy 1 video to...",
+                    folders = sampleFolders,
+                    labels = sampleLabels,
+                    summaries = sampleSummaries,
+                    currentFolder = "/storage/emulated/0/DCIM/Camera",
+                    isMove = false,
+                    onSelectDestination = { selectedDestination = it },
+                    onBrowseStorage = {}
+                )
+            }
+        }
+        composeRule.waitForIdle()
+
+        // In copy mode, the source folder is NOT disabled and can be selected
+        composeRule.onNodeWithText("Camera").performClick()
+        assertEquals("/storage/emulated/0/DCIM/Camera", selectedDestination)
+    }
+
+    @Test
+    fun multipleSourceFolders_areMarkedAndDisabledForMove() {
+        var selectedDestination: String? = null
+        val sourceFolders = setOf("/storage/emulated/0/Movies", "/storage/emulated/0/DCIM/Camera")
+        composeRule.setContent {
+            ApturaTheme {
+                FolderDestinationSheetContent(
+                    title = "Move 2 videos to...",
+                    folders = sampleFolders,
+                    labels = sampleLabels,
+                    summaries = sampleSummaries,
+                    currentFolders = sourceFolders,
+                    isMove = true,
+                    onSelectDestination = { selectedDestination = it },
+                    onBrowseStorage = {}
+                )
+            }
+        }
+        composeRule.waitForIdle()
+
+        // Clicking Movies (source) does nothing
+        composeRule.onNodeWithText("Movies").performClick()
+        assertNull(selectedDestination)
+
+        // Clicking Download (not source) selects Download
+        composeRule.onNodeWithText("Download").performClick()
+        assertEquals("/storage/emulated/0/Download", selectedDestination)
+    }
 }

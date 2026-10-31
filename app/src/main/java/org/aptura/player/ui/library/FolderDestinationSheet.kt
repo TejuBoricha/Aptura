@@ -59,7 +59,9 @@ internal fun FolderDestinationSheet(
     folders: List<String>,
     labels: Map<String, String>,
     summaries: Map<String, FolderSummary>,
-    currentFolder: String?,
+    currentFolder: String? = null,
+    currentFolders: Set<String> = currentFolder?.let { setOf(it) } ?: emptySet(),
+    isMove: Boolean = true,
     onSelectDestination: (String) -> Unit,
     onBrowseStorage: () -> Unit,
     onDismiss: () -> Unit,
@@ -77,6 +79,8 @@ internal fun FolderDestinationSheet(
             labels = labels,
             summaries = summaries,
             currentFolder = currentFolder,
+            currentFolders = currentFolders,
+            isMove = isMove,
             onSelectDestination = onSelectDestination,
             onBrowseStorage = onBrowseStorage
         )
@@ -89,7 +93,9 @@ internal fun FolderDestinationSheetContent(
     folders: List<String>,
     labels: Map<String, String>,
     summaries: Map<String, FolderSummary>,
-    currentFolder: String?,
+    currentFolder: String? = null,
+    currentFolders: Set<String> = currentFolder?.let { setOf(it) } ?: emptySet(),
+    isMove: Boolean = true,
     onSelectDestination: (String) -> Unit,
     onBrowseStorage: () -> Unit,
     modifier: Modifier = Modifier
@@ -158,7 +164,7 @@ internal fun FolderDestinationSheetContent(
                     contentPadding = PaddingValues(bottom = 12.dp)
                 ) {
                     items(entries, key = { it.folder ?: "" }) { entry ->
-                        val isCurrent = entry.folder != null && entry.folder == currentFolder
+                        val isCurrent = isMove && entry.folder != null && (entry.folder in currentFolders || entry.folder == currentFolder)
                         DestinationFolderRow(
                             entry = entry,
                             isCurrentFolder = isCurrent,
