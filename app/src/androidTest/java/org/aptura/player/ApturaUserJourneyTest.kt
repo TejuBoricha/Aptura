@@ -142,6 +142,8 @@ class ApturaUserJourneyTest {
         device.waitForIdle()
 
         // 5. Verify Dialog is dismissed and Settings is visible
+        composeTestRule.onNode(hasScrollAction())
+            .performScrollToNode(hasText("Source code"))
         composeTestRule.onNodeWithText("Source code")
             .assertIsDisplayed()
 
