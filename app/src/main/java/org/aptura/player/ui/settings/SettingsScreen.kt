@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -712,6 +713,42 @@ fun SettingsScreen(
                                 }
                             }
                         )
+                        if (settings.isSupporter) {
+                            PanelDivider()
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFFF5D77F).copy(alpha = 0.12f))
+                                    .border(1.dp, Color(0xFFF5D77F).copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFFF5D77F).copy(alpha = 0.20f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("⭐", style = ApturaTypography.titleSmall)
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = "Champagne Gold Active",
+                                        style = ApturaTypography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = if (ApturaColors.IsDark) Color(0xFFF5D77F) else Color(0xFF745700)
+                                    )
+                                    Text(
+                                        text = "Supporter status unlocked the exclusive Champagne Gold theme.",
+                                        style = ApturaTypography.bodySmall,
+                                        color = ApturaColors.TextMediumEmphasis
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -737,7 +774,7 @@ fun SettingsScreen(
                             Text(
                                 text = "⭐ Supporter",
                                 style = ApturaTypography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = Color(0xFFFFD700)
+                                color = Color(0xFFF5D77F)
                             )
                         }
                     }

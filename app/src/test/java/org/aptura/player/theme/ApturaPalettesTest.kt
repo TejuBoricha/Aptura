@@ -98,4 +98,22 @@ class ApturaPalettesTest {
             assertTrue("$name status colour contrast is $ratio (< 4.5:1)", ratio >= 4.5)
         }
     }
+
+    @Test
+    fun amberAndGold_areDramaticallyDistinctInBothModes() {
+        val darkAmber = ApturaPalettes.dark(AccentColor.AMBER).accentPrimary
+        val darkGold = ApturaPalettes.dark(AccentColor.GOLD).accentPrimary
+        val lightAmber = ApturaPalettes.light(AccentColor.AMBER).accentPrimary
+        val lightGold = ApturaPalettes.light(AccentColor.GOLD).accentPrimary
+
+        // Dark mode: Amber is warm honey-amber orange, Gold is pale champagne bullion gold
+        assertNotEquals(darkAmber, darkGold)
+        assertTrue(
+            "Dark gold must be significantly lighter/more luminous than dark amber (gold=${darkGold.luminance()}, amber=${darkAmber.luminance()})",
+            darkGold.luminance() > darkAmber.luminance() + 0.15f
+        )
+
+        // Light mode: Amber is rich burnt amber, Gold is antique royal gold
+        assertNotEquals(lightAmber, lightGold)
+    }
 }
