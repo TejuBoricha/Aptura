@@ -147,4 +147,31 @@ class FolderDestinationSheetTest {
 
         composeRule.onNodeWithText("No in-app folders found").assertIsDisplayed()
     }
+
+    @Test
+    fun folderWithSpecialCharactersAndZeroVideos_isDisplayedCleanly() {
+        val customFolders = listOf("/storage/emulated/0/Movies/Vacation & Family 🌴")
+        val customLabels = mapOf("/storage/emulated/0/Movies/Vacation & Family 🌴" to "Vacation & Family 🌴")
+        val customSummaries = mapOf(
+            "/storage/emulated/0/Movies/Vacation & Family 🌴" to FolderSummary(videoCount = 0, totalBytes = 0L, totalDurationMs = 0L)
+        )
+
+        composeRule.setContent {
+            ApturaTheme {
+                FolderDestinationSheetContent(
+                    title = "Move 1 video to...",
+                    folders = customFolders,
+                    labels = customLabels,
+                    summaries = customSummaries,
+                    currentFolder = null,
+                    onSelectDestination = {},
+                    onBrowseStorage = {}
+                )
+            }
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("Vacation & Family 🌴").assertIsDisplayed()
+        composeRule.onNodeWithText("0 videos").assertIsDisplayed()
+    }
 }
