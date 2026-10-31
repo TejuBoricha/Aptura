@@ -478,6 +478,39 @@ class MediaLibraryScreenUiTest {
     }
 
     @Test
+    fun cutInOneFolderAndNavigatingToAnother_exposesDirectMoveHereButton() {
+        val moviesVideo = sampleUiVideos.first().copy(
+            rawItem = sampleUiVideos.first().rawItem.copy(folderPath = "/storage/emulated/0/Movies")
+        )
+        composeTestRule.setContent {
+            ApturaTheme {
+                MediaLibraryScreen(
+                    uiState = MediaLibraryUiState.Success(
+                        videos = listOf(moviesVideo),
+                        folders = listOf("/storage/emulated/0/Movies", "/storage/emulated/0/Trailers"),
+                        selectedFolder = "/storage/emulated/0/Trailers",
+                        searchQuery = "",
+                        sortOrder = LibrarySortOrder.DATE_ADDED_DESC
+                    ),
+                    onVideoClick = { _, _ -> },
+                    onSearchQueryChanged = {},
+                    onFolderSelected = {},
+                    onSortOrderChanged = {},
+                    onRefresh = {}
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithContentDescription("More actions for Oppenheimer").performClick()
+        composeTestRule.onNodeWithText("More file actions").performClick()
+        composeTestRule.onNodeWithText("Cut").performClick()
+
+        // Since the current view is Trailers, the bar should offer "Move here" directly
+        composeTestRule.onNodeWithText("Move here").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("Choose another folder").assertIsDisplayed()
+    }
+
+    @Test
     fun cardOverflowOffersAnExplicitSelectEntry() {
         composeTestRule.setContent {
             ApturaTheme {
