@@ -126,4 +126,4 @@ The suite is strong on logic and UI structure, but it cannot prove:
 - process death during an actual SAF copy (the journal and worker are tested with fakes);
 - PiP behavior on an OEM that customizes the window manager.
 
-These are tracked in [review/audit-2026-10-28/UI_UX_REVIEW.md](../review/audit-2026-10-28/UI_UX_REVIEW.md) and the audit reports under `review/`. [DEVICE_CHECKLIST.md](DEVICE_CHECKLIST.md) turns them into the pass to run before the 1.0 tag.
+These are tracked in [the current audit](audits/CURRENT_AUDIT.md). [DEVICE_CHECKLIST.md](DEVICE_CHECKLIST.md) turns them into the pass to run before the 1.0 tag.

@@ -6,6 +6,7 @@ All notable changes to Aptura are recorded here. The format follows [Keep a Chan
 
 ### Added
 
+- **One current audit:** `docs/audits/CURRENT_AUDIT.md` is now the only active audit, with its findings, roadmap and progress table. Earlier audit files and `review/` were removed from `main` and remain readable from git at `b4de60b`.
 - **Differentiated Amber and Champagne Gold accent themes:** Shifted Amber to a warm glowing honey-amber orange (`#FFA000`) and Gold into an exclusive champagne bullion gold (`#F5D77F`) with a 4-stop specular metallic gradient swatch, dedicated champagne outer selection ring, and an exclusive Supporter Status Card in Settings.
 - **In-App Privacy Policy & Source Code Links:** Added dedicated privacy policy dialog explaining the offline-only and zero-telemetry architecture, and a direct link to the Apache-2.0 open-source repository on GitHub.
 - **Direct Folder Paste in Library:** Added clipboard paste icon on folder items allowing immediate folder-level pasting without entering sub-browsers, and fixed destination selection state in `FolderDestinationSheet`.

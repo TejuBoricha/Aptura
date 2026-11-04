@@ -48,7 +48,7 @@ Most players treat "play a file on my phone" as a feature of an online service. 
 |:---:|:---:|
 | <img src="docs/assets/screenshots/settings-tablet.png" width="460" alt="Settings on a tablet"> | <img src="docs/assets/screenshots/onboarding-privacy.png" width="250" alt="Privacy onboarding"> |
 
-These are Robolectric renders of the real composables with representative data, not mockups or device captures. The review that produced them is in [review/audit-2026-10-28/UI_UX_REVIEW.md](review/audit-2026-10-28/UI_UX_REVIEW.md).
+These are Robolectric renders of the real composables with representative data, not mockups or device captures.
 
 ## What it does
 
@@ -140,7 +140,7 @@ app/src/main/java/org/aptura/player/
   ui/         library, details, player, settings, onboarding, shared kit
 ```
 
-The domain layer has no Android imports. The UI talks to view models; view models talk to domain repositories; Media3 and Room stay behind those interfaces. Design decisions and invariants are recorded in [DESIGN.md](DESIGN.md) and the audit reports under [`review/`](review/).
+The domain layer has no Android imports. The UI talks to view models; view models talk to domain repositories; Media3 and Room stay behind those interfaces. Design decisions and invariants are recorded in [DESIGN.md](DESIGN.md) and the current audit is [docs/audits/CURRENT_AUDIT.md](docs/audits/CURRENT_AUDIT.md).
 
 ## Documentation
 
@@ -152,7 +152,7 @@ The domain layer has no Android imports. The UI talks to view models; view model
 | [docs/DEVICE_CHECKLIST.md](docs/DEVICE_CHECKLIST.md) | The physical-device pass to run before the 1.0 tag |
 | [docs/PRIVACY.md](docs/PRIVACY.md) | Data flows, permissions, diagnostics, what is never collected |
 | [DESIGN.md](DESIGN.md) | Colour, type, spacing, player HUD, component contracts |
-| [review/audit-2026-10-28/UI_UX_REVIEW.md](review/audit-2026-10-28/UI_UX_REVIEW.md) | The UI/UX pass, with before/after and after-only evidence |
+| [docs/audits/CURRENT_AUDIT.md](docs/audits/CURRENT_AUDIT.md) | The one active audit: findings, roadmap and progress |
 | [CHANGELOG.md](CHANGELOG.md) | What changed, in Keep a Changelog form |
 | [AGENTS.md](AGENTS.md) · [docs/AGENT_WORKFLOW.md](docs/AGENT_WORKFLOW.md) | How AI coding agents claim work, hand off and get reviewed |
 
