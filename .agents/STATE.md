@@ -31,6 +31,12 @@ PR's Verification section and in CI, not here, so most pull requests never need 
   installed; CI always runs them.
 - `gradle/actions/setup-gradle` is pinned to **v5 on purpose** (v6 pulls a proprietary build-cache component).
 
+## Current audit
+
+[`docs/audits/CURRENT_AUDIT.md`](../docs/audits/CURRENT_AUDIT.md) is the **only** active audit (commit `b4de60b`, 2026-11-05), and it holds the
+backlog, roadmap and progress table. Older audits were removed from `main`; the audit says how to read them from git. Do not treat a
+copy found elsewhere, such as an old branch or `.agents/MEMORY.md`, as current. Fix order follows its roadmap, starting with Phase 0.
+
 ## Open work (highest first)
 
 1. **Hardware verification:** physical-device playback, TalkBack, Bluetooth latency and detection, HDR, thermal,

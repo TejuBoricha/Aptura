@@ -120,7 +120,7 @@ CI checks that the trailer is present and not empty, not its exact format.
 | Anything | Never merge on a review alone while a test fails |
 
 If the reviewer you asked is away, use the fallback ladder in "Reviews when the reviewer is away" below rather than
-waiting for it. Reviews go in the PR or in `review/` for large audits, such as `review/audit-2026-10-28/CODE_REVIEW.md`. Which
+waiting for it. Reviews go in the PR. A repository-wide audit replaces [`docs/audits/CURRENT_AUDIT.md`](audits/CURRENT_AUDIT.md), so there is only ever one. Which
 reviewer finds real defects is tracked over time: keep a reviewer whose findings you usually accept, and drop one
 that mostly produces noise.
 

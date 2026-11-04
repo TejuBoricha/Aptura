@@ -53,7 +53,7 @@ fixtures/meta_bombs/paths/
 .vscode/
 opencode.jsonc
 
-# Ad-hoc emulator dumps (curated evidence belongs in review/)
+# Ad-hoc emulator dumps (evidence belongs in the PR)
 tools/captures/
 
 # Python bytecode (tools/agents)

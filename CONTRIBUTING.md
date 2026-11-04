@@ -65,7 +65,7 @@ If you change a screen, a sheet or a shared component:
 - Prefer the `ApturaDesignKit` components over a new one-off.
 - Keep the player and its sheets dark in both app themes.
 - Preserve 48dp touch targets and WCAG AA contrast.
-- Update the gallery render under `review/audit-2026-10-28/evidence/` only when the change is part of that review, or add a new render where the evidence index expects it.
+- Attach gallery renders to the PR as evidence. Commit a render only when it replaces an image in `docs/assets/screenshots/`.
 - Never present a Robolectric render as a device screenshot.
 
 ## Commits

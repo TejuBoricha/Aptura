@@ -12,7 +12,7 @@
 .EXAMPLE
     .\tools\emulator.ps1 -Start
     .\tools\emulator.ps1 -Status
-    .\tools\emulator.ps1 -Capture -Path "review/captures/live_screen.png"
+    .\tools\emulator.ps1 -Capture -Path "tools/captures/live_screen.png"
     .\tools\emulator.ps1 -Stop
 #>
 param(
@@ -21,7 +21,7 @@ param(
     [switch]$Restart,
     [switch]$Status,
     [switch]$Capture,
-    [string]$Path = "review/captures/screen.png",
+    [string]$Path = "tools/captures/screen.png",
     [switch]$InstallAndRun,
     [string]$Shell = "",
     [string]$AvdName = "Pixel_8_API_35",
