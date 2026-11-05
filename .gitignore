@@ -23,6 +23,13 @@ local.properties
 .kotlin/
 .cxx/
 
+# Signing keys and certificates: never commit these (SEC-01)
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+
 # Generated Media Fixtures (manifest.csv and adv_sub text files are tracked)
 fixtures/**/*.mp4
 fixtures/**/*.mkv
