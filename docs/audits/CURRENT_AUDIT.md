@@ -17,7 +17,7 @@ Date: 2026-11-05. Audited commit: `b4de60b` on `main`. Author: Claude Opus 5.5, 
 | Finding | Status | PR | Evidence |
 | --- | --- | --- | --- |
 | DEV-04 | Mostly done: evidence removed from `main`. The older history stays in the git pack. | This consolidation | Removed files listed under "Earlier audits" at the end |
-| SEC-01 | Partly done: `.gitignore` now ignores `*.jks`, `*.keystore`, `*.p12`, `*.pfx` and `*.pem`, so the keystore guide and `docs/BUILDING.md` are true. Still open: move the key outside the repo, and add a CI reject (`.github/` is a hot file, so it needs its own PR). | [#54](https://github.com/TejuBoricha/Aptura/pull/54), merged | `git check-ignore` returns 0 for `upload-keystore.jks`, `release.keystore`, `key.p12`, `cert.pfx`, `key.pem` and `keystore/release.jks`; `git add -A --dry-run` stages none of them |
+| SEC-01 | Done in code, one owner step left. `.gitignore` covers `*.jks`, `*.keystore`, `*.p12`, `*.pfx`, `*.pem`, `*.p8`, `*.key`, SSH keys and `.env` files. CI now fails any push or pull request that tracks such a file (`tools/security/check_no_secret_files.py`, which refuses to pass if it cannot list files). The keystore guide now says to keep the key outside the repository. Open: the owner moves any existing upload key out of the repository folder. The check sees the current tree only, so a key that was ever pushed must be replaced. | [#54](https://github.com/TejuBoricha/Aptura/pull/54), merged; [#56](https://github.com/TejuBoricha/Aptura/pull/56) | 9 tests pass, including a force-added `.jks` that makes the check exit 1 and name the file; the check exits 0 on the 492 files tracked today; `.env.example` stays allowed |
 
 ## Executive summary
 

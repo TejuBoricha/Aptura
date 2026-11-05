@@ -68,7 +68,7 @@ or as environment variables:
 | `APTURA_SIGNING_KEY_ALIAS` | Key alias |
 | `APTURA_SIGNING_KEY_PASSWORD` | Key password |
 
-Never commit a keystore or its passwords. `local.properties`, `*.jks` and build output are ignored.
+Never commit a keystore or its passwords. `local.properties`, key and certificate files (`*.jks`, `*.keystore`, `*.p12`, `*.pfx`, `*.pem`, `*.p8`, `*.key`), `.env` files and build output are ignored. Ignoring is not enough on its own, because `git add -f` bypasses it, so CI also fails any pull request that tracks one of those files (`tools/security/check_no_secret_files.py`). If a key is ever pushed, treat it as compromised and replace it.
 
 ## Testing the release build
 
