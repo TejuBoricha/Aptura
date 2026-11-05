@@ -54,6 +54,11 @@ if ($python) {
     Run-Step "Agent coordination checker tests (tools/agents)" {
         & $python -m unittest discover -s tools/agents
     }
+    Run-Step "Secret file guard (tools/security)" {
+        & $python -m unittest discover -s tools/security
+        if ($LASTEXITCODE -ne 0) { throw "Secret file guard tests failed" }
+        & $python tools/security/check_no_secret_files.py
+    }
 } else {
     Write-Host "`n>>> [SKIPPED] Agent coordination checker tests: Python 3 not found (CI runs them)" -ForegroundColor Yellow
 }

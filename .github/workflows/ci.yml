@@ -41,6 +41,13 @@ jobs:
             python3 tools/agents/pr_checks.py
           fi
 
+      # Fails if a signing key, private key or .env file is tracked (SEC-01). .gitignore cannot stop `git add -f`.
+      # Runs on every push and pull request, and its own tests show it fails when it should.
+      - name: Secret file guard
+        run: |
+          python3 -m unittest discover -s tools/security
+          python3 tools/security/check_no_secret_files.py
+
       - uses: actions/setup-java@v6
         with:
           distribution: temurin

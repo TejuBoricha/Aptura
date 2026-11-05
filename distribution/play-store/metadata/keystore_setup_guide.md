@@ -9,13 +9,14 @@ Aptura's Gradle build is engineered with zero-leak signing: keystore paths and p
 Run the standard Java `keytool` command in PowerShell from the project root:
 
 ```powershell
-keytool -genkeypair -v -keystore upload-keystore.jks -alias aptura-upload -keyalg RSA -keysize 2048 -validity 10000
+New-Item -ItemType Directory -Force "$HOME\.aptura" | Out-Null
+keytool -genkeypair -v -keystore "$HOME\.aptura\upload-keystore.jks" -alias aptura-upload -keyalg RSA -keysize 2048 -validity 10000
 ```
 
 When prompted:
-1. Enter and confirm a secure keystore password (e.g. `YourSecretPassword123`).
+1. Enter and confirm a strong, unique keystore password, and store it in a password manager.
 2. Enter your name / organization.
-3. Keep the file `upload-keystore.jks` in the project root (it is already ignored by `.gitignore`).
+3. Keep the keystore **outside the repository**, as in the command above. `.gitignore` also ignores key files and CI rejects a tracked one, but a file that is not in the repository cannot be committed at all. Back it up somewhere private. If it is ever pushed to GitHub, treat it as compromised and replace it.
 
 ---
 
@@ -24,10 +25,10 @@ When prompted:
 Open `local.properties` (in the project root) and append the signing properties:
 
 ```properties
-aptura.signing.storeFile=upload-keystore.jks
-aptura.signing.storePassword=YourSecretPassword123
+aptura.signing.storeFile=C:/Users/<you>/.aptura/upload-keystore.jks
+aptura.signing.storePassword=<keystore password>
 aptura.signing.keyAlias=aptura-upload
-aptura.signing.keyPassword=YourSecretPassword123
+aptura.signing.keyPassword=<key password>
 ```
 
 *(Alternatively, you can set the environment variables `APTURA_SIGNING_STORE_FILE`, `APTURA_SIGNING_STORE_PASSWORD`, `APTURA_SIGNING_KEY_ALIAS`, and `APTURA_SIGNING_KEY_PASSWORD`).*
