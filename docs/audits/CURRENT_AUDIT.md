@@ -17,7 +17,7 @@ Date: 2026-11-05. Audited commit: `b4de60b` on `main`. Author: Claude Opus 5.5, 
 | Finding | Status | PR | Evidence |
 | --- | --- | --- | --- |
 | DEV-04 | Mostly done: evidence removed from `main`. The older history stays in the git pack. | This consolidation | Removed files listed under "Earlier audits" at the end |
-| SEC-01 | Partly done: `.gitignore` now ignores `*.jks`, `*.keystore`, `*.p12`, `*.pfx` and `*.pem`, so the keystore guide and `docs/BUILDING.md` are true. Still open: move the key outside the repo, and add a CI reject (`.github/` is a hot file, so it needs its own PR). | Branch `ccr-2560f4f2-inib44`, no PR yet | `git check-ignore` returns 0 for `upload-keystore.jks`, `release.keystore`, `key.p12`, `cert.pfx`, `key.pem` and `keystore/release.jks`; `git add -A --dry-run` stages none of them |
+| SEC-01 | Partly done: `.gitignore` now ignores `*.jks`, `*.keystore`, `*.p12`, `*.pfx` and `*.pem`, so the keystore guide and `docs/BUILDING.md` are true. Still open: move the key outside the repo, and add a CI reject (`.github/` is a hot file, so it needs its own PR). | [#54](https://github.com/TejuBoricha/Aptura/pull/54), merged | `git check-ignore` returns 0 for `upload-keystore.jks`, `release.keystore`, `key.p12`, `cert.pfx`, `key.pem` and `keystore/release.jks`; `git add -A --dry-run` stages none of them |
 
 ## Executive summary
 
