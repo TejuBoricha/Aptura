@@ -101,14 +101,27 @@ object PlayerManager {
         )
         controllerInstance = controller
 
-        try {
-            val serviceIntent = Intent(appContext, ApturaPlaybackService::class.java)
-            appContext.startService(serviceIntent)
-        } catch (_: Throwable) {
-            // Service will be started when activity is in foreground
-        }
+        ensureServiceRunning(appContext)
 
         return controller
+    }
+
+    /**
+     * Starts [ApturaPlaybackService] when the process has a player, so the player has its media session and
+     * notification. Android stops that service after playback has been paused in the background for a while, but the
+     * player outlives it (audit STAB-01), so the activity calls this on every start to bring the service back.
+     * Starting a service that is already running does nothing.
+     */
+    fun ensureServiceRunning(context: Context) {
+        if (controllerInstance == null) return
+        val appContext = context.applicationContext
+        try {
+            appContext.startService(Intent(appContext, ApturaPlaybackService::class.java))
+        } catch (_: IllegalStateException) {
+            // The app is in the background, where Android refuses to start a service. The next start retries.
+        } catch (_: SecurityException) {
+            // Same: the system declined, and the player keeps working without a notification until the next start.
+        }
     }
 
     /** Lock-screen / notification artwork: a real video frame thumbnail (Android 10+). */

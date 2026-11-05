@@ -2,17 +2,21 @@
 
 package org.aptura.player.data.playback
 
-import android.content.Context
+import android.app.Application
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.test.core.app.ApplicationProvider
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 /**
@@ -28,7 +32,7 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 class PlaybackServiceLifecycleTest {
 
-    private val context: Context = ApplicationProvider.getApplicationContext()
+    private val app: Application = ApplicationProvider.getApplicationContext()
 
     @After
     fun tearDown() {
@@ -36,9 +40,20 @@ class PlaybackServiceLifecycleTest {
         PlayerManager.release()
     }
 
+    /** Services the app started so far, oldest first, and forgets them so the next check sees only new starts. */
+    private fun drainStartedServices(): List<String> {
+        val shadow = shadowOf(app)
+        val names = mutableListOf<String>()
+        while (true) {
+            val intent = shadow.nextStartedService ?: break
+            names += intent.component?.className.orEmpty()
+        }
+        return names
+    }
+
     @Test
     fun systemStoppingTheIdleService_leavesThePlayerUsable() {
-        val controller = PlayerManager.getOrCreate(context)
+        val controller = PlayerManager.getOrCreate(app)
         val player = controller.player as ExoPlayer
         val service = Robolectric.buildService(ApturaPlaybackService::class.java).create()
 
@@ -48,5 +63,40 @@ class PlaybackServiceLifecycleTest {
         assertFalse("the service released the player the activity still holds", player.isReleased)
         assertNotNull("the process lost its player", PlayerManager.activeController)
         assertSame("a held controller no longer matches the process player", controller, PlayerManager.activeController)
+    }
+
+    @Test
+    fun returningToTheApp_startsThePlaybackServiceAgain() {
+        PlayerManager.getOrCreate(app)
+        Robolectric.buildService(ApturaPlaybackService::class.java).create().destroy()
+        drainStartedServices()
+
+        PlayerManager.ensureServiceRunning(app)
+
+        assertEquals(listOf(ApturaPlaybackService::class.java.name), drainStartedServices())
+    }
+
+    @Test
+    fun ensureServiceRunning_withoutAPlayer_startsNothing() {
+        PlayerManager.release()
+        drainStartedServices()
+
+        PlayerManager.ensureServiceRunning(app)
+
+        assertTrue("a service was started with no player to serve", drainStartedServices().isEmpty())
+    }
+
+    @Test
+    fun leavingForGood_releasesThePlayerWithTheService() {
+        val controller = PlayerManager.getOrCreate(app)
+        val player = controller.player as ExoPlayer
+        val service = Robolectric.buildService(ApturaPlaybackService::class.java).create()
+
+        // Task swiped away from Recents with nothing playing: the service stops itself, and nobody is left to use the player.
+        service.get().onTaskRemoved(null)
+        service.destroy()
+
+        assertTrue("the player of a user who left was never released", player.isReleased)
+        assertNull(PlayerManager.activeController)
     }
 }
