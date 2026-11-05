@@ -18,6 +18,9 @@ class ApturaPlaybackService : MediaSessionService() {
 
     private var mediaSession: MediaSession? = null
 
+    /** Set when the user leaves for good (task swiped away with nothing playing): the player goes with the service. */
+    private var releasePlayerOnDestroy = false
+
     override fun onCreate() {
         super.onCreate()
 
@@ -48,8 +51,10 @@ class ApturaPlaybackService : MediaSessionService() {
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         val player = mediaSession?.player
-        // If playback is not active when app is swiped away from Recents, stop foreground service
+        // If playback is not active when app is swiped away from Recents, stop foreground service. This is the one
+        // exit that also releases the player, because nobody is left to use it.
         if (player == null || !player.playWhenReady || player.mediaItemCount == 0) {
+            releasePlayerOnDestroy = true
             stopSelf()
         }
     }
@@ -59,7 +64,13 @@ class ApturaPlaybackService : MediaSessionService() {
             release()
             mediaSession = null
         }
-        PlayerManager.release()
+        // Android stops this service when playback has been paused in the background for a while. The activity, its
+        // ViewModel and Navigation still hold the controller they got from PlayerManager, so the player must outlive
+        // the service: releasing it here left Play dead and new videos failing until the process was killed (audit
+        // STAB-01). MainActivity.onStart starts the service again when the app returns.
+        if (releasePlayerOnDestroy) {
+            PlayerManager.release()
+        }
         super.onDestroy()
     }
 

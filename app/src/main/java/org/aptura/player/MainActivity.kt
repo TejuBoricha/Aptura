@@ -101,6 +101,15 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
+     * The system stops the idle playback service while the app is in the background, and the player outlives it.
+     * Bring the service back whenever the app returns, so the player has its session and notification again.
+     */
+    override fun onStart() {
+        super.onStart()
+        PlayerManager.ensureServiceRunning(this)
+    }
+
+    /**
      * "Background Audio Playback" was a toggle nothing read. When it is OFF, leaving the app (not merely rotating
      * or going into picture-in-picture) pauses playback.
      */
