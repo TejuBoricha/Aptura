@@ -26,11 +26,14 @@ FORBIDDEN_NAMES = (
     "*.p8",
     "*.key",
     "id_rsa",
+    "id_dsa",
     "id_ecdsa",
     "id_ed25519",
-    ".env",
+    "*.env",
     ".env.*",
     "local.properties",
+    "keystore.properties",
+    "signing.properties",
 )
 
 # Committed on purpose, with placeholder values only.
@@ -50,8 +53,13 @@ def find_forbidden(paths):
 
 
 def tracked_files():
+    # `git ls-files` lists only the current directory and below, so always ask from the repository root. Otherwise a
+    # run from a subdirectory would check part of the tree and still report a pass.
+    root = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"], check=True, capture_output=True
+    ).stdout.decode("utf-8", errors="surrogateescape").strip()
     out = subprocess.run(
-        ["git", "ls-files", "-z"], check=True, capture_output=True
+        ["git", "ls-files", "-z"], check=True, capture_output=True, cwd=root
     ).stdout.decode("utf-8", errors="surrogateescape")
     return [p for p in out.split("\0") if p]
 

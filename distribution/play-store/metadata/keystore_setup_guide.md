@@ -6,7 +6,7 @@ Aptura's Gradle build is engineered with zero-leak signing: keystore paths and p
 
 ### Step 1: Generate an Upload Keystore (If you do not have one yet)
 
-Run the standard Java `keytool` command in PowerShell from the project root:
+Run the standard Java `keytool` command in PowerShell:
 
 ```powershell
 New-Item -ItemType Directory -Force "$HOME\.aptura" | Out-Null
