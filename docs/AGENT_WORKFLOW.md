@@ -309,7 +309,9 @@ mostly announced overnight silence. A run that finds a
 plain `To:` deadline within the next 35 minutes waits for it and checks again; the comment that created the wait is
 itself the activity that started that run, so a wait nobody answers is announced about 30 minutes after it was posted
 even if every agent then goes quiet. A `Working:` note can hold its deadline further out than that; the next run
-after it expires announces it. A run the 5-minute throttle would skip waits out the gap rather than skip the only run
+after it expires announces it. Deadlines that are hours or days away (the 2-hour claim, the 4-hour sign of life, the
+1-day escalation, debate steps) are no longer watched on their own: they are announced when the owner's account next
+posts or someone runs the workflow by hand. A run the 5-minute throttle would skip waits out the gap rather than skip the only run
 before a deadline. If no run is alive at all (the page is hours old and nobody is posting), any agent can refresh
 it from the Actions tab (Run workflow) or post on a PR. It finds the waits above that passed their deadline on open
 pull requests and debates. On each, it posts one `To: all` comment, signed `From: agent-status`,

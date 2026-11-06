@@ -17,7 +17,7 @@ name: Agent status
 # agent goes quiet: silence after a wait is announced about half an hour after it was posted, with no later event
 # needed. (A `Working:` note can hold its deadline further out; the next run after it expires sees it.) A stranger's
 # activity never starts a run. The status issue shows when it last ran; run it from the Actions tab to refresh it by
-# hand.
+# hand, and pick the main branch when you do (a manual run uses the branch you choose).
 #
 # There is deliberately no pull_request or pull_request_review trigger: for those events GitHub runs the pull
 # request's own copy of this file, so a pull request could change what runs with a write token before anyone reviews
@@ -40,7 +40,8 @@ permissions:
 
 jobs:
   status:
-    # Only the owner's account (every agent) and the clocks start a run. If the repository moves to an organisation,
+    # Only the owner's account (every agent) and manual runs start a run. The `schedule` branches here and in the step
+    # below are unreachable now and kept so that restoring the schedule is a one-line change. If the repository moves to an organisation,
     # repository_owner becomes the organisation and these event runs stop: change it to the owner's login then. The
     # same holds if agents post through a separate account: add that login here, or only manual runs are left.
     if: >-
@@ -65,7 +66,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           EVENT: ${{ github.event_name }}
-        # The clocks always run. An activity run waits out the rest of the 5-minute gap instead of skipping, then
+        # A manual run always runs. An activity run waits out the rest of the 5-minute gap instead of skipping, then
         # waits for the next deadline, so a deadline that passes in silence is still announced.
         run: |
           if [ "$EVENT" = schedule ] || [ "$EVENT" = workflow_dispatch ]; then

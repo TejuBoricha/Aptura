@@ -703,7 +703,7 @@ Two things should be sequenced together: STAB-01 and FUNC-05 share one design, a
 - [ ] How should the bundled decoders be handled legally? (LEG-01)
 - [ ] Should transfers use a foreground service or resumable partial files? (DATA-03)
 - [ ] Should Aptura stay Play-only, or also ship on F-Droid? (PROD-G2)
-- [ ] Should the multi-agent process be frozen? (DEV-03, recommended yes)
+- [x] Should the multi-agent process be frozen? (DEV-03, recommended yes). Decided 2026-11-06 on the owner's instruction in their session to take the recommended option; see the DEV-03 row.
 - [ ] Which languages come first? (I18N-01)
 
 The earlier root `AUDIT_*.md` files report issues as Verified and phases as 100% complete. I did not treat them as evidence. The STAB-01 release call dates from commit \`9305123\` on 2026-10-23, itself an audit fix, so it predates the 2026-10-30 audit. Their "production readiness" conclusion should be withdrawn.
