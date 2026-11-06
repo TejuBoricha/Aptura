@@ -231,6 +231,17 @@ class MediaLibraryViewModel(
     /** Called once Android confirmed the file was deleted from storage. */
     fun onVideoDeleted(uri: String) = removeVideoFromLibrary(uri)
 
+    /**
+     * Called once the original of a copied video was removed from storage, because the video was moved. Unlike
+     * [onVideoDeleted] it keeps the index row, with its progress, settings and bookmarks, and only marks it missing:
+     * the next scan finds the copy and carries them over to it. Deleting the row here lost them (audit DATA-01).
+     */
+    fun onVideoMovedAway(uri: String) {
+        viewModelScope.launch(dispatcher + errorHandler) {
+            mediaRepository.markVideoMissing(uri)
+        }
+    }
+
     /** Hides a video from the library; the hide survives rescans until restored. */
     fun hideVideo(uri: String) {
         viewModelScope.launch(dispatcher + errorHandler) {

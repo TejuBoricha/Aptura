@@ -47,6 +47,10 @@ class MediaLibraryViewModelTest {
             videosFlow.value = videosFlow.value.filter { it.uri != uri }
         }
 
+        override suspend fun markVideoMissing(uri: String) {
+            videosFlow.value = videosFlow.value.map { if (it.uri == uri) it.copy(isMissing = true) else it }
+        }
+
         override suspend fun removeVideosByUriPrefix(uriPrefix: String) {
             videosFlow.value = videosFlow.value.filter { !it.uri.startsWith(uriPrefix) }
         }
@@ -503,6 +507,34 @@ class MediaLibraryViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertEquals("Inception Remastered", repo.videosFlow.value.first().title)
+    }
+
+    // --- DATA-01: a video moved by copy-then-delete keeps its row, so the scan can carry its data to the copy ---
+
+    @Test
+    fun onVideoMovedAway_marksTheVideoMissingAndKeepsItsRow() = runTest(testDispatcher) {
+        val repo = FakeMediaRepository()
+        repo.videosFlow.value = listOf(item1, item2)
+        val viewModel = MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 0L)
+
+        viewModel.onVideoMovedAway(item1.uri)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("the row, with its progress and bookmarks, must stay", setOf(item1.uri, item2.uri), repo.videosFlow.value.map { it.uri }.toSet())
+        assertTrue(repo.videosFlow.value.single { it.uri == item1.uri }.isMissing)
+        assertFalse("only the moved video is marked", repo.videosFlow.value.single { it.uri == item2.uri }.isMissing)
+    }
+
+    @Test
+    fun onVideoDeleted_stillDropsTheRow() = runTest(testDispatcher) {
+        val repo = FakeMediaRepository()
+        repo.videosFlow.value = listOf(item1, item2)
+        val viewModel = MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 0L)
+
+        viewModel.onVideoDeleted(item1.uri)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("a real deletion removes the row", listOf(item2.uri), repo.videosFlow.value.map { it.uri })
     }
 
     @Test

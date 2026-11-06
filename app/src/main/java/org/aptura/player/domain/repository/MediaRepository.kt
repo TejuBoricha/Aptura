@@ -46,6 +46,14 @@ interface MediaRepository {
     suspend fun removeVideoFromLibrary(uri: String)
 
     /**
+     * Marks a video's index row missing without deleting it, so its progress, settings and bookmarks are kept. Use when
+     * the file left its place by a move (a copy, then the original removed): the next scan pairs the copy with this row
+     * and carries them over to it (audit DATA-01). A row nothing matches stays a missing video until the person
+     * removes it. For a file that was really deleted, use [removeVideoFromLibrary].
+     */
+    suspend fun markVideoMissing(uri: String) {}
+
+    /**
      * Hides a video from the library without touching the file. Unlike a plain index delete, the hide
      * survives rescans until [restoreHiddenVideos] is called (SCR-018).
      */
