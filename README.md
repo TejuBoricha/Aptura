@@ -181,7 +181,7 @@ Security reports should follow [SECURITY.md](SECURITY.md), not a public issue.
 
 ## License
 
-Aptura is licensed under the [Apache License 2.0](LICENSE). Third-party components and their licenses are listed in [NOTICE](NOTICE). The FFmpeg audio extension is LGPL-2.1 and is built and loaded as a separate native library.
+Aptura is licensed under the [Apache License 2.0](LICENSE). Third-party components and their licenses are listed in [NOTICE](NOTICE). The FFmpeg audio extension is a prebuilt third-party library, and its publisher labels it GPL-3.0. Its licence terms are under review (DEC-014 in [spec/17](spec/17_RISKS_ASSUMPTIONS_AND_DECISIONS.md)), so treat it as not yet cleared for a store release.
 
 The name, logo and banner are original works for this project.
 
