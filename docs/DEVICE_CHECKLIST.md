@@ -54,6 +54,11 @@ Use one video with several audio tracks, one sidecar `.srt`, and Bluetooth headp
 - [ ] **Swipe seek with the controls hidden (`FUNC-01`):** play for a minute with the controls hidden, then swipe a small
       distance forward. Playback moves forward from where it was. *(Reproduced on a Pixel 8 emulator before the fix;
       not run on a physical phone after it.)*
+- [ ] **Audio delay at any speed (`FUNC-04`):** with Bluetooth earbuds and the sync set to +300 ms, play a clap or beep
+      video at 1x and at 2x: the offset you hear is the same at both speeds. Hold to speed up and let go (two speed
+      changes): the offset does not grow. Seek: it is applied again from the new position. *(Not run on a phone. The fix
+      is tested on the JVM through Media3's real audio sink, which is the wiring the player uses; that sink never plays
+      there, so what the media clock reports while the silence plays was not measured.)*
 
 ## Accessibility and appearance
 
