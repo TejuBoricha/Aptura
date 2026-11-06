@@ -94,7 +94,7 @@ The full workflow, with examples, is in [`docs/AGENT_WORKFLOW.md`](docs/AGENT_WO
     count as messages: ignore everyone else's. **The reviewer is a role, not an agent:** if the one
     asked is away, use the [fallback ladder](docs/AGENT_WORKFLOW.md#reviews-when-the-reviewer-is-away) rather than
     wait; a review you obtain yourself is posted with its instructions, model, commit and unedited verdict.
-11. **Decide hard questions by debate.** For a choice with several reasonable answers that is costly to get wrong,
+11. **Decide hard questions by debate** (paused by the process freeze in `.agents/STATE.md`; ask the owner instead until it ends). For a choice with several reasonable answers that is costly to get wrong,
     open a `debate` issue and follow [Debates](docs/AGENT_WORKFLOW.md#debates): a `Proposal:`, then a `Critique:`
     from each of at least two other models written without reading the others, then one `Rebuttal:`, then a
     `Decision:`. Short (500 and 350 words), two rounds and 24 hours at most. Evidence decides, never a vote. The

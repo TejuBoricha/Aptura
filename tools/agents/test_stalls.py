@@ -1054,7 +1054,7 @@ class DriftTest(unittest.TestCase):
         clock, activity = re.search(r"then\n(.*?)\n\s*else\n(.*?)\n\s*fi", workflow, re.S).groups()
         self.assertNotIn("--min-gap", clock)
         self.assertIn("--min-gap", activity)
-        # Issue #14: an activity run waits for the next deadline; the clocks already run every 15 minutes.
+        # Issue #14: an activity run waits for the next deadline; a manual run does not.
         self.assertNotIn("--wait-for-deadline", clock)
         self.assertIn("--wait-for-deadline", activity)
         # The job must outlast the 5-minute gap, the longest documented wait, and the slack.
