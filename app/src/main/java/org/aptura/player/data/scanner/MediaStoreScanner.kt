@@ -64,15 +64,18 @@ class MediaStoreScanner(
             "AND (${MediaStore.Video.Media.MIME_TYPE} LIKE 'video/%' " +
             "OR ${MediaStore.Video.Media.MIME_TYPE} IN ('application/x-matroska', 'application/ogg', 'application/mp4', 'application/vnd.rn-realmedia'))"
 
-        val cursor: Cursor? = contentResolver.query(
+        // A null cursor means MediaStore did not answer (the provider is not ready or died), which is not the same as
+        // "there are no videos". Treating it as an empty library made the scan look like every file had vanished
+        // (audit DATA-04), so it is a failed scan instead.
+        val cursor: Cursor = contentResolver.query(
             uri,
             projection(),
             selection,
             null,
             sortOrder
-        )
+        ) ?: throw MediaStoreUnavailableException()
 
-        cursor?.use { c ->
+        cursor.use { c ->
             val idCol = c.getColumnIndex(MediaStore.Video.Media._ID)
             val nameCol = c.getColumnIndex(MediaStore.Video.Media.DISPLAY_NAME)
             val titleCol = c.getColumnIndex(MediaStore.Video.Media.TITLE)
