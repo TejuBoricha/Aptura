@@ -41,6 +41,34 @@ class NoNamesInDiagnosticsTest {
         assertFalse(logged.contains("Renamed"))
     }
 
+    /**
+     * Review finding: the first version only looked at Navigation.kt and only for `e.message`. Every diagnostic call in
+     * the app is checked here, for every way an exception's text can end up in a payload.
+     */
+    @Test
+    fun noDiagnosticCallRecordsExceptionTextAnywhereInTheApp() {
+        val root = listOf("app/src/main/java", "../app/src/main/java").map(::File).first { it.exists() }
+        val forbidden = listOf(
+            Regex("""\.message\b"""), Regex("""localizedMessage"""), Regex("""\$\{?(?:e|t|error|throwable|ex)\}?""""),
+            Regex("""\b(?:e|t|error|throwable|ex)\.toString\(\)""")
+        )
+        val offenders = mutableListOf<String>()
+        root.walkTopDown().filter { it.isFile && it.extension == "kt" }.forEach { file ->
+            val text = file.readText()
+            var from = 0
+            while (true) {
+                val at = text.indexOf("logEvent(", from)
+                if (at < 0) break
+                from = at + 1
+                val call = text.substring(at, minOf(text.length, at + 700))
+                // The call ends at the first blank line or the next function; 700 characters covers every payload here.
+                val inCall = call.substringBefore("\n\n")
+                if (forbidden.any { it.containsMatchIn(inCall) }) offenders += "${file.name}: ${inCall.lines().take(6).joinToString(" ").take(160)}"
+            }
+        }
+        assertTrue("diagnostic calls that record exception text: $offenders", offenders.isEmpty())
+    }
+
     @Test
     fun navigationLogsExceptionClassesNotMessages() {
         // The messages of SecurityException and IOException can embed the URI or path that failed. A source check is

@@ -79,8 +79,74 @@ class RedactionAdversarialTest {
     @Test
     fun textWithoutAPathIsLeftAlone() {
         assertEquals("Decoder init failed", RedactionEngine.redactText("Decoder init failed"))
-        assertEquals("see /data/database for details", RedactionEngine.redactText("see /data/database for details"))
+        assertEquals("aspect 16/9 at 1920/1080", RedactionEngine.redactText("aspect 16/9 at 1920/1080"))
+        assertEquals("see https://example.com/data/x", RedactionEngine.redactText("see https://example.com/data/x"))
         assertEquals("ERR_PARSER_CORRUPT stage=decode", RedactionEngine.redactText("ERR_PARSER_CORRUPT stage=decode"))
+    }
+
+    /** Review finding 1: a URI with an unencoded space used to leave the rest of the name behind. */
+    @Test
+    fun urisWithSpacesLeaveNothingBehind() {
+        val uris = listOf(
+            "file:///storage/emulated/0/Movies/My Holiday/secret clip.mp4",
+            "content://com.android.externalstorage.documents/document/primary:Movies/My Holiday/secret clip.mp4",
+            "content://com.android.providers.downloads.documents/document/raw:/storage/emulated/0/Download/Priya wedding.mp4",
+            "Unable to open content://media/external/file/My Holiday.mp4"
+        )
+        for (raw in uris) {
+            val out = RedactionEngine.redactText(raw)
+            assertNoneOf(out, "Holiday", "secret", "Priya", "wedding", "clip", "Movies")
+        }
+    }
+
+    /** Review finding 2: roots Android really emits. */
+    @Test
+    fun theRootsAndroidActuallyEmitsAreCovered() {
+        val roots = listOf(
+            "/mnt/user/0/emulated/0/Movies/Secret Holiday.mp4",
+            "/sdcard0/Movies/Secret Holiday.mp4",
+            "/mnt/runtime/default/emulated/0/Secret.mp4",
+            "/mnt/expand/0a1b2c3d/media/0/Secret.mp4",
+            "/data/local/tmp/Secret Holiday.mp4",
+            "/storage/self/primary/Movies/Secret Holiday.mp4"
+        )
+        for (raw in roots) {
+            val out = RedactionEngine.redactText("I/O error on $raw")
+            assertNoneOf(out, "Secret", "Holiday", "/mnt", "/sdcard", "/data", "/storage")
+            assertTrue(out.startsWith("I/O error on "))
+        }
+    }
+
+    @Test
+    fun anExtensionIsKeptOnlyWhenItIsAKnownOne() {
+        // The old code took everything after the last dot of the whole rest of the line.
+        val trailing = RedactionEngine.redactText("/storage/emulated/0/a.mp4 owner priya.kumar")
+        assertNoneOf(trailing, "priya", "kumar", "owner")
+        val nameWithDot = RedactionEngine.redactText("/storage/emulated/0/Movies/Trip.Priya")
+        assertNoneOf(nameWithDot, "Priya", "Trip")
+        assertEquals("[FILE_REDACTED].mkv", RedactionEngine.redactText("/storage/emulated/0/Movies/Show S01E02.MKV"))
+        assertEquals(
+            "[FILE_REDACTED]",
+            RedactionEngine.redactPayload(mapOf("fileName" to "Priya.Kumar"), includeFileName = false)["fileName"]
+        )
+    }
+
+    @Test
+    fun percentEncodedPathsAndDocumentIdsAreRemoved() {
+        val encoded = RedactionEngine.redactText("opening %2Fstorage%2Femulated%2F0%2FMovies%2FSecret%20Holiday.mp4")
+        assertNoneOf(encoded, "Secret", "Holiday", "Movies")
+        for (id in listOf("primary:Movies/Private/Secret Holiday.mp4", "1A2B-3C4D:Movies/Secret Holiday.mp4", "raw:/storage/emulated/0/x y.mp4")) {
+            assertNoneOf(RedactionEngine.redactText("document $id"), "Secret", "Private", "Movies", "storage")
+        }
+    }
+
+    @Test
+    fun aHugeValueIsHandledQuickly() {
+        val start = System.nanoTime()
+        val out = RedactionEngine.redactText("a".repeat(50_000))
+        val ms = (System.nanoTime() - start) / 1_000_000
+        assertTrue("took $ms ms", ms < 1_000)
+        assertTrue(out.length < 5_000)
     }
 
     @Test

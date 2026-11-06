@@ -44,12 +44,15 @@ Deleting the app removes all of it. Android backup is off, so a reinstall starts
 
 ## Diagnostics
 
-Aptura records a bounded set of local events with codes such as "scan started" or "playback failed", plus the exception class for failures. Before export, `RedactionEngine` removes:
+Aptura records a bounded set of local events with codes such as "scan started" or "playback failed", plus the exception class for failures. It does not record video titles, file names or exception messages, because those can contain what you watch. As a second line of defence, `RedactionEngine` removes the following before anything is stored or exported:
 
-- storage paths (`/storage/...`, `/sdcard/...`, `/data/...`);
-- file names, unless you explicitly choose to include them;
+- storage paths (`/storage/...`, `/sdcard/...`, `/mnt/...`, `/data/...`), together with the rest of the line they are on, since file names contain spaces;
+- `content://` and `file://` addresses, and percent-encoded paths and document ids (`primary:...`);
+- file names, unless you explicitly choose to include them (a known extension such as `.mp4` is kept, because it helps diagnose a failure);
 - email addresses;
 - IPv4 addresses.
+
+When in doubt it removes too much rather than too little. Look at the report before you send it: it is Markdown and opens in the share sheet you choose.
 
 Settings has **Export diagnostics** and **Delete diagnostic data**. Export creates a Markdown report and hands it to the share sheet you choose. Delete clears the in-memory buffer and the on-device files immediately. There is no hidden copy and no automatic upload.
 
