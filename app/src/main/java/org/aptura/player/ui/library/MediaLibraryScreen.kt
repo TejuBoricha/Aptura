@@ -231,6 +231,7 @@ fun MediaLibraryScreen(
     onAddToQueue: (DomainMediaItem) -> Unit = {},
     onPlayAudioOnly: (DomainMediaItem, List<DomainMediaItem>) -> Unit = onVideoClick,
     onVideoDeleted: (String) -> Unit = onRemoveVideo,
+    onVideoMovedAway: (String) -> Unit = {},
     showCrashNotice: Boolean = false,
     onShareCrashDetails: () -> Unit = {},
     onDismissCrashNotice: () -> Unit = {},
@@ -312,6 +313,7 @@ fun MediaLibraryScreen(
                         onAddToQueue = onAddToQueue,
                         onPlayAudioOnly = onPlayAudioOnly,
                         onVideoDeleted = onVideoDeleted,
+                        onVideoMovedAway = onVideoMovedAway,
                         showCrashNotice = showCrashNotice,
                         onShareCrashDetails = onShareCrashDetails,
                         onDismissCrashNotice = onDismissCrashNotice,
@@ -347,6 +349,7 @@ private fun MediaLibraryContentView(
     onAddToQueue: (DomainMediaItem) -> Unit = {},
     onPlayAudioOnly: (DomainMediaItem, List<DomainMediaItem>) -> Unit = onVideoClick,
     onVideoDeleted: (String) -> Unit = onRemoveVideo,
+    onVideoMovedAway: (String) -> Unit = {},
     showCrashNotice: Boolean = false,
     onShareCrashDetails: () -> Unit = {},
     onDismissCrashNotice: () -> Unit = {},
@@ -390,6 +393,15 @@ private fun MediaLibraryContentView(
     val deleteFlow = rememberMediaDeleteFlow(onDeleted = { uri ->
         ThumbnailRepository.deleteThumbnail(context, uri)
         onVideoDeleted(uri)
+        clipboardUris = clipboardUris - uri
+        if (clipboardUris.isEmpty()) clipboardIsCut = false
+    })
+    // The originals a move removes once their copy is made. Removing the file is the same, but the video was not
+    // deleted: its index row keeps its progress, settings and bookmarks and is marked missing, and the next scan pairs
+    // the copy with it. Using [deleteFlow] here dropped them with the row (audit DATA-01).
+    val moveDeleteFlow = rememberMediaDeleteFlow(onDeleted = { uri ->
+        ThumbnailRepository.deleteThumbnail(context, uri)
+        onVideoMovedAway(uri)
         clipboardUris = clipboardUris - uri
         if (clipboardUris.isEmpty()) clipboardIsCut = false
     })
@@ -1493,7 +1505,7 @@ private fun MediaLibraryContentView(
                 confirmLabel = "Continue",
                 onConfirm = {
                     pendingCrossVolumeMoveJob = null
-                    deleteFlow.deleteAll(job.copiedUris) { deletion ->
+                    moveDeleteFlow.deleteAll(job.copiedUris) { deletion ->
                         selectedUris = emptySet()
                         forgetTransferredClipboard(deletion.deletedUris, job.fromClipboard)
                         onRefresh()

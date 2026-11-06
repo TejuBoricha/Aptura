@@ -94,6 +94,10 @@ class MediaRepositoryImpl(
         bookmarkDao?.deleteBookmarksForMedia(uri)
     }
 
+    override suspend fun markVideoMissing(uri: String): Unit = withContext(ioDispatcher) {
+        mediaItemDao.updateMissingStatusByUri(uri, true)
+    }
+
     override suspend fun hideVideo(uri: String): Unit = withContext(ioDispatcher) {
         mediaItemDao.hideByUri(uri)
     }

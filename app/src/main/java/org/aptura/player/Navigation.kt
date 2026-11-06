@@ -511,6 +511,7 @@ private fun AppNavHost(
                     },
                     onRemoveVideo = libraryViewModel::hideVideo,
                     onVideoDeleted = libraryViewModel::onVideoDeleted,
+                    onVideoMovedAway = libraryViewModel::onVideoMovedAway,
                     onResetProgress = libraryViewModel::resetVideoProgress,
                     onRenameVideo = libraryViewModel::renameVideo,
                     onRemoveMissingVideo = libraryViewModel::removeMissingVideo,

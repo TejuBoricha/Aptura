@@ -6,6 +6,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import org.aptura.player.data.repository.MediaRepositoryImpl
 import org.aptura.player.data.scanner.FileReconciliationEngine
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -248,6 +249,79 @@ class ApturaDatabaseRealSqlTest {
             migrated.close()
             file.delete()
         }
+    }
+
+    // --- DATA-01: a video moved by copy-then-delete keeps its progress and bookmarks ---
+
+    private suspend fun watchedVideoWithABookmark(): MediaItemEntity {
+        val original = scanned(mediaStoreId = -7L, uri = "content://tree/old/Show.mkv", title = "Show", sizeBytes = 9_999L)
+        db.mediaItemDao().insertOrUpdate(original)
+        db.mediaItemDao().updatePlaybackPosition(original.uri, 41_314L, false, 1234L)
+        db.bookmarkDao().insertBookmark(BookmarkEntity(mediaUri = original.uri, timestampMs = 5_000L, note = "intro"))
+        return original
+    }
+
+    /** The scan after a move: the original is gone, and a copy of the same size and length sits in a new folder. */
+    private suspend fun scanFindsTheCopy(original: MediaItemEntity): MediaItemEntity {
+        val copy = scanned(mediaStoreId = -8L, uri = "content://tree/new/Show.mkv", title = "Show", sizeBytes = original.sizeBytes)
+        val result = FileReconciliationEngine.reconcile(listOf(copy), db.mediaItemDao().getAllVideosRaw())
+        db.mediaItemDao().insertOrUpdateAll(result.itemsToUpsert)
+        result.uriRemaps.forEach { (oldUri, newUri) -> db.bookmarkDao().remapMediaUri(oldUri, newUri) }
+        return copy
+    }
+
+    @Test
+    fun aMovedVideoMarkedMissing_carriesItsProgressAndBookmarksToTheCopy() = runBlocking {
+        val repository = MediaRepositoryImpl(db.mediaItemDao(), db.bookmarkDao())
+        val original = watchedVideoWithABookmark()
+
+        repository.markVideoMissing(original.uri) // what a move does once the original is removed
+
+        val kept = db.mediaItemDao().getVideoByUri(original.uri)!!
+        assertTrue(kept.isMissing)
+        assertEquals("progress survives until the scan", 41_314L, kept.playbackPositionMs)
+        assertEquals("bookmarks survive until the scan", 1, db.bookmarkDao().getBookmarksForMedia(original.uri).first().size)
+
+        val copy = scanFindsTheCopy(original)
+
+        val carried = db.mediaItemDao().getVideoByUri(copy.uri)!!
+        assertFalse(carried.isMissing)
+        assertEquals("the copy continues where the original stopped", 41_314L, carried.playbackPositionMs)
+        assertNull("the original's row is replaced by the copy's", db.mediaItemDao().getVideoByUri(original.uri))
+        assertEquals("intro", db.bookmarkDao().getBookmarksForMedia(copy.uri).first().single().note)
+        assertTrue(db.bookmarkDao().getBookmarksForMedia(original.uri).first().isEmpty())
+    }
+
+    @Test
+    fun aMovedVideoRemovedFromTheIndexFirst_leavesTheScanNothingToCarryOver() = runBlocking {
+        // What a move did before DATA-01: it deleted the row and its bookmarks before any scan could pair the copy.
+        val repository = MediaRepositoryImpl(db.mediaItemDao(), db.bookmarkDao())
+        val original = watchedVideoWithABookmark()
+
+        repository.removeVideoFromLibrary(original.uri)
+        val copy = scanFindsTheCopy(original)
+
+        val fresh = db.mediaItemDao().getVideoByUri(copy.uri)!!
+        assertEquals("the copy starts unwatched", 0L, fresh.playbackPositionMs)
+        assertTrue("and the bookmarks are gone for good", db.bookmarkDao().getBookmarksForMedia(copy.uri).first().isEmpty())
+    }
+
+    @Test
+    fun aMovedVideoNothingMatches_staysMissingWithItsDataUntilTheUserRemovesIt() = runBlocking {
+        val repository = MediaRepositoryImpl(db.mediaItemDao(), db.bookmarkDao())
+        val original = watchedVideoWithABookmark()
+        repository.markVideoMissing(original.uri)
+
+        // The copy went to a folder the library does not scan, so the scan finds only an unrelated file.
+        val unrelated = scanned(mediaStoreId = -9L, uri = "content://media/external/video/media/9", title = "Other", sizeBytes = 1_234_567L)
+        val result = FileReconciliationEngine.reconcile(listOf(unrelated), db.mediaItemDao().getAllVideosRaw())
+        db.mediaItemDao().insertOrUpdateAll(result.itemsToUpsert)
+
+        val stays = db.mediaItemDao().getVideoByUri(original.uri)!!
+        assertTrue(stays.isMissing)
+        assertEquals(41_314L, stays.playbackPositionMs)
+        assertEquals(1, db.bookmarkDao().getBookmarksForMedia(original.uri).first().size)
+        assertTrue("it is listed as a missing video", db.mediaItemDao().getMissingVideos().first().any { it.uri == original.uri })
     }
 
     @Test
