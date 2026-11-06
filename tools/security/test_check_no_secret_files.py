@@ -17,8 +17,8 @@ class FindForbiddenTest(unittest.TestCase):
     def test_flags_every_key_and_certificate_type(self):
         names = [
             "upload-keystore.jks", "release.keystore", "key.p12", "cert.pfx", "key.pem",
-            "AuthKey_ABC.p8", "server.key", "id_rsa", "id_ecdsa", "id_ed25519", ".env", ".env.production",
-            "local.properties",
+            "AuthKey_ABC.p8", "server.key", "id_rsa", "id_dsa", "id_ecdsa", "id_ed25519", ".env", ".env.production",
+            "secrets.env", "local.properties", "keystore.properties", "signing.properties",
         ]
         self.assertEqual(check.find_forbidden(names), names)
 
@@ -88,6 +88,20 @@ class CommandLineTest(unittest.TestCase):
         result = self.run_check()
         self.assertEqual(result.returncode, 1)
         self.assertIn("keystore/upload.keystore", result.stderr)
+
+    def test_run_from_a_subdirectory_still_checks_the_whole_repository(self):
+        # Regression: `git ls-files` alone lists only the current directory, so this used to report a pass.
+        os.makedirs(os.path.join(self.repo, "keystore"))
+        with open(os.path.join(self.repo, "keystore", "release.jks"), "w") as f:
+            f.write("x\n")
+        git(self.repo, "add", "-f", "keystore/release.jks")
+        os.makedirs(os.path.join(self.repo, "app", "src"))
+        with open(os.path.join(self.repo, "app", "src", "Main.kt"), "w") as f:
+            f.write("x\n")
+        git(self.repo, "add", "app/src/Main.kt")
+        result = self.run_check(cwd=os.path.join(self.repo, "app", "src"))
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("keystore/release.jks", result.stderr)
 
     def test_an_untracked_ignored_key_is_not_reported(self):
         with open(os.path.join(self.repo, "local.jks"), "w") as f:

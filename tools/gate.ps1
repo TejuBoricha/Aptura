@@ -6,6 +6,7 @@
 #   3. Android Lint (Validates opt-in annotations, licenses & offline invariants)
 #   4. Release build, which also runs verifyReleaseApk (no network stack / telemetry SDK in the shipped code)
 #   5. Agent coordination checker tests (tools/agents), when Python 3 is installed; CI always runs them
+#   6. Secret file guard (tools/security): fails if a signing key or .env file is tracked; same condition as step 5
 # ==============================================================================
 
 $ErrorActionPreference = "Stop"
@@ -60,7 +61,7 @@ if ($python) {
         & $python tools/security/check_no_secret_files.py
     }
 } else {
-    Write-Host "`n>>> [SKIPPED] Agent coordination checker tests: Python 3 not found (CI runs them)" -ForegroundColor Yellow
+    Write-Host "`n>>> [SKIPPED] Agent coordination checker and secret file guard: Python 3 not found (CI runs them)" -ForegroundColor Yellow
 }
 
 Write-Host "`n==========================================================" -ForegroundColor Green
