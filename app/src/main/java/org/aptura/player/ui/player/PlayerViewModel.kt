@@ -91,6 +91,12 @@ class PlayerViewModel(
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
 
     private var autoHideJob: Job? = null
+
+    /** Set while a screen reader is on: hiding the controls would leave it nothing to focus (audit A11Y-01). */
+    private var keepControlsVisible = false
+
+    /** The auto-hide delay, lengthened when the person set a longer "time to take action" in system settings. */
+    private var autoHideDelayMs = AUTO_HIDE_DELAY_MS
     private var volumeFeedbackJob: Job? = null
     private var brightnessFeedbackJob: Job? = null
     private var seekFeedbackJob: Job? = null
@@ -942,6 +948,23 @@ class PlayerViewModel(
         }
     }
 
+    /**
+     * The system's accessibility settings as they apply to the controls (audit A11Y-01).
+     *
+     * [keepVisible] is true while touch exploration (TalkBack) is on: the controls then never hide on their own, because a
+     * hidden control cannot be focused or announced. [autoHideDelayMs] is the system's recommended timeout; it can make the
+     * delay longer than the default 5 s for someone who asked for more time, never shorter.
+     */
+    fun setAccessibilityControlsPolicy(keepVisible: Boolean, autoHideDelayMs: Long) {
+        keepControlsVisible = keepVisible
+        this.autoHideDelayMs = autoHideDelayMs.coerceAtLeast(AUTO_HIDE_DELAY_MS)
+        if (keepVisible) {
+            if (!_uiState.value.isLocked) showControls()
+        } else {
+            scheduleAutoHide()
+        }
+    }
+
     fun toggleControlsVisibility() {
         if (_uiState.value.isLocked) {
             triggerLockHint()
@@ -1469,14 +1492,15 @@ class PlayerViewModel(
 
     private fun scheduleAutoHide() {
         autoHideJob?.cancel()
+        if (keepControlsVisible) return
         if (_uiState.value.isPlaying &&
             !_uiState.value.isScrubbing &&
             !_uiState.value.isAnySheetVisible &&
             _uiState.value.errorMessage == null
         ) {
             autoHideJob = viewModelScope.launch(dispatcher + errorHandler) {
-                delay(AUTO_HIDE_DELAY_MS)
-                if (_uiState.value.isPlaying) {
+                delay(autoHideDelayMs)
+                if (_uiState.value.isPlaying && !keepControlsVisible) {
                     _uiState.update { it.copy(isControlsVisible = false) }
                 }
             }

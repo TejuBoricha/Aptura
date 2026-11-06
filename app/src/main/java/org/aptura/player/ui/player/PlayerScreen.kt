@@ -137,6 +137,7 @@ import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
@@ -293,9 +294,12 @@ fun PlayerScreen(
     onDismissWhyCompatibilitySheet: () -> Unit = {},
     onResetVideoPreferences: () -> Unit = {},
     onAudioOnlyChanged: (Boolean) -> Unit = {},
+    // The system's accessibility settings as they apply to the controls: (touchExplorationOn, recommendedAutoHideMs).
+    onAccessibilityPolicyChanged: (Boolean, Long) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    ScreenReaderControlsPolicy(onAccessibilityPolicyChanged)
     val haptic = LocalHapticFeedback.current
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
 
@@ -423,6 +427,16 @@ fun PlayerScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                // The video area is raw touch handling, which a screen reader cannot see. Without this, once the controls
+                // hid a TalkBack user had nothing to focus and no way to bring them back (audit A11Y-01). One labelled
+                // action: double-tap shows or hides the controls, the same as a tap does for everyone else.
+                .semantics {
+                    contentDescription = "Video"
+                    onClick(label = if (uiState.isControlsVisible) "Hide playback controls" else "Show playback controls") {
+                        onControlsVisibilityToggle()
+                        true
+                    }
+                }
                 .pointerInput(uiState.isLocked) {
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)

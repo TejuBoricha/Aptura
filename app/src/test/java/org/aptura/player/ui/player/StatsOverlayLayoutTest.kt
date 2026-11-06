@@ -6,6 +6,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -87,7 +88,10 @@ class StatsOverlayLayoutTest {
         )
         assertTrue("the panel at $panel must have non-zero size", panel.width > 0f && panel.height > 0f)
 
-        val outsidePanel = hasClickAction() and !hasTestTag(STATS_TAG) and !hasAnyAncestor(hasTestTag(STATS_TAG))
+        // The full-screen video area carries one screen-reader action (audit A11Y-01). It is the surface the panel floats
+        // over, not a button, so it is not a control the panel could cover.
+        val outsidePanel = hasClickAction() and !hasTestTag(STATS_TAG) and !hasAnyAncestor(hasTestTag(STATS_TAG)) and
+            !hasContentDescription("Video")
         val controls = composeRule.onAllNodes(outsidePanel)
         val count = controls.fetchSemanticsNodes().size
         assertTrue("expected the player's buttons to be found, found $count", count >= 8)
