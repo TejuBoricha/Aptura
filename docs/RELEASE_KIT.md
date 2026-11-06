@@ -8,55 +8,14 @@ This document contains production-ready metadata, store copy, privacy declaratio
 
 ### App Details
 - **App Name:** `Aptura Video Player` *(20 / 30 characters)*
-- **Short Description:**
-  `100% offline, privacy-first video player with zero permissions and fluid UI.` *(76 / 80 characters)*
+- **Short and full description, and the release notes:** the text lives in `distribution/play-store/metadata/` (`short_description.txt`, `full_description.txt`, `release_notes_v1.0.0.txt`). It is not copied here, because two copies drifted apart and the older one made claims the app does not meet (audit finding SHIP-01). Check every claim against the code before editing it.
 - **Category:** Video Players & Editors
 - **Content Rating:** Everyone (PEGI 3, ESRB Everyone, zero objectionable content, zero online interaction)
 - **Default Language:** English (United States) (`en-US`)
 
-### Full Description (Play Store formatted)
-```text
-Aptura is an elegant, offline-first video player engineered for privacy, speed, and smooth Material 3 aesthetics.
+### Full description
 
-🔒 100% OFFLINE & PRIVATE BY DESIGN
-Aptura contains zero network stack and requires NO internet permission (zero android.permission.INTERNET). Your files, watch history, bookmarks, and settings never leave your device.
-• Zero Analytics or Telemetry
-• Zero Third-Party Tracking or Ads
-• Zero Account Creation Required
-• Scoped Storage Safe (Standard MediaStore & user-selected SAF folders only)
-
-⚡ HARDWARE-ACCELERATED PLAYBACK
-Built on modern Android Media3 architecture:
-• Hardware decoding for 4K, 60fps, and HDR10 content.
-• Fine-grained playback speed control (0.25x to 3.0x in 0.05x increments).
-• Seamless A-B looping and frame-precise scrubbing.
-• Picture-in-Picture (PiP) support with background playback.
-
-🎨 BESPOKE MATERIAL 3 DESIGN
-Immerse yourself in clean dark elegance:
-• True OLED dark themes designed to conserve battery and eliminate eye fatigue.
-• Distinct Accent Themes: Amber, Emerald, Rose, Violet, Aptura Blue, and Champagne Gold.
-• Fluid, gesture-driven HUD: swipe for volume, brightness, and horizontal seeking.
-
-⏱️ INTELLIGENT SLEEP TIMER
-Fall asleep to your favorite shows without waking up to a dead battery:
-• Monotonic sleep timer (5 to 720 minutes) with a gradual, 10-second volume fade-out.
-• "At the end of this video" automatic pause option.
-• Background audio and notification countdown that survives app minimization.
-
-🎧 ADVANCED AUDIO & SUBTITLES
-• Multi-track audio selection with Bluetooth audio sync offset (±1000 ms).
-• Sidecar subtitle support (.srt, .vtt) with customizable timing, font sizing, and styling.
-• High-resolution PCM audio compatibility (24-bit, 32-bit float, and 5.1 multichannel).
-
-📁 EFFICIENT IN-APP MEDIA MANAGEMENT
-• Organize, move, copy, and rename videos directly within your storage.
-• Direct folder-level paste and folder destination selection.
-• Fast search, filtering, and customizable Grid / List layouts.
-
-Aptura is free and open-source under the Apache-2.0 license.
-Source code: https://github.com/TejuBoricha/Aptura
-```
+See `distribution/play-store/metadata/full_description.txt`. Play limits: short description 80 characters, full description 4,000, release notes 500.
 
 ---
 

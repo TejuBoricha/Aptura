@@ -18,11 +18,15 @@ Aptura is an offline video player. It does not collect, transmit or sell persona
 | `READ_EXTERNAL_STORAGE` (Android 12 and lower) | The same access on older releases. |
 | `FOREGROUND_SERVICE` | Keep playback alive while the app is in the background. |
 | `FOREGROUND_SERVICE_MEDIA_PLAYBACK` | Declare the foreground service type required by Android 14+. |
+| `WAKE_LOCK` | Keep the device awake while a video plays and while the library scan runs. Added by the playback and background-work libraries. |
+| `RECEIVE_BOOT_COMPLETED` | Let the background-work library (WorkManager) reschedule the library scan after a restart. Added by that library. |
+| `ACCESS_NETWORK_STATE` | Added by the background-work library so it can check whether a network exists. It can only see whether one exists; it does not allow a connection. Aptura has no network features. |
+
+The release build also holds one permission only Aptura itself can use (`DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`, added by AndroidX). It grants nothing to other apps.
 
 Aptura does **not** request:
 
 - `android.permission.INTERNET`
-- `android.permission.ACCESS_NETWORK_STATE`
 - `android.permission.MANAGE_EXTERNAL_STORAGE`
 - `android.permission.POST_NOTIFICATIONS` (the media session is exempt)
 - location, contacts, camera, microphone, calendar or phone state
