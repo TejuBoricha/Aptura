@@ -96,10 +96,9 @@ object FileReconciliationEngine {
 
                 ApturaDiagnostics.logEvent(
                     code = EventCode.EV_006,
+                    // No titles or file names: a diagnostic report must not name what the person watches (audit PRIV-01).
                     payload = mapOf(
                         "reconciliation" to "file_moved_or_renamed",
-                        "oldTitle" to existing.title,
-                        "newTitle" to candidate.title,
                         "sizeBytes" to existing.sizeBytes.toString()
                     )
                 )
