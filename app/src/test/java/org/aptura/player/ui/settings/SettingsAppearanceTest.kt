@@ -7,6 +7,9 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isSelectable
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -44,8 +47,7 @@ class SettingsAppearanceTest {
         accent: AccentColor = AccentColor.CYAN,
         isSupporter: Boolean = false,
         onMode: (ThemeMode) -> Unit = {},
-        onAccent: (AccentColor) -> Unit = {},
-        onSupporter: (Boolean) -> Unit = {}
+        onAccent: (AccentColor) -> Unit = {}
     ) {
         composeRule.setContent {
             ApturaTheme(themeMode = mode, accentColor = accent) {
@@ -61,8 +63,7 @@ class SettingsAppearanceTest {
                     onRescanClick = {},
                     onReplayOnboardingClick = {},
                     onUpdateThemeMode = onMode,
-                    onUpdateAccentColor = onAccent,
-                    onUpdateSupporter = onSupporter
+                    onUpdateAccentColor = onAccent
                 )
             }
         }
@@ -101,10 +102,14 @@ class SettingsAppearanceTest {
         composeRule.onNodeWithContentDescription("Rose accent").assertIsSelected()
     }
 
+    /**
+     * Audit PROD-01: Gold used to be locked until the person clicked "Star on GitHub" or flipped an honour-system toggle,
+     * which looks like an incentivised action and is out of place in a free app. Every accent is open to everyone.
+     */
     @Test
-    fun choosingGoldWhenSupporter_reportsGold() {
+    fun goldIsOpenToEveryone_withNoLockAndNoSupporterToggle() {
         var chosen: AccentColor? = null
-        show(isSupporter = true, onAccent = { chosen = it })
+        show(isSupporter = false, onAccent = { chosen = it })
 
         composeRule.onNode(hasScrollAction()).performScrollToNode(hasContentDescription("Gold accent"))
         composeRule.onNodeWithContentDescription("Gold accent")
@@ -113,25 +118,19 @@ class SettingsAppearanceTest {
             .performClick()
 
         assertEquals(AccentColor.GOLD, chosen)
+        composeRule.onAllNodesWithContentDescription("Locked").assertCountEquals(0)
+        composeRule.onAllNodesWithText("Gold 🔒").assertCountEquals(0)
+        composeRule.onAllNodesWithText("I Supported Aptura 🏅").assertCountEquals(0)
+        composeRule.onAllNodesWithText("⭐ Supporter").assertCountEquals(0)
     }
 
     @Test
-    fun togglingSupporter_callsCallback() {
-        var toggled: Boolean? = null
-        show(isSupporter = false, onSupporter = { toggled = it })
-
-        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("I Supported Aptura 🏅"))
-        composeRule.onNode(hasText("I Supported Aptura 🏅")).performClick()
-
-        assertEquals(true, toggled)
-    }
-
-    @Test
-    fun supporterBadge_isDisplayedWhenSupporter() {
+    fun anOldSupporterFlag_doesNotAddABadgeOrLabel() {
         show(isSupporter = true)
 
-        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("⭐ Supporter"))
-        composeRule.onNode(hasText("⭐ Supporter")).assertIsDisplayed()
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasContentDescription("Gold accent"))
+        composeRule.onAllNodesWithText("⭐ Supporter").assertCountEquals(0)
+        composeRule.onAllNodesWithText("Gold ⭐").assertCountEquals(0)
     }
 
     @Test

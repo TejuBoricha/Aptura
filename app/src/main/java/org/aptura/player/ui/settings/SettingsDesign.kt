@@ -30,7 +30,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -357,9 +356,7 @@ internal fun AccentPickerRow(
     title: String,
     subtitle: String,
     selected: AccentColor,
-    onSelect: (AccentColor) -> Unit,
-    isSupporter: Boolean = false,
-    onLockedAccentClick: (() -> Unit)? = null
+    onSelect: (AccentColor) -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
     val isDark = ApturaColors.IsDark
@@ -393,7 +390,6 @@ internal fun AccentPickerRow(
         ) {
             AccentColor.entries.forEach { accent ->
                 val isSelected = accent == selected
-                val isLocked = accent == AccentColor.GOLD && !isSupporter
                 val isGold = accent == AccentColor.GOLD
                 Column(
                     modifier = Modifier
@@ -402,10 +398,7 @@ internal fun AccentPickerRow(
                             selected = isSelected,
                             role = Role.RadioButton,
                             onClick = {
-                                if (isLocked) {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    onLockedAccentClick?.invoke()
-                                } else if (!isSelected) {
+                                if (!isSelected) {
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     onSelect(accent)
                                 }
@@ -443,22 +436,11 @@ internal fun AccentPickerRow(
                                 tint = if (ApturaColors.IsDark) Color(0xFF001217) else Color.White,
                                 modifier = Modifier.size(16.dp)
                             )
-                        } else if (isLocked) {
-                            Icon(
-                                imageVector = Icons.Default.Lock,
-                                contentDescription = "Locked",
-                                tint = if (ApturaColors.IsDark) Color(0xFF001217) else Color.White,
-                                modifier = Modifier.size(14.dp)
-                            )
                         }
                     }
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        text = when {
-                            accent == AccentColor.GOLD && isSupporter -> "Gold ⭐"
-                            accent == AccentColor.GOLD -> "Gold 🔒"
-                            else -> accent.label
-                        },
+                        text = accent.label,
                         style = ApturaTypography.labelMedium.copy(fontFeatureSettings = ""),
                         color = if (isSelected) ApturaColors.TextHighEmphasis else ApturaColors.TextMediumEmphasis,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,

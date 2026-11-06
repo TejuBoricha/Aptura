@@ -164,7 +164,6 @@ fun SettingsScreen(
     missingVideoCount: Int = 0,
     onClearMissingVideos: () -> Unit = {},
     onDeleteDiagnosticData: () -> Unit = { ApturaDiagnostics.clearAll() },
-    onUpdateSupporter: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -334,15 +333,7 @@ fun SettingsScreen(
                             title = "Accent color",
                             subtitle = "Controls, selection and progress",
                             selected = settings.accentColor,
-                            onSelect = onUpdateAccentColor,
-                            isSupporter = settings.isSupporter,
-                            onLockedAccentClick = {
-                                Toast.makeText(
-                                    context,
-                                    "Champagne Gold is unlocked with the Supporter Badge below! 🏅",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            }
+                            onSelect = onUpdateAccentColor
                         )
                     }
                 }
@@ -720,11 +711,6 @@ fun SettingsScreen(
                                     onClick = {
                                         val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/TejuBoricha/Aptura"))
                                         context.startActivity(intent)
-                                        if (!settings.isSupporter) {
-                                            onUpdateSupporter(true)
-                                            onUpdateAccentColor(AccentColor.GOLD)
-                                            Toast.makeText(context, "Thank you for starring Aptura! Champagne Gold unlocked ⭐", Toast.LENGTH_SHORT).show()
-                                        }
                                     },
                                     leading = {
                                         Icon(
@@ -740,7 +726,7 @@ fun SettingsScreen(
                                     onClick = {
                                         val sendIntent = Intent().apply {
                                             action = Intent.ACTION_SEND
-                                            putExtra(Intent.EXTRA_TEXT, "Check out Aptura - a 100% offline, privacy-first Android video player with zero permissions: https://github.com/TejuBoricha/Aptura")
+                                            putExtra(Intent.EXTRA_TEXT, "Check out Aptura - a 100% offline, privacy-first Android video player with no internet permission: https://github.com/TejuBoricha/Aptura")
                                             type = "text/plain"
                                         }
                                         context.startActivity(Intent.createChooser(sendIntent, "Share Aptura"))
@@ -754,55 +740,6 @@ fun SettingsScreen(
                                         )
                                     }
                                 )
-                            }
-                        }
-                        PanelDivider()
-                        ToggleRow(
-                            title = "I Supported Aptura 🏅",
-                            subtitle = "Honor-system toggle. Unlocks the Champagne Gold theme accent and a golden supporter badge.",
-                            checked = settings.isSupporter,
-                            onCheckedChange = { supported ->
-                                onUpdateSupporter(supported)
-                                if (supported) {
-                                    onUpdateAccentColor(AccentColor.GOLD)
-                                    Toast.makeText(context, "Thank you for supporting Aptura! Champagne Gold unlocked ⭐", Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                        )
-                        if (settings.isSupporter) {
-                            PanelDivider()
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(Color(0xFFF5D77F).copy(alpha = 0.12f))
-                                    .border(1.dp, Color(0xFFF5D77F).copy(alpha = 0.35f), RoundedCornerShape(12.dp))
-                                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFFF5D77F).copy(alpha = 0.20f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text("⭐", style = ApturaTypography.titleSmall)
-                                }
-                                Spacer(Modifier.width(12.dp))
-                                Column {
-                                    Text(
-                                        text = "Champagne Gold Active",
-                                        style = ApturaTypography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                        color = if (ApturaColors.IsDark) Color(0xFFF5D77F) else Color(0xFF745700)
-                                    )
-                                    Text(
-                                        text = "Supporter status unlocked the exclusive Champagne Gold theme.",
-                                        style = ApturaTypography.bodySmall,
-                                        color = ApturaColors.TextMediumEmphasis
-                                    )
-                                }
                             }
                         }
                     }
@@ -825,14 +762,6 @@ fun SettingsScreen(
                             style = ApturaTypography.labelMedium,
                             color = ApturaColors.TextLowEmphasis
                         )
-                        if (settings.isSupporter) {
-                            Spacer(Modifier.width(6.dp))
-                            Text(
-                                text = "⭐ Supporter",
-                                style = ApturaTypography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = Color(0xFFF5D77F)
-                            )
-                        }
                     }
                     Spacer(Modifier.height(4.dp))
                     Text(
