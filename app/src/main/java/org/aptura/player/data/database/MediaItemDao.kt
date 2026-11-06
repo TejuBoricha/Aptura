@@ -94,7 +94,18 @@ interface MediaItemDao {
     @Query("DELETE FROM media_items WHERE uri = :uri")
     suspend fun deleteByUri(uri: String)
 
-    @Query("DELETE FROM media_items WHERE uri LIKE :uriPrefix || '%'")
+    /**
+     * Deletes the videos under one folder. [uriPrefix] is the folder's own URI (a SAF tree URI), and a video is under
+     * it when its URI is that folder followed by `/`.
+     *
+     * The comparison is plain text, never a `LIKE` pattern: `%` and `_` are wildcards there, and every tree URI
+     * carries a `%` (the encoded colon). A folder that merely starts the same, such as `Movies2` next to `Movies`, is
+     * another folder and keeps its rows, with their progress and bookmarks (audit DATA-12).
+     */
+    @Query(
+        "DELETE FROM media_items WHERE uri = :uriPrefix " +
+            "OR (substr(uri, 1, length(:uriPrefix)) = :uriPrefix AND substr(uri, length(:uriPrefix) + 1, 1) = '/')"
+    )
     suspend fun deleteByUriPrefix(uriPrefix: String)
 
     @Query("UPDATE media_items SET isMissing = :isMissing WHERE id IN (:ids)")
