@@ -88,6 +88,82 @@ class MediaScanWorker(
                 } catch (_: Throwable) {}
             }
         }
+
+        /**
+         * Merges one scan's findings into the library in a single transaction: reconciles them against the stored rows,
+         * writes the rows and moved bookmarks, and deletes the rows that are really gone. Returns the rows it wrote.
+         *
+         * [startSnapshot] is what the library held when the scan began. The scan has been reading the storage since,
+         * often for minutes, and the person has kept using the app: finishing, renaming, hiding or deleting videos. So the
+         * merge is not made against that snapshot. It reads the rows again inside the transaction that writes them, and
+         * the person's changes win (audit DATA-05). The snapshot only tells which rows were removed meanwhile.
+         */
+        internal suspend fun persistScan(
+            database: ApturaDatabase,
+            scanned: List<MediaItemEntity>,
+            startSnapshot: List<MediaItemEntity>,
+            hasStorage: Boolean
+        ): List<MediaItemEntity> {
+            val dao = database.mediaItemDao()
+
+            // One transaction holds the write lock from the read to the last write, so nothing the person does can land in
+            // between and then be overwritten.
+            return database.withTransaction {
+                // The library as it is now, not as it was when the scan began.
+                val current = dao.getAllVideosRaw()
+
+                // A row that was there when the scan began and is gone now was removed meanwhile (a deletion, a removed
+                // folder). The scan saw its file before that, so it must not bring the row back. If the file is still
+                // there, the next scan will find it.
+                val currentUris = current.mapTo(HashSet()) { it.uri }
+                val removed = startSnapshot.filter { it.uri !in currentUris }
+                val removedUris = removed.mapTo(HashSet()) { it.uri }
+                val removedStoreIds = removed.mapTo(HashSet()) { it.mediaStoreId }
+                val found = scanned.filterNot { it.uri in removedUris || it.mediaStoreId in removedStoreIds }
+
+                // 3. Reconcile scanned items against the rows as they are now
+                val reconciliation = FileReconciliationEngine.reconcile(
+                    scannedItems = found,
+                    existingItems = current
+                )
+
+                // Separate genuinely missing external/progress-bearing items from deleted internal MediaStore files with no
+                // user data at all. "No user data" means every column the person owns (audit DATA-04), see
+                // isPurgeableMissingRow. It is decided from the current rows, so a video the person has just played is not
+                // taken for one with no data.
+                val (staleInternalToDelete, itemsToUpsert) = reconciliation.itemsToUpsert.partition { item ->
+                    isPurgeableMissingRow(item, hasStorage)
+                }
+                val allIdsToDelete = reconciliation.idsToDelete +
+                    staleInternalToDelete.mapNotNull { it.id.takeIf { id -> id > 0L } } +
+                    current.filter { item ->
+                        isPurgeableMissingRow(item, hasStorage) &&
+                            found.none { file -> file.uri == item.uri || file.mediaStoreId == item.mediaStoreId }
+                    }.mapNotNull { it.id.takeIf { id -> id > 0L } }
+
+                // 4. Upsert, bookmark remapping and obsolete deletion
+                if (itemsToUpsert.isNotEmpty()) {
+                    itemsToUpsert.chunked(BATCH_SIZE).forEach { batch ->
+                        dao.insertOrUpdateAll(batch)
+                    }
+                }
+
+                // 4b. Keep bookmarks attached to files whose URI changed (moved/renamed SAF documents)
+                val bookmarkDao = database.bookmarkDao()
+                reconciliation.uriRemaps.forEach { (oldUri, newUri) ->
+                    bookmarkDao.remapMediaUri(oldUri, newUri)
+                }
+
+                // 5. Delete obsolete IDs if any were explicitly flagged
+                if (allIdsToDelete.isNotEmpty()) {
+                    allIdsToDelete.distinct().chunked(500).forEach { batch ->
+                        dao.deleteByIds(batch)
+                    }
+                }
+
+                itemsToUpsert
+            }
+        }
     }
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
@@ -149,45 +225,8 @@ class MediaScanWorker(
                 }
             }
 
-            // 3. Reconcile scanned items against existing database items
-            val reconciliation = FileReconciliationEngine.reconcile(
-                scannedItems = allScanned,
-                existingItems = existingVideos
-            )
-
-            // Separate genuinely missing external/progress-bearing items from deleted internal MediaStore files with no user
-            // data at all. "No user data" means every column the person owns (audit DATA-04), see isPurgeableMissingRow.
-            val (staleInternalToDelete, itemsToUpsert) = reconciliation.itemsToUpsert.partition { item ->
-                isPurgeableMissingRow(item, hasStorage)
-            }
-            val allIdsToDelete = reconciliation.idsToDelete +
-                staleInternalToDelete.mapNotNull { it.id.takeIf { id -> id > 0L } } +
-                existingVideos.filter { item ->
-                    isPurgeableMissingRow(item, hasStorage) &&
-                        allScanned.none { scanned -> scanned.uri == item.uri || scanned.mediaStoreId == item.mediaStoreId }
-                }.mapNotNull { it.id.takeIf { id -> id > 0L } }
-
-            // 4. Atomic transaction for database upsert, bookmark remapping, and obsolete deletion
-            database.withTransaction {
-                if (itemsToUpsert.isNotEmpty()) {
-                    itemsToUpsert.chunked(BATCH_SIZE).forEach { batch ->
-                        dao.insertOrUpdateAll(batch)
-                    }
-                }
-
-                // 4b. Keep bookmarks attached to files whose URI changed (moved/renamed SAF documents)
-                val bookmarkDao = database.bookmarkDao()
-                reconciliation.uriRemaps.forEach { (oldUri, newUri) ->
-                    bookmarkDao.remapMediaUri(oldUri, newUri)
-                }
-
-                // 5. Delete obsolete IDs if any were explicitly flagged
-                if (allIdsToDelete.isNotEmpty()) {
-                    allIdsToDelete.distinct().chunked(500).forEach { batch ->
-                        dao.deleteByIds(batch)
-                    }
-                }
-            }
+            // 3. Merge the findings into the library, in one transaction (see persistScan).
+            val itemsToUpsert = persistScan(database, allScanned, existingVideos, hasStorage)
 
             // 4c. Pre-warm persistent thumbnail disk cache for first batch of scanned items
             val preheatItems = itemsToUpsert.take(24)
