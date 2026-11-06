@@ -46,6 +46,9 @@ class MediaFileTransferTest {
         var availableBytes: Long? = null
         val deletedUris = mutableListOf<Uri>()
 
+        /** The size this provider says the written document has. Null leaves the column out, as many providers do. */
+        var reportedSize: Long? = null
+
         override fun onCreate() = true
 
         override fun query(
@@ -63,6 +66,12 @@ class MediaFileTransferTest {
                     )
                 ).apply {
                     addRow(arrayOf<Any?>("root", availableBytes))
+                }
+            }
+            val size = reportedSize
+            if (size != null) {
+                return MatrixCursor(arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE)).apply {
+                    addRow(arrayOf<Any?>(uri.lastPathSegment.orEmpty(), size))
                 }
             }
             return MatrixCursor(arrayOf(OpenableColumns.DISPLAY_NAME)).apply {
@@ -100,6 +109,66 @@ class MediaFileTransferTest {
                 else -> super.call(method, arg, extras)
             }
         }
+    }
+
+    /** A source that says it holds [reportedSize] bytes but whose stream ends after [file]'s bytes: a flaky USB reader. */
+    class SourceProvider : ContentProvider() {
+        lateinit var file: File
+        var reportedSize: Long = 0L
+
+        override fun onCreate() = true
+        override fun query(uri: Uri, p: Array<out String>?, s: String?, a: Array<out String>?, o: String?): Cursor =
+            MatrixCursor(arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE)).apply {
+                addRow(arrayOf<Any?>("clip.mp4", reportedSize))
+            }
+
+        override fun getType(uri: Uri) = "video/mp4"
+        override fun insert(uri: Uri, values: ContentValues?) = null
+        override fun update(uri: Uri, values: ContentValues?, selection: String?, selectionArgs: Array<out String>?) = 0
+        override fun delete(uri: Uri, selection: String?, selectionArgs: Array<out String>?) = 0
+        override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor =
+            ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+    }
+
+    /** A MediaStore that accepts an insert, writes to a file and says the stored video has [reportedSize] bytes. */
+    class MediaStoreDestinationProvider : ContentProvider() {
+        lateinit var outputFile: File
+        var reportedSize: Long? = null
+        val published = mutableListOf<Uri>()
+        val deleted = mutableListOf<Uri>()
+
+        override fun onCreate() = true
+        override fun query(uri: Uri, p: Array<out String>?, s: String?, a: Array<out String>?, o: String?): Cursor =
+            MatrixCursor(arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE)).apply {
+                addRow(arrayOf<Any?>("clip.mp4", reportedSize))
+            }
+
+        override fun getType(uri: Uri) = "video/mp4"
+        override fun insert(uri: Uri, values: ContentValues?): Uri = Uri.parse("content://media/external/video/media/55")
+        override fun update(uri: Uri, values: ContentValues?, selection: String?, selectionArgs: Array<out String>?): Int {
+            // IS_PENDING = 0 is what makes the video visible to every app.
+            if (values?.getAsInteger("is_pending") == 0) published += uri
+            return 1
+        }
+
+        override fun delete(uri: Uri, selection: String?, selectionArgs: Array<out String>?): Int {
+            deleted += uri
+            outputFile.delete()
+            return 1
+        }
+
+        /**
+         * MediaStore does not support the document calls, and says so by throwing. `DocumentsContract.deleteDocument`
+         * reports success whenever the call does not throw, so a provider that answers quietly would hide that the
+         * copy's cleanup has to fall back to a plain `delete`.
+         */
+        override fun call(method: String, arg: String?, extras: Bundle?): Bundle? =
+            throw UnsupportedOperationException("Unsupported call: $method")
+
+        override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor = ParcelFileDescriptor.open(
+            outputFile,
+            ParcelFileDescriptor.MODE_WRITE_ONLY or ParcelFileDescriptor.MODE_CREATE or ParcelFileDescriptor.MODE_TRUNCATE
+        )
     }
 
     @Before
@@ -239,6 +308,74 @@ class MediaFileTransferTest {
         assertFalse("the truncated copy must not stay on disk", destinationFile.exists())
         assertTrue("cancelling must keep the original", source.exists())
         assertArrayEquals(bytes, source.readBytes())
+    }
+
+    // --- DATA-06: a move deletes the original only once the copy is shown to be complete ---
+
+    private val treeDestination = Uri.parse("content://org.aptura.test.documents/tree/root")
+
+    @Test
+    fun aProviderThatKeptFewerBytesThanWereWritten_failsTheCopyAndKeepsTheSource() = runBlocking {
+        val source = temporaryFolder.newFile("source.mp4")
+        source.writeBytes(ByteArray(6) { it.toByte() })
+        provider.reportedSize = 5L // six bytes were written; the provider says it holds five
+
+        val result = MediaFileTransfer.copyIntoTree(context, listOf(Uri.fromFile(source).toString()), treeDestination)
+
+        assertEquals("a copy the provider cannot account for is not a copy", 0, result.copied)
+        assertEquals(listOf(Uri.fromFile(source).toString()), result.failedUris)
+        assertTrue("the incomplete destination must be removed", provider.deletedUris.isNotEmpty())
+        assertTrue("the original is the only good copy and must stay", source.exists())
+    }
+
+    @Test
+    fun aProviderThatReportsTheFullSize_stillCopies() = runBlocking {
+        val source = temporaryFolder.newFile("source.mp4")
+        source.writeBytes(ByteArray(6) { it.toByte() })
+        provider.reportedSize = 6L
+
+        val result = MediaFileTransfer.copyIntoTree(context, listOf(Uri.fromFile(source).toString()), treeDestination)
+
+        assertEquals(1, result.copied)
+        assertTrue(result.failedUris.isEmpty())
+        assertTrue(provider.deletedUris.isEmpty())
+    }
+
+    @Test
+    fun aSourceThatEndsEarly_failsTheCopyAndKeepsTheSource() = runBlocking {
+        val sourceFile = temporaryFolder.newFile("short.mp4")
+        sourceFile.writeBytes(ByteArray(3) { it.toByte() })
+        val sourceProvider = Robolectric.setupContentProvider(SourceProvider::class.java, "org.aptura.test.source")
+        sourceProvider.file = sourceFile
+        sourceProvider.reportedSize = 6L // the reader says six bytes and hands over three, then reports the end
+        val source = "content://org.aptura.test.source/video/clip.mp4"
+
+        val result = MediaFileTransfer.copyIntoTree(context, listOf(source), treeDestination)
+
+        assertEquals("a video read only in part must not count as copied", 0, result.copied)
+        assertEquals(listOf(source), result.failedUris)
+        assertTrue("the partial destination must be removed", provider.deletedUris.isNotEmpty())
+    }
+
+    @Test
+    fun intoMediaStore_aVideoTheProviderCannotAccountFor_isNeverPublishedAndTheSourceStays() = runBlocking {
+        val source = temporaryFolder.newFile("source.mp4")
+        source.writeBytes(ByteArray(6) { it.toByte() })
+        val mediaStore = Robolectric.setupContentProvider(MediaStoreDestinationProvider::class.java, "media")
+        mediaStore.outputFile = temporaryFolder.newFile("stored.mp4")
+        mediaStore.reportedSize = 5L
+
+        val result = MediaFileTransfer.copyIntoMediaStore(
+            context,
+            listOf(Uri.fromFile(source).toString()),
+            "/storage/emulated/0/Movies"
+        )
+
+        assertEquals(0, result.copied)
+        assertEquals(1, result.failedUris.size)
+        assertTrue("an incomplete video must not become visible to other apps", mediaStore.published.isEmpty())
+        assertTrue("the incomplete video must be removed", mediaStore.deleted.isNotEmpty())
+        assertTrue(source.exists())
     }
 
     @Test
