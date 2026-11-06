@@ -7,7 +7,7 @@ All notable changes to Aptura are recorded here. The format follows [Keep a Chan
 ### Added
 
 - **One current audit:** `docs/audits/CURRENT_AUDIT.md` is now the only active audit, with its findings, roadmap and progress table. Earlier audit files and `review/` were removed from `main` and remain readable from git at `b4de60b`.
-- **Differentiated Amber and Champagne Gold accent themes:** Shifted Amber to a warm glowing honey-amber orange (`#FFA000`) and Gold into an exclusive champagne bullion gold (`#F5D77F`) with a 4-stop specular metallic gradient swatch, dedicated champagne outer selection ring, and an exclusive Supporter Status Card in Settings.
+- **Differentiated Amber and Champagne Gold accent themes:** Shifted Amber to a warm glowing honey-amber orange (`#FFA000`) and Gold into a champagne bullion gold (`#F5D77F`) with a 4-stop specular metallic gradient swatch and a dedicated champagne outer selection ring.
 - **In-App Privacy Policy & Source Code Links:** Added dedicated privacy policy dialog explaining the offline-only and zero-telemetry architecture, and a direct link to the Apache-2.0 open-source repository on GitHub.
 - **Direct Folder Paste in Library:** Added clipboard paste icon on folder items allowing immediate folder-level pasting without entering sub-browsers, and fixed destination selection state in `FolderDestinationSheet`.
 - **Google Play App Bundle (AAB) & Split APK Support:** Made ABI splits conditional on bundle tasks so `bundleRelease` generates a pristine Play Store `.aab` while `assembleRelease` produces per-ABI `.apk`s.
@@ -26,6 +26,7 @@ All notable changes to Aptura are recorded here. The format follows [Keep a Chan
 
 ### Changed
 
+- **The Gold accent is open to everyone.** It is no longer locked behind starring the project or an "I Supported Aptura" switch, and the supporter badge and the footer star are gone.
 - **Going to a screen and back no longer cross-fades.** Navigation 3's defaults are a 700 ms cross-fade (both screens half see-through at once) and, for the Back gesture, a page that shrinks and then vanishes while still opaque. Screens now slide over each other, solid the whole time, in 300 ms; the Back gesture drags the page with the finger and letting go carries it on to the edge.
 - **The folder swipe is quicker and answers sooner, with the same slide and fade.** The new folder is complete after 144 ms instead of 240 ms. The swipe counts as soon as the finger has travelled 48 dp (it waited for the finger to lift after 64 dp), and a short quick flick works too.
 - **The View options sheet looks calmer and says more.** Layout is two picture cards (a small drawn grid and list), Size and Details are tinted switches in the same language as the folder chips instead of three stacked, fully filled bars, and the chosen sort is tinted. The welcome guide's Grid/List switch matches.
