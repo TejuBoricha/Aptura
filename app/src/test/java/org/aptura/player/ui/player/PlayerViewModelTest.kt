@@ -1482,6 +1482,62 @@ class PlayerViewModelTest {
         viewModel.clearForTesting()
     }
 
+    // --- FUNC-03: the player route comes up again after the system recreated the activity ---
+
+    private fun queueOfFour() = (1..4).map { sampleVideo.copy(uri = "content://media/$it", title = "Video $it") }
+
+    @Test
+    fun routeComingBackAfterTheQueueMovedOn_leavesTheQueueAlone() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val viewModel = PlayerViewModel(controller, FakeMediaRepository(), testDispatcher)
+        val queue = queueOfFour()
+        // The user opened the queue at video 1, so that is the route key. Auto-advance has since reached video 4.
+        viewModel.playQueue(queue, 0)
+        runCurrent()
+        controller._playbackQueue.value = DomainPlaybackQueue(queue, 3)
+        runCurrent()
+        assertEquals("setup: the queue reached video 4", queue[3].uri, viewModel.uiState.value.videoUri)
+
+        // A dark-mode flip recreates the activity. The ViewModel survives, and the route comes up with its old key.
+        viewModel.openRouteVideo(queue[0].uri)
+        runCurrent()
+
+        assertEquals("the queue was dropped", 4, viewModel.uiState.value.queueItems.size)
+        assertEquals("playback went back to the first video", queue[3].uri, viewModel.uiState.value.videoUri)
+        assertEquals(3, viewModel.uiState.value.currentQueueIndex)
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun routeComingUpInAnEmptyViewModel_loadsItsVideo() = runTest(testDispatcher) {
+        // The process was killed: the route is restored from the saved back stack, but nothing is loaded.
+        val controller = FakePlaybackController()
+        val viewModel = PlayerViewModel(controller, FakeMediaRepository(), testDispatcher)
+
+        viewModel.openRouteVideo("content://media/7")
+        runCurrent()
+
+        assertEquals("content://media/7", controller.lastPlayedItem?.uri)
+        assertEquals("content://media/7", viewModel.uiState.value.videoUri)
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun routeOpenedForTheVideoJustLoaded_doesNotLoadItAgain() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val viewModel = PlayerViewModel(controller, FakeMediaRepository(), testDispatcher)
+        val queue = queueOfFour()
+        viewModel.playQueue(queue, 1) // from the library
+        runCurrent()
+
+        viewModel.openRouteVideo(queue[1].uri) // then the route is pushed with that video's key
+        runCurrent()
+
+        assertEquals("the library queue was replaced by a one-item queue", 4, viewModel.uiState.value.queueItems.size)
+        assertEquals(1, viewModel.uiState.value.currentQueueIndex)
+        viewModel.clearForTesting()
+    }
+
     @Test
     fun sleepAtEndOfVideo_isReplacedByATimedCountdown() = runTest(testDispatcher) {
         val controller = FakePlaybackController()
