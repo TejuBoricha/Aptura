@@ -1,6 +1,9 @@
 package org.aptura.player.ui.player
 
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -81,6 +84,60 @@ class PlayerScreenUiTest {
         composeTestRule.onNodeWithContentDescription("Forward 10s").assertIsDisplayed()
         composeTestRule.onNodeWithContentDescription("Forward 10s").performClick()
         assertEquals(10_000L, seekDelta)
+    }
+
+    /**
+     * Audit A11Y-01: the video area was raw touch handling with no semantics, so once the controls hid a TalkBack user
+     * had nothing to focus and no way to bring them back. The area now exposes one labelled action.
+     */
+    @Test
+    fun playerScreen_withControlsHidden_offersAScreenReaderActionToShowThem() {
+        var toggles = 0
+
+        composeTestRule.setContent {
+            ApturaTheme {
+                PlayerScreen(
+                    uiState = PlayerUiState(
+                        videoTitle = "Inception",
+                        durationMs = 120_000L,
+                        currentPositionMs = 30_000L,
+                        isPlaying = true,
+                        isControlsVisible = false
+                    ),
+                    player = null,
+                    onBackClick = {},
+                    onPlayPauseClick = {},
+                    onSeekRelative = {},
+                    onScrubStart = {},
+                    onScrubMove = {},
+                    onScrubEnd = {},
+                    onControlsVisibilityToggle = { toggles++ },
+                    onLockToggle = {},
+                    onSpeedSelected = {},
+                    onResizeModeToggle = {},
+                    onSpeedSheetVisible = {},
+                    onAudioSheetVisible = {},
+                    onSubtitleSheetVisible = {},
+                    onAudioTrackSelected = {},
+                    onSubtitleTrackSelected = {},
+                    onVolumePercentChanged = {},
+                    onBrightnessPercentChanged = {},
+                    onRetryPlayback = {}
+                )
+            }
+        }
+
+        val videoArea = composeTestRule.onNode(
+            androidx.compose.ui.test.hasContentDescription("Video") and androidx.compose.ui.test.hasClickAction()
+        )
+        videoArea.assertExists()
+        videoArea.assert(
+            androidx.compose.ui.test.SemanticsMatcher("click label is Show playback controls") { node ->
+                node.config.getOrNull(androidx.compose.ui.semantics.SemanticsActions.OnClick)?.label == "Show playback controls"
+            }
+        )
+        videoArea.performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick)
+        assertEquals(1, toggles)
     }
 
     @Test

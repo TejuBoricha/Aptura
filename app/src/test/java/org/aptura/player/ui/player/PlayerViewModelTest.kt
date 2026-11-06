@@ -627,6 +627,61 @@ class PlayerViewModelTest {
         viewModel.clearForTesting()
     }
 
+    /** Audit A11Y-01: with a screen reader on, hiding the controls leaves nothing to reach, so they stay. */
+    @Test
+    fun controlsStayOpen_whenAScreenReaderIsOn() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        repository.items[sampleVideo.uri] = sampleVideo
+
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+        viewModel.loadAndPlay(sampleVideo.uri)
+        runCurrent()
+        viewModel.setAccessibilityControlsPolicy(keepVisible = true, autoHideDelayMs = 5_000L)
+        runCurrent()
+
+        advanceTimeBy(60_000L)
+        runCurrent()
+        assertTrue("controls must not auto-hide under a screen reader", viewModel.uiState.value.isControlsVisible)
+
+        // The person can still hide them on purpose, and when the screen reader goes off the timer is back.
+        viewModel.setAccessibilityControlsPolicy(keepVisible = false, autoHideDelayMs = 5_000L)
+        runCurrent()
+        advanceTimeBy(5_100L)
+        runCurrent()
+        assertFalse(viewModel.uiState.value.isControlsVisible)
+        viewModel.clearForTesting()
+    }
+
+    /** Audit A11Y-01: the system's "time to take action" setting stretches the delay, never shortens it. */
+    @Test
+    fun controlsAutoHide_usesTheSystemRecommendedDelay_whenItIsLonger() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        repository.items[sampleVideo.uri] = sampleVideo
+
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+        viewModel.loadAndPlay(sampleVideo.uri)
+        runCurrent()
+        viewModel.setAccessibilityControlsPolicy(keepVisible = false, autoHideDelayMs = 20_000L)
+        runCurrent()
+
+        advanceTimeBy(10_000L)
+        runCurrent()
+        assertTrue("still within the longer delay", viewModel.uiState.value.isControlsVisible)
+        advanceTimeBy(10_500L)
+        runCurrent()
+        assertFalse(viewModel.uiState.value.isControlsVisible)
+
+        viewModel.setAccessibilityControlsPolicy(keepVisible = false, autoHideDelayMs = 1_000L)
+        viewModel.showControls()
+        runCurrent()
+        advanceTimeBy(1_500L)
+        runCurrent()
+        assertTrue("a shorter value is ignored; the default 5 s applies", viewModel.uiState.value.isControlsVisible)
+        viewModel.clearForTesting()
+    }
+
     @Test
     fun controlsAutoHide_whenPlaying_hidesAfter5Seconds() = runTest(testDispatcher) {
         val controller = FakePlaybackController()

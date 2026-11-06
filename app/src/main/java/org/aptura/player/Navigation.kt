@@ -934,6 +934,7 @@ private fun AppNavHost(
                             onVolumePercentChanged = playerViewModel::setVolumePercent,
                             onBrightnessPercentChanged = playerViewModel::setBrightnessPercent,
                             onRetryPlayback = playerViewModel::retryPlayback,
+                            onAccessibilityPolicyChanged = playerViewModel::setAccessibilityControlsPolicy,
                             onPlayModeToggle = playerViewModel::togglePlayMode,
                             onSkipNext = playerViewModel::skipToNext,
                             onSkipPrevious = playerViewModel::skipToPrevious,
