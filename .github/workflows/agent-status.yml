@@ -5,10 +5,12 @@ name: Agent status
 # or debate), and keeps a one-page summary in the issue labelled `agent-status` for the owner. It runs no AI model
 # and needs no secret.
 #
-# GitHub's schedule is best effort: on this repository it did not fire once in the first hours after it was added,
-# and GitHub may delay or drop scheduled runs and pauses them after 60 days without activity. So the check also runs
-# whenever the owner's account, which every agent posts through, comments or opens, labels or closes an issue. Those
-# runs are throttled to one per 5 minutes, and a run that the throttle would skip waits out the gap instead.
+# There is no schedule. A 15-minute one used to run here, but GitHub runs schedules best effort (it did not fire once in
+# the first hours after it was added), and with a single owner it mostly announced that a pull request had been quiet
+# overnight: 63 of the last 100 workflow runs were this check (audit finding DEV-03). The check runs whenever the
+# owner's account, which every agent posts through, comments or opens, labels or closes an issue, and by hand from the
+# Actions tab. Those runs are throttled to one per 5 minutes, and a run that the throttle would skip waits out the gap
+# instead. To bring the schedule back, add a `schedule:` trigger with the cron `7,22,37,52 * * * *`.
 #
 # A run that sees a plain `To:` deadline within the next 35 minutes waits for it and checks again. The comment that
 # created the wait is itself the activity that started the run, so that run is the clock for a stretch in which every
@@ -25,8 +27,6 @@ name: Agent status
 # trigger itself. If it ever posts with another token (a personal one, or the owner's), every nudge would start a new
 # run: only the 5-minute throttle would then stop the loop, so add an explicit guard before making that change.
 on:
-  schedule:
-    - cron: "7,22,37,52 * * * *"
   workflow_dispatch:
   issue_comment:
     types: [created]
@@ -42,7 +42,7 @@ jobs:
   status:
     # Only the owner's account (every agent) and the clocks start a run. If the repository moves to an organisation,
     # repository_owner becomes the organisation and these event runs stop: change it to the owner's login then. The
-    # same holds if agents post through a separate account: add that login here, or only the schedule is left.
+    # same holds if agents post through a separate account: add that login here, or only manual runs are left.
     if: >-
       github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
       github.actor == github.repository_owner
