@@ -53,6 +53,17 @@ class SettingsCorruptionTest {
         )
     }
 
+    /**
+     * What a restart reads: the bytes the first store wrote, in a file of their own.
+     *
+     * The second store must not share the first one's path. DataStore frees a file only once the cancelled scope has
+     * finished, and cancelling is not waited for, so reopening the same path straight away fails now and then with
+     * "There are multiple DataStores active for the same file" (seen in CI; about 1 in 750 reopenings on a quiet
+     * machine). A copy has nothing to race.
+     */
+    private fun fileAfterRestart(file: File): File =
+        File(folder.root, "restarted_" + file.name).also { file.copyTo(it, overwrite = true) }
+
     @Test
     fun withoutAHandler_aDamagedFileBreaksEveryReadForGood() = runBlocking {
         val store = openStore(damagedFile(), withHandler = false)
@@ -80,9 +91,8 @@ class SettingsCorruptionTest {
         first.edit { it[key] = "GOLD" }
         assertEquals("GOLD", first.data.first()[key])
 
-        // a new process reads the same file
-        scopes.forEach { it.cancel() }
-        val second = openStore(file, withHandler = true)
+        // a new process reads what was written
+        val second = openStore(fileAfterRestart(file), withHandler = true)
         assertEquals("GOLD", second.data.first()[key])
     }
 
@@ -92,9 +102,8 @@ class SettingsCorruptionTest {
         file.delete()
         val first = openStore(file, withHandler = true)
         first.edit { it[key] = "ROSE" }
-        scopes.forEach { it.cancel() }
 
-        val second = openStore(file, withHandler = true)
+        val second = openStore(fileAfterRestart(file), withHandler = true)
 
         assertEquals("ROSE", second.data.first()[key])
         assertNull(second.data.first()[stringPreferencesKey("never_written")])
