@@ -155,24 +155,15 @@ class MediaScanWorker(
                 existingItems = existingVideos
             )
 
-            // Separate genuinely missing external/progress-bearing items from deleted internal MediaStore files with zero user state
+            // Separate genuinely missing external/progress-bearing items from deleted internal MediaStore files with no user
+            // data at all. "No user data" means every column the person owns (audit DATA-04), see isPurgeableMissingRow.
             val (staleInternalToDelete, itemsToUpsert) = reconciliation.itemsToUpsert.partition { item ->
-                item.isMissing &&
-                    hasStorage &&
-                    item.uri.startsWith("content://media/") &&
-                    item.playbackPositionMs == 0L &&
-                    !item.isCompleted &&
-                    item.customTitle.isNullOrBlank()
+                isPurgeableMissingRow(item, hasStorage)
             }
             val allIdsToDelete = reconciliation.idsToDelete +
                 staleInternalToDelete.mapNotNull { it.id.takeIf { id -> id > 0L } } +
                 existingVideos.filter { item ->
-                    item.isMissing &&
-                        hasStorage &&
-                        item.uri.startsWith("content://media/") &&
-                        item.playbackPositionMs == 0L &&
-                        !item.isCompleted &&
-                        item.customTitle.isNullOrBlank() &&
+                    isPurgeableMissingRow(item, hasStorage) &&
                         allScanned.none { scanned -> scanned.uri == item.uri || scanned.mediaStoreId == item.mediaStoreId }
                 }.mapNotNull { it.id.takeIf { id -> id > 0L } }
 
