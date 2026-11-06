@@ -320,7 +320,7 @@ private fun AppNavHost(
             } catch (e: Exception) {
                 ApturaDiagnostics.logEvent(
                     code = EventCode.EV_006,
-                    payload = mapOf("action" to "takePersistableUriPermission_file", "error" to (e.message ?: "unknown"))
+                    payload = mapOf("action" to "takePersistableUriPermission_file", "error" to e.javaClass.simpleName)
                 )
             }
             playerViewModel.loadAndPlay(uriString)
@@ -341,7 +341,7 @@ private fun AppNavHost(
             } catch (e: Exception) {
                 ApturaDiagnostics.logEvent(
                     code = EventCode.EV_006,
-                    payload = mapOf("action" to "takePersistableUriPermission_tree", "error" to (e.message ?: "unknown"))
+                    payload = mapOf("action" to "takePersistableUriPermission_tree", "error" to e.javaClass.simpleName)
                 )
             }
             coroutineScope.launch {
@@ -819,7 +819,7 @@ private fun AppNavHost(
                             } catch (e: Exception) {
                                 ApturaDiagnostics.logEvent(
                                     code = EventCode.EV_008,
-                                    payload = mapOf("action" to "clearThumbnailCache", "error" to (e.message ?: "unknown"))
+                                    payload = mapOf("action" to "clearThumbnailCache", "error" to e.javaClass.simpleName)
                                 )
                             }
                         }
@@ -834,7 +834,7 @@ private fun AppNavHost(
                         } catch (e: Exception) {
                             ApturaDiagnostics.logEvent(
                                 code = EventCode.EV_006,
-                                payload = mapOf("action" to "releasePersistableUriPermission", "error" to (e.message ?: "unknown"))
+                                payload = mapOf("action" to "releasePersistableUriPermission", "error" to e.javaClass.simpleName)
                             )
                         }
                         coroutineScope.launch {
@@ -888,7 +888,7 @@ private fun AppNavHost(
                                         } catch (e: Exception) {
                                             ApturaDiagnostics.logEvent(
                                                 code = EventCode.EV_015,
-                                                payload = mapOf("action" to "findRecentDownloads", "error" to (e.message ?: "unknown"))
+                                                payload = mapOf("action" to "findRecentDownloads", "error" to e.javaClass.simpleName)
                                             )
                                         }
                                     }
