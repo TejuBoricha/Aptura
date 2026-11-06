@@ -599,7 +599,10 @@ class Media3PlaybackController(
             .setUri(item.uri)
             .setMediaId(item.uri)
             .setMediaMetadata(metadata)
-            .setSubtitleConfigurations(subtitles.map { sub ->
+            .build()
+            // Through the helper, so the player rebuilds the item when its subtitles change (audit FUNC-02): this is
+            // also how the next item's sidecars get baked into an item that was queued without them.
+            .withSubtitleConfigurations(subtitles.map { sub ->
                 MediaItem.SubtitleConfiguration.Builder(sub.uri.toUri())
                     .setMimeType(sub.mimeType)
                     .setLanguage(sub.language ?: "und")
@@ -607,7 +610,6 @@ class Media3PlaybackController(
                     .setSelectionFlags(if (sub.isDefault) C.SELECTION_FLAG_DEFAULT else 0)
                     .build()
             })
-            .build()
     }
 
     /**
@@ -1142,14 +1144,14 @@ class Media3PlaybackController(
                 .build()
         }
 
-        replaceCurrentItem(currentItem.buildUpon().setSubtitleConfigurations(retainedConfigs + newConfigs).build())
+        replaceCurrentItem(currentItem.withSubtitleConfigurations(retainedConfigs + newConfigs))
         enableSubtitlesFor(subtitles)
     }
 
     override suspend fun removeExternalSubtitles() {
         externalSubtitleLabels.clear()
         val currentItem = player.currentMediaItem ?: return
-        replaceCurrentItem(currentItem.buildUpon().setSubtitleConfigurations(emptyList()).build())
+        replaceCurrentItem(currentItem.withSubtitleConfigurations(emptyList()))
     }
 
     override suspend fun removeExternalSubtitle(trackLabel: String) {
@@ -1157,7 +1159,7 @@ class Media3PlaybackController(
         val currentItem = player.currentMediaItem ?: return
         val existingConfigs = currentItem.localConfiguration?.subtitleConfigurations ?: emptyList()
         val remaining = existingConfigs.filterNot { it.label == trackLabel }
-        replaceCurrentItem(currentItem.buildUpon().setSubtitleConfigurations(remaining).build())
+        replaceCurrentItem(currentItem.withSubtitleConfigurations(remaining))
     }
 
     /** Swaps the playing media item in place and restores position + play state (no global seek-mode side effects). */
