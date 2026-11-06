@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentSender
 import android.database.Cursor
+import android.database.MatrixCursor
 import android.net.Uri
 import android.os.Build
 import android.os.RemoteException
@@ -36,8 +37,19 @@ class MediaMoverTest {
         var refuse: SecurityException? = null
         var rowsUpdated: Int = 1
 
+        /** `VOLUME_NAME` by MediaStore id. Left empty, the provider answers nothing, as if the volume were unknown. */
+        val volumeById = mutableMapOf<Long, String>()
+
         override fun onCreate() = true
-        override fun query(uri: Uri, p: Array<out String>?, s: String?, a: Array<out String>?, o: String?): Cursor? = null
+        override fun query(uri: Uri, p: Array<out String>?, s: String?, a: Array<out String>?, o: String?): Cursor? {
+            if (volumeById.isEmpty()) return null
+            // The mover asks `_id IN (?, ?, ...)`, so the ids are the selection arguments.
+            val cursor = MatrixCursor(arrayOf("_id", "volume_name"))
+            a.orEmpty().mapNotNull { it.toLongOrNull() }.forEach { id ->
+                volumeById[id]?.let { cursor.addRow(arrayOf<Any>(id, it)) }
+            }
+            return cursor
+        }
         override fun getType(uri: Uri): String? = null
         override fun insert(uri: Uri, values: ContentValues?): Uri? = null
         override fun delete(uri: Uri, selection: String?, selectionArgs: Array<out String>?) = 0
@@ -85,6 +97,62 @@ class MediaMoverTest {
         val m = mover()
         assertFalse(m.canMoveInPlace(safDocUri, "Movies/"))
         assertFalse(m.canMoveInPlace("file:///storage/emulated/0/Movies/test.mp4", "Movies/"))
+    }
+
+    // --- DATA-02: an in-place move only changes a file's folder, never the storage volume it is on ---
+
+    /** Folder keys name a volume's folder by path: `/storage/emulated/0/...` is the phone, `/storage/<ID>/...` an SD card. */
+    private val phoneFolder = "/storage/emulated/0/Movies"
+    private val sdFolder = "/storage/1A2B-3C4D/Movies"
+
+    @Test
+    fun canMoveInPlace_isFalseWhenTheFolderIsOnAnotherVolume() {
+        mediaStore.volumeById[7] = "external_primary"
+
+        assertFalse("a video on the phone cannot be moved in place to an SD card folder", mover().canMoveInPlace(videoUri, sdFolder))
+        assertTrue(mover().canMoveInPlace(videoUri, phoneFolder))
+    }
+
+    @Test
+    fun canMoveInPlace_followsTheVolumeOfAVideoOnAnSdCard() {
+        // MediaStore names an SD card's volume in lower case; the folder key spells the same id in upper case.
+        mediaStore.volumeById[7] = "1a2b-3c4d"
+
+        assertTrue(mover().canMoveInPlace(videoUri, "/storage/1A2B-3C4D/Download"))
+        assertFalse("a video on an SD card cannot be moved in place to the phone", mover().canMoveInPlace(videoUri, phoneFolder))
+    }
+
+    @Test
+    fun canMoveAllInPlace_isFalseWhenAnyVideoIsOnAnotherVolume() {
+        mediaStore.volumeById[7] = "external_primary"
+        mediaStore.volumeById[8] = "1a2b-3c4d"
+
+        assertFalse(mover().canMoveAllInPlace(listOf(videoUri, "content://media/external/video/media/8"), phoneFolder))
+        assertTrue(mover().canMoveAllInPlace(listOf(videoUri, "content://media/external/video/media/7"), phoneFolder))
+    }
+
+    @Test
+    fun anUnknownSourceVolume_isTheSameAsThePhonesOwnStorage() {
+        // The provider answers nothing. A missing volume means the phone's storage everywhere else (MediaFolderKey).
+        assertTrue(mover().canMoveInPlace(videoUri, phoneFolder))
+        assertFalse(mover().canMoveInPlace(videoUri, sdFolder))
+    }
+
+    @Test
+    fun aFolderWithNoVolumeInIt_staysOnTheVideosOwnVolume() {
+        mediaStore.volumeById[7] = "1a2b-3c4d"
+
+        assertTrue(mover().canMoveInPlace(videoUri, "Movies/"))
+    }
+
+    @Test
+    fun moveInPlace_toAnotherVolume_failsAndChangesNothing() {
+        mediaStore.volumeById[7] = "external_primary"
+
+        val result = mover().moveInPlace(videoUri, sdFolder)
+
+        assertTrue("reported $result", result is MoveOutcome.Failed)
+        assertTrue("nothing may be written when the move cannot be done in place", mediaStore.updated.isEmpty())
     }
 
     @Test
