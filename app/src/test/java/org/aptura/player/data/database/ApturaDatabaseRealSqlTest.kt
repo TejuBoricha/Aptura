@@ -117,6 +117,47 @@ class ApturaDatabaseRealSqlTest {
         assertEquals(0, dao.getHiddenCount().first())
     }
 
+    // --- DATA-12: removing a folder removes that folder and nothing that merely starts like it ---
+
+    private val safAuthority = "content://com.android.externalstorage.documents"
+
+    /** A video the way the SAF scan stores it: `<tree uri>/document/<document id>`. */
+    private fun safVideo(tree: String, path: String, id: Long) = scanned(
+        mediaStoreId = id,
+        uri = "$safAuthority/tree/$tree/document/$tree%2F$path",
+        title = path
+    )
+
+    private suspend fun remainingUris(): Set<String> = db.mediaItemDao().getAllVideosRaw().map { it.uri }.toSet()
+
+    @Test
+    fun removingAFolder_keepsASiblingWhoseNameStartsTheSame() = runBlocking {
+        val dao = db.mediaItemDao()
+        val inFolder = safVideo("primary%3AMovies", "a.mkv", 1)
+        val inSubfolder = safVideo("primary%3AMovies", "sub%2Fb.mkv", 2)
+        val sibling = safVideo("primary%3AMovies2", "c.mkv", 3)
+        listOf(inFolder, inSubfolder, sibling).forEach { dao.insertOrUpdate(it) }
+
+        dao.deleteByUriPrefix("$safAuthority/tree/primary%3AMovies")
+
+        assertEquals("only the sibling folder is left", setOf(sibling.uri), remainingUris())
+    }
+
+    @Test
+    fun removingAFolder_readsPercentAndUnderscoreAsPlainCharacters() = runBlocking {
+        val dao = db.mediaItemDao()
+        val target = safVideo("primary%3AMy_Movies", "a.mkv", 1)
+        // In a LIKE pattern `_` stands for any one character and `%` for any run of them, and every SAF tree URI
+        // carries a `%` (the encoded colon). A folder that differs only at one of those places is another folder.
+        val underscoreLookAlike = safVideo("primary%3AMyXMovies", "b.mkv", 2)
+        val percentLookAlike = safVideo("primaryQ3AMy_Movies", "c.mkv", 3)
+        listOf(target, underscoreLookAlike, percentLookAlike).forEach { dao.insertOrUpdate(it) }
+
+        dao.deleteByUriPrefix("$safAuthority/tree/primary%3AMy_Movies")
+
+        assertEquals(setOf(underscoreLookAlike.uri, percentLookAlike.uri), remainingUris())
+    }
+
     @Test
     fun movedFile_remapsBookmarksToTheNewUri() = runBlocking {
         val dao = db.mediaItemDao()
