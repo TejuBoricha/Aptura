@@ -4,17 +4,17 @@ Aptura has no network and no backend, so almost every behavior can be tested on 
 
 ## Current state
 
-| Check | Result |
+The numbers change with every pull request, so they are not kept in this file. Read them from CI: open the latest run of the **CI** workflow, then the job named in the table.
+
+| Check | Where to read the result |
 |---|---|
-| JVM tests | 682 tests across 101 suites |
-| Executed in the gate | 604 (the 78 opt-in gallery renders are skipped) |
-| Failures / errors | 0 / 0 |
-| Lint | 0 issues |
-| Release invariants | Pass |
-| Instrumented suite | API 35 tablet emulator, run in CI |
+| JVM tests | The **Unit tests** step of the `verify` job ends with `N tests completed, F failed, S skipped`. It was about 1,000 tests on 2026-11-05. The skipped ones are the opt-in gallery renders. |
+| Lint | The **Lint** step of the `verify` job |
+| Release invariants | The **Release build (R8 + resource shrinking) and shipped-code invariants** step of the `verify` job |
+| Instrumented suite | The `connected` job: an API 35 tablet emulator |
 | Agent coordination checks | `python -m unittest discover -s tools/agents`, run by the gate when Python 3 is installed and always in CI |
 
-Counts come from the latest full `tools/gate.ps1` run; update this table when they move.
+`tools/gate.ps1` runs the same checks on your machine.
 
 ## Run it
 
