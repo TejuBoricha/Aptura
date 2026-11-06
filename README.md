@@ -17,7 +17,7 @@
   <img src="https://img.shields.io/badge/network%20permission-none-0D1016?style=flat-square" alt="No network permission">
 </p>
 
-> **Status: pre-release.** Aptura is feature-complete for its 1.0 scope and the full quality gate is green. 30-minute 4K thermal runs, SAF copy-and-kill recovery, and HDR10 hardware decoding are physically verified on Galaxy S24 hardware. See [Known limits](#known-limits).
+> **Status: pre-release.** Aptura is feature-complete for its 1.0 scope and the full quality gate is green. A 30-minute 4K thermal run and SAF copy-and-kill recovery passed on one Galaxy S24, HDR10 decoding was a partial pass, and TalkBack, Bluetooth and real-phone retests of the recent fixes are still open. See the [device checklist](docs/DEVICE_CHECKLIST.md) and [Known limits](#known-limits).
 
 ---
 
@@ -158,7 +158,7 @@ The domain layer has no Android imports. The UI talks to view models; view model
 
 ## Known limits
 
-- **Hardware verification:** 30-minute 4K thermal runs (sustained 60 fps, zero throttling), SAF 2.5 GB copy-and-kill resume, HDR10 hardware decoding, and sleep-timer foreground survival are physically verified on Samsung Galaxy S24 hardware. Real-world Bluetooth latency measurement and spoken TalkBack gestures remain before final release.
+- **Hardware verification:** on one Samsung Galaxy S24 (2026-10-29, over adb, nothing judged by ear) a 30-minute 4K HEVC run on USB power showed no throttling and no dropped frames, and a 2.5 GB SAF copy killed at 42% recovered. HDR10 decoding was a partial pass (tone mapping not judged). The sleep timer was lost when the task was removed; a fix was merged but not retested on a device. Bluetooth, TalkBack and the fixes made after the audit still need a physical-device pass ([checklist](docs/DEVICE_CHECKLIST.md)).
 - **No network features, by design.** No SMB, NAS, DLNA, casting, cloud sync or online metadata. Opening a subtitle search leaves the app for your browser.
 - **No bundled software video decoder.** Files whose codecs the device cannot decode fail with a clear message rather than shipping a patent-encumbered decoder. The bundled FFmpeg extension is audio-only.
 - **Android-first.** There is no iOS build.

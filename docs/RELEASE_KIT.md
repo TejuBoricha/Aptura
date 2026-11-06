@@ -60,8 +60,8 @@ Aptura is an offline-first, privacy-focused Android video player built with Jetp
 
 ### Highlights
 - **100% Offline & Zero Network Permission:** Zero `android.permission.INTERNET`, zero telemetry, zero analytics SDKs.
-- **Hardware-Accelerated Playback:** Verified 4K 60fps and HDR10 hardware decoding via `MediaCodec`.
-- **Intelligent Sleep Timer:** Monotonic countdown with a 10-second audio fade that survives background playback.
+- **Hardware-accelerated playback:** uses the phone's `MediaCodec` decoders. A 4K HEVC run and an HDR10 clip played on one Galaxy S24 (HDR10 was a partial pass); what plays depends on the device.
+- **Intelligent Sleep Timer:** Monotonic countdown with a 10-second audio fade that keeps counting while the app is in the background.
 - **Pure Material 3 Aesthetics:** OLED dark surfaces with customizable accent themes (including Honey-Amber and Champagne Gold).
 - **Audio & Subtitle Sync:** Millisecond-accurate audio/subtitle delay adjustment with Bluetooth compensation.
 - **In-App Media Management:** Scoped storage file operations (move, copy, paste, rename) without `MANAGE_EXTERNAL_STORAGE`.
