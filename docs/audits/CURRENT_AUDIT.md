@@ -25,7 +25,7 @@ Date: 2026-11-05. Audited commit: `b4de60b` on `main`. Author: Claude Opus 5.5, 
 
 **Aptura is not ready for a public Play launch, but it is close and well worth finishing.** The engineering base and privacy enforcement are unusually strong. The problems are a small set of real playback and data bugs, overstated release evidence, and no localization or non-touch input.
 
-This audit covers `main` at commit `b4de60b`. It logged 1 Critical, 21 High, 43 Medium and 16 Low findings, plus 12 ranked product gaps. Every baseline check passed, and those checks caught none of the bugs below, so a green gate does not mean the app works.
+This audit covers `main` at commit `b4de60b`. It logged 1 Critical, 22 High, 43 Medium and 16 Low findings, plus 12 ranked product gaps. Every baseline check passed, and those checks caught none of the bugs below, so a green gate does not mean the app works.
 
 **The five findings that matter most:**
 
@@ -389,6 +389,36 @@ Severity is how bad the problem is. The Phase in each card is when to do it, so 
 - **Risks:** removing these decoders would remove a real differentiator.
 - **Validate:** a written decision in the DEC register, matched by a decoder dump in CI.
 
+#### LEG-02: Replace the prebuilt decoder with a self-built, free-only one
+
+**Legal and engineering · Planned, not started · Effort L · Severity High · Priority: launch blocker (Phase 2, gates Phase 3)**
+
+This is the plan that follows from LEG-01 and DEC-014. The owner's direction, 2026-11-06: use truly free decoders rather than risk licence trouble. Nothing is paid for, and no decoder is removed until its replacement is tested.
+
+- **Why:** the shipped library cannot be trimmed, is labelled GPL-3.0 by its publisher, links FFmpeg statically, and carries decoders outside ADR-010's list (see LEG-01). A store release should wait for a clean replacement.
+- **The layers, in order of use:**
+
+| Layer | What it covers | Licence cost to Aptura |
+| --- | --- | --- |
+| 1. Platform decoders (MediaCodec), used first | What the phone ships: usually H.264, AAC, MP3, FLAC, Opus, Vorbis, and often HEVC. Which Dolby and AV1 decoders exist varies by device. | None. The device maker holds the licences. |
+| 2. Bundled free fallback (self-built) | FLAC, ALAC, MP3, Opus, Vorbis, PCM, A-law, mu-law. | None found. MP3 patents have expired; FLAC, Opus and Vorbis are open formats. |
+| 3. Candidates, only after counsel confirms | AC-3 and E-AC-3. | Patents are reported expired (spec 07 says AC-3 in 2017 and E-AC-3 on 2026-01-30; the E-AC-3 date is unverified). Dolby historically asked app developers for a licence anyway. |
+| 4. Pass-through, not decoded by Aptura | DTS, DTS-HD, TrueHD, MLP: sent to a TV or receiver that decodes them. | None for Aptura. Media3 does this when the output supports it; not tested here. |
+| 5. Honest failure | Anything else: say the audio cannot be decoded on this device and offer "open in another app". | None. |
+
+- **Left out of the bundle on purpose:** AAC (platform decoders handle it, and Via LA's pool charges a $15,000 initial fee, or $1,000 for a small entity, plus per-unit fees; how a free download counts is unanswered), DTS, DTS-HD, TrueHD and MLP (no application-side licence found). Dolby and DTS publish no prices; they negotiate.
+- **Trade-off:** on phones with no built-in decoder for a codec, some files lose their sound. Evidence: the Pixel 8 emulator image listed no AC-3, E-AC-3 or DTS decoder, and my DTS test video reached the playing state, most likely decoding its audio through the bundled library (I did not check that sound came out). How many real devices are affected is not measured.
+- **Steps, in order:**
+  1. **Owner, now, because it has lead time:** a short review by an IP lawyer of briefs L1 and L2 in `spec/11A_LEGAL_BRIEFS.md`, which are written and marked sendable. Do not pay any licence before that.
+  2. Build the decoder on a Linux CI runner from AndroidX Media's `decoder_ffmpeg` module (Apache-2.0) and FFmpeg configured LGPL-only, as shared libraries, with an explicit decoder list. `tools/ffmpeg/build_ffmpeg_audio_lgpl.sh` and `verify_lgpl_symbols.py` already describe this. This machine has no Android NDK, so a local build is not the way.
+  3. Replace the Jellyfin dependency (`gradle/libs.versions.toml` and `app/build.gradle.kts`, both hot files, so one PR at a time).
+  4. Run `verify_lgpl_symbols.py` and a decoder-name dump in CI, so the library cannot grow a decoder unnoticed.
+  5. Update ADR-010, spec 07, `FFMPEG_NOTE`, `NOTICE` and the store text to match, and close DEC-014.
+- **Also helps:** DEP-01 (the shipped FFmpeg is 6.0; a self-build can use a current release) and the F-Droid question in PROD-G2.
+- **Risks:** the build and its upkeep become ours; the decoder module is tied to the Media3 version; a few files lose sound on some phones until layer 3 is cleared; the CI build needs time to get right.
+- **Validate:** the decoder dump shows only the approved names; `verify_lgpl_symbols.py` passes in CI; `PlaybackSmokeTest` and the 13-file format matrix from this audit give the same video results before and after, with the audio differences listed; DEC-014 is closed with a written decision.
+- **Sources (opened 2026-11-05):** [Via LA AAC programme and FAQ](https://www.via-la.com/licensing-programs/aac/), [Dolby Digital licensing note](https://en.wikipedia.org/wiki/Dolby_Digital), [Opus licence](https://opus-codec.org/license/), [Dolby consumer licensing](https://professional.dolby.com/licensing/support-consumer-licensing-dev-kits/). The DTS terms were not found online. This is engineering planning, not legal advice.
+
 ### Medium: product, playback and data
 
 | ID | Finding and evidence | Root cause and impact | Fix | Effort, risk | Validate |
@@ -655,6 +685,7 @@ Common tasks take few taps: open 1, resume 1, change subtitle 3, change speed 3 
    - Quick accessibility: A11Y-03, A11Y-04, A11Y-05, A11Y-06, I18N-02, UX-03
 4. **Phase 2: Harden and prepare release. About weeks 4 to 6.**
    - Stack: DEP-01, DEV-01, SEC-05, PERF-02, then PERF-01, PERF-03, PERF-05
+   - **Launch blocker, start the legal step now:** LEG-02 (self-built, free-only decoder; see its card). It gates Phase 3, so it runs alongside Phase 1.
    - Pipeline: DEV-02, SEC-06, QA-03, QA-05, QA-07
    - Reach: A11Y-02, DATA-03, DATA-11, PROD-02, PROD-G3, PROD-G5
    - Parallel track, not a launch blocker: I18N-01, I18N-03
@@ -701,7 +732,8 @@ Two things should be sequenced together: STAB-01 and FUNC-05 share one design, a
 **Decisions only the owner can make:**
 
 - [ ] Should v1.0.0 be marked pre-release now? (SHIP-03, recommended yes)
-- [ ] How should the bundled decoders be handled legally? (LEG-01)
+- [x] How should the bundled decoders be handled legally? (LEG-01). Decided 2026-11-06 on the owner's direction to use truly free decoders: DEC-014, with the plan in LEG-02.
+- [ ] Get a short IP-lawyer review of briefs L1 and L2 in `spec/11A_LEGAL_BRIEFS.md` before adding E-AC-3 or paying for any licence (LEG-02, step 1).
 - [ ] Should transfers use a foreground service or resumable partial files? (DATA-03)
 - [ ] Should Aptura stay Play-only, or also ship on F-Droid? (PROD-G2)
 - [x] Should the multi-agent process be frozen? (DEV-03, recommended yes). Decided 2026-11-06 on the owner's instruction in their session to take the recommended option; see the DEV-03 row.
