@@ -7,6 +7,7 @@ import androidx.media3.common.audio.AudioProcessor.AudioFormat
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.nio.ByteBuffer
@@ -119,6 +120,53 @@ class AudioDelayProcessorTest {
 
         assertEquals(960 + 480, afterSeek.size) // 20 ms = 960 frames of silence again
         assertTrue(afterSeek.take(960).all { it == 0 })
+    }
+
+    @Test
+    fun flushForANewSpeed_keepsTheOffset_butOnlyForThatOneFlush() {
+        val p = processor(20) // 960 frames of silence
+        assertEquals(960 + 480, p.feed(0, 480).size)
+
+        p.keepOffsetAcrossNextFlush()
+        p.flush() // the sink changed the speed: the audio goes on, nothing is applied again
+        assertEquals(480, p.feed(480, 480).size)
+
+        p.flush() // a seek: the offset starts again from the new position
+        val afterSeek = p.feed(48_000, 480)
+        assertEquals(960 + 480, afterSeek.size)
+        assertTrue(afterSeek.take(960).all { it == 0 })
+    }
+
+    @Test
+    fun aNewStreamFormat_forgetsAPendingKeepOffset() {
+        val p = processor(20)
+        p.feed(0, 480)
+        p.keepOffsetAcrossNextFlush()
+        p.configure(format) // a different stream, not the same one at a new speed
+        p.flush()
+
+        assertEquals(960 + 480, p.feed(0, 480).size)
+    }
+
+    @Test
+    fun theChain_putsTheDelayAfterTheSpeedChange() {
+        val delay = AudioDelayProcessor()
+        val processors = DelayAfterSpeedChain(delay).audioProcessors.toList()
+
+        assertSame("the delay is the last processor", delay, processors.last())
+        val speed = processors.indexOfFirst { it is androidx.media3.common.audio.SonicAudioProcessor }
+        assertTrue("the speed change is in the chain, before the delay", speed in 0 until processors.lastIndex)
+    }
+
+    @Test
+    fun theChain_tellsTheDelayThatANewSpeedIsNotASeek() {
+        val delay = AudioDelayProcessor().apply { configure(format); flush(); delayMs = 20 }
+        val chain = DelayAfterSpeedChain(delay)
+        assertEquals(960 + 480, delay.feed(0, 480).size)
+
+        chain.applyPlaybackParameters(androidx.media3.common.PlaybackParameters(2f))
+        delay.flush() // what the sink does straight after
+        assertEquals(480, delay.feed(480, 480).size)
     }
 
     @Test
