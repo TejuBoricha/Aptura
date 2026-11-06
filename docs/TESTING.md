@@ -91,7 +91,7 @@ Some properties are too important to leave to a code review:
 - **Shipped code:** `verifyReleaseApk` reads the R8 mapping and the dex, because the classpath is not what ships.
 - **Domain purity:** no Android imports under `domain/`.
 - **Schema:** committed Room schemas and migration tests.
-- **Licensing:** the LGPL audio extension is checked separately; no software video decoder is bundled.
+- **Licensing:** no software video decoder is bundled. `tools/ffmpeg/verify_lgpl_symbols.py` describes the LGPL audio build the project wants, but nothing runs it on the prebuilt decoder that ships today (DEC-014 in spec/17).
 
 If you add a dependency, run the gate. If it is a network or telemetry library, the build will fail for a reason.
 
