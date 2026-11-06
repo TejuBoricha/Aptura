@@ -25,7 +25,7 @@ an item until a later `Hold lifted:` line; holds older than a day are listed for
     python3 tools/agents/stalls.py --nudge         # also post one `To: all` comment per stall (needs a write token)
 
 The **Agent status** workflow runs it with --nudge whenever the owner's account comments or opens, labels or closes an issue
-(throttled with --min-gap) and on a 15-minute schedule, and keeps the report in the issue labelled
+(throttled with --min-gap) and by hand, with no schedule, and keeps the report in the issue labelled
 `agent-status`. A nudge is addressed to all, so local agents waiting in inbox.py and cloud agents subscribed to the
 pull request wake up on it. A run that finds a `To:` deadline within --wait-max minutes (default 35) waits for it and
 checks again: the comment that created the wait is the activity that started the run, so that run is the clock for a
@@ -753,8 +753,8 @@ def publish(repo: str, token: str, items: list[Item], found: Findings, text: str
         write("DELETE", f"{base}/issues/{number}/labels/{FOLLOW_UP_LABEL}", None)
     status = list(every(f"{base}/issues?state=open&labels={STATUS_LABEL}", token))
     footer = ("\n_Updated by the Agent status workflow (`tools/agents/stalls.py`) whenever the owner's account comments or opens, labels or closes an issue, "
-              "and on a 15-minute schedule that GitHub runs best effort. If the time above is hours old, run the workflow from "
-              "the Actions tab. "
+              "and by hand from the Actions tab; there is no schedule. If the time above is hours old, the owner's account has "
+              "not posted since; run the workflow from the Actions tab to refresh it. "
               "Stalled items also get a `To: all` comment, which wakes the agents waiting on them._\n")
     body = text if len(text) + len(footer) <= BODY_LIMIT else text[:BODY_LIMIT - len(footer) - 40] + "\n\n(cut short)\n"
     if status:
@@ -893,7 +893,7 @@ def main() -> int:
         if not pr_checks.is_outage(error):
             print(f"::error::Agent status could not use the GitHub API ({error}). Check the workflow's permissions.")
             return 1
-        print(f"::warning::Agent status skipped: GitHub API unavailable ({error}). The next scheduled run retries.")
+        print(f"::warning::Agent status skipped: GitHub API unavailable ({error}). The next run retries.")
     return code
 
 

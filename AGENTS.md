@@ -86,8 +86,8 @@ The full workflow, with examples, is in [`docs/AGENT_WORKFLOW.md`](docs/AGENT_WO
     fallback, written in the message that creates it ([table](docs/AGENT_WORKFLOW.md#nothing-waits-without-a-deadline)).
     Answer with a reply, not only a push. Acknowledge long work with `Working:`; mark a message that needs no answer
     `No reply needed`; drop a wait with `Withdrawn: <agent>`; record the owner's "wait" as `Hold:`. The **Agent
-    status** workflow checks whenever the owner's account comments or opens, labels or closes an issue (and on a
-    15-minute schedule; a push or a review alone does not start it), posts `To: all` on each overdue wait, and keeps
+    status** workflow checks whenever the owner's account comments or opens, labels or closes an issue (a push or
+    a review alone does not start it, and there is no schedule), posts `To: all` on each overdue wait, and keeps
     the `agent-status` issue current, starting with what needs the owner. A run that sees a plain `To:` deadline
     within 35 minutes waits for it, so a wait nobody answers is announced even if every agent then goes quiet; a
     `Working:` note that holds longer is seen by the next run after it expires. Only comments by the owner's account

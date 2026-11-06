@@ -19,9 +19,18 @@ PR's Verification section and in CI, not here, so most pull requests never need 
 - **Coordination status page:** the open issue labelled
   [`agent-status`](https://github.com/TejuBoricha/Aptura/issues?q=is%3Aissue+is%3Aopen+label%3Aagent-status), kept
   current by the Agent status workflow whenever the owner's account comments or opens, labels or closes an issue,
-  and on a 15-minute schedule that GitHub runs best effort. A run that sees a plain `To:` deadline within 35 minutes
+  and by hand from the Actions tab; there is no schedule. A run that sees a plain `To:` deadline within 35 minutes
   waits for it, so a quiet stretch is still announced; a longer `Working:` note is seen by the next run after it
   expires. It opens with what needs the owner.
+
+## Process freeze (audit finding DEV-03)
+
+Until Phase 2 of [`docs/audits/CURRENT_AUDIT.md`](../docs/audits/CURRENT_AUDIT.md) is finished: no new coordination tooling,
+status pages, workflows or process documents, and no debates (`AGENTS.md` rule 11). Fix `tools/agents/` and the agent
+workflows only when something there is broken. Kept on purpose: the PR template and Handoff block, `pr_checks.py` (hot
+files, one PR per issue), the attribution trailers, and the independent review for security, privacy and Room changes.
+Why: 11 of the last 46 PRs were process work and the status check was 63 of the last 100 Actions runs, while the product
+bugs in the audit waited. To undo it, delete this section and restore the schedule in `agent-status.yml`.
 
 ## Quality gate
 

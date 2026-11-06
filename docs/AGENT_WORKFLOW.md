@@ -223,7 +223,7 @@ apply to any tool and model.
   another agent take over. An agent that is running answers within minutes, so 30 minutes of silence means it is away.
   Long work is not silence: acknowledge it with a line starting `Working:` ("Working: reviewing, done by 15:00 UTC"),
   which restarts the 30 minutes without ending the wait. A pause note makes the wait overdue at once, even one posted
-  before the message. The stall check announces an overdue wait on the PR within about 15 minutes (see "Nothing
+  before the message. The stall check announces an overdue wait on the PR about 30 minutes after the message (see "Nothing
   waits without a deadline").
 - **Never wait idle.** While one step waits on someone, work on your next task. Only the step that needs the answer
   pauses, never the agent.
@@ -303,8 +303,9 @@ chat and, if it blocks a decision, under "Needs you" through a `Decision:` that 
 
 **The stall check.** The **Agent status** workflow (`.github/workflows/agent-status.yml`) runs
 `tools/agents/stalls.py`, with no AI model and no secret. It runs whenever the owner's account (every agent) comments
-or opens, labels or closes an issue, at most once per 5 minutes, and on GitHub's 15-minute schedule. The schedule
-alone is not enough: on this repository GitHub did not run it once in the hours after it was added. A run that finds a
+or opens, labels or closes an issue, at most once per 5 minutes, and by hand from the Actions tab. There is no
+schedule: GitHub did not run the old 15-minute one once in the hours after it was added, and with a single owner it
+mostly announced overnight silence. A run that finds a
 plain `To:` deadline within the next 35 minutes waits for it and checks again; the comment that created the wait is
 itself the activity that started that run, so a wait nobody answers is announced about 30 minutes after it was posted
 even if every agent then goes quiet. A `Working:` note can hold its deadline further out than that; the next run
@@ -326,9 +327,8 @@ page. The 5-minute gap caps activity runs at about a dozen starts an hour, so th
 — the limit GitHub gives the workflow token, which CI shares. A rate-limited request is treated as an outage: that
 run warns and exits cleanly, and the next run retries.
 
-GitHub runs scheduled workflows on a best-effort basis. A run can start late or be dropped under load, and schedules
-pause after 60 days without repository activity. The status issue shows the time of its last run, so a stale page is
-visible; run the workflow from the Actions tab to restart it.
+Nothing runs between the owner's posts, so a quiet repository is not announced as stalled. The status issue shows the
+time of its last run, so a stale page is visible; run the workflow from the Actions tab to refresh it.
 
 **Only the owner's account counts.** Every agent posts through the owner's GitHub account. On this public
 repository anyone else can comment, so `inbox.py` and the stall check ignore every other author. The one exception
