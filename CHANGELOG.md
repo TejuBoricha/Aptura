@@ -11,7 +11,7 @@ All notable changes to Aptura are recorded here. The format follows [Keep a Chan
 - **In-App Privacy Policy & Source Code Links:** Added dedicated privacy policy dialog explaining the offline-only and zero-telemetry architecture, and a direct link to the Apache-2.0 open-source repository on GitHub.
 - **Direct Folder Paste in Library:** Added clipboard paste icon on folder items allowing immediate folder-level pasting without entering sub-browsers, and fixed destination selection state in `FolderDestinationSheet`.
 - **Google Play App Bundle (AAB) & Split APK Support:** Made ABI splits conditional on bundle tasks so `bundleRelease` generates a pristine Play Store `.aab` while `assembleRelease` produces per-ABI `.apk`s.
-- **Galaxy S24 Physical Device Verification Suite:** Documented benchmarks for 30-minute 4K HDR hardware thermal playback (PASS, 0 throttles), 2.5 GB SAF copy-and-kill resume (PASS), and adb flow automation tools.
+- **Galaxy S24 device test notes:** Documented results of one adb-driven run on a Galaxy S24: a 30-minute 4K HEVC session on USB power (0 throttles, 0 dropped frames), a 2.5 GB SAF copy killed at 42% that recovered, an HDR10 clip that played on the hardware decoder (partial pass, tone mapping not judged), and one failure (sleep timer lost when the task was removed). Includes the adb flow automation tools. See `docs/DEVICE_CHECKLIST.md` for what is still open.
 - Public project documentation: architecture, build, testing and privacy guides.
 - Apache-2.0 license, third-party notice, contribution guide, security policy and code of conduct.
 - GitHub issue forms and a pull-request template.
