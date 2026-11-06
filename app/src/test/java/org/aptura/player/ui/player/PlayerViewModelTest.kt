@@ -2480,6 +2480,49 @@ class PlayerViewModelTest {
         viewModel.clearForTesting()
     }
 
+    /**
+     * Audit FUNC-01. While the controls are hidden the view model deliberately stops copying the playing position into
+     * the UI state (nothing is drawn, so it saves recomposition). The swipe used to start from that stale UI value, so
+     * after half an hour of playback a small swipe jumped back to wherever the controls were last shown.
+     */
+    @Test
+    fun testHorizontalSwipeSeek_withHiddenControls_startsFromTheRealPosition() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        controller._playbackState.value = DomainPlaybackState.Ready(
+            positionMs = 5_000L,
+            durationMs = 3_600_000L,
+            isPlaying = true
+        )
+        runCurrent()
+        assertEquals(5_000L, viewModel.uiState.value.currentPositionMs)
+
+        // The controls hide, and playback carries on for 30 minutes.
+        if (viewModel.uiState.value.isControlsVisible) viewModel.toggleControlsVisibility()
+        runCurrent()
+        assertEquals(false, viewModel.uiState.value.isControlsVisible)
+        controller._playbackState.value = DomainPlaybackState.Ready(
+            positionMs = 1_800_000L,
+            durationMs = 3_600_000L,
+            isPlaying = true
+        )
+        runCurrent()
+        // The precondition of the bug: the UI copy is still the old position.
+        assertEquals(5_000L, viewModel.uiState.value.currentPositionMs)
+
+        viewModel.onHorizontalSwipeSeekStart()
+        assertEquals(1_800_000L, viewModel.uiState.value.swipeSeekTargetMs)
+
+        viewModel.onHorizontalSwipeSeek(10_000L)
+        viewModel.onHorizontalSwipeSeekCommit()
+        runCurrent()
+        assertEquals(1_810_000L, controller.lastSeekPosition)
+
+        viewModel.clearForTesting()
+    }
+
     @Test
     fun testHorizontalSwipeSeek_cancel_revertsWithoutSeeking() = runTest(testDispatcher) {
         val controller = FakePlaybackController()
