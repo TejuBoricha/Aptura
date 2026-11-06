@@ -3,6 +3,7 @@ package org.aptura.player.data.settings
 import android.content.Context
 import androidx.compose.runtime.Immutable
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
@@ -27,7 +28,21 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import java.io.IOException
 
-private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "aptura_settings")
+/**
+ * What to do with a settings file that cannot be read (a torn write, a full disk, a bad restore).
+ *
+ * Without a handler every read and every write fails with a CorruptionException for good: the file is never replaced,
+ * so a person could not change a single setting again until they cleared the app's data. With it, the unreadable file
+ * is replaced by an empty one, the app starts from its defaults, and the next change is saved normally. Losing the
+ * settings is the cost; the alternative is losing the ability to save any.
+ */
+internal val settingsCorruptionHandler: ReplaceFileCorruptionHandler<Preferences> =
+    ReplaceFileCorruptionHandler { emptyPreferences() }
+
+private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
+    name = "aptura_settings",
+    corruptionHandler = settingsCorruptionHandler
+)
 
 /** A stored enum by name; a missing or unknown name (a downgrade, a hand-edited file) falls back to [default]. */
 private inline fun <reified E : Enum<E>> Preferences.enumOr(key: Preferences.Key<String>, default: E): E =
