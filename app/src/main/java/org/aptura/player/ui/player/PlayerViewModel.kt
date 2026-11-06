@@ -857,7 +857,9 @@ class PlayerViewModel(
 
     fun onHorizontalSwipeSeekStart() {
         autoHideJob?.cancel()
-        val startPos = _uiState.value.effectivePositionMs
+        // The UI copy of the position is not refreshed while the controls are hidden, so it can be minutes old (audit
+        // FUNC-01). The last position the player reported is always current; it is 0 only before the first report.
+        val startPos = if (lastKnownPositionMs > 0L) lastKnownPositionMs else _uiState.value.effectivePositionMs
         swipeSeekStartPosMs = startPos
         _uiState.update {
             it.copy(
