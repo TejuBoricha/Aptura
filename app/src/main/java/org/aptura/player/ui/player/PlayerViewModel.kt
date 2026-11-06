@@ -797,6 +797,23 @@ class PlayerViewModel(
         }
     }
 
+    /**
+     * The player screen came up for the route key [videoUri] (audit FUNC-03).
+     *
+     * Every way into the player (the library, the file picker, "Open with") loads its video or queue first and only
+     * then pushes the route, so a screen that finds something loaded must leave it alone. The key names the video the
+     * route was opened with, which for a queue is its first video. Once the queue has moved on and the system recreates
+     * the activity (a dark-mode flip, a font-size or density change), the ViewModel survives and the route comes up
+     * again with that old key. Loading the key then restarted video 1 as a one-item queue and dropped the rest.
+     *
+     * The screen loads the key itself only when nothing is loaded: the process was killed, and the route came back
+     * from the saved back stack into an empty ViewModel.
+     */
+    fun openRouteVideo(videoUri: String) {
+        if (_uiState.value.videoUri.isNotEmpty()) return
+        loadAndPlay(videoUri)
+    }
+
     fun togglePlayPause() {
         viewModelScope.launch(dispatcher + errorHandler) {
             if (_uiState.value.isEnded) {

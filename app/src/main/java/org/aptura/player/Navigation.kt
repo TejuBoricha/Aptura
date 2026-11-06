@@ -855,9 +855,7 @@ private fun AppNavHost(
                 ) {
                     PlayerRouteFrame(closingColor = appBackground) {
                         LaunchedEffect(playerKey.videoUri) {
-                            if (playerViewModel.uiState.value.videoUri != playerKey.videoUri) {
-                                playerViewModel.loadAndPlay(playerKey.videoUri)
-                            }
+                            playerViewModel.openRouteVideo(playerKey.videoUri)
                             playerViewModel.setSubtitleFontSize(settings.subtitleFontSizeSp)
                             playerViewModel.setSubtitleTextColor(settings.subtitleTextColorHex)
                             playerViewModel.setSubtitleBackgroundEnabled(settings.subtitleBackgroundEnabled)
