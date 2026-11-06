@@ -12,7 +12,10 @@ import android.provider.MediaStore
 import android.provider.OpenableColumns
 import androidx.core.net.toUri
 import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
+import java.io.OutputStream
+import java.io.SyncFailedException
 import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ensureActive
@@ -120,6 +123,7 @@ object MediaFileTransfer {
             coroutineContext.ensureActive()
             val source = sourceString.toUri()
             var created: Uri? = null
+            var fileBytes = 0L
             try {
                 val sourceDocumentId = try {
                     DocumentsContract.getDocumentId(source)
@@ -153,12 +157,16 @@ object MediaFileTransfer {
                             if (read < 0) break
                             targetStream.write(buffer, 0, read)
                             copiedBytes += read
+                            fileBytes += read
                             report(name)
                             // Keeps cancellation responsive even when the whole copy runs on one dispatcher.
                             yield()
                         }
+                        flushToStorage(targetStream)
                     }
                 }
+                // A move deletes the original once this returns, so it must be shown complete first (audit DATA-06).
+                verifyCopy(resolver, createdUri, written = fileBytes, expected = sizes[sourceString] ?: 0L)
                 copied += sourceString
                 completed++
                 notify { onSourceCopied(sourceString, createdUri) }
@@ -269,6 +277,7 @@ object MediaFileTransfer {
             coroutineContext.ensureActive()
             val source = sourceString.toUri()
             var created: Uri? = null
+            var fileBytes = 0L
             try {
                 val name = displayName(resolver, source)
                 val mimeType = resolver.getType(source) ?: mimeTypeFromName(name)
@@ -300,11 +309,15 @@ object MediaFileTransfer {
                             if (read < 0) break
                             targetStream.write(buffer, 0, read)
                             copiedBytes += read
+                            fileBytes += read
                             report(name)
                             yield()
                         }
+                        flushToStorage(targetStream)
                     }
                 }
+                // Checked before the video is published, so an incomplete one never becomes visible to other apps.
+                verifyCopy(resolver, createdUri, written = fileBytes, expected = sizes[sourceString] ?: 0L)
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     values.clear()
@@ -467,6 +480,52 @@ object MediaFileTransfer {
         } catch (_: Exception) {
             0L
         }
+    }
+
+    /**
+     * Pushes what was written out to the destination's storage before its stream is closed. This is best effort: a
+     * provider may hand out a pipe or a socket, which cannot be synced, and the size check in [verifyCopy] still runs.
+     */
+    private fun flushToStorage(stream: OutputStream) {
+        stream.flush()
+        val descriptor = (stream as? FileOutputStream)?.fd ?: return
+        try {
+            descriptor.sync()
+        } catch (_: SyncFailedException) {
+            // See above: not every destination can be synced.
+        }
+    }
+
+    /**
+     * Throws unless the copy at [destination] is shown to be complete, so the caller keeps the original (audit DATA-06).
+     *
+     * The end of the source stream does not prove the whole video was read, and a closed destination stream does not
+     * prove the provider kept what it was given: a flaky USB or SD-card provider can do either without an error, and a
+     * move deletes the original as soon as the copy is reported done.
+     *
+     * - [written] must equal [expected], the size the source reported before the copy, when it reported one.
+     * - [written] must equal the size the destination reports now, when it reports one. A provider that leaves the
+     *   size out is not failed for that; one that reports a different size is, even if the difference is a stale value,
+     *   because keeping the original is the safe side.
+     */
+    private fun verifyCopy(resolver: ContentResolver, destination: Uri, written: Long, expected: Long) {
+        if (expected > 0L && written != expected) {
+            throw IOException("Only part of the video could be read, so the original was kept.")
+        }
+        val stored = storedSize(resolver, destination)
+        if (stored != null && stored != written) {
+            throw IOException("The copy is incomplete, so the original was kept.")
+        }
+    }
+
+    /** The size the provider says the document at [uri] has, or null when it does not say. */
+    private fun storedSize(resolver: ContentResolver, uri: Uri): Long? = try {
+        resolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { cursor ->
+            val index = cursor.getColumnIndex(OpenableColumns.SIZE)
+            if (index >= 0 && cursor.moveToFirst() && !cursor.isNull(index)) cursor.getLong(index).takeIf { it >= 0L } else null
+        }
+    } catch (_: Exception) {
+        null
     }
 
     private fun displayName(resolver: ContentResolver, uri: Uri): String {
