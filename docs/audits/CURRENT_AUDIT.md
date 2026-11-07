@@ -12,6 +12,32 @@ Date: 2026-11-05. Audited commit: `b4de60b` on `main`. Author: Claude Opus 5.5, 
 - **Record progress:** when a PR fixes a finding, add a row to the table below in the same PR. A finding is closed only by a test or device evidence named in that row. Do not edit the findings themselves, so the baseline stays comparable.
 - **New audits:** there is only ever one audit file. A new audit replaces this one, and open items carry over explicitly.
 
+## Open parts
+
+What is still open after the work recorded in the Progress table, in one place. Each line points at the row that explains it. Findings with no row in the Progress table have not been started, and are not listed here.
+
+| Finding | What is still open | What unblocks it |
+| --- | --- | --- |
+| All "Fixed in code, not closed" rows | Nothing was tried on a device. `docs/DEVICE_CHECKLIST.md` has the unticked rows. | A person with a phone |
+| SHIP-02 | Re-running TalkBack, Bluetooth, the screen-off sleep timer and task removal on a phone, with a dated capture linked from each ticked row | A phone |
+| STAB-01 | Verified on an emulator only | A real phone |
+| FUNC-05 | The Up Next countdown still lives in the screen. The view model still makes its own progress writes and follows the audio session itself; both go once a device confirms the process-scoped versions. | A device test, then removing the duplicates |
+| FUNC-09 | The video surface is cleared after a runtime-check error and never put back, so Retry could leave a black picture | A device or emulator that can produce the error |
+| FUNC-08 | The Continue watching shelf stops at 95% (`FINISHED_FRACTION`), the player at the last 10 seconds. Rows saved before the change are handled when resumed, not rewritten. | The owner: what counts as "watched" |
+| FUNC-07 | "One atomic restart action" was not done, on purpose | Only if `PlayerScreen`'s callbacks change anyway |
+| FUNC-03 | The instrumented test that flips `uiMode` on queue item 2 | An emulator test |
+| DATA-01 | The screen's choice of callback has no automated test | Code |
+| DATA-05 | The single work name; a truly concurrent write test; the longer lock measured with a large library | Code and a measurement |
+| DATA-07 | Telling the person their settings were reset; recovering the SAF folder list from `contentResolver.persistedUriPermissions` | Code |
+| PROD-01 | The quiet thank-you the audit suggests | The owner |
+| DOC-01 | `.agents/STATE.md` line 54 says a signed 1.0 tag waits for "a signing key"; only the owner can confirm that. It is a serialized hot file. | The owner |
+| SEC-01 | Move any existing upload key out of the repository folder; a key that was ever pushed must be replaced | The owner |
+| LEG-01 | Replace the decoder (ADR-010's route) or get the publisher's written terms and counsel's sign-off, before any store release | The owner |
+| DEV-03 | Whether to remove the debate and status code for good | The owner |
+| Not a finding | `MediaLibraryViewModelTest.searchDebounce_echoesRawQueryImmediately_andFiltersAfterPause` failed once in a full local run and passed 12 of 12 alone and in CI. Not root-caused. | Code |
+
+When a PR closes an open part, delete its line here in the same PR, and add a line for any part it leaves open.
+
 ## Progress
 
 | Finding | Status | PR | Evidence |
