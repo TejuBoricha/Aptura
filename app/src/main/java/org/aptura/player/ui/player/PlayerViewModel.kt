@@ -1616,6 +1616,12 @@ class PlayerViewModel(
         // The sleep timer is left alone on purpose: it belongs to the playback controller, and the sound goes on
         // after this screen is gone (the task swiped out of Recents), so the timer must too.
         autoAdvanceJob?.cancel()
+        // The screen is gone for good (the task was swiped out of Recents) and the service plays on. The player was told
+        // to park at the end of every video so this screen's Up Next countdown could run, and nothing is left to run it,
+        // so it would stop at the end of the first video. Let it carry on to the next one by itself (audit FUNC-05,
+        // interim step). The sleep timer's own "end of this video" stop is a separate flag and stays in force, and the
+        // next screen tells the player again from the settings.
+        persistScope.launch { playbackController.setPauseAtEndOfItems(false) }
         bookmarksJob?.cancel()
         flushPendingSyncEdits()
         persistCurrentPosition()
