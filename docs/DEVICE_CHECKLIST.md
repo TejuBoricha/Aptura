@@ -77,6 +77,12 @@ Use one video with several audio tracks, one sidecar `.srt`, and Bluetooth headp
       fake player and fake repository; the real database write at the end of a video was tested only with a fake
       DAO.)*
 
+- [ ] **Retry and "Try software decoding" (`FUNC-07`):** put a video your phone cannot decode in hardware (for
+      example a 10-bit HEVC file) third in a queue of several. When the error screen comes up, tap "Try software
+      decoding": it switches on the first tap, not the second, and the video plays. On any recoverable error, tap Retry:
+      the other videos are still in the queue sheet, and playback carries on from where it was. *(Not run on a phone.
+      Tested on the JVM with a fake player; the real decoder failure was not reproduced.)*
+
 ## Accessibility and appearance
 
 - [ ] **TalkBack on `ApturaSlider`:** focus announces the label, value and range; volume keys and swipe gestures

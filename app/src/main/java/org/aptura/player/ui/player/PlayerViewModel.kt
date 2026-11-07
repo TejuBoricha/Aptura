@@ -1191,11 +1191,16 @@ class PlayerViewModel(
             )
         }
         val currentUri = _uiState.value.videoUri
-        if (currentUri.isNotBlank()) {
-            loadAndPlay(currentUri)
-        } else {
-            viewModelScope.launch(dispatcher + errorHandler) {
+        viewModelScope.launch(dispatcher + errorHandler) {
+            if (playbackController.playbackQueue.value.currentItem != null) {
+                // The player still has the queue and where the person was, so it is only told to try again. Rebuilding
+                // the queue from this one video dropped the rest of it, and re-applying the video's saved settings put
+                // the decoder back to its saved value just after "Try software decoding" had chosen software (the
+                // choice is saved a moment later), so the first tap often did nothing (audit FUNC-07).
                 playbackController.retryPlayback()
+            } else if (currentUri.isNotBlank()) {
+                // Nothing is loaded any more (the player was recreated): start the video again.
+                loadAndPlay(currentUri)
             }
         }
     }
