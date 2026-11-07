@@ -271,6 +271,12 @@ class PlayerViewModelTest {
             _decoderStrategy.value = strategy
         }
 
+        var retryCalls = 0
+
+        override suspend fun retryPlayback() {
+            retryCalls++
+        }
+
         override suspend fun playQueueItem(index: Int) {
             val queue = _playbackQueue.value
             if (index in queue.items.indices) {
@@ -3169,6 +3175,75 @@ class PlayerViewModelTest {
             1_198_000L,
             controller.lastSeekPosition
         )
+        viewModel.clearForTesting()
+    }
+
+    // --- Audit FUNC-07: Retry restarts the player, it does not rebuild the queue ---
+
+    private fun failedOnItemThreeOfTen(controller: FakePlaybackController, repository: FakeMediaRepository) {
+        val items = (1..10).map { n ->
+            sampleVideo.copy(uri = "content://media/$n", title = "Video $n", playbackPositionMs = 0L)
+                .also { repository.items[it.uri] = it }
+        }
+        controller._playbackQueue.value = DomainPlaybackQueue(items, 2)
+        controller._playbackState.value = DomainPlaybackState.Error(
+            errorCode = "UNKNOWN", message = "Something went wrong", isRecoverable = true
+        )
+    }
+
+    @Test
+    fun retryOnItemThreeOfTen_keepsTheQueue_andRetriesThroughThePlayer() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        failedOnItemThreeOfTen(controller, repository)
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+        runCurrent()
+
+        viewModel.retryPlayback()
+        runCurrent()
+
+        assertEquals("the other nine videos are still queued", 10, controller._playbackQueue.value.items.size)
+        assertEquals("still on the third", 2, controller._playbackQueue.value.currentIndex)
+        assertEquals("the player is told to try again", 1, controller.retryCalls)
+        assertNull("it retries where it was; it does not seek to a saved position", controller.lastSeekPosition)
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun trySoftwareDecoding_onTheFirstTap_staysOnSoftware() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        failedOnItemThreeOfTen(controller, repository)
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+        runCurrent()
+
+        // Exactly what the button does: choose software, then retry. The video has no decoder choice saved yet.
+        viewModel.setDecoderStrategy(2)
+        viewModel.retryPlayback()
+        runCurrent()
+
+        assertEquals("the player ends on software", 2, controller._decoderStrategy.value)
+        assertEquals("the sheet shows software", 2, viewModel.uiState.value.decoderStrategy)
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun retry_whenThePlayerHasNothingLoaded_startsTheCurrentVideoAgain() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        repository.items[sampleVideo.uri] = sampleVideo
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+        viewModel.loadAndPlay(sampleVideo.uri)
+        runCurrent()
+        // The player was recreated and lost its queue; the screen still knows which video it was showing.
+        controller._playbackQueue.value = DomainPlaybackQueue()
+        controller.lastPlayedItem = null
+        runCurrent()
+
+        viewModel.retryPlayback()
+        runCurrent()
+
+        assertEquals(sampleVideo.uri, controller.lastPlayedItem?.uri)
         viewModel.clearForTesting()
     }
 
