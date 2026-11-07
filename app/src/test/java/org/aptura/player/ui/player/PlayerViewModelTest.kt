@@ -161,6 +161,13 @@ class PlayerViewModelTest {
             setStopAfterCurrentItem = { setStopAfterCurrentItem(it) }
         )
 
+        /** What the view model last told the player about parking at the end of each video (null: never told). */
+        var pauseAtEndOfItems: Boolean? = null
+
+        override suspend fun setPauseAtEndOfItems(enabled: Boolean) {
+            pauseAtEndOfItems = enabled
+        }
+
         var lastSubtitleDelay: Long? = null
         var lastAudioDelay: Long? = null
         val steppedFrames = mutableListOf<Boolean>()
@@ -1842,6 +1849,28 @@ class PlayerViewModelTest {
         )
 
         viewModel.clearForTesting()
+    }
+
+    // --- Audit FUNC-05 (interim step): with the screen gone, nothing can run the Up Next countdown ---
+
+    @Test
+    fun whenTheScreenIsGoneForGood_thePlayerStopsParkingAtTheEndOfEachVideo() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val viewModel = PlayerViewModel(controller, FakeMediaRepository(), testDispatcher)
+        // The Up Next countdown is on, so the player parks at the end of every video and waits for the countdown.
+        controller.setPauseAtEndOfItems(true)
+        runCurrent()
+        assertEquals("while the screen exists the player parks for the countdown", true, controller.pauseAtEndOfItems)
+
+        // The task is swiped out of Recents: the screen and its countdown are gone, the service plays on.
+        viewModel.clearForTesting()
+        advanceUntilIdle()
+
+        assertEquals(
+            "nothing is left to run a countdown, so the player must carry on to the next video by itself",
+            false,
+            controller.pauseAtEndOfItems
+        )
     }
 
     @Test

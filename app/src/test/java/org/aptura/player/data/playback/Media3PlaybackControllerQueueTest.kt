@@ -291,6 +291,22 @@ class Media3PlaybackControllerQueueTest {
     }
 
     @Test
+    fun theSleepTimersStop_staysInForce_whenParkingForTheCountdownIsSwitchedOff() = runTest(testDispatcher) {
+        val controller = controller()
+        controller.playQueue(items.take(2), startIndex = 0)
+
+        // The screen's countdown is on and the sleep timer's "end of this video" is armed.
+        controller.setPauseAtEndOfItems(true)
+        controller.setStopAfterCurrentItem(true)
+        // The screen goes away for good and switches the countdown's parking off (audit FUNC-05).
+        controller.setPauseAtEndOfItems(false)
+        assertTrue("the sleep timer must still stop the player at the end of the video", player.pauseAtEndOfMediaItems)
+
+        controller.setStopAfterCurrentItem(false)
+        assertFalse("with neither armed the player carries on to the next video", player.pauseAtEndOfMediaItems)
+    }
+
+    @Test
     fun audioOnly_disablesTheVideoTrackType_andShowVideoRestoresIt() = runTest(testDispatcher) {
         val controller = controller()
 
