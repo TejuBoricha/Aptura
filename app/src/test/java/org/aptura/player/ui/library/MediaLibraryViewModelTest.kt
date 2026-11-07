@@ -236,6 +236,37 @@ class MediaLibraryViewModelTest {
         }
     }
 
+    // --- Audit DATA-14: search finds a title the way the card shows it ---
+
+    private suspend fun searchResults(titles: List<String>, query: String): List<String> {
+        val repo = FakeMediaRepository()
+        repo.videosFlow.value = titles.mapIndexed { n, title -> item1.copy(uri = "content://media/s$n", title = title, folderPath = "Search") }
+        val viewModel = MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 0L)
+        var shown: List<String> = emptyList()
+        viewModel.uiState.test {
+            assertEquals(MediaLibraryUiState.Loading, awaitItem())
+            assertTrue(awaitItem() is MediaLibraryUiState.Success)
+            viewModel.onSearchQueryChanged(query)
+            var state = awaitItem()
+            while (state !is MediaLibraryUiState.Empty && !(state is MediaLibraryUiState.Success && state.searchQuery == query && state.videos.size < titles.size)) {
+                state = awaitItem()
+            }
+            shown = (state as? MediaLibraryUiState.Success)?.videos?.map { it.rawItem.title } ?: emptyList()
+            cancelAndIgnoreRemainingEvents()
+        }
+        return shown
+    }
+
+    @Test
+    fun search_findsADotSeparatedTitleByItsSpacedName() = runTest(testDispatcher) {
+        assertEquals(listOf("Show.S01E01"), searchResults(listOf("Show.S01E01", "Inception", "Avatar"), "Show S01E01"))
+    }
+
+    @Test
+    fun search_findsAnAccentedTitleWithoutTheAccent() = runTest(testDispatcher) {
+        assertEquals(listOf("Café Society"), searchResults(listOf("Café Society", "Inception", "Avatar"), "cafe"))
+    }
+
     @Test
     fun searchFiltering_withNoMatch_transitionsToEmptyFilteredState() = runTest(testDispatcher) {
         val repo = FakeMediaRepository()
