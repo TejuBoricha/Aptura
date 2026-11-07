@@ -63,10 +63,12 @@ Use one video with several audio tracks, one sidecar `.srt`, and Bluetooth headp
       bass boost, play the first, then swipe Aptura out of Recents. The sound goes on, and three things hold: the next
       video starts by itself when the first ends (playback does not stop after one video); the bass boost and
       equalizer are still audible the whole time; and after you open Aptura again each video you passed resumes where
-      you left it, the one that finished showing as watched. *(Not run on a phone. All three are tested on the JVM with
-      fakes for the player and the sound effects; whether Android keeps the effects on the audio session once the
-      screen is gone was not measured. Tapping the notification still opens the library, which is the open part of
-      `FUNC-05`.)*
+      you left it, the one that finished showing as watched. Then, with the video still playing, tap the notification:
+      the player opens on that same video, which carries on from where it was (no jump back, no restart), and Back
+      leaves to the library. Do the same from the launcher icon: the library opens and the video is not moved. *(Not
+      run on a phone. All of it is tested on the JVM with fakes for the player and the sound effects; whether Android
+      keeps the effects on the audio session once the screen is gone, and the notification's tap itself, were not
+      measured.)*
 
 ## Accessibility and appearance
 

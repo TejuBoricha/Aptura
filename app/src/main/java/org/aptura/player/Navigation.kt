@@ -162,6 +162,9 @@ fun MainNavigation(
     onThemeApplied: () -> Unit = {},
     initialLaunchUri: String? = null,
     onLaunchUriConsumed: () -> Unit = {},
+    // The playback notification was tapped: show the player for the video that is loaded (audit FUNC-05).
+    showPlayerRequested: Boolean = false,
+    onShowPlayerHandled: () -> Unit = {},
     isPipMode: Boolean = false,
     // Devices without the PiP feature (some TVs and low-end tablets) must not show a control that can never work.
     pipSupported: Boolean = true,
@@ -201,6 +204,8 @@ fun MainNavigation(
                     currentVersionCode = currentVersionCode,
                     initialLaunchUri = initialLaunchUri,
                     onLaunchUriConsumed = onLaunchUriConsumed,
+                    showPlayerRequested = showPlayerRequested,
+                    onShowPlayerHandled = onShowPlayerHandled,
                     isPipMode = isPipMode,
                     pipSupported = pipSupported,
                     onEnterPip = onEnterPip,
@@ -219,6 +224,8 @@ private fun AppNavHost(
     currentVersionCode: Int,
     initialLaunchUri: String?,
     onLaunchUriConsumed: () -> Unit,
+    showPlayerRequested: Boolean,
+    onShowPlayerHandled: () -> Unit,
     isPipMode: Boolean,
     pipSupported: Boolean,
     onEnterPip: () -> Unit,
@@ -386,6 +393,19 @@ private fun AppNavHost(
             }
             backStack.add(PlayerKey(initialLaunchUri))
             onLaunchUriConsumed()
+        }
+    }
+
+    // The notification's tap. The route only shows the video the player has loaded; it never loads or restarts one.
+    LaunchedEffect(showPlayerRequested) {
+        if (showPlayerRequested) {
+            val key = playerKeyToShow(
+                requested = true,
+                currentVideoUri = playbackController.playbackQueue.value.currentItem?.uri,
+                topOfStack = backStack.lastOrNull()
+            )
+            if (key != null) backStack.add(key)
+            onShowPlayerHandled()
         }
     }
 

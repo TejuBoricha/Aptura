@@ -30,7 +30,9 @@ class ApturaPlaybackService : MediaSessionService() {
         val sessionActivityPendingIntent = PendingIntent.getActivity(
             this,
             0,
-            Intent(this, MainActivity::class.java),
+            // Tapping the notification shows the player for the video that is playing. A bare launch intent opened the
+            // library when the task had been swiped away, with no way back to the video (audit FUNC-05).
+            MainActivity.showPlayerIntent(this),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
