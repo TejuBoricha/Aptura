@@ -471,9 +471,20 @@ class PlayerViewModel(
                 if (currentItem != null && currentItem.uri.isNotBlank()) {
                     observeBookmarks(currentItem.uri)
                     if (currentItem.uri != lastAppliedPreferencesUri) {
-                        // Auto-advance, Next/Previous and queue jumps arrive here: restore that video's own settings.
+                        // Nothing applied yet means this view model has just come up and the video was already there: the
+                        // task was swiped away and the player played on, and a screen now joins it (audit FUNC-05).
+                        val joiningALivePlayer = lastAppliedPreferencesUri == null
                         lastAppliedPreferencesUri = currentItem.uri
-                        applyItemPreferences(currentItem, resume = true)
+                        if (joiningALivePlayer) {
+                            // The queue holds the video as it was when the queue was built, which can be hours old. The
+                            // saved row is current, and the player already has what the earlier screen set, so show the
+                            // row and touch nothing: no seek back, no stale speed or delay pushed into the sound.
+                            val saved = mediaRepository.getVideoByUri(currentItem.uri) ?: currentItem
+                            applyItemPreferences(saved, resume = false, adoptOnly = true)
+                        } else {
+                            // Auto-advance, Next/Previous and queue jumps arrive here: restore that video's own settings.
+                            applyItemPreferences(currentItem, resume = true)
+                        }
                     }
                 }
             }
@@ -483,8 +494,11 @@ class PlayerViewModel(
     /**
      * Restores a video's saved preferences (aspect, speed, A/V delays, decoder) and, when [resume] is set,
      * its saved position with a 2 s pre-roll. Also clears state that must not leak between videos (A-B loop).
+     *
+     * With [adoptOnly] the settings are only shown by this screen: the player already has them (it is playing on from an
+     * earlier screen), so nothing is sent to it and it is not moved.
      */
-    private suspend fun applyItemPreferences(item: DomainMediaItem, resume: Boolean) {
+    private suspend fun applyItemPreferences(item: DomainMediaItem, resume: Boolean, adoptOnly: Boolean = false) {
         preHoldPlaybackSpeed = null
         // A debounced edit from the video we just left must not land on this one.
         audioSyncJob?.cancel()
@@ -520,6 +534,7 @@ class PlayerViewModel(
                 isEnded = false
             )
         }
+        if (adoptOnly) return
         playbackController.setDecoderStrategy(effectiveDecoder)
         playbackController.setPlaybackSpeed(restoredSpeed)
         playbackController.setAudioDelay(item.audioDelayMs)
@@ -826,6 +841,10 @@ class PlayerViewModel(
      */
     fun openRouteVideo(videoUri: String) {
         if (_uiState.value.videoUri.isNotEmpty()) return
+        // A player that already has a video is not this screen's to replace, even when this view model has not read it
+        // yet: a screen opened from the notification after the task was swiped away starts empty, one step behind a
+        // player that is playing on (audit FUNC-05).
+        if (playbackController.playbackQueue.value.currentItem != null) return
         loadAndPlay(videoUri)
     }
 
