@@ -21,6 +21,8 @@ data class ApturaPalette(
     val surfaceRecessed: Color,
     val surfaceScrim: Color,
     val surfaceGlass: Color,
+    /** The unfilled part of a seek bar: a control's boundary, so it needs 3:1 against the surface it sits on. */
+    val controlTrack: Color,
     val accentPrimary: Color,
     val accentSecondary: Color,
     val accentSubtle: Color,
@@ -71,6 +73,9 @@ object ApturaColors {
     val SurfaceScrim: Color @Composable @ReadOnlyComposable get() = LocalApturaPalette.current.surfaceScrim
     val SurfaceGlass: Color @Composable @ReadOnlyComposable get() = LocalApturaPalette.current.surfaceGlass
 
+    /** The unfilled part of a seek bar. Unlike [SurfaceElevated3] it is chosen to be seen: 3:1 on the surface behind it. */
+    val ControlTrack: Color @Composable @ReadOnlyComposable get() = LocalApturaPalette.current.controlTrack
+
     // Brand & Functional Accents
     val AccentPrimary: Color @Composable @ReadOnlyComposable get() = LocalApturaPalette.current.accentPrimary
     val AccentSecondary: Color @Composable @ReadOnlyComposable get() = LocalApturaPalette.current.accentSecondary
@@ -105,6 +110,7 @@ internal object ApturaPalettes {
         surfaceRecessed = Color(0x80000000),
         surfaceScrim = Color(0xCC000000),
         surfaceGlass = Color(0xB316181D),
+        controlTrack = Color(0xFF5E6674),
         accentPrimary = accent.darkPrimary,
         accentSecondary = accent.darkSecondary,
         accentSubtle = accent.darkPrimary.copy(alpha = 0.15f),
@@ -115,7 +121,7 @@ internal object ApturaPalettes {
         statusInfo = Color(0xFF40C4FF),
         textHighEmphasis = Color(0xFFF0F4F8),
         textMediumEmphasis = Color(0xFF9BA3AF),
-        textLowEmphasis = Color(0xFF606978),
+        textLowEmphasis = Color(0xFF8A93A1),
         textOnAccent = Color(0xFF001217),
         textOnScrim = Color(0xFFF0F4F8)
     )
@@ -132,6 +138,7 @@ internal object ApturaPalettes {
         surfaceRecessed = Color(0x0F0F172A),
         surfaceScrim = Color(0xCC0A0C10),
         surfaceGlass = Color(0xB3FFFFFF),
+        controlTrack = Color(0xFF787F8D),
         accentPrimary = accent.lightPrimary,
         accentSecondary = accent.lightSecondary,
         accentSubtle = accent.lightPrimary.copy(alpha = 0.12f),
@@ -142,7 +149,7 @@ internal object ApturaPalettes {
         statusInfo = Color(0xFF0B6FA4),
         textHighEmphasis = Color(0xFF111418),
         textMediumEmphasis = Color(0xFF4B5563),
-        textLowEmphasis = Color(0xFF6B7280),
+        textLowEmphasis = Color(0xFF646B78),
         textOnAccent = Color(0xFFFFFFFF),
         textOnScrim = Color(0xFFF0F4F8)
     )

@@ -1378,8 +1378,10 @@ fun PlayerScreen(
 
                             val scrubberStepMs = uiState.seekStepMs
                             // Read in composition: a draw lambda cannot read theme tokens.
-                            val scrubberTrackColor = ApturaColors.SurfaceElevated3
-                            val scrubberBufferedColor = ApturaColors.TextMediumEmphasis.copy(alpha = 0.35f)
+                            // The unfilled track is the bar's boundary: ControlTrack is 3:1 on the player's black (WCAG 1.4.11), where
+                            // SurfaceElevated3 was 1.57:1. Buffered sits on top of it, so its alpha was raised to stay a visible step.
+                            val scrubberTrackColor = ApturaColors.ControlTrack
+                            val scrubberBufferedColor = ApturaColors.TextMediumEmphasis.copy(alpha = 0.6f)
                             val scrubberAccent = ApturaColors.AccentPrimary
                             Box(
                                 modifier = Modifier
