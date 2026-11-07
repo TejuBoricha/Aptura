@@ -2,6 +2,7 @@ package org.aptura.player
 
 import android.app.AppOpsManager
 import android.app.PictureInPictureParams
+import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Rect
@@ -37,6 +38,9 @@ class MainActivity : ComponentActivity() {
     /** The `ACTION_VIEW` URI that has not been handed to the UI yet. Consumed exactly once. */
     private var pendingLaunchUri by mutableStateOf<String?>(null)
 
+    /** The playback notification was tapped and the player has not been shown for it yet. Consumed exactly once. */
+    private var pendingShowPlayer by mutableStateOf(false)
+
     /** Mirrors the "Background Audio Playback" setting so [onStop] can honour it synchronously. */
     private var backgroundAudioEnabled = true
 
@@ -59,6 +63,7 @@ class MainActivity : ComponentActivity() {
         val alreadyConsumed = savedInstanceState?.getBoolean(STATE_LAUNCH_CONSUMED, false) == true
         if (!alreadyConsumed) {
             pendingLaunchUri = launchUriFrom(intent)
+            pendingShowPlayer = isShowPlayerRequest(intent)
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -79,6 +84,8 @@ class MainActivity : ComponentActivity() {
                 onThemeApplied = firstFrameGate::themeApplied,
                 initialLaunchUri = pendingLaunchUri,
                 onLaunchUriConsumed = { pendingLaunchUri = null },
+                showPlayerRequested = pendingShowPlayer,
+                onShowPlayerHandled = { pendingShowPlayer = false },
                 isPipMode = isPipMode.value,
                 pipSupported = supportsPictureInPicture(),
                 onEnterPip = ::enterPictureInPicture,
@@ -125,6 +132,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         launchUriFrom(intent)?.let { pendingLaunchUri = it }
+        if (isShowPlayerRequest(intent)) pendingShowPlayer = true
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -238,7 +246,17 @@ class MainActivity : ComponentActivity() {
     private fun launchUriFrom(intent: Intent?): String? =
         if (intent?.action == Intent.ACTION_VIEW) intent.data?.toString() else null
 
-    private companion object {
-        const val STATE_LAUNCH_CONSUMED = "aptura.launch_consumed"
+    companion object {
+        /** Sent by the playback notification: open the player for the video that is playing (audit FUNC-05). */
+        const val ACTION_SHOW_PLAYER = "org.aptura.player.action.SHOW_PLAYER"
+
+        /** The intent the playback notification fires when tapped. */
+        fun showPlayerIntent(context: Context): Intent =
+            Intent(context, MainActivity::class.java).setAction(ACTION_SHOW_PLAYER)
+
+        /** Whether [intent] is the notification's request to show the player. */
+        internal fun isShowPlayerRequest(intent: Intent?): Boolean = intent?.action == ACTION_SHOW_PLAYER
+
+        private const val STATE_LAUNCH_CONSUMED = "aptura.launch_consumed"
     }
 }
