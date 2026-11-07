@@ -246,6 +246,66 @@ class Media3PlaybackControllerQueueTest {
         assertFalse("after the whole shuffled queue there is nothing further", player.hasNextMediaItem())
     }
 
+    // --- Audit FUNC-10: "Play next" under shuffle is the next video, not a random one ---
+
+    @Test
+    fun playNext_underShuffle_isTheVeryNextVideo_everyTime() = runTest(testDispatcher) {
+        val controller = controller()
+        val queue = (1..6).map(::item)
+        repeat(25) { round ->
+            controller.playQueue(queue, startIndex = round % queue.size)
+            controller.setPlayMode(PlayMode.SHUFFLE)
+            settle()
+            val chosen = item(100 + round)
+
+            controller.playNext(chosen)
+            settle()
+
+            assertTrue(player.shuffleModeEnabled)
+            assertEquals(
+                "round $round: the video chosen for next must be next, not wherever the shuffle put it",
+                chosen.uri,
+                playerUris()[player.nextMediaItemIndex]
+            )
+        }
+    }
+
+    @Test
+    fun playNext_underShuffle_doesNotBringBackVideosAlreadyPlayedInThisPass() = runTest(testDispatcher) {
+        val controller = controller()
+        controller.playQueue((1..6).map(::item), startIndex = 0)
+        controller.setPlayMode(PlayMode.SHUFFLE)
+        settle()
+        val played = mutableListOf(player.currentMediaItemIndex)
+        repeat(2) { controller.skipToNext(); played += player.currentMediaItemIndex }
+        val playedUris = played.map { playerUris()[it] }
+
+        val chosen = item(200)
+        controller.playNext(chosen)
+        settle()
+
+        // Walk the rest of the pass: the chosen video first, then every unplayed one exactly once, no repeats.
+        val rest = mutableListOf<String>()
+        while (player.hasNextMediaItem()) { controller.skipToNext(); rest += playerUris()[player.currentMediaItemIndex] }
+        assertEquals(chosen.uri, rest.first())
+        assertEquals("nothing from earlier in the pass comes back: $rest", emptySet<String>(), rest.toSet().intersect(playedUris.toSet()))
+        assertEquals("every video of the pass is visited once", rest.size, rest.toSet().size)
+        assertEquals(7 - playedUris.size, rest.size)
+    }
+
+    @Test
+    fun playNext_whenNotShuffling_stillGoesRightAfterTheCurrentVideo() = runTest(testDispatcher) {
+        val controller = controller()
+        controller.playQueue((1..4).map(::item), startIndex = 1)
+        settle()
+
+        controller.playNext(item(300))
+        settle()
+
+        assertEquals(item(300).uri, playerUris()[player.nextMediaItemIndex])
+        assertEquals(2, player.nextMediaItemIndex)
+    }
+
     @Test
     fun queueEdits_areAppliedToThePlayersPlaylist() = runTest(testDispatcher) {
         val controller = controller()

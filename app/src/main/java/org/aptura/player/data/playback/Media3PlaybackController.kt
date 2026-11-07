@@ -995,7 +995,41 @@ class Media3PlaybackController(
         val insertIndex = (player.currentMediaItemIndex + 1).coerceIn(0, queueItems.size)
         queueItems.add(insertIndex, item)
         player.addMediaItem(insertIndex, buildMediaItem(item, emptyList(), null))
+        if (playMode == PlayMode.SHUFFLE) placeInShuffleOrderRightAfterCurrent(insertIndex)
         publishQueue()
+    }
+
+    /**
+     * ExoPlayer puts a newly added item at a random place in the shuffle order, so "Play next" under shuffle played a
+     * random video next (audit FUNC-10). Keep the order as it is, with the new item moved to right after the one
+     * playing: the videos already played in this pass stay behind it, and the others follow, so the pass still
+     * visits every video exactly once.
+     */
+    private fun placeInShuffleOrderRightAfterCurrent(newIndex: Int) {
+        val exo = player as? ExoPlayer ?: return
+        val timeline = exo.currentTimeline
+        val count = timeline.windowCount
+        val current = exo.currentMediaItemIndex
+        if (count < 2 || newIndex !in 0 until count || current !in 0 until count) return
+
+        // The order as it stands, read from its first video to its last.
+        var first = current
+        while (true) {
+            val before = timeline.getPreviousWindowIndex(first, Player.REPEAT_MODE_OFF, /* shuffleModeEnabled = */ true)
+            if (before == C.INDEX_UNSET) break
+            first = before
+        }
+        val order = mutableListOf<Int>()
+        var index = first
+        while (index != C.INDEX_UNSET && order.size <= count) {
+            order += index
+            index = timeline.getNextWindowIndex(index, Player.REPEAT_MODE_OFF, /* shuffleModeEnabled = */ true)
+        }
+        if (order.size != count || order.toSet().size != count) return // not an order we understand: leave it as it is
+
+        order.remove(newIndex)
+        order.add(order.indexOf(current) + 1, newIndex)
+        exo.setShuffleOrder(DefaultShuffleOrder(order.toIntArray(), System.nanoTime()))
     }
 
     override suspend fun removeFromQueue(index: Int) {
