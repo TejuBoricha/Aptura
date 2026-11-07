@@ -303,6 +303,11 @@ class PlayerViewModel(
     private fun observePlaybackState() {
         viewModelScope.launch(dispatcher + errorHandler) {
             playbackController.playbackState.collect { state ->
+                // The Up Next countdown belongs to the player being parked at the end of a video, which the controller
+                // reports as Ended for as long as it stays parked. Any other state means something else moved it on
+                // (a headset's Next button, the notification, another app), and the countdown would then skip the video
+                // the person just chose (audit FUNC-06).
+                if (state !is DomainPlaybackState.Ended && autoAdvanceJob?.isActive == true) cancelAutoAdvance()
                 when (state) {
                     is DomainPlaybackState.Idle -> {
                         _uiState.update {
@@ -434,6 +439,9 @@ class PlayerViewModel(
                 val currentItem = queue.currentItem
                 val sanitized = currentItem?.let { SubtitleQuerySanitizer.sanitize(it.title) }
                 if (currentItem != null && currentItem.uri != _uiState.value.videoUri) {
+                    // A countdown still running was for the video just left. Whoever changed the video (a headset's
+                    // Next, a queue jump from elsewhere), it must not go on to skip this one (audit FUNC-06).
+                    if (autoAdvanceJob?.isActive == true) cancelAutoAdvance()
                     // Leaving a video: keep where it stopped BEFORE the state below switches to the next one, so its
                     // position is neither lost nor filed under the new video.
                     persistCurrentPosition()

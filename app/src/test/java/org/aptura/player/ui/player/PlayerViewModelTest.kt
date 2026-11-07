@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
@@ -1710,6 +1711,135 @@ class PlayerViewModelTest {
 
         assertNull(viewModel.uiState.value.autoAdvanceCountdownSeconds)
         assertNull(viewModel.uiState.value.nextItemTitle)
+
+        viewModel.clearForTesting()
+    }
+
+    // --- Audit FUNC-06: the Up Next countdown must not outlive what started it ---
+
+    private fun upNextVideo(n: Int) = DomainMediaItem(
+        uri = "content://media/$n",
+        title = "Video $n",
+        durationMs = 60_000L,
+        sizeBytes = 1000L,
+        mimeType = "video/mp4",
+        dateAddedSec = 2000L + n,
+        folderPath = "Movies"
+    )
+
+    private fun TestScope.startCountdownOnFirstOfThree(controller: FakePlaybackController, viewModel: PlayerViewModel) {
+        viewModel.playQueue(listOf(sampleVideo, upNextVideo(2), upNextVideo(3)), 0)
+        runCurrent()
+        controller._playbackState.value = DomainPlaybackState.Ended(sampleVideo.durationMs)
+        runCurrent()
+        assertEquals("the countdown is running", 10, viewModel.uiState.value.autoAdvanceCountdownSeconds)
+    }
+
+    @Test
+    fun aHeadsetNext_duringTheCountdown_removesTheUpNextCard() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val viewModel = PlayerViewModel(controller, FakeMediaRepository(), testDispatcher)
+        startCountdownOnFirstOfThree(controller, viewModel)
+
+        // A headset's Next button, the notification or another app goes straight to the controller, not through the
+        // view model, so nothing here cancelled the countdown.
+        controller.skipToNext()
+        runCurrent()
+
+        assertEquals("content://media/2", controller._playbackQueue.value.currentItem?.uri)
+        assertNull(
+            "the card for a video that is no longer next must not stay on screen",
+            viewModel.uiState.value.autoAdvanceCountdownSeconds
+        )
+        assertNull(viewModel.uiState.value.nextItemTitle)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun aHeadsetNext_duringTheCountdown_doesNotSkipTheVideoThePersonChose() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val viewModel = PlayerViewModel(controller, FakeMediaRepository(), testDispatcher)
+        startCountdownOnFirstOfThree(controller, viewModel)
+
+        controller.skipToNext() // the headset: now on video 2
+        runCurrent()
+        advanceTimeBy(15_000L) // longer than the whole countdown
+        runCurrent()
+
+        assertEquals(
+            "the countdown must not move on from video 2 to video 3",
+            "content://media/2",
+            controller._playbackQueue.value.currentItem?.uri
+        )
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun playbackStartingAgain_duringTheCountdown_cancelsIt() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val viewModel = PlayerViewModel(controller, FakeMediaRepository(), testDispatcher)
+        startCountdownOnFirstOfThree(controller, viewModel)
+
+        // Something other than the countdown started playback: the player is no longer parked at the end.
+        controller._playbackState.value = DomainPlaybackState.Ready(
+            positionMs = 0L,
+            durationMs = sampleVideo.durationMs,
+            isPlaying = true
+        )
+        runCurrent()
+
+        assertNull(viewModel.uiState.value.autoAdvanceCountdownSeconds)
+        advanceTimeBy(15_000L)
+        runCurrent()
+        assertEquals(
+            "no skip after the countdown would have ended",
+            sampleVideo.uri,
+            controller._playbackQueue.value.currentItem?.uri
+        )
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun theQueueMovingOn_duringTheCountdown_cancelsIt() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val viewModel = PlayerViewModel(controller, FakeMediaRepository(), testDispatcher)
+        startCountdownOnFirstOfThree(controller, viewModel)
+
+        // The current video changes (a queue jump from elsewhere) while the state still reads Ended.
+        controller._playbackQueue.value = controller._playbackQueue.value.copy(currentIndex = 1)
+        runCurrent()
+
+        assertNull(viewModel.uiState.value.autoAdvanceCountdownSeconds)
+        advanceTimeBy(15_000L)
+        runCurrent()
+        assertEquals(
+            "content://media/2",
+            controller._playbackQueue.value.currentItem?.uri
+        )
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun aCountdownNobodyInterrupts_stillAdvancesToTheNextVideoOnce() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val viewModel = PlayerViewModel(controller, FakeMediaRepository(), testDispatcher)
+        startCountdownOnFirstOfThree(controller, viewModel)
+
+        advanceTimeBy(10_500L)
+        runCurrent()
+        assertEquals("content://media/2", controller._playbackQueue.value.currentItem?.uri)
+
+        advanceTimeBy(15_000L)
+        runCurrent()
+        assertEquals(
+            "once only: nothing else ended, so nothing else advances",
+            "content://media/2",
+            controller._playbackQueue.value.currentItem?.uri
+        )
 
         viewModel.clearForTesting()
     }
