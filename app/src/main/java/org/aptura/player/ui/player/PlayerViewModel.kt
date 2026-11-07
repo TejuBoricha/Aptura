@@ -50,7 +50,14 @@ class PlayerViewModel(
     private val dispatcher: CoroutineDispatcher = Dispatchers.Main,
     private val audioEffectsStore: AudioEffectsStore? = settingsRepository,
     /** The default decoder from Settings (0 Auto, 1 Hardware, 2 Software). Videos without a choice of their own follow it. */
-    private val defaultDecoderFlow: Flow<Int>? = settingsRepository?.settingsFlow?.map { it.defaultDecoderStrategy }
+    private val defaultDecoderFlow: Flow<Int>? = settingsRepository?.settingsFlow?.map { it.defaultDecoderStrategy },
+    /**
+     * Whether this view model releases [audioEnhancementController] when it is cleared. `true` (the default) for one it
+     * created itself. `false` when the controller is lent by [org.aptura.player.data.playback.PlayerManager], which
+     * keeps the effects on the player's audio session for as long as the player lives: the sound goes on after the
+     * screen is swiped away, so the effects must too (audit FUNC-05).
+     */
+    private val ownsAudioEnhancement: Boolean = true
 ) : ViewModel() {
 
     constructor(
@@ -1625,12 +1632,14 @@ class PlayerViewModel(
         bookmarksJob?.cancel()
         flushPendingSyncEdits()
         persistCurrentPosition()
-        // Free the system's (limited) effect instances, and keep the last tweak even if it is inside the debounce window.
+        // Keep the last tweak even if it is inside the debounce window.
         audioEffectsStore?.let { store ->
             val effects = audioEnhancementController.snapshot()
             persistScope.launch { store.save(effects) }
         }
-        audioEnhancementController.releaseEffects()
+        // Free the system's (limited) effect instances, but only ones this view model made. Effects lent by the player's
+        // owner stay on the audio session: the sound goes on after the screen, and so must they.
+        if (ownsAudioEnhancement) audioEnhancementController.releaseEffects()
         super.onCleared()
     }
 }

@@ -59,6 +59,14 @@ Use one video with several audio tracks, one sidecar `.srt`, and Bluetooth headp
       changes): the offset does not grow. Seek: it is applied again from the new position. *(Not run on a phone. The fix
       is tested on the JVM through Media3's real audio sink, which is the wiring the player uses; that sink never plays
       there, so what the media clock reports while the silence plays was not measured.)*
+- [ ] **Swipe the app away while a video plays (`FUNC-05`):** queue three short videos, turn on the equalizer with some
+      bass boost, play the first, then swipe Aptura out of Recents. The sound goes on, and three things hold: the next
+      video starts by itself when the first ends (playback does not stop after one video); the bass boost and
+      equalizer are still audible the whole time; and after you open Aptura again each video you passed resumes where
+      you left it, the one that finished showing as watched. *(Not run on a phone. All three are tested on the JVM with
+      fakes for the player and the sound effects; whether Android keeps the effects on the audio session once the
+      screen is gone was not measured. Tapping the notification still opens the library, which is the open part of
+      `FUNC-05`.)*
 
 ## Accessibility and appearance
 

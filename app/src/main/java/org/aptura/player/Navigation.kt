@@ -249,10 +249,19 @@ private fun AppNavHost(
     }
 
     val playbackController = remember { PlayerManager.getOrCreate(context) }
-    // The ViewModel creates, binds (to the player's audio session) and releases its own effects controller. It used to
-    // be built here with `remember`, so every Activity recreation leaked another set of system audio effects.
+    // The effects belong to the player's audio session, not to this screen: the player's owner creates them, keeps them
+    // on the session while the player lives, and releases them with it. The view model borrows them, so swiping the task
+    // away while a video plays no longer drops the equalizer, bass and virtualizer (audit FUNC-05). They used to be built
+    // here with `remember`, so every Activity recreation leaked another set of system audio effects.
+    val audioEnhancement = remember { PlayerManager.getOrCreateAudioEnhancement(context) }
     val playerViewModel: PlayerViewModel = viewModel {
-        PlayerViewModel(playbackController, mediaRepository, settingsRepository = settingsRepository)
+        PlayerViewModel(
+            playbackController,
+            mediaRepository,
+            audioEnhancementController = audioEnhancement,
+            settingsRepository = settingsRepository,
+            ownsAudioEnhancement = false
+        )
     }
 
     val backStack = rememberNavBackStack(startKey)
