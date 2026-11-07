@@ -66,7 +66,7 @@ class SettingsGalleryTest : GalleryBase() {
 
     @Test fun phoneSupportSection() {
         settings(ThemeMode.DARK, AccentColor.GOLD, isSupporter = true)
-        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("I Supported Aptura 🏅"))
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("Support Independent Development"))
         settle()
         shoot("settings_phone_support_section")
     }
