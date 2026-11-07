@@ -11,6 +11,7 @@ import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
+import androidx.media3.exoplayer.DecoderCounters
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.SeekParameters
 import androidx.media3.exoplayer.analytics.AnalyticsListener
@@ -102,7 +103,22 @@ class Media3PlaybackController(
     override val decoderStrategy: StateFlow<Int> = _decoderStrategy.asStateFlow()
 
     private var totalDroppedFrames = 0
+
+    /** Frames rendered by video renderers that have since been disabled (a decoder change starts a new counter). */
     private var renderedVideoFrames = 0
+
+    /** The enabled video renderer's live counters, and how much of them belongs to earlier items. */
+    private var videoCounters: DecoderCounters? = null
+    private var videoCountersBaseline = 0
+
+    /** Frames rendered for the current item so far: finished renderers plus the live one. */
+    private fun renderedFramesNow(): Int {
+        val live = videoCounters?.let { counters ->
+            counters.ensureUpdated()
+            (counters.renderedOutputBufferCount - videoCountersBaseline).coerceAtLeast(0)
+        } ?: 0
+        return renderedVideoFrames + live
+    }
     private var currentVideoDecoderName = "Auto"
     private var currentAudioDecoderName = "Auto"
     private var isVideoHardware = true
@@ -403,7 +419,19 @@ class Media3PlaybackController(
         }
     }
 
-    private val analyticsListener = object : AnalyticsListener {
+    internal val analyticsListener = object : AnalyticsListener {
+        override fun onVideoEnabled(eventTime: AnalyticsListener.EventTime, decoderCounters: DecoderCounters) {
+            videoCounters = decoderCounters
+            videoCountersBaseline = 0
+        }
+
+        override fun onVideoDisabled(eventTime: AnalyticsListener.EventTime, decoderCounters: DecoderCounters) {
+            // Keep what this renderer drew, so a decoder change in the middle of an item does not zero the count.
+            renderedVideoFrames = renderedFramesNow()
+            videoCounters = null
+            videoCountersBaseline = 0
+        }
+
         override fun onVideoDecoderInitialized(
             eventTime: AnalyticsListener.EventTime,
             decoderName: String,
@@ -557,8 +585,7 @@ class Media3PlaybackController(
             else -> "Auto (Hardware)"
         }
 
-        val totalFrames = (totalDroppedFrames + renderedVideoFrames).coerceAtLeast(1)
-        val dropPct = (totalDroppedFrames.toFloat() / totalFrames.toFloat()) * 100f
+        val dropPct = dropPercentage(totalDroppedFrames, renderedFramesNow())
 
         _playbackStats.value = PlaybackStatsInfo(
             decoderPath = decoderPath,
@@ -795,6 +822,7 @@ class Media3PlaybackController(
         hasAttemptedAudioTrackFallback = false
         totalDroppedFrames = 0
         renderedVideoFrames = 0
+        videoCountersBaseline = videoCounters?.let { it.ensureUpdated(); it.renderedOutputBufferCount } ?: 0
         _decoderStrategy.value = currentDecoderStrategy
         _isCompatibilityMode.value = (currentDecoderStrategy == 2)
         _compatibilityNotice.value = if (currentDecoderStrategy == 2) "Playing in compatibility mode (Software Decoder)" else null
@@ -1349,4 +1377,18 @@ class Media3PlaybackController(
             PlaybackException.ERROR_CODE_IO_UNSPECIFIED
         )
     }
+}
+
+/** Fewer frames than this (about a second of video) say nothing about a rate. */
+internal const val MIN_FRAMES_FOR_DROP_RATE = 30
+
+/**
+ * Share of frames dropped, as a percentage, for the stats overlay (audit FUNC-10). The overlay turns the line into a
+ * warning above 5%, so a rate from the first few frames (one drop in two would read 50%) is held back until there are
+ * [MIN_FRAMES_FOR_DROP_RATE] frames to judge by; the count of dropped frames is shown regardless.
+ */
+internal fun dropPercentage(dropped: Int, rendered: Int): Float {
+    val total = dropped + rendered
+    if (total < MIN_FRAMES_FOR_DROP_RATE) return 0f
+    return dropped.toFloat() / total.toFloat() * 100f
 }
