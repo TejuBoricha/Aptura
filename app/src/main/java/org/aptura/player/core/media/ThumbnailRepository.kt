@@ -221,12 +221,13 @@ object ThumbnailRepository {
     fun getCacheSizeBytes(context: Context): Long {
         val dirs = listOf(
             File(context.cacheDir, THUMBNAIL_DIR_NAME),
-            File(context.cacheDir, "subtitles_extracted"),
+            File(context.cacheDir, SubtitleZipExtractor.EXTRACT_DIR_NAME),
             File(context.cacheDir, "subtitles_normalized")
         )
+        // Walks into sub-folders: a zip import keeps its subtitle in a folder of its own under subtitles_extracted.
         return dirs.sumOf { dir ->
             if (!dir.exists()) 0L
-            else dir.listFiles()?.sumOf { if (it.isFile) it.length() else 0L } ?: 0L
+            else dir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
         }
     }
 
@@ -238,12 +239,13 @@ object ThumbnailRepository {
         ThumbnailBitmapCache.clear()
         val dirs = listOf(
             File(context.cacheDir, THUMBNAIL_DIR_NAME),
-            File(context.cacheDir, "subtitles_extracted"),
+            File(context.cacheDir, SubtitleZipExtractor.EXTRACT_DIR_NAME),
             File(context.cacheDir, "subtitles_normalized")
         )
         dirs.forEach { dir ->
             if (dir.exists()) {
-                dir.listFiles()?.forEach { it.delete() }
+                // Recursive: a plain delete() fails on a zip import's folder, which is not empty.
+                dir.listFiles()?.forEach { it.deleteRecursively() }
             }
         }
         try {

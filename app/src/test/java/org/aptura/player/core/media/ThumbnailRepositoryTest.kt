@@ -154,4 +154,30 @@ class ThumbnailRepositoryTest {
         assertFalse("Target thumbnail must be deleted", file1.exists())
         assertTrue("Other thumbnail must remain intact", file2.exists())
     }
+
+    @Test
+    fun testSubtitleZipImports_areCountedAndCleared() {
+        // A zip import keeps its subtitle in a folder of its own (SEC-02); the cache screen must still see and clear it.
+        val zip = java.io.ByteArrayOutputStream().also { baos ->
+            java.util.zip.ZipOutputStream(baos).use { zos ->
+                zos.putNextEntry(java.util.zip.ZipEntry("Movie.srt"))
+                zos.write("1\n00:00:01,000 --> 00:00:02,000\nHello\n".toByteArray())
+                zos.closeEntry()
+            }
+        }.toByteArray()
+        val imported = SubtitleZipExtractor.extractSubtitleFromStream(context, zip.inputStream()) as ZipExtractionResult.Success
+
+        assertTrue(imported.extractedFile.length() > 0L)
+        assertEquals(imported.extractedFile.length(), ThumbnailRepository.getCacheSizeBytes(context))
+
+        ThumbnailRepository.clearCache(context)
+
+        assertFalse("the import's file should be cleared", imported.extractedFile.exists())
+        assertEquals(0L, ThumbnailRepository.getCacheSizeBytes(context))
+        assertEquals(
+            "the import's folder should be gone too",
+            emptyList<File>(),
+            File(context.cacheDir, SubtitleZipExtractor.EXTRACT_DIR_NAME).listFiles()?.toList().orEmpty()
+        )
+    }
 }
