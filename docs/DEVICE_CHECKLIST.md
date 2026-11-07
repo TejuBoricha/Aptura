@@ -100,6 +100,11 @@ Use one video with several audio tracks, one sidecar `.srt`, and Bluetooth headp
       video keeps the sound it had. If the audio fails, the player moves to another track that can play, never to
       one marked unsupported. *(Not run on a phone.)*
 
+- [ ] **Rename keeps the file type (`DATA-10`):** rename a `.mkv` to `Mr.Robot` (and another to `Dr.Who`) from the
+      details sheet: the file is now `Mr.Robot.mkv` and still plays and still shows its thumbnail. Renaming to
+      `Summer.mp4` on a `.mp4` keeps the name as typed. *(Not run on a phone; tested with a fake provider and a local
+      file, not a real MediaStore rename.)*
+
 ## Accessibility and appearance
 
 - [ ] **TalkBack on `ApturaSlider`:** focus announces the label, value and range; volume keys and swipe gestures
