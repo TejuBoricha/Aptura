@@ -1,6 +1,7 @@
 package org.aptura.player.ui.library
 
 import android.app.Activity
+import android.content.IntentSender
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
@@ -41,6 +42,19 @@ class MediaMoveFlow internal constructor(
         start(uris, destinationFolder, onFinished)
 }
 
+/** What the move flow needs from the platform: [MediaMover] in the app, a fake in tests. */
+internal interface InPlaceMoveEngine {
+    fun moveInPlace(uriString: String, destinationPath: String): MoveOutcome
+    fun requestBatchWriteConsent(uris: List<String>): IntentSender?
+}
+
+private class MediaMoverEngine(private val mover: MediaMover) : InPlaceMoveEngine {
+    override fun moveInPlace(uriString: String, destinationPath: String): MoveOutcome =
+        mover.moveInPlace(uriString, destinationPath)
+
+    override fun requestBatchWriteConsent(uris: List<String>): IntentSender? = mover.requestBatchWriteConsent(uris)
+}
+
 /**
  * Manages the in-place move flow for MediaStore items using Scoped Storage metadata updates.
  *
@@ -50,7 +64,13 @@ class MediaMoveFlow internal constructor(
 @Composable
 fun rememberMediaMoveFlow(onMoved: (uri: String) -> Unit): MediaMoveFlow {
     val context = LocalContext.current
-    val mover = remember(context) { MediaMover(context) }
+    val engine = remember(context) { MediaMoverEngine(MediaMover(context)) }
+    return rememberMediaMoveFlow(onMoved, engine)
+}
+
+@Composable
+internal fun rememberMediaMoveFlow(onMoved: (uri: String) -> Unit, mover: InPlaceMoveEngine): MediaMoveFlow {
+    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val currentOnMoved by rememberUpdatedState(onMoved)
 
@@ -68,29 +88,38 @@ fun rememberMediaMoveFlow(onMoved: (uri: String) -> Unit): MediaMoveFlow {
         val batch = awaitingBatchConsent
         val destination = currentDestination
         if (batch.isNotEmpty()) {
-            awaitingBatchConsent = emptyList()
             if (result.resultCode == Activity.RESULT_OK) {
+                // [awaitingBatchConsent] stays set until the batch has finished. It is what tells the effect below to
+                // leave the queue alone: clearing it here, while the queue still held every video, made the effect
+                // start moving the same videos a second time next to this loop (audit DATA-08). It also keeps a second
+                // move request out ("already in progress") for as long as the batch runs.
                 coroutineScope.launch {
-                    val newlyMoved = mutableListOf<String>()
-                    val newlyFailed = mutableListOf<String>()
-                    withContext(Dispatchers.IO) {
-                        for (uri in batch) {
-                            when (mover.moveInPlace(uri, destination)) {
-                                MoveOutcome.Moved -> {
-                                    newlyMoved += uri
-                                    withContext(Dispatchers.Main) { currentOnMoved(uri) }
-                                }
-                                is MoveOutcome.Failed, is MoveOutcome.NeedsConsent -> {
-                                    newlyFailed += uri
+                    try {
+                        val newlyMoved = mutableListOf<String>()
+                        val newlyFailed = mutableListOf<String>()
+                        withContext(Dispatchers.IO) {
+                            for (uri in batch) {
+                                when (mover.moveInPlace(uri, destination)) {
+                                    MoveOutcome.Moved -> {
+                                        newlyMoved += uri
+                                        withContext(Dispatchers.Main) { currentOnMoved(uri) }
+                                    }
+                                    is MoveOutcome.Failed, is MoveOutcome.NeedsConsent -> {
+                                        newlyFailed += uri
+                                    }
                                 }
                             }
                         }
+                        movedUris = movedUris + newlyMoved
+                        failedUris = failedUris + newlyFailed
+                        moveQueue = moveQueue.filterNot(batch.toSet()::contains)
+                    } finally {
+                        // Even if a move throws: never leave the flow saying a move is still running.
+                        awaitingBatchConsent = emptyList()
                     }
-                    movedUris = movedUris + newlyMoved
-                    failedUris = failedUris + newlyFailed
-                    moveQueue = moveQueue.filterNot(batch.toSet()::contains)
                 }
             } else {
+                awaitingBatchConsent = emptyList()
                 failedUris = failedUris + batch
                 Toast.makeText(context, "Move cancelled. No files were modified.", Toast.LENGTH_SHORT).show()
                 moveQueue = moveQueue.filterNot(batch.toSet()::contains)
