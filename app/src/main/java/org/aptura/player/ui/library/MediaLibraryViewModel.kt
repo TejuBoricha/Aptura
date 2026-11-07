@@ -19,6 +19,7 @@ import org.aptura.player.core.diagnostics.ApturaErrorHandler
 import org.aptura.player.core.diagnostics.EventCode
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.domain.repository.MediaRepository
+import org.aptura.player.domain.model.matchesSearch
 
 /**
  * Presentation ViewModel for the Media Library Screen.
@@ -157,8 +158,9 @@ class MediaLibraryViewModel(
             if (filter.query.isNotBlank()) {
                 val trimmedQuery = filter.query.trim()
                 filtered = filtered.filter { item ->
-                    item.title.contains(trimmedQuery, ignoreCase = true) ||
-                        friendlyFolderName(item.folderPath).contains(trimmedQuery, ignoreCase = true)
+                    // The title as it is shown on the card, not only as it is stored (audit DATA-14).
+                    matchesSearch(item.title, trimmedQuery) ||
+                        matchesSearch(friendlyFolderName(item.folderPath), trimmedQuery)
                 }
             }
 
