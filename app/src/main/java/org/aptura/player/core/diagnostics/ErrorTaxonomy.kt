@@ -50,7 +50,7 @@ object ErrorTaxonomy {
      * The video was opened and asked to play, and nothing played. There is no exception to map: the player simply never
      * got going (see the start watchdog in the playback controller). Said plainly, with what is left to try.
      */
-    fun playbackNotStarted(seconds: Long, isSoftwareAlreadyAttempted: Boolean): TaxonomyError =
+    fun playbackNotStarted(seconds: Long, isSoftwareAlreadyAttempted: Boolean, hardwareOnly: Boolean = false): TaxonomyError =
         TaxonomyError(
             code = "PLAYBACK_STALLED",
             title = "Playback Did Not Start",
@@ -59,12 +59,14 @@ object ErrorTaxonomy {
             } else {
                 "The video opened but did not start playing within $seconds seconds."
             },
-            whatWasTried = if (isSoftwareAlreadyAttempted) {
-                "Hardware decoding and then platform software decoding were both tried."
-            } else {
-                "Playback was requested and the player was waited on."
+            whatWasTried = when {
+                isSoftwareAlreadyAttempted -> "Hardware decoding and then platform software decoding were both tried."
+                // Hardware is the person's choice: the app does not switch decoders behind their back (audit FUNC-10).
+                hardwareOnly -> "Hardware decoding only is selected, so the software decoder was not tried."
+                else -> "Playback was requested and the player was waited on."
             },
-            suggestedActions = listOf(
+            suggestedActions = listOfNotNull(
+                if (hardwareOnly) "Choose Software under Decoder in the player tools" else null,
                 "Retry playback",
                 "Open video in an external player app",
                 "Copy diagnostic report"
