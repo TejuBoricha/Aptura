@@ -243,8 +243,13 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun launchUriFrom(intent: Intent?): String? =
-        if (intent?.action == Intent.ACTION_VIEW) intent.data?.toString() else null
+    private fun launchUriFrom(intent: Intent?): String? = acceptedViewUri(intent, privateDirectories())
+
+    /** The app's own storage: a video is never opened from here, and a sender has no business pointing at it. */
+    private fun privateDirectories(): List<java.io.File> = listOfNotNull(
+        dataDir,
+        runCatching { createDeviceProtectedStorageContext().dataDir }.getOrNull()
+    )
 
     companion object {
         /** Sent by the playback notification: open the player for the video that is playing (audit FUNC-05). */
@@ -256,6 +261,32 @@ class MainActivity : ComponentActivity() {
 
         /** Whether [intent] is the notification's request to show the player. */
         internal fun isShowPlayerRequest(intent: Intent?): Boolean = intent?.action == ACTION_SHOW_PLAYER
+
+        /**
+         * The video an "Open with" request asks for, or null when there is none or it must not be opened (audit SEC-07).
+         *
+         * The manifest's intent filter lists `content` and `file`, but a filter only matches implicit intents: another app
+         * can address [MainActivity] directly and put anything in `data`, and that reached the player under the app's own
+         * identity. Accepted: a `content` URI, and a `file` URI that does not resolve (`..` and symbolic links followed)
+         * into [privateDirs], the app's own storage. Everything else is refused, and so is a path that cannot be resolved.
+         */
+        internal fun acceptedViewUri(intent: Intent?, privateDirs: List<java.io.File>): String? {
+            if (intent?.action != Intent.ACTION_VIEW) return null
+            val data = intent.data ?: return null
+            return when (data.scheme?.lowercase()) {
+                "content" -> data.toString()
+                "file" -> {
+                    val path = data.path?.takeIf { it.isNotEmpty() } ?: return null
+                    val resolved = runCatching { java.io.File(path).canonicalFile }.getOrNull() ?: return null
+                    val insidePrivateStorage = privateDirs.any { dir ->
+                        val root = runCatching { dir.canonicalFile }.getOrDefault(dir.absoluteFile)
+                        resolved == root || resolved.path.startsWith(root.path + java.io.File.separator)
+                    }
+                    if (insidePrivateStorage) null else data.toString()
+                }
+                else -> null
+            }
+        }
 
         private const val STATE_LAUNCH_CONSUMED = "aptura.launch_consumed"
     }
