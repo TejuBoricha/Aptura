@@ -157,6 +157,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.CompositionLocalProvider
 import org.aptura.player.R
 import android.view.TextureView
 import android.view.LayoutInflater
@@ -178,10 +179,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -396,6 +399,12 @@ fun PlayerScreen(
         }
     }
 
+    // The player is laid out left to right whatever the system layout direction is (audit I18N-02). A video's position
+    // runs left to right in every language, and the gestures are named for the side of the glass they sit on: in
+    // Arabic or Hebrew the transport row, the times and the gesture halves all mirrored, so Rewind sat on the right
+    // and a double tap on the left half fast-forwarded. The wrapper opens on the next line and closes with this
+    // function, so the stage below keeps its indentation. Text still reads right to left by its own content.
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
@@ -2147,6 +2156,7 @@ fun PlayerScreen(
                 onDismissRequest = { onDismissWhyCompatibilitySheet() }
             )
         }
+    }
     }
 }
 
