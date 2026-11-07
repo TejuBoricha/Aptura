@@ -20,6 +20,7 @@ import org.aptura.player.domain.model.Bookmark
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.domain.model.DomainPlaybackQueue
 import org.aptura.player.domain.model.DomainPlaybackState
+import org.aptura.player.domain.model.DomainTrackInfo
 import org.aptura.player.domain.model.DomainTrackSelection
 import org.aptura.player.domain.model.EqualizerPreset
 import org.aptura.player.domain.model.PlaybackStatsInfo
@@ -3244,6 +3245,25 @@ class PlayerViewModelTest {
         runCurrent()
 
         assertEquals(sampleVideo.uri, controller.lastPlayedItem?.uri)
+        viewModel.clearForTesting()
+    }
+
+    // --- Audit FUNC-10: an audio track with no decoder on this device reaches the screen marked as unsupported ---
+
+    @Test
+    fun anAudioTrackWithNoDecoder_reachesTheScreenMarkedUnsupported() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val viewModel = PlayerViewModel(controller, FakeMediaRepository(), testDispatcher)
+        controller._trackSelection.value = DomainTrackSelection(
+            availableAudioTracks = listOf(
+                DomainTrackInfo(id = "a", index = 0, label = "English (Stereo)", isSelected = true),
+                DomainTrackInfo(id = "b", index = 1, label = "TrueHD (7.1 Surround)", isSupported = false)
+            ),
+            selectedAudioTrackIndex = 0
+        )
+        runCurrent()
+
+        assertEquals(listOf(true, false), viewModel.uiState.value.audioTracks.map { it.isSupported })
         viewModel.clearForTesting()
     }
 

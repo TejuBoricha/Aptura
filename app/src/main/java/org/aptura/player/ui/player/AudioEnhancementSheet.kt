@@ -215,8 +215,14 @@ private fun AudioTracksAndSyncTab(
                     audioTracks.forEach { track ->
                         SheetOptionRow(
                             title = formatTrackLabel(track),
-                            subtitle = if (track.isExternal) "Added file" else null,
+                            subtitle = when {
+                                // Listed, so the person can see the video has it, but it would leave the video silent.
+                                !track.isSupported -> "Not supported on this device"
+                                track.isExternal -> "Added file"
+                                else -> null
+                            },
                             selected = track.isSelected || track.index == selectedAudioTrackIndex,
+                            enabled = track.isSupported,
                             onClick = { onAudioTrackSelected(track.index) }
                         )
                     }
