@@ -17,7 +17,13 @@ import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.ts.TsExtractor
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import org.aptura.player.data.database.ApturaDatabase
 import org.aptura.player.data.repository.AndroidSidecarSubtitleResolver
+import org.aptura.player.data.repository.MediaRepositoryImpl
 import java.io.ByteArrayOutputStream
 
 /**
@@ -29,6 +35,10 @@ object PlayerManager {
 
     @Volatile
     private var controllerInstance: Media3PlaybackController? = null
+
+    /** Saves playback progress for as long as the player lives, with or without a screen (audit FUNC-05). */
+    private val recorderScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var progressRecorderJob: Job? = null
 
     val activeController: Media3PlaybackController?
         get() = controllerInstance
@@ -101,6 +111,16 @@ object PlayerManager {
         )
         controllerInstance = controller
 
+        // The screen's view model also saves progress, but it dies with the screen. This one lives with the player, so
+        // the sound that goes on after the task is swiped away still has its position kept.
+        val database = ApturaDatabase.getInstance(appContext)
+        val repository = MediaRepositoryImpl(database.mediaItemDao(), database.bookmarkDao())
+        progressRecorderJob = PlaybackProgressRecorder(
+            playbackState = controller.playbackState,
+            playbackQueue = controller.playbackQueue,
+            save = repository::savePlaybackPosition
+        ).start(recorderScope)
+
         ensureServiceRunning(appContext)
 
         return controller
@@ -140,6 +160,8 @@ object PlayerManager {
 
     @Synchronized
     fun release() {
+        progressRecorderJob?.cancel()
+        progressRecorderJob = null
         controllerInstance?.let { controller ->
             controller.player.release()
             controllerInstance = null
