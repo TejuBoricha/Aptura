@@ -95,7 +95,10 @@ Use one video with several audio tracks, one sidecar `.srt`, and Bluetooth headp
       screen says the software decoder was not tried and points to Decoder; nothing switches by itself, and "Try
       software decoding" still works. With Auto it still falls back by itself. (c) Shuffle a queue of six, pick another
       video's "Play next": it plays right after the current one, and the rest of the pass visits each video once.
-      *(Not run on a phone; unsupported audio tracks, the fourth part of the finding, are not done.)*
+      (d) Open a video with an audio track the phone has no decoder for (for example TrueHD or DTS-HD on many
+      phones): Audio shows that track dimmed with "Not supported on this device", tapping it does nothing, and the
+      video keeps the sound it had. If the audio fails, the player moves to another track that can play, never to
+      one marked unsupported. *(Not run on a phone.)*
 
 ## Accessibility and appearance
 
