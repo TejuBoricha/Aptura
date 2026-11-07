@@ -142,4 +142,25 @@ class ErrorTaxonomyTest {
         val trackTaxonomy = ErrorTaxonomy.mapException(audioTrackError)
         assertEquals("AUDIO_INIT_FAILED", trackTaxonomy.code)
     }
+    // --- Audit FUNC-10: with Hardware chosen the software decoder is never tried by itself ---
+
+    @Test
+    fun playbackNotStarted_withHardwareOnly_saysTheSoftwareDecoderWasNotTried_andWhereToChooseIt() {
+        val taxonomy = ErrorTaxonomy.playbackNotStarted(seconds = 8, isSoftwareAlreadyAttempted = false, hardwareOnly = true)
+
+        assertEquals("PLAYBACK_STALLED", taxonomy.code)
+        assertTrue(taxonomy.whatWasTried, taxonomy.whatWasTried.contains("Hardware"))
+        assertTrue(taxonomy.whatWasTried, taxonomy.whatWasTried.contains("not tried"))
+        assertTrue(taxonomy.suggestedActions.first(), taxonomy.suggestedActions.first().contains("Software"))
+        assertFalse("it must not claim the software decoder was tried", taxonomy.whatHappened.contains("even after"))
+    }
+
+    @Test
+    fun playbackNotStarted_withoutHardwareOnly_isAsBefore() {
+        val auto = ErrorTaxonomy.playbackNotStarted(seconds = 8, isSoftwareAlreadyAttempted = false)
+        val afterSoftware = ErrorTaxonomy.playbackNotStarted(seconds = 8, isSoftwareAlreadyAttempted = true)
+
+        assertEquals("Playback was requested and the player was waited on.", auto.whatWasTried)
+        assertTrue(afterSoftware.whatHappened.contains("even after switching to the software decoder"))
+    }
 }

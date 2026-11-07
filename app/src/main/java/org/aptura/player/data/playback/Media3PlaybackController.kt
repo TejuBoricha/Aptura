@@ -340,7 +340,8 @@ class Media3PlaybackController(
             }
 
             // FR-PLAY-003: Controlled fallback bounded at most once per failure class
-            if (isDecoderFailure && !hasAttemptedSoftwareFallback && currentDecoderStrategy != 2 && hasSoftwareDecoder && player.currentMediaItem != null) {
+            // Only Auto recovers by itself: with Hardware chosen the person is told, and decides (audit FUNC-10).
+            if (isDecoderFailure && !hasAttemptedSoftwareFallback && currentDecoderStrategy == 0 && hasSoftwareDecoder && player.currentMediaItem != null) {
                 hasAttemptedSoftwareFallback = true
                 currentDecoderStrategy = 2
                 _decoderStrategy.value = 2
@@ -499,7 +500,11 @@ class Media3PlaybackController(
 
     private fun updatePlaybackState() {
         stalledReason?.let { facts ->
-            val taxonomy = ErrorTaxonomy.playbackNotStarted(PLAYBACK_START_TIMEOUT_MS / 1000, hasAttemptedSoftwareFallback || currentDecoderStrategy == 2)
+            val taxonomy = ErrorTaxonomy.playbackNotStarted(
+                PLAYBACK_START_TIMEOUT_MS / 1000,
+                hasAttemptedSoftwareFallback || currentDecoderStrategy == 2,
+                hardwareOnly = currentDecoderStrategy == 1
+            )
             _playbackState.value = DomainPlaybackState.Error(
                 errorCode = taxonomy.code,
                 message = "${taxonomy.title}: ${taxonomy.whatHappened}",
@@ -683,7 +688,8 @@ class Media3PlaybackController(
             code = EventCode.EV_011,
             payload = mapOf("errorCode" to "PLAYBACK_STALLED", "stage" to "start", "reason" to facts)
         )
-        val canTrySoftware = !hasAttemptedSoftwareFallback && currentDecoderStrategy != 2 && player.currentMediaItem != null
+        // Only Auto tries the software decoder by itself. With Hardware chosen, a video that does not start is reported.
+        val canTrySoftware = !hasAttemptedSoftwareFallback && currentDecoderStrategy == 0 && player.currentMediaItem != null
         if (canTrySoftware) {
             hasAttemptedSoftwareFallback = true
             currentDecoderStrategy = 2

@@ -311,4 +311,64 @@ class Media3PlaybackControllerStallTest {
         assertEquals(1, player.stops)
         assertEquals(2, controller.currentDecoderStrategy)
     }
+    // --- Audit FUNC-10: "Hardware" means hardware; only "Auto" may fall back to software by itself ---
+
+    private fun decoderFailure() = PlaybackException("decoder", null, PlaybackException.ERROR_CODE_DECODER_INIT_FAILED)
+
+    @Test
+    fun withHardwareOnly_aVideoThatNeverStarts_isNotSwitchedToSoftware_itIsReportedAtOnce() = runTest(dispatcher) {
+        val player = StuckPlayer()
+        val controller = controllerWith(player)
+        controller.setDecoderStrategy(1) // the person chose Hardware
+        controller.playQueue(listOf(video), 0)
+        runCurrent()
+
+        advanceTimeBy(window)
+        runCurrent()
+
+        assertEquals("the software decoder is not tried behind the person's back", 0, player.stops)
+        assertEquals(1, controller.currentDecoderStrategy)
+        assertFalse(controller.isCompatibilityMode.value)
+        val state = controller.playbackState.value
+        assertTrue("it says so straight away: $state", state is DomainPlaybackState.Error)
+        assertEquals("PLAYBACK_STALLED", (state as DomainPlaybackState.Error).errorCode)
+        assertTrue(
+            "the first suggestion is to choose Software, since it was not tried: ${state.suggestedAction}",
+            state.suggestedAction.orEmpty().contains("Software")
+        )
+    }
+
+    @Test
+    fun withHardwareOnly_aDecoderFailure_isNotSwitchedToSoftware() = runTest(dispatcher) {
+        val player = StuckPlayer()
+        val controller = controllerWith(player)
+        controller.setDecoderStrategy(1)
+        controller.playQueue(listOf(video), 0)
+        runCurrent()
+
+        player.error = decoderFailure()
+        player.listeners.forEach { it.onPlayerError(player.error!!) }
+        runCurrent()
+
+        assertEquals(0, player.stops)
+        assertEquals(1, controller.currentDecoderStrategy)
+        assertFalse(controller.isCompatibilityMode.value)
+        assertTrue(controller.playbackState.value is DomainPlaybackState.Error)
+    }
+
+    @Test
+    fun withAuto_aDecoderFailure_stillFallsBackToSoftwareOnce() = runTest(dispatcher) {
+        val player = StuckPlayer()
+        val controller = controllerWith(player) // Auto
+        controller.playQueue(listOf(video), 0)
+        runCurrent()
+
+        player.error = decoderFailure()
+        player.listeners.forEach { it.onPlayerError(player.error!!) }
+        runCurrent()
+
+        assertEquals("Auto is allowed to recover by itself", 1, player.stops)
+        assertEquals(2, controller.currentDecoderStrategy)
+        assertTrue(controller.isCompatibilityMode.value)
+    }
 }
