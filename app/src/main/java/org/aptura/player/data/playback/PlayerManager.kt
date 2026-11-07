@@ -36,9 +36,18 @@ object PlayerManager {
     @Volatile
     private var controllerInstance: Media3PlaybackController? = null
 
-    /** Saves playback progress for as long as the player lives, with or without a screen (audit FUNC-05). */
-    private val recorderScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    /** Work that must live exactly as long as the player does, with or without a screen (audit FUNC-05). */
+    private val processScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /** Saves how far the person got in each video. */
     private var progressRecorderJob: Job? = null
+
+    /**
+     * The equalizer, bass boost, virtualizer and loudness effects, bound to the player's audio session. They live here,
+     * beside the player, so the sound keeps them when the screen is swiped away. Screens borrow this controller.
+     */
+    private var audioEnhancementInstance: AudioEnhancementController? = null
+    private var effectsFollowerJob: Job? = null
 
     val activeController: Media3PlaybackController?
         get() = controllerInstance
@@ -119,11 +128,26 @@ object PlayerManager {
             playbackState = controller.playbackState,
             playbackQueue = controller.playbackQueue,
             save = repository::savePlaybackPosition
-        ).start(recorderScope)
+        ).start(processScope)
+
+        // The effects follow the player's audio session from here on, whoever is looking at the screen.
+        val enhancement = AudioEnhancementController()
+        audioEnhancementInstance = enhancement
+        effectsFollowerJob = AudioEffectsSessionFollower(controller.audioSessionIds, enhancement).start(processScope)
 
         ensureServiceRunning(appContext)
 
         return controller
+    }
+
+    /**
+     * The effects controller that belongs to the player, created together with it. The screen's view model borrows it
+     * and must not release it (`PlayerViewModel` is built with `ownsAudioEnhancement = false` for it).
+     */
+    @Synchronized
+    fun getOrCreateAudioEnhancement(context: Context): AudioEnhancementController {
+        getOrCreate(context)
+        return checkNotNull(audioEnhancementInstance) { "the player was created without its effects" }
     }
 
     /**
@@ -162,6 +186,11 @@ object PlayerManager {
     fun release() {
         progressRecorderJob?.cancel()
         progressRecorderJob = null
+        effectsFollowerJob?.cancel()
+        effectsFollowerJob = null
+        // Effects are a limited system resource and belong to the player being released.
+        audioEnhancementInstance?.releaseEffects()
+        audioEnhancementInstance = null
         controllerInstance?.let { controller ->
             controller.player.release()
             controllerInstance = null

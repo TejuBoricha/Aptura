@@ -2966,13 +2966,15 @@ class PlayerViewModelTest {
         controller: FakePlaybackController,
         fx: org.aptura.player.data.playback.AudioEnhancementController,
         store: FakeEffectsStore,
-        viewModelStore: androidx.lifecycle.ViewModelStore
+        viewModelStore: androidx.lifecycle.ViewModelStore,
+        ownsEffects: Boolean = true
     ): PlayerViewModel = androidx.lifecycle.ViewModelProvider(
         viewModelStore,
         object : androidx.lifecycle.ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T = PlayerViewModel(
-                controller, FakeMediaRepository(), fx, null, testDispatcher, audioEffectsStore = store
+                controller, FakeMediaRepository(), fx, null, testDispatcher, audioEffectsStore = store,
+                ownsAudioEnhancement = ownsEffects
             ) as T
         }
     )[PlayerViewModel::class.java]
@@ -3023,6 +3025,33 @@ class PlayerViewModelTest {
         runCurrent()
         assertTrue("effects must be released when the player screen is gone", backend.equalizers[1].released)
         assertTrue(backend.bassBoosts[1].released && backend.virtualizers[1].released && backend.loudnessEffects[1].released)
+    }
+
+    // --- Audit FUNC-05: effects belong to the audio session, not to the screen ---
+
+    @Test
+    fun effectsLentByThePlayersOwner_surviveTheScreen_andTheirSettingsAreStillSaved() = runTest(testDispatcher) {
+        val store = FakeEffectsStore()
+        val backend = org.aptura.player.data.playback.FakeBackend()
+        val fx = org.aptura.player.data.playback.AudioEnhancementController(backend)
+        val controller = FakePlaybackController()
+        val viewModelStore = androidx.lifecycle.ViewModelStore()
+        val viewModel = effectsViewModel(controller, fx, store, viewModelStore, ownsEffects = false)
+        controller._audioSessionIds.value = 3
+        runCurrent()
+        viewModel.setBassBoost(55) // a tweak just before the swipe
+
+        // The task is swiped out of Recents: the screen is cleared and the service plays on.
+        viewModelStore.clear()
+        advanceUntilIdle()
+
+        assertFalse(
+            "the sound goes on after the screen, so the effects on its session must too",
+            backend.equalizers.single().released
+        )
+        assertFalse(backend.bassBoosts.single().released || backend.virtualizers.single().released ||
+            backend.loudnessEffects.single().released)
+        assertEquals("the last tweak is still saved for the next start", 55, store.stored.bassBoostPercent)
     }
 
     @Test
