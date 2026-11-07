@@ -69,6 +69,13 @@ Use one video with several audio tracks, one sidecar `.srt`, and Bluetooth headp
       run on a phone. All of it is tested on the JVM with fakes for the player and the sound effects; whether Android
       keeps the effects on the audio session once the screen is gone, and the notification's tap itself, were not
       measured.)*
+- [ ] **Resume and the end of a video (`FUNC-08`):** with a queue of two videos, watch the first for a few minutes, press
+      Next, then Previous: it goes back to where you left it (two seconds before), not to where it was when the queue
+      was built. Then let a short video play to the end, or drag to its last seconds and leave, and open it again: it
+      starts from the beginning, shows as watched, and its button in the details sheet says Play, not Resume. A video
+      left half-way shows Resume and continues from there. *(Not run on a phone. All of it is tested on the JVM with a
+      fake player and fake repository; the real database write at the end of a video was tested only with a fake
+      DAO.)*
 
 ## Accessibility and appearance
 

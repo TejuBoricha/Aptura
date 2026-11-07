@@ -101,6 +101,7 @@ import org.aptura.player.ui.components.ApturaDialog
 import org.aptura.player.ui.components.ApturaTone
 import org.aptura.player.ui.components.DialogAlternative
 import org.aptura.player.ui.components.bottomSheetScrollInterceptor
+import org.aptura.player.domain.usecase.ResumeRules
 
 /**
  * Media Details Content (FR-LIB-013, R-A02, R-A09).
@@ -218,7 +219,13 @@ fun MediaDetailsContent(
         } else {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 ApturaButton(
-                    text = if (item.playbackPositionMs >= 1000L && !item.isCompleted) "Resume" else "Play",
+                    // "Resume" only when the player will: the same rule it uses, so the button never promises a resume that then
+                    // starts from the beginning (audit FUNC-08).
+                    text = if (ResumeRules.resumeStartMs(item.playbackPositionMs, item.durationMs, item.isCompleted) != null) {
+                        "Resume"
+                    } else {
+                        "Play"
+                    },
                     icon = Icons.Default.PlayArrow,
                     onClick = onPlayClick,
                     modifier = Modifier.weight(1f)
