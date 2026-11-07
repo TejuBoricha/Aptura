@@ -2,6 +2,9 @@
 
 package org.aptura.player.data.playback
 
+import androidx.media3.common.C
+import androidx.media3.common.Format
+import androidx.media3.common.TrackGroup
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
@@ -522,5 +525,88 @@ class Media3PlaybackControllerTest {
         val finalState = controller.playbackState.value
         assertTrue(finalState is DomainPlaybackState.Error)
         assertEquals("AUDIO_INIT_FAILED", (finalState as DomainPlaybackState.Error).errorCode)
+    }
+    // --- Audit FUNC-10: an audio track the device cannot decode is listed, but cannot be chosen or fallen back to ---
+
+    private fun audioGroup(id: String, mime: String, support: Int, selected: Boolean): Tracks.Group {
+        val format = Format.Builder().setId(id).setSampleMimeType(mime).setChannelCount(2).setLanguage("en").build()
+        return Tracks.Group(TrackGroup(id, format), false, intArrayOf(support), booleanArrayOf(selected))
+    }
+
+    private fun aacSelected() = audioGroup("aac", "audio/mp4a-latm", C.FORMAT_HANDLED, selected = true)
+    private fun trueHdUnsupported() = audioGroup("truehd", "audio/true-hd", C.FORMAT_UNSUPPORTED_TYPE, selected = false)
+    private fun ac3Supported() = audioGroup("ac3", "audio/ac3", C.FORMAT_HANDLED, selected = false)
+
+    private fun publishTracks(state: MockPlayerState, vararg groups: Tracks.Group) {
+        val tracks = Tracks(groups.toList())
+        state.currentTracks = tracks
+        state.listeners.forEach { it.onTracksChanged(tracks) }
+    }
+
+    @Test
+    fun anAudioTrackTheDeviceCannotDecode_isListedButMarkedUnsupported() = runTest(testDispatcher) {
+        val (player, state) = createMockPlayer()
+        val controller = createController(player)
+
+        publishTracks(state, aacSelected(), trueHdUnsupported(), ac3Supported())
+
+        val tracks = controller.trackSelection.value.availableAudioTracks
+        assertEquals("all three are listed", 3, tracks.size)
+        assertEquals(listOf(true, false, true), tracks.map { it.isSupported })
+    }
+
+    @Test
+    fun anUnsupportedAudioTrack_cannotBeSelected() = runTest(testDispatcher) {
+        val (player, state) = createMockPlayer()
+        val controller = createController(player)
+        publishTracks(state, aacSelected(), trueHdUnsupported())
+
+        controller.selectAudioTrack(1)
+
+        assertEquals("the choice stays on the track that plays", 0, controller.trackSelection.value.selectedAudioTrackIndex)
+        assertTrue("no override was sent to the player", state.trackSelectionParameters.overrides.isEmpty())
+    }
+
+    @Test
+    fun aSupportedAudioTrack_canStillBeSelected() = runTest(testDispatcher) {
+        val (player, state) = createMockPlayer()
+        val controller = createController(player)
+        publishTracks(state, aacSelected(), trueHdUnsupported(), ac3Supported())
+
+        controller.selectAudioTrack(2)
+
+        assertEquals(2, controller.trackSelection.value.selectedAudioTrackIndex)
+        assertEquals(1, state.trackSelectionParameters.overrides.size)
+    }
+
+    @Test
+    fun whenTheAudioFails_theFallbackSkipsATrackTheDeviceCannotDecode() = runTest(testDispatcher) {
+        val (player, state) = createMockPlayer()
+        val controller = createController(player)
+        controller.playMediaItem(sampleItem1)
+        runCurrent()
+        state.currentMediaItem = MediaItem.fromUri(sampleItem1.uri)
+        publishTracks(state, aacSelected(), trueHdUnsupported(), ac3Supported())
+
+        state.fireError(PlaybackException("audio track init failed", null, PlaybackException.ERROR_CODE_AUDIO_TRACK_INIT_FAILED))
+        runCurrent()
+
+        assertEquals("it moves to the AC-3 track, not the one with no decoder", 2, controller.trackSelection.value.selectedAudioTrackIndex)
+    }
+
+    @Test
+    fun whenTheAudioFails_andEveryOtherTrackIsUnsupported_thereIsNoFallback_andTheErrorIsShown() = runTest(testDispatcher) {
+        val (player, state) = createMockPlayer()
+        val controller = createController(player)
+        controller.playMediaItem(sampleItem1)
+        runCurrent()
+        state.currentMediaItem = MediaItem.fromUri(sampleItem1.uri)
+        publishTracks(state, aacSelected(), trueHdUnsupported())
+
+        state.fireError(PlaybackException("audio track init failed", null, PlaybackException.ERROR_CODE_AUDIO_TRACK_INIT_FAILED))
+        runCurrent()
+
+        assertEquals(0, controller.trackSelection.value.selectedAudioTrackIndex)
+        assertTrue(controller.playbackState.value is DomainPlaybackState.Error)
     }
 }
