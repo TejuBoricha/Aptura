@@ -123,6 +123,12 @@ Use one video with several audio tracks, one sidecar `.srt`, and Bluetooth headp
 - [ ] **Player controls with TalkBack on (`A11Y-01`):** play, let the controls hide, swipe to the `Video` item, double-tap
       it: the controls return and stay while TalkBack is on. Pause, seek and leave the player using only TalkBack.
       *(not run: the controls used to be unreachable once hidden; fixed in code, never tried with TalkBack)*
+- [ ] **Contrast, outdoors and indoors (`A11Y-03`, `A11Y-04`):** in the dark theme and again in the light theme, read the
+      grey captions (the video's folder and file details, queue numbers, sheet hints) in a bright room and outdoors, and
+      look at the seek bar with the controls shown over a dark scene and over a bright one: you can see where the
+      unplayed part ends and the buffered part starts. *(Not run on a phone. The colours are tested to WCAG ratios on the
+      JVM against the palette surfaces; sunlight, a bright video behind the controls' scrim and the other sliders'
+      tracks were not judged.)*
 - [x] **Font scale:** at 200%, the sleep chips wrap without clipping and every target stays at least 48 dp. *(PASS on Galaxy S24)*
 - [x] **Light theme:** with the app in Light, the player and every player sheet stay dark. *(PASS on Galaxy S24)*
 

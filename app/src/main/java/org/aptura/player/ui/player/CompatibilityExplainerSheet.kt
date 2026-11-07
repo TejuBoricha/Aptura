@@ -272,7 +272,8 @@ private fun ExplainerFactCard(
                     Text(
                         text = detail,
                         style = ApturaTypography.labelSmall.copy(fontFamily = FontFamily.Monospace),
-                        color = ApturaColors.TextLowEmphasis
+                        // The card is SurfaceElevated3, the one surface low-emphasis text does not reach 4.5:1 on.
+                        color = ApturaColors.TextMediumEmphasis
                     )
                 }
             }

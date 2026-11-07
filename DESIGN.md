@@ -31,6 +31,7 @@ Appearance is a user setting (`ThemeMode` = `System` / `Light` / `Dark`, plus on
 | `SurfaceRecessed` | `#00000080` | Recessed tracks: selector switches, folder chips |
 | `SurfaceScrim` | `#000000CC` | 80% opacity overlay behind HUD controls during playback |
 | `SurfaceGlass` | `#16181DB3` | 70% opacity blurred backdrop for quick-setting flyouts |
+| `ControlTrack` | `#5E6674` | Unfilled part of the seek bar. 3.6:1 on `SurfacePureBlack`, 3.3:1 on `SurfaceBase`, 3.1:1 on `SurfaceElevated1` (WCAG 1.4.11 asks 3:1; `SurfaceElevated3` was 1.6:1) |
 
 ### 2.1b Light Palette (same token names)
 | Token | Hex Value | Notes |
@@ -43,10 +44,11 @@ Appearance is a user setting (`ThemeMode` = `System` / `Light` / `Dark`, plus on
 | `SurfaceRecessed` | `#0F172A0F` | 6% ink recessed track |
 | `SurfaceScrim` | `#0A0C10CC` | Scrims stay dark over imagery |
 | `SurfaceGlass` | `#FFFFFFB3` | Light glass |
+| `ControlTrack` | `#787F8D` | Unfilled part of a seek bar: 3.5:1 or more on every light surface |
 | `BorderSubtle` | `#0F172A1F` | 12% ink hairline |
-| `TextHighEmphasis` | `#111418` | 16:1 on the light base |
-| `TextMediumEmphasis` | `#4B5563` | 7:1 on white |
-| `TextLowEmphasis` | `#6B7280` | 4.8:1 on white |
+| `TextHighEmphasis` | `#111418` | 17:1 on the light base |
+| `TextMediumEmphasis` | `#4B5563` | 7.0:1 on the light base, 6.6:1 on `SurfaceElevated3` (the worst case) |
+| `TextLowEmphasis` | `#646B78` | 5.0:1 on the light base, 4.7:1 on `SurfaceElevated3` (the worst case). It was `#6B7280`, 4.5:1 on white but 4.47:1 on the base and 4.2:1 on `SurfaceElevated3` |
 | `TextOnAccent` | `#FFFFFF` | Light accents are dark enough for white labels |
 | `TextOnScrim` | `#F0F4F8` | Fixed light text over dark scrims, in either mode |
 | `StatusSuccess` | `#087A42` | Darkened for 4.5:1 on white |
@@ -76,12 +78,14 @@ Each accent has a dark and a light primary/secondary variant; the active pair is
 | `StatusInfo` | `#40C4FF` | Format discovery tags, informational badges |
 
 ### 2.4 Typography Color Scale
+Ratios are measured on every surface a level is drawn on, not on white alone, and `ApturaContrastTest` fails when any of them drops below 4.5:1 for text (3:1 for an icon or a control boundary).
+
 | Token | Hex Value (dark) | Contrast Ratio on `SurfaceBase` | Role |
 |---|---|---|---|
-| `TextHighEmphasis` | `#F0F4F8` | 16.2:1 (Exceeds WCAG AAA) | Video titles, primary labels, current timecode |
-| `TextMediumEmphasis`| `#9BA3AF` | 7.8:1 (WCAG AAA) | Video duration, file resolution, folder item counts |
-| `TextLowEmphasis` | `#606978` | 4.6:1 (WCAG AA) | Inactive icons, subtitle track codecs, disabled states |
-| `TextOnAccent` | `#001217` | 17.5:1 on Cyan | Text inside primary cyan badges or action buttons |
+| `TextHighEmphasis` | `#F0F4F8` | 17.5:1 (Exceeds WCAG AAA) | Video titles, primary labels, current timecode |
+| `TextMediumEmphasis`| `#9BA3AF` | 7.6:1 (WCAG AAA) | Video duration, file resolution, folder item counts |
+| `TextLowEmphasis` | `#8A93A1` | 6.2:1 (WCAG AA; 5.1:1 on `SurfaceElevated2` sheets; 4.3:1 on `SurfaceElevated3`, so only icons go there) | Inactive icons, subtitle track codecs, captions |
+| `TextOnAccent` | `#001217` | 12.4:1 on Cyan | Text inside primary cyan badges or action buttons |
 | `TextOnScrim` | `#F0F4F8` | - | Text/icons on a dark scrim over thumbnails |
 
 ### 2.5 Brand mark
@@ -225,8 +229,8 @@ On a fresh install the library is empty until the first scan ends (the scan save
 - **Thumb Size:** `16.dp` diameter circle with `AccentPrimary` fill, scaling to `20.dp` while actively dragging.
 - **Colors:** 
   - Played track: `AccentPrimary` (`#00E5FF`).
-  - Buffered track: `AccentSubtle` (`#00E5FF26`).
-  - Remaining track: `SurfaceElevated3` (`#2B2F38`).
+  - Buffered track: `TextMediumEmphasis` at 60% over the remaining track.
+  - Remaining track: `ControlTrack` (`#5E6674`, 3:1 or more on black).
 - **Timecode Display:** Floating chip above thumb showing current position (`00:14:22 / 01:45:00`) in tabular figures.
 
 ### 5.2 HUD Visibility & Transitions
