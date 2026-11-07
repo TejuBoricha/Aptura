@@ -105,6 +105,11 @@ Use one video with several audio tracks, one sidecar `.srt`, and Bluetooth headp
       `Summer.mp4` on a `.mp4` keeps the name as typed. *(Not run on a phone; tested with a fake provider and a local
       file, not a real MediaStore rename.)*
 
+- [ ] **Search finds a title as the card shows it (`DATA-14`):** with a video called `Show.S01E01.mkv` in the library,
+      type `Show S01E01` in the search box: it is found. With a video called `Café Society`, type `cafe`: it is found.
+      A title that only differs in spelling is not (`cafes` finds nothing). *(Not run on a phone; tested on the JVM with
+      a fake library. Search speed on a library of several thousand videos was not measured.)*
+
 ## Accessibility and appearance
 
 - [ ] **TalkBack on `ApturaSlider`:** focus announces the label, value and range; volume keys and swipe gestures
