@@ -3054,6 +3054,77 @@ class PlayerViewModelTest {
         assertEquals("the last tweak is still saved for the next start", 55, store.stored.bassBoostPercent)
     }
 
+    // --- Audit FUNC-05: a screen that joins a player already playing adopts it, it does not reset it ---
+
+    /**
+     * The player went on after the task was swiped away; a new screen finds it mid-video. The queue still holds the
+     * video as it was when the queue was built (resumed from 50 s), but the player is far past that.
+     */
+    private fun joinedPlayerMidVideo(controller: FakePlaybackController, repository: FakeMediaRepository) {
+        val atTheStart = sampleVideo.copy(playbackPositionMs = 50_000L, audioDelayMs = 0L)
+        repository.items[atTheStart.uri] = atTheStart.copy(playbackPositionMs = 3_000_000L, audioDelayMs = 300L)
+        controller._playbackQueue.value = DomainPlaybackQueue(listOf(atTheStart), 0)
+        controller._playbackState.value = DomainPlaybackState.Ready(
+            positionMs = 3_000_000L,
+            durationMs = sampleVideo.durationMs,
+            isPlaying = true
+        )
+    }
+
+    @Test
+    fun aScreenJoiningAPlayerAlreadyPlaying_doesNotSeekItBackToAnOldPosition() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        joinedPlayerMidVideo(controller, repository)
+
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+        runCurrent()
+
+        assertNull("the player is where the person is; the screen must not move it", controller.lastSeekPosition)
+        assertEquals(sampleVideo.uri, viewModel.uiState.value.videoUri)
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun aScreenJoiningAPlayerAlreadyPlaying_showsTheSavedSettingsAndLeavesThePlayerTheyAreOn() =
+        runTest(testDispatcher) {
+            val controller = FakePlaybackController()
+            val repository = FakeMediaRepository()
+            joinedPlayerMidVideo(controller, repository)
+
+            val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+            runCurrent()
+
+            assertEquals(
+                "the sheet shows the delay saved for this video, not the one in the queue's old copy",
+                300L,
+                viewModel.uiState.value.audioDelayMs
+            )
+            assertNull("the player already has its delay; pushing a stale one would change the sound", controller.lastAudioDelay)
+            assertNull(controller.lastSpeed)
+            viewModel.clearForTesting()
+        }
+
+    @Test
+    fun theRouteLoadingItsOwnVideo_leavesALivePlayerAlone_evenBeforeTheScreenHasCaughtUp() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val second = upNextVideo(2)
+        controller._playbackQueue.value = DomainPlaybackQueue(listOf(sampleVideo, second, upNextVideo(3)), 1)
+        controller._playbackState.value = DomainPlaybackState.Ready(
+            positionMs = 40_000L, durationMs = second.durationMs, isPlaying = true
+        )
+
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+        // The screen's route comes up before the view model has read the player (nothing has run yet).
+        viewModel.openRouteVideo(sampleVideo.uri)
+        runCurrent()
+
+        assertEquals("the queue is not replaced by the route's one video", 3, controller._playbackQueue.value.items.size)
+        assertEquals(second.uri, controller._playbackQueue.value.currentItem?.uri)
+        viewModel.clearForTesting()
+    }
+
     @Test
     fun aTweakMadeJustBeforeTheViewModelIsCleared_isNotLost() = runTest(testDispatcher) {
         val store = FakeEffectsStore()
