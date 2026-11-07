@@ -34,7 +34,6 @@ What is still open after the work recorded in the Progress table, in one place. 
 | SEC-01 | Move any existing upload key out of the repository folder; a key that was ever pushed must be replaced | The owner |
 | LEG-01 | Replace the decoder (ADR-010's route) or get the publisher's written terms and counsel's sign-off, before any store release | The owner |
 | DEV-03 | Whether to remove the debate and status code for good | The owner |
-| Not a finding | `MediaLibraryViewModelTest.searchDebounce_echoesRawQueryImmediately_andFiltersAfterPause` failed once in a full local run and passed 12 of 12 alone and in CI. Not root-caused. | Code |
 
 When a PR closes an open part, delete its line here in the same PR, and add a line for any part it leaves open.
 
