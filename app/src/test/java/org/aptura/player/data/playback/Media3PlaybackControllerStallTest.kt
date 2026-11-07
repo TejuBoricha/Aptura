@@ -224,4 +224,91 @@ class Media3PlaybackControllerStallTest {
         runCurrent()
         assertFalse(controller.playbackState.value is DomainPlaybackState.Error)
     }
+    // --- Audit FUNC-09: the start watchdog guards the start of a video, not its middle ---
+
+    private val secondVideo = DomainMediaItem(uri = "content://media/2", title = "Another video", durationMs = 60_000L, sizeBytes = 1_000_000L, mimeType = "video/mp4")
+
+    /** Playing, then buffering: what a slow network share or a long seek looks like from the player. */
+    private fun StuckPlayer.startThenBuffer() {
+        startPlaying()
+        isPlaying = false
+        changeState(Player.STATE_BUFFERING)
+        listeners.forEach { it.onIsPlayingChanged(false) }
+    }
+
+    @Test
+    fun aVideoThatBuffersAfterItHasStarted_isNotStuck_andIsNeverSwitchedToSoftware() = runTest(dispatcher) {
+        val player = StuckPlayer()
+        val controller = controllerWith(player)
+        controller.playQueue(listOf(video), 0)
+        runCurrent()
+
+        player.startThenBuffer()
+        advanceTimeBy(window * 3)
+        runCurrent()
+
+        assertEquals("a long buffer is not a failed start", 0, player.stops)
+        assertEquals(0, controller.currentDecoderStrategy)
+        assertFalse(controller.isCompatibilityMode.value)
+        assertFalse(controller.playbackState.value is DomainPlaybackState.Error)
+    }
+
+    @Test
+    fun aNextVideoThatNeverStarts_isStillWatched() = runTest(dispatcher) {
+        val player = StuckPlayer()
+        val controller = controllerWith(player)
+        controller.playQueue(listOf(video, secondVideo), 0)
+        runCurrent()
+        player.startThenBuffer() // the first video played, then it ended and the player moved on and is not playing
+        player.listeners.forEach {
+            it.onMediaItemTransition(
+                MediaItem.Builder().setMediaId(secondVideo.uri).build(),
+                Player.MEDIA_ITEM_TRANSITION_REASON_AUTO
+            )
+        }
+        advanceTimeBy(window)
+        runCurrent()
+
+        assertEquals("the new video gets its own start wait", 1, player.stops)
+        assertEquals(2, controller.currentDecoderStrategy)
+    }
+
+    @Test
+    fun aVideoRestartedByChangingTheDecoder_thatNeverComesBack_isStillWatched() = runTest(dispatcher) {
+        val player = StuckPlayer()
+        val controller = controllerWith(player)
+        controller.playQueue(listOf(video), 0)
+        runCurrent()
+        player.startPlaying()
+        advanceTimeBy(1_000)
+
+        controller.setDecoderStrategy(2) // stops and prepares again; the picture never returns
+        advanceTimeBy(window)
+        runCurrent()
+
+        val state = controller.playbackState.value
+        assertTrue("it says so instead of staying a silent black player: $state", state is DomainPlaybackState.Error)
+        assertEquals("PLAYBACK_STALLED", (state as DomainPlaybackState.Error).errorCode)
+    }
+
+    @Test
+    fun theSameVideoLoadedAgain_thatNeverStarts_isStillWatched() = runTest(dispatcher) {
+        val player = StuckPlayer()
+        val controller = controllerWith(player)
+        controller.playQueue(listOf(video), 0)
+        runCurrent()
+        player.startPlaying()
+        advanceTimeBy(1_000)
+
+        // The person picks the same video again: a new request, so a new wait, though it is the same item.
+        player.isPlaying = false
+        player.listeners.forEach { it.onIsPlayingChanged(false) }
+        controller.playQueue(listOf(video), 0)
+        runCurrent()
+        advanceTimeBy(window)
+        runCurrent()
+
+        assertEquals(1, player.stops)
+        assertEquals(2, controller.currentDecoderStrategy)
+    }
 }

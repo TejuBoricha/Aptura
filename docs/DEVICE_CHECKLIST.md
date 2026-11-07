@@ -82,6 +82,12 @@ Use one video with several audio tracks, one sidecar `.srt`, and Bluetooth headp
       decoding": it switches on the first tap, not the second, and the video plays. On any recoverable error, tap Retry:
       the other videos are still in the queue sheet, and playback carries on from where it was. *(Not run on a phone.
       Tested on the JVM with a fake player; the real decoder failure was not reproduced.)*
+- [ ] **Slow source mid-video (`FUNC-09`):** play a video from a slow place (a network share, a slow SD card) and
+      seek far ahead so it buffers for 10 seconds or more. It stays on the hardware decoder and carries on when the
+      data arrives: no "compatibility mode" notice appears, and the sheet still shows the decoder you chose. A video
+      that never starts at all still gets the software decoder once and then the "did not start" message. *(Not run on
+      a phone; tested on the JVM with a stand-in player that reports what the test tells it. The lost surface after a
+      display error is still open.)*
 
 ## Accessibility and appearance
 

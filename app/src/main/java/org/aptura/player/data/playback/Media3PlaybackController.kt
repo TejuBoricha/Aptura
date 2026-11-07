@@ -156,6 +156,14 @@ class Media3PlaybackController(
     /** What the player was doing when playback was asked for, never started and nothing was left to try; shown as an error. */
     private var stalledReason: String? = null
 
+    /**
+     * Whether the current video has played since it was last (re)started. The start watchdog guards only the start: a
+     * video that played and then buffers (a slow network share, a long seek) is slow, not a failed start, and must not
+     * be switched to the software decoder (audit FUNC-09). Cleared whenever the player goes idle, a new video begins
+     * without playback carrying over, or a new queue is loaded.
+     */
+    private var currentItemStarted = false
+
     /** Why play-when-ready last changed (a person, an audio-focus loss, the end of an item...), for the stall report. */
     private var lastPlayWhenReadyChangeReason = -1
 
@@ -210,6 +218,8 @@ class Media3PlaybackController(
             if (state == Player.STATE_ENDED || state == Player.STATE_IDLE) {
                 checkPositionTicker(false)
             }
+            // Every restart (stop and prepare for a decoder change, a retry, a fallback) passes through idle.
+            if (state == Player.STATE_IDLE) currentItemStarted = false
             updatePlaybackState()
             updatePlaybackStats()
             publishQueue()
@@ -221,6 +231,7 @@ class Media3PlaybackController(
                 pausedAtItemEnd = false
                 consecutiveSkips = 0
                 stalledReason = null
+                currentItemStarted = true
                 logPlaybackStarted()
             }
             checkPositionTicker(isPlaying)
@@ -247,6 +258,8 @@ class Media3PlaybackController(
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             pausedAtItemEnd = false
+            // Playing on through the change (gapless advance, a repeat) has started; otherwise the new video must start.
+            currentItemStarted = player.isPlaying
             val newId = mediaItem?.mediaId
             if (newId != currentMediaId) {
                 currentMediaId = newId
@@ -257,6 +270,8 @@ class Media3PlaybackController(
             }
             publishQueue()
             updatePlaybackState()
+            // The new video has its own start to wait for; nothing else may call this before it is needed.
+            updateStartWatch()
         }
 
         override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
@@ -617,12 +632,13 @@ class Media3PlaybackController(
      * is meant to be playing but is not (and nothing explains it: not an error, not the end, not the system holding
      * audio back), a timer runs; when it fires the software decoder is tried once, and if that does not start either
      * the player says so, with what it was doing. Any sign of life (playing, paused by a person, an error) stops it.
+     * It guards the start of a video only: once the video has played, buffering is left to the player ([currentItemStarted]).
      */
     private fun updateStartWatch() {
         val waiting = player.playWhenReady && !player.isPlaying && player.mediaItemCount > 0 &&
             player.playbackState != Player.STATE_ENDED && player.playerError == null &&
             player.playbackSuppressionReason == Player.PLAYBACK_SUPPRESSION_REASON_NONE &&
-            stalledReason == null
+            stalledReason == null && !currentItemStarted
         if (!waiting) {
             startWatchdog?.cancel()
             startWatchdog = null
@@ -841,6 +857,7 @@ class Media3PlaybackController(
         pausedAtItemEnd = false
         consecutiveSkips = 0
         stalledReason = null
+        currentItemStarted = false
         queueItems.clear()
         queueItems.addAll(items)
         sidecarsByUri.clear()
