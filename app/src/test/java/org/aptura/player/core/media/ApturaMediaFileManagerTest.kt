@@ -86,6 +86,12 @@ class ApturaMediaFileManagerTest {
     }
 
     @Test
+    fun aTitleWithADotInItIsNotMistakenForAnExtension() {
+        // Audit DATA-10: "Mr.Robot" used to be sent to the provider as it was, without the file's real extension.
+        assertRename("Mr.Robot", "Mr.Robot.mp4")
+    }
+
+    @Test
     fun aTrailingDotDoesNotProduceADoubleExtension() {
         assertRename("Summer.", "Summer.mp4")
     }

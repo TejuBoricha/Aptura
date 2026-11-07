@@ -110,14 +110,32 @@ object ApturaMediaFileManager {
         return null
     }
 
-    private fun withPreservedExtension(context: Context, uri: Uri, requestedName: String): String {
-        if (extensionOf(requestedName) != null) return requestedName
-        val currentName = currentDisplayName(context, uri)
-        val extension = currentName?.let(::extensionOf)
-            ?: extensionForMime(context.contentResolver.getType(uri))
-            ?: return requestedName
-        return "$requestedName.$extension"
+    private fun withPreservedExtension(context: Context, uri: Uri, requestedName: String): String =
+        resolveFileName(
+            requestedName = requestedName,
+            currentName = currentDisplayName(context, uri),
+            mimeType = context.contentResolver.getType(uri)
+        )
+
+    /**
+     * The file name a rename to [requestedName] ends up with, given the file's [currentName] and [mimeType] (audit
+     * DATA-10). A typed suffix counts as an extension only when it is the file's own, or another video extension the
+     * person chose on purpose. Anything else is part of the title: "Mr.Robot" and "Dr.Who" end in letters too, and
+     * used to be taken for extensions, so the real `.mkv` was never added and Android lost the file's type.
+     */
+    internal fun resolveFileName(requestedName: String, currentName: String?, mimeType: String?): String {
+        val currentExtension = currentName?.let(::extensionOf) ?: extensionForMime(mimeType)
+        val typed = extensionOf(requestedName)
+        if (typed != null && (typed.equals(currentExtension, ignoreCase = true) || typed.lowercase() in VIDEO_EXTENSIONS)) {
+            return requestedName
+        }
+        return if (currentExtension != null) "$requestedName.$currentExtension" else requestedName
     }
+
+    private val VIDEO_EXTENSIONS = setOf(
+        "mp4", "m4v", "mkv", "webm", "mov", "3gp", "3g2", "avi", "wmv", "flv", "f4v", "ts", "mts", "m2ts",
+        "mpg", "mpeg", "ogv", "ogm", "divx", "vob", "asf", "rm", "rmvb"
+    )
 
     private fun currentDisplayName(context: Context, uri: Uri): String? {
         if (uri.scheme == "file") return uri.lastPathSegment
