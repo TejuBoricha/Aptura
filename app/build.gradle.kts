@@ -243,6 +243,10 @@ android {
       unitTests.isIncludeAndroidResources = true
       unitTests.all { testTask ->
         testTask.jvmArgumentProviders.add(InvariantInputs(releaseMergedManifest, writeReleaseDependencies.flatMap { it.report }))
+        // Tests that read the written promises (the privacy policy, the store text) must re-run when those files change.
+        // Without a declared input Gradle reports the task up to date and a local run stays green on edited text.
+        testTask.inputs.file(rootProject.file("docs/PRIVACY.md")).withPathSensitivity(PathSensitivity.NONE).withPropertyName("privacyPolicy")
+        testTask.inputs.dir(rootProject.file("distribution/play-store/metadata")).withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName("storeMetadata")
         // Hang guard for the WHOLE unit-test task. It was 30 s when the suite took ~15 s; the suite now has ~680 tests
         // (several against a real ExoPlayer / WorkManager / SQLite), and a cold CI runner needed more than the old
         // 120 s. The guard stays, but sized to the suite: a real hang still fails long before the 45-minute job limit.
