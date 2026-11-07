@@ -8,6 +8,13 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.Dispatchers
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.domain.repository.MediaRepository
 import org.junit.Assert.assertEquals
@@ -378,35 +385,59 @@ class MediaLibraryViewModelTest {
         }
     }
 
+    /**
+     * The one test here that depends on time passing (a 300 ms debounce), so it is driven by the virtual clock only.
+     *
+     * It used to read the state with Turbine's `awaitItem()`. Inside `runTest` that waits on a real thread while the
+     * virtual clock is free to move on, and in a plain JVM test `viewModelScope` has no Main dispatcher and falls back
+     * to real background threads too. Whether the debounce for "Av" fired before the test typed "Avatar" then depended
+     * on thread timing: the next item was the filtered state of the old query ("expected Avatar but was Av"), in about
+     * one run in four when the body was repeated, and once in a while in the full suite. Here Main is the test
+     * scheduler, so the view model, the debounce and the test all share one clock and nothing is left to timing.
+     */
     @Test
-    fun searchDebounce_echoesRawQueryImmediately_andFiltersAfterPause() = runTest(testDispatcher) {
-        val repo = FakeMediaRepository()
-        repo.videosFlow.value = listOf(item1, item2, item3)
-        val viewModel = MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 300L)
+    fun searchDebounce_echoesRawQueryImmediately_andFiltersAfterPause() {
+        // Main is set around `runTest`, not inside it: the view model's coroutines are still alive while `runTest`
+        // cleans up, and they must find a Main to resume on.
+        Dispatchers.setMain(testDispatcher)
+        try {
+            runTest(testDispatcher) {
+                val repo = FakeMediaRepository()
+                repo.videosFlow.value = listOf(item1, item2, item3)
+                val viewModel = MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 300L)
+                val states = mutableListOf<MediaLibraryUiState>()
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.toList(states) }
+                runCurrent()
+                assertEquals(MediaLibraryUiState.Loading, states[0])
+                assertEquals(3, (states[1] as MediaLibraryUiState.Success).videos.size)
 
-        viewModel.uiState.test {
-            assertEquals(MediaLibraryUiState.Loading, awaitItem())
-            assertEquals(3, (awaitItem() as MediaLibraryUiState.Success).videos.size)
+                // Two rapid keystrokes: the text field must echo each at once, and the heavy filter pass must wait.
+                viewModel.onSearchQueryChanged("Av")
+                runCurrent()
+                viewModel.onSearchQueryChanged("Avatar")
+                runCurrent()
+                val echo1 = states[2] as MediaLibraryUiState.Success
+                assertEquals("Av", echo1.searchQuery)
+                assertEquals("Results must not be recomputed before the debounce window", 3, echo1.videos.size)
+                val echo2 = states[3] as MediaLibraryUiState.Success
+                assertEquals("Avatar", echo2.searchQuery)
+                assertEquals("Results must not be recomputed before the debounce window", 3, echo2.videos.size)
 
-            // Two rapid keystrokes: text field must echo at once, heavy filter pass must wait.
-            viewModel.onSearchQueryChanged("Av")
-            val echo1 = awaitItem() as MediaLibraryUiState.Success
-            assertEquals("Av", echo1.searchQuery)
-            assertEquals("Results must not be recomputed before the debounce window", 3, echo1.videos.size)
+                testScheduler.advanceTimeBy(299)
+                runCurrent()
+                assertEquals("nothing is recomputed until the pause has lasted the whole window", 4, states.size)
 
-            viewModel.onSearchQueryChanged("Avatar")
-            val echo2 = awaitItem() as MediaLibraryUiState.Success
-            assertEquals("Avatar", echo2.searchQuery)
-            assertEquals("Results must not be recomputed before the debounce window", 3, echo2.videos.size)
-
-            val filtered = awaitItem() as MediaLibraryUiState.Success
-            assertEquals("Avatar", filtered.searchQuery)
-            assertEquals(1, filtered.videos.size)
-
-            cancelAndIgnoreRemainingEvents()
+                testScheduler.advanceTimeBy(1)
+                runCurrent()
+                val filtered = states[4] as MediaLibraryUiState.Success
+                assertEquals("Avatar", filtered.searchQuery)
+                assertEquals(1, filtered.videos.size)
+                assertEquals("one filter pass for the two keystrokes, not one each", 5, states.size)
+            }
+        } finally {
+            Dispatchers.resetMain()
         }
     }
-
 
     // ---- folders that share a name ----------------------------------------------------------------------------------------
 
