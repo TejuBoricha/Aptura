@@ -100,7 +100,9 @@ data class DomainTrackInfo(
     val label: String,
     val language: String? = null,
     val isSelected: Boolean = false,
-    val isExternal: Boolean = false
+    val isExternal: Boolean = false,
+    /** False when the device has no decoder for this track: it is listed, but cannot be played (audit FUNC-10). */
+    val isSupported: Boolean = true
 )
 
 data class DomainExternalSubtitle(

@@ -303,7 +303,7 @@ class Media3PlaybackController(
             val isAudioFailure = ErrorTaxonomy.isAudioError(error)
             if (isAudioFailure && !hasAttemptedAudioTrackFallback && player.currentMediaItem != null) {
                 val altTrack = _trackSelection.value.availableAudioTracks.firstOrNull {
-                    !it.isSelected && it.index != _trackSelection.value.selectedAudioTrackIndex
+                    !it.isSelected && it.index != _trackSelection.value.selectedAudioTrackIndex && it.isSupported
                 }
                 if (altTrack != null) {
                     hasAttemptedAudioTrackFallback = true
@@ -1120,6 +1120,8 @@ class Media3PlaybackController(
             if (group.type == C.TRACK_TYPE_AUDIO) {
                 for (i in 0 until group.length) {
                     if (audioCount == index) {
+                        // A track with no decoder on this device would leave the video silent: refuse it.
+                        if (!group.isTrackSupported(i, /* allowExceedsCapabilities = */ true)) return
                         params?.let {
                             player.trackSelectionParameters = it
                                 .buildUpon()
@@ -1301,7 +1303,10 @@ class Media3PlaybackController(
                                 index = index,
                                 label = label,
                                 language = language,
-                                isSelected = isSelected
+                                isSelected = isSelected,
+                                // Exceeding the device's capabilities still plays (ExoPlayer selects such tracks by
+                                // default); "unsupported" means there is no decoder for it at all (audit FUNC-10).
+                                isSupported = group.isTrackSupported(i, /* allowExceedsCapabilities = */ true)
                             )
                         )
                     }
