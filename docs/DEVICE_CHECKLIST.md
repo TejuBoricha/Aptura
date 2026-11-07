@@ -137,6 +137,12 @@ Use one video with several audio tracks, one sidecar `.srt`, and Bluetooth headp
       unplayed part ends and the buffered part starts. *(Not run on a phone. The colours are tested to WCAG ratios on the
       JVM against the palette surfaces; sunlight, a bright video behind the controls' scrim and the other sliders'
       tracks were not judged.)*
+- [ ] **Player in a right-to-left language (`I18N-02`):** set the phone to Arabic or Hebrew (or turn on Developer options >
+      Force RTL layout direction) and play a video. The transport buttons stay Previous, Rewind, Play, Forward, Next from
+      left to right; the elapsed time is on the left and the total on the right; double-tapping the left half rewinds and
+      the right half fast-forwards; swiping up and down on the left half changes brightness and on the right half volume,
+      with the gauge on the side you touched. *(Not run on a phone. Tested on the JVM with Robolectric under a
+      right-to-left layout; the other screens were not looked at in right-to-left.)*
 - [x] **Font scale:** at 200%, the sleep chips wrap without clipping and every target stays at least 48 dp. *(PASS on Galaxy S24)*
 - [x] **Light theme:** with the app in Light, the player and every player sheet stay dark. *(PASS on Galaxy S24)*
 
