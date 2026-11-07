@@ -351,6 +351,64 @@ class MediaRepositoryTest {
         assertEquals(45000L, updated?.playbackPositionMs)
     }
 
+    // --- Audit FUNC-08: one near-end rule at save ---
+
+    private fun aTwoMinuteMovie(durationMs: Long = 120_000L) = MediaItemEntity(
+        id = 1,
+        mediaStoreId = 101,
+        uri = "content://media/1",
+        title = "Movie",
+        displayName = "movie.mp4",
+        durationMs = durationMs,
+        sizeBytes = 8192,
+        mimeType = "video/mp4"
+    )
+
+    @Test
+    fun savePlaybackPosition_justBeforeTheEnd_isStoredAsWatched() = runTest(testDispatcher) {
+        val fakeDao = FakeMediaItemDao()
+        val repo = MediaRepositoryImpl(fakeDao, testDispatcher)
+        fakeDao.insertOrUpdate(aTwoMinuteMovie())
+
+        // A last paused tick at the end can arrive after, or instead of, the "ended" save.
+        repo.savePlaybackPosition("content://media/1", 119_800L, false)
+
+        assertEquals(true, fakeDao.getVideoByUri("content://media/1")?.isCompleted)
+    }
+
+    @Test
+    fun savePlaybackPosition_midVideo_staysUnfinished() = runTest(testDispatcher) {
+        val fakeDao = FakeMediaItemDao()
+        val repo = MediaRepositoryImpl(fakeDao, testDispatcher)
+        fakeDao.insertOrUpdate(aTwoMinuteMovie())
+
+        repo.savePlaybackPosition("content://media/1", 60_000L, false)
+
+        assertEquals(false, fakeDao.getVideoByUri("content://media/1")?.isCompleted)
+    }
+
+    @Test
+    fun savePlaybackPosition_keepsAFinishedFlagTheCallerSet() = runTest(testDispatcher) {
+        val fakeDao = FakeMediaItemDao()
+        val repo = MediaRepositoryImpl(fakeDao, testDispatcher)
+        fakeDao.insertOrUpdate(aTwoMinuteMovie())
+
+        repo.savePlaybackPosition("content://media/1", 60_000L, true)
+
+        assertEquals(true, fakeDao.getVideoByUri("content://media/1")?.isCompleted)
+    }
+
+    @Test
+    fun savePlaybackPosition_whenTheLengthIsNotKnown_trustsTheCaller() = runTest(testDispatcher) {
+        val fakeDao = FakeMediaItemDao()
+        val repo = MediaRepositoryImpl(fakeDao, testDispatcher)
+        fakeDao.insertOrUpdate(aTwoMinuteMovie(durationMs = 0L))
+
+        repo.savePlaybackPosition("content://media/1", 119_800L, false)
+
+        assertEquals(false, fakeDao.getVideoByUri("content://media/1")?.isCompleted)
+    }
+
     @Test
     fun removeVideoFromLibrary_deletesFromDao() = runTest(testDispatcher) {
         val fakeDao = FakeMediaItemDao()

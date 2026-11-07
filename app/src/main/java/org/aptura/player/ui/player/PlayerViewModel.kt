@@ -36,6 +36,7 @@ import org.aptura.player.core.media.SubtitleQuerySanitizer
 import org.aptura.player.ui.library.MediaFormatters
 import org.aptura.player.data.settings.ApturaSettingsRepository
 import org.aptura.player.domain.model.DomainExternalSubtitle
+import org.aptura.player.domain.usecase.ResumeRules
 import java.io.File
 
 /**
@@ -483,7 +484,10 @@ class PlayerViewModel(
                             applyItemPreferences(saved, resume = false, adoptOnly = true)
                         } else {
                             // Auto-advance, Next/Previous and queue jumps arrive here: restore that video's own settings.
-                            applyItemPreferences(currentItem, resume = true)
+                            // From the row as it is now: the queue's copy dates from when the queue was built, so going
+                            // Next and then Previous used to return to the position of that old copy (audit FUNC-08).
+                            val saved = mediaRepository.getVideoByUri(currentItem.uri) ?: currentItem
+                            applyItemPreferences(saved, resume = true)
                         }
                     }
                 }
@@ -539,8 +543,10 @@ class PlayerViewModel(
         playbackController.setPlaybackSpeed(restoredSpeed)
         playbackController.setAudioDelay(item.audioDelayMs)
         playbackController.setSubtitleDelay(item.subtitleDelayMs)
-        if (resume && item.playbackPositionMs > 3000L && !item.isCompleted) {
-            playbackController.seekTo((item.playbackPositionMs - 2000L).coerceAtLeast(0L))
+        if (resume) {
+            ResumeRules.resumeStartMs(item.playbackPositionMs, item.durationMs, item.isCompleted)?.let {
+                playbackController.seekTo(it)
+            }
         }
     }
 

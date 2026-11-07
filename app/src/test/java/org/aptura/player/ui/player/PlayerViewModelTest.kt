@@ -336,6 +336,8 @@ class PlayerViewModelTest {
 
         override suspend fun savePlaybackPosition(uri: String, positionMs: Long, isCompleted: Boolean) {
             savedPositions[uri] = positionMs to isCompleted
+            // The real repository updates the row, and the next read sees it.
+            items[uri]?.let { items[uri] = it.copy(playbackPositionMs = positionMs, isCompleted = isCompleted) }
         }
 
         override suspend fun removeVideoFromLibrary(uri: String) {
@@ -3122,6 +3124,51 @@ class PlayerViewModelTest {
 
         assertEquals("the queue is not replaced by the route's one video", 3, controller._playbackQueue.value.items.size)
         assertEquals(second.uri, controller._playbackQueue.value.currentItem?.uri)
+        viewModel.clearForTesting()
+    }
+
+    // --- Audit FUNC-08: resume reads the row as it is now, and one rule decides where to start ---
+
+    @Test
+    fun aVideoSavedJustBeforeItsEnd_isNotResumedThere() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        // A row saved before the near-end rule existed: a second from the end, never marked watched.
+        repository.items[sampleVideo.uri] =
+            sampleVideo.copy(playbackPositionMs = sampleVideo.durationMs - 1_000L, isCompleted = false)
+
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+        viewModel.loadAndPlay(sampleVideo.uri)
+        runCurrent()
+
+        assertNull("it starts from the beginning, not on the last frame", controller.lastSeekPosition)
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun previousAfterNext_returnsToWhereTheVideoWasLeft_notToTheQueuesOldCopy() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val first = sampleVideo.copy(playbackPositionMs = 50_000L) // resumed from 50 s when the queue was built
+        val second = sampleVideo.copy(uri = "content://media/2", title = "Tenet", playbackPositionMs = 0L)
+        repository.items[first.uri] = first
+        repository.items[second.uri] = second
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+        viewModel.playQueue(listOf(first, second), 0)
+        runCurrent()
+
+        controller.emitPlayingTick(1_200_000L) // twenty minutes in
+        runCurrent()
+        viewModel.skipToNext()
+        runCurrent()
+        viewModel.skipToPrevious()
+        runCurrent()
+
+        assertEquals(
+            "back to where it was left, two seconds before",
+            1_198_000L,
+            controller.lastSeekPosition
+        )
         viewModel.clearForTesting()
     }
 

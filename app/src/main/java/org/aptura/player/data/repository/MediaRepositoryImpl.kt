@@ -16,6 +16,7 @@ import org.aptura.player.data.scanner.SafTreeScanner
 import org.aptura.player.domain.model.Bookmark
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.domain.repository.MediaRepository
+import org.aptura.player.domain.usecase.ResumeRules
 
 /**
  * Concrete implementation of MediaRepository backed by Room MediaItemDao and BookmarkDao.
@@ -85,7 +86,10 @@ class MediaRepositoryImpl(
                 )
             )
         } else {
-            mediaItemDao.updatePlaybackPosition(uri, positionMs, isCompleted, now)
+            // One rule for every writer (the screen, the background recorder, the end of a video): a position this near
+            // the end is a finished video, however the last tick and the "ended" save happened to be ordered.
+            val finished = isCompleted || ResumeRules.isFinished(positionMs, existing.durationMs)
+            mediaItemDao.updatePlaybackPosition(uri, positionMs, finished, now)
         }
     }
 
