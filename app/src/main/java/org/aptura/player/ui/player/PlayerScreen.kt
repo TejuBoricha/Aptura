@@ -318,16 +318,22 @@ fun PlayerScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            when (val validation = SubtitleFileValidator.validate(context, uri)) {
-                is SubtitleValidationResult.Valid -> {
-                    val targetUri = validation.validatedUri ?: uri
-                    onExternalSubtitleSelected(targetUri, validation.mimeType, validation.displayName)
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    Toast.makeText(context, "Loaded subtitle: ${validation.displayName}", Toast.LENGTH_SHORT).show()
+            // Validating reads the file, and for a zip unpacks it, so it must not run on the main thread (audit SEC-02).
+            coroutineScope.launch {
+                val validation = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    SubtitleFileValidator.validate(context, uri)
                 }
-                is SubtitleValidationResult.Invalid -> {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    Toast.makeText(context, validation.reason, Toast.LENGTH_LONG).show()
+                when (validation) {
+                    is SubtitleValidationResult.Valid -> {
+                        val targetUri = validation.validatedUri ?: uri
+                        onExternalSubtitleSelected(targetUri, validation.mimeType, validation.displayName)
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        Toast.makeText(context, "Loaded subtitle: ${validation.displayName}", Toast.LENGTH_SHORT).show()
+                    }
+                    is SubtitleValidationResult.Invalid -> {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        Toast.makeText(context, validation.reason, Toast.LENGTH_LONG).show()
+                    }
                 }
             }
         }

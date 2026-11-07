@@ -110,6 +110,14 @@ Use one video with several audio tracks, one sidecar `.srt`, and Bluetooth headp
       A title that only differs in spelling is not (`cafes` finds nothing). *(Not run on a phone; tested on the JVM with
       a fake library. Search speed on a library of several thousand videos was not measured.)*
 
+- [ ] **Subtitle zip import (`SEC-02`):** in the player, open the subtitle sheet and tap `Import Subtitle File`, then pick a
+      `.zip` with a few subtitles in it (one named `.en.`): the English one loads, the player does not freeze while it
+      works, and the toast names the file. Pick a zip with a large unrelated file in it (more than 64 MB unpacked): it
+      is refused with a message that says to extract the subtitle first. In Settings the `Thumbnail cache` line does
+      not keep growing with each import, and `Clear` empties it. *(Not run on a phone. The unpacking limits and folder
+      handling are tested on the JVM; the main-thread change in the file picker is not covered by any automated
+      test.)*
+
 ## Accessibility and appearance
 
 - [ ] **TalkBack on `ApturaSlider`:** focus announces the label, value and range; volume keys and swipe gestures
