@@ -143,6 +143,12 @@ Use one video with several audio tracks, one sidecar `.srt`, and Bluetooth headp
       the right half fast-forwards; swiping up and down on the left half changes brightness and on the right half volume,
       with the gauge on the side you touched. *(Not run on a phone. Tested on the JVM with Robolectric under a
       right-to-left layout; the other screens were not looked at in right-to-left.)*
+- [ ] **Refuses a link into its own storage (`SEC-07`):** with USB debugging on, send Aptura an explicit intent from a
+      computer: `adb shell am start -n org.aptura.player/.MainActivity -a android.intent.action.VIEW -d
+      file:///data/user/0/org.aptura.player/databases/aptura.db` and the same with `-d https://example.com/a.mp4`. The
+      library opens and no player appears. Then `-d file:///sdcard/Movies/<a real video>.mp4` plays it, and so does
+      "Open with Aptura" from a file manager. *(Not run on a phone. The URI check is tested on the JVM as a function; the
+      activity's use of it is not.)*
 - [x] **Font scale:** at 200%, the sleep chips wrap without clipping and every target stays at least 48 dp. *(PASS on Galaxy S24)*
 - [x] **Light theme:** with the app in Light, the player and every player sheet stay dark. *(PASS on Galaxy S24)*
 
