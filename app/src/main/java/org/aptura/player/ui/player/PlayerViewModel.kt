@@ -562,7 +562,8 @@ class PlayerViewModel(
                                 index = track.index,
                                 label = track.label,
                                 language = track.language,
-                                isSelected = track.isSelected
+                                isSelected = track.isSelected,
+                                isSupported = track.isSupported
                             )
                         },
                         subtitleTracks = selection.availableSubtitleTracks.map { track ->

@@ -1,6 +1,8 @@
 package org.aptura.player.ui.player
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -12,6 +14,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.assertCountEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.performSemanticsAction
@@ -213,5 +216,47 @@ class AudioEnhancementSheetUiTest {
         composeTestRule.onNodeWithText("Dialogue boost").assertExists()
         // One control per effect: the preset buttons that duplicated each slider are gone.
         composeTestRule.onAllNodesWithText("Punch").assertCountEquals(0)
+    }
+    // --- Audit FUNC-10: an audio track with no decoder is listed with its reason and cannot be chosen ---
+
+    @Test
+    fun anUnsupportedAudioTrack_isListedWithItsReason_andCannotBeChosen() {
+        var chosen: Int? = null
+        val tracks = listOf(
+            TrackInfo(id = "1", index = 0, label = "English (Stereo)", isSelected = true),
+            TrackInfo(id = "2", index = 1, label = "TrueHD (7.1 Surround)", isSupported = false),
+            TrackInfo(id = "3", index = 2, label = "French (Stereo)")
+        )
+        composeTestRule.setContent {
+            ApturaTheme {
+                AudioEnhancementSheet(
+                    audioTracks = tracks,
+                    selectedAudioTrackIndex = 0,
+                    audioDelayMs = 0L,
+                    delayStepMs = 50L,
+                    audioEnhancement = sampleAudioEnhancement,
+                    onDismissRequest = {},
+                    onAudioTrackSelected = { chosen = it },
+                    onAudioDelayChanged = {},
+                    onEqualizerEnabledChanged = {},
+                    onEqualizerPresetSelected = {},
+                    onEqualizerBandChanged = { _, _ -> },
+                    onBassBoostChanged = {},
+                    onVirtualizerChanged = {},
+                    onLoudnessBoostChanged = {}
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithText("Not supported on this device").assertIsDisplayed()
+
+        // Pointer taps do not land on these rows under Robolectric (the sheet's scroll handling), so this checks what a
+        // screen reader and the framework act on: a disabled row takes no taps, and an enabled one chooses its track.
+        composeTestRule.onNodeWithText("TrueHD (7.1 Surround)").assertIsNotEnabled()
+        composeTestRule.onNodeWithText("French (Stereo)").assertIsEnabled()
+        assertNull("nothing was chosen yet", chosen)
+
+        composeTestRule.onNodeWithText("French (Stereo)").performSemanticsAction(SemanticsActions.OnClick)
+        assertEquals("a supported track still works", 2, chosen)
     }
 }

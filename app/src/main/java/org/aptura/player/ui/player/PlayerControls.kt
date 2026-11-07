@@ -42,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -417,7 +418,9 @@ internal fun SheetOptionRow(
     subtitle: String?,
     selected: Boolean,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** False shows the row dimmed and takes no taps; the reason belongs in [subtitle]. */
+    enabled: Boolean = true
 ) {
     val haptic = LocalHapticFeedback.current
     val shape = RoundedCornerShape(14.dp)
@@ -425,11 +428,12 @@ internal fun SheetOptionRow(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
+            .alpha(if (enabled) 1f else 0.5f)
             .clip(shape)
             .background(if (selected) ApturaColors.AccentSubtle else ApturaColors.SurfaceElevated1)
             .border(1.dp, if (selected) ApturaColors.AccentPrimary.copy(alpha = 0.7f) else ApturaColors.BorderSubtle, shape)
             .semantics { this.selected = selected }
-            .clickableWithRole(Role.RadioButton) {
+            .clickableWithRole(Role.RadioButton, enabled) {
                 if (!selected) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 onClick()
             }
@@ -497,5 +501,5 @@ internal fun SheetChip(label: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
-private fun Modifier.clickableWithRole(role: Role, onClick: () -> Unit): Modifier =
-    this.then(Modifier.clickable(role = role, onClick = onClick))
+private fun Modifier.clickableWithRole(role: Role, enabled: Boolean = true, onClick: () -> Unit): Modifier =
+    this.then(Modifier.clickable(enabled = enabled, role = role, onClick = onClick))
