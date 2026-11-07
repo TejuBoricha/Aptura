@@ -89,6 +89,14 @@ Use one video with several audio tracks, one sidecar `.srt`, and Bluetooth headp
       a phone; tested on the JVM with a stand-in player that reports what the test tells it. The lost surface after a
       display error is still open.)*
 
+- [ ] **Stats, Hardware only and Play next under shuffle (`FUNC-10`):** (a) turn on the stats overlay on a clean video:
+      the dropped-frame line stays at 0.0% when a single frame drops, and only warns on a real stutter. (b) Under
+      Decoder in the player tools choose Hardware, then open a video your phone cannot decode in hardware: the error
+      screen says the software decoder was not tried and points to Decoder; nothing switches by itself, and "Try
+      software decoding" still works. With Auto it still falls back by itself. (c) Shuffle a queue of six, pick another
+      video's "Play next": it plays right after the current one, and the rest of the pass visits each video once.
+      *(Not run on a phone; unsupported audio tracks, the fourth part of the finding, are not done.)*
+
 ## Accessibility and appearance
 
 - [ ] **TalkBack on `ApturaSlider`:** focus announces the label, value and range; volume keys and swipe gestures
