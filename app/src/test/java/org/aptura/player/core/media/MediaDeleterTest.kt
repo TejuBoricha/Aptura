@@ -13,6 +13,7 @@ import android.graphics.drawable.Icon
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import androidx.core.os.BundleCompat
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -61,7 +62,7 @@ class MediaDeleterTest {
         override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
             if (method == "android:deleteDocument") {
                 refuse?.let { throw it }
-                deleted += requireNotNull(extras?.getParcelable<Uri>("uri"))
+                deleted += requireNotNull(extras?.let { BundleCompat.getParcelable(it, "uri", Uri::class.java) })
                 return Bundle.EMPTY
             }
             return super.call(method, arg, extras)

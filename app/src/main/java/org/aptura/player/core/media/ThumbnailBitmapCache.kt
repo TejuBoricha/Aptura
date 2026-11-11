@@ -39,6 +39,7 @@ internal object ThumbnailBitmapCache {
     }
 
     /** Gives memory back when Android asks: all of it once the app is in the background, half when it is tight. */
+    @Suppress("DEPRECATION")
     fun trim(level: Int) {
         when {
             level >= ComponentCallbacks2.TRIM_MEMORY_BACKGROUND -> cache.evictAll()

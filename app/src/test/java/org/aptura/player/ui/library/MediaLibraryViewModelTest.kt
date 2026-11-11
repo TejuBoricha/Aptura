@@ -228,7 +228,7 @@ class MediaLibraryViewModelTest {
             while (searchState !is MediaLibraryUiState.Success || searchState.videos.size != 1) {
                 searchState = awaitItem()
             }
-            val results = (searchState as MediaLibraryUiState.Success).videos
+            val results = searchState.videos
             assertEquals(1, results.size)
             assertEquals("Avatar", results[0].title)
 
@@ -282,7 +282,7 @@ class MediaLibraryViewModelTest {
             while (emptyState !is MediaLibraryUiState.Empty) {
                 emptyState = awaitItem()
             }
-            val empty = emptyState as MediaLibraryUiState.Empty
+            val empty = emptyState
             assertTrue(empty.isFiltered)
             assertEquals("NonExistent", empty.query)
 

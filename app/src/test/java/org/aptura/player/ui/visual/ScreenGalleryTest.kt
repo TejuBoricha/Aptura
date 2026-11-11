@@ -45,6 +45,7 @@ abstract class GalleryBase {
         assumeTrue("set APTURA_GALLERY_DIR to render the gallery", outputDir != null)
     }
 
+    @OptIn(coil3.annotation.DelicateCoilApi::class)
     protected fun themed(mode: ThemeMode, accent: AccentColor = AccentColor.CYAN, content: @Composable () -> Unit) {
         requireGallery()
         // Robolectric's native graphics aborts the JVM when a bitmap is decoded on a worker thread, so Coil does all of
