@@ -12,8 +12,10 @@ import org.aptura.player.data.database.BookmarkEntity
 import org.aptura.player.data.database.MediaItemDao
 import org.aptura.player.data.database.MediaItemEntity
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -611,5 +613,32 @@ class MediaRepositoryTest {
         assertNull("reset must go back to following the default", resetItem?.decoderStrategy)
         assertEquals(0L, resetItem?.audioDelayMs)
         assertEquals(0L, resetItem?.subtitleDelayMs)
+    }
+
+    @Test
+    fun savePlaybackPosition_forExternalVideo_withNumericMediaStoreUri_avoidsRawNumericIdTitle() = runTest(testDispatcher) {
+        val fakeMediaDao = FakeMediaItemDao()
+        val repo = MediaRepositoryImpl(fakeMediaDao, testDispatcher)
+
+        val numericUri = "content://media/external/video/media/1000000475"
+        repo.savePlaybackPosition(numericUri, positionMs = 5000L, isCompleted = false)
+
+        val inserted = repo.getVideoByUri(numericUri)
+        assertNotNull(inserted)
+        assertFalse("Title must not be raw numeric ID (UX-04)", inserted?.title == "1000000475")
+        assertEquals("External Video", inserted?.title)
+    }
+
+    @Test
+    fun savePlaybackPosition_forExternalVideo_withNamedFileUri_extractsFileName() = runTest(testDispatcher) {
+        val fakeMediaDao = FakeMediaItemDao()
+        val repo = MediaRepositoryImpl(fakeMediaDao, testDispatcher)
+
+        val fileUri = "file:///storage/emulated/0/Movies/vacation_trip.mp4"
+        repo.savePlaybackPosition(fileUri, positionMs = 5000L, isCompleted = false)
+
+        val inserted = repo.getVideoByUri(fileUri)
+        assertNotNull(inserted)
+        assertEquals("vacation_trip.mp4", inserted?.title)
     }
 }

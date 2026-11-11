@@ -1,5 +1,6 @@
 package org.aptura.player.data.repository
 
+import android.content.Context
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -25,13 +26,20 @@ import org.aptura.player.domain.usecase.ResumeRules
 class MediaRepositoryImpl(
     private val mediaItemDao: MediaItemDao,
     private val bookmarkDao: BookmarkDao? = null,
+    private val context: Context? = null,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : MediaRepository {
 
     constructor(
         mediaItemDao: MediaItemDao,
         ioDispatcher: CoroutineDispatcher
-    ) : this(mediaItemDao, null, ioDispatcher)
+    ) : this(mediaItemDao, null, null, ioDispatcher)
+
+    constructor(
+        mediaItemDao: MediaItemDao,
+        bookmarkDao: BookmarkDao?,
+        ioDispatcher: CoroutineDispatcher
+    ) : this(mediaItemDao, bookmarkDao, null, ioDispatcher)
 
     override fun getAllVideos(): Flow<List<DomainMediaItem>> {
         return mediaItemDao.getAllVideosSortedByDate()
@@ -243,9 +251,29 @@ class MediaRepositoryImpl(
     }
 
     private fun extractTitleFromUri(uri: String): String = try {
+        if (uri.startsWith("content://") && context != null) {
+            val parsed = android.net.Uri.parse(uri)
+            context.contentResolver.query(
+                parsed,
+                arrayOf(android.provider.OpenableColumns.DISPLAY_NAME),
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                val nameIdx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (nameIdx != -1 && cursor.moveToFirst()) {
+                    val name = cursor.getString(nameIdx)
+                    if (!name.isNullOrBlank() && !name.all { it.isDigit() }) return name
+                }
+            }
+        }
         val decoded = java.net.URLDecoder.decode(uri, "UTF-8")
-        decoded.substringBefore('?').substringBefore('#').trimEnd('/').substringAfterLast('/').substringAfterLast(':')
-            .ifBlank { "External Video" }
+        val candidate = decoded.substringBefore('?').substringBefore('#').trimEnd('/').substringAfterLast('/').substringAfterLast(':')
+        if (candidate.isNotBlank() && !candidate.all { it.isDigit() }) {
+            candidate
+        } else {
+            "External Video"
+        }
     } catch (_: Throwable) {
         "External Video"
     }

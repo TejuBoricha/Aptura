@@ -1615,12 +1615,22 @@ class PlayerViewModel(
                 .trimEnd('/')
                 .substringAfterLast('/')
                 .substringAfterLast(':')
-            if (segment.isNotBlank()) segment else File(uri).name.ifBlank { uri }
+            if (segment.isNotBlank() && !segment.all { it.isDigit() }) {
+                segment
+            } else {
+                val fileName = try { File(uri).name } catch (_: Throwable) { "" }
+                if (fileName.isNotBlank() && !fileName.all { it.isDigit() }) {
+                    fileName
+                } else {
+                    "External Video"
+                }
+            }
         } catch (_: Throwable) {
             try {
-                File(uri).name.ifBlank { uri }
+                val fileName = File(uri).name
+                if (fileName.isNotBlank() && !fileName.all { it.isDigit() }) fileName else "External Video"
             } catch (_: Throwable) {
-                uri
+                "External Video"
             }
         }
     }

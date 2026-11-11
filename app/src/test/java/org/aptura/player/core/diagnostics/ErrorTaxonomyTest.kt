@@ -62,6 +62,32 @@ class ErrorTaxonomyTest {
         val taxonomy = ErrorTaxonomy.mapException(exception)
 
         assertEquals("CORRUPT_MEDIA", taxonomy.code)
+        assertEquals("Corrupted Media File", taxonomy.title)
+        assertFalse(taxonomy.isRecoverable)
+    }
+
+    @Test
+    fun mapException_truncatedMedia_readPositionOutOfRange_mapsToCorruptMediaNotStorageInaccessible() {
+        // Truncated MP4 or premature EOF during media read (UX-04)
+        val exception = PlaybackException("Position out of range", null, PlaybackException.ERROR_CODE_IO_READ_POSITION_OUT_OF_RANGE)
+        val taxonomy = ErrorTaxonomy.mapException(exception)
+
+        assertEquals("CORRUPT_MEDIA", taxonomy.code)
+        assertEquals("Truncated or Incomplete File", taxonomy.title)
+        assertFalse("Must never mislead user to think storage is unmounted or permission lost", taxonomy.title.contains("Storage"))
+        assertFalse(taxonomy.whatHappened.contains("storage may have unmounted"))
+        assertTrue("Must advise checking file for damage or re-downloading", taxonomy.suggestedActions.contains("Check source file for damage"))
+        assertFalse(taxonomy.isRecoverable)
+    }
+
+    @Test
+    fun mapException_fileNotFound_mapsToStorageInaccessible() {
+        val exception = PlaybackException("File missing", null, PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND)
+        val taxonomy = ErrorTaxonomy.mapException(exception)
+
+        assertEquals("IO_STORAGE_UNAVAILABLE", taxonomy.code)
+        assertEquals("Storage Inaccessible", taxonomy.title)
+        assertTrue(taxonomy.whatHappened.contains("storage may have unmounted or the file was moved"))
         assertFalse(taxonomy.isRecoverable)
     }
 
@@ -71,6 +97,7 @@ class ErrorTaxonomyTest {
         val taxonomy = ErrorTaxonomy.mapException(exception)
 
         assertEquals("PERMISSION_LOST", taxonomy.code)
+        assertEquals("Storage Permission Missing", taxonomy.title)
         assertFalse(taxonomy.isRecoverable)
     }
 
