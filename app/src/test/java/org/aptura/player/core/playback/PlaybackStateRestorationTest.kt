@@ -2,13 +2,15 @@ package org.aptura.player.core.playback
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
 /**
- * Unit tests for RQ-07: Process-Death and Playback State Restoration Matrix.
- * Source of truth: spec/08A RQ-07, spec/09 §4, and spec/12A §3.3 (TST-REST)
+ * Unit tests for process-death state restoration and playback journal contracts (QA-02, spec/09 §4, spec/12A §3.3).
+ * Verifies real session restoration, 2-second comfort window, near-boundary rules, and honest notices
+ * without tautological simulator mocks.
  */
 class PlaybackStateRestorationTest {
 
@@ -28,7 +30,7 @@ class PlaybackStateRestorationTest {
             durationMs = 120_000L
         )
 
-        // 45s position -> 43s resume position (2s pre-roll)
+        // 45s position -> 43s resume position (2s pre-roll comfort window)
         assertEquals(43_000L, entry.calculateResumePositionMs())
         assertTrue(entry.isResumeCandidate())
     }
@@ -57,7 +59,30 @@ class PlaybackStateRestorationTest {
     }
 
     @Test
-    fun restoreSession_honestNoticeWhenSourceUnavailable_neverSilentlyFromZero() {
+    fun restoreSession_internalStorageMidPlayback_resumesWithComfortWindowAndPreservesTracks() {
+        journal.updatePosition(
+            mediaId = "media-internal-01",
+            mediaUri = "content://media/internal/10",
+            positionMs = 30_000L,
+            durationMs = 120_000L,
+            audioTrackId = "audio_en_1",
+            subtitleTrackId = "sub_en_1",
+            playbackSpeed = 1.25f,
+            immediate = true
+        )
+
+        val result = journal.restoreSession("media-internal-01", sourceAvailable = true)
+        assertTrue("Internal playback must resume", result is PlaybackStateJournal.RestoreResult.Resumed)
+        val resumed = result as PlaybackStateJournal.RestoreResult.Resumed
+
+        assertEquals(28_000L, resumed.resumePositionMs) // 30s - 2s comfort window
+        assertEquals("audio_en_1", resumed.entry.audioTrackId)
+        assertEquals("sub_en_1", resumed.entry.subtitleTrackId)
+        assertEquals(1.25f, resumed.entry.playbackSpeed, 0.001f)
+    }
+
+    @Test
+    fun restoreSession_removableStorageUnavailable_presentsHonestNoticeWithoutSilentZeroRestart() {
         journal.updatePosition(
             mediaId = "media-sd-01",
             mediaUri = "content://sdcard/media/5",
@@ -66,43 +91,19 @@ class PlaybackStateRestorationTest {
             immediate = true
         )
 
-        // Source unavailable (e.g. SD card pulled)
+        // Storage unmounted or permission revoked
         val result = journal.restoreSession("media-sd-01", sourceAvailable = false)
-        assertTrue(result is PlaybackStateJournal.RestoreResult.RestartWithNotice)
+        assertTrue(
+            "Unavailable source must present honest notice, never silently restarting from zero",
+            result is PlaybackStateJournal.RestoreResult.RestartWithNotice
+        )
         val notice = result as PlaybackStateJournal.RestoreResult.RestartWithNotice
         assertTrue(notice.reason.contains("inaccessible"))
+        assertEquals(60_000L, notice.entry.positionMs)
     }
 
     @Test
-    fun rq07_spike_all12KillPoints_satisfyContractualExpectedRestoreStates() {
-        // Prepare journal states for the playback killpoints
-        journal.updatePosition(
-            mediaId = "media-internal-01",
-            mediaUri = "content://media/internal/10",
-            positionMs = 30_000L,
-            durationMs = 120_000L,
-            audioTrackId = "audio_en_1",
-            subtitleTrackId = "sub_en_1",
-            immediate = true
-        )
-
-        journal.updatePosition(
-            mediaId = "media-sd-01",
-            mediaUri = "content://media/sd/20",
-            positionMs = 75_000L,
-            durationMs = 300_000L,
-            immediate = true
-        )
-
-        journal.updatePosition(
-            mediaId = "media-saf-01",
-            mediaUri = "content://com.android.externalstorage.documents/tree/30",
-            positionMs = 90_000L,
-            durationMs = 300_000L,
-            immediate = true
-        )
-
-        // Completed item for Killpoint 12
+    fun restoreSession_completedMedia_returnsCompletedOrAtStartWithoutFalseResume() {
         journal.updatePosition(
             mediaId = "media-completed-01",
             mediaUri = "content://media/internal/40",
@@ -112,28 +113,70 @@ class PlaybackStateRestorationTest {
         )
         journal.markCompleted("media-completed-01")
 
-        // Evaluate all 12 kill points per spec/12A §3.3
-        val records = (1..12).map { kp ->
-            KillPointSimulator.evaluateKillPoint(kp, journal)
-        }
+        val result = journal.restoreSession("media-completed-01", sourceAvailable = true)
+        assertTrue(
+            "Completed media must not trigger false resumption",
+            result is PlaybackStateJournal.RestoreResult.CompletedOrAtStart
+        )
+        val completed = result as PlaybackStateJournal.RestoreResult.CompletedOrAtStart
+        assertTrue(completed.entry.completed)
+        assertEquals(0L, completed.entry.calculateResumePositionMs())
+    }
 
-        assertEquals("Must evaluate all 12 killpoints", 12, records.size)
+    @Test
+    fun restoreSession_nearEndWithinLast10Seconds_treatedAsCompletedWithoutFalseResume() {
+        journal.updatePosition(
+            mediaId = "media-near-end-01",
+            mediaUri = "content://media/internal/50",
+            positionMs = 115_000L,
+            durationMs = 120_000L, // 5s remaining (<10s)
+            immediate = true
+        )
 
-        for (record in records) {
-            assertTrue("Killpoint ${record.killpointId} must survive", record.survives)
-            assertTrue("Killpoint ${record.killpointId} must maintain journal consistency", record.journalConsistent)
-            assertTrue("Killpoint ${record.killpointId} must have valid non-empty restore state", record.restoredState.isNotBlank())
-        }
+        val result = journal.restoreSession("media-near-end-01", sourceAvailable = true)
+        assertTrue(
+            "Media in last 10s must be treated as completed",
+            result is PlaybackStateJournal.RestoreResult.CompletedOrAtStart
+        )
+        val completed = result as PlaybackStateJournal.RestoreResult.CompletedOrAtStart
+        assertTrue(completed.entry.completed)
+        assertEquals(0L, completed.entry.calculateResumePositionMs())
+    }
 
-        // Verify Killpoint 12 specifically does NOT falsely resume
-        val kp12 = records.first { it.killpointId == 12 }
-        assertEquals("NOTHING_TO_RESTORE_NO_FALSE_RESUME", kp12.restoredState)
-        assertFalse(kp12.honestNoticeShown)
+    @Test
+    fun restoreSession_nonexistentMedia_returnsNoState() {
+        val result = journal.restoreSession("nonexistent-id", sourceAvailable = true)
+        assertEquals(PlaybackStateJournal.RestoreResult.NoState, result)
+    }
 
-        // Verify Killpoint 5 with unavailable source presents honest notice
-        val kp5Unavailable = KillPointSimulator.evaluateKillPoint(5, journal, sourceAvailable = false)
-        assertTrue(kp5Unavailable.survives)
-        assertTrue(kp5Unavailable.honestNoticeShown)
-        assertEquals("HONEST_NOTICE_SOURCE_UNAVAILABLE", kp5Unavailable.restoredState)
+    @Test
+    fun updatePosition_throttlesPeriodicSavesWithinSaveInterval_unlessImmediate() {
+        journal.updatePosition(
+            mediaId = "throttle-test",
+            mediaUri = "content://media/throttle/1",
+            positionMs = 10_000L,
+            durationMs = 60_000L,
+            immediate = true
+        )
+
+        // Non-immediate call within 5s is dropped
+        journal.updatePosition(
+            mediaId = "throttle-test",
+            mediaUri = "content://media/throttle/1",
+            positionMs = 12_000L,
+            durationMs = 60_000L,
+            immediate = false
+        )
+        assertEquals(10_000L, journal.getActiveEntry()?.positionMs)
+
+        // Immediate call updates right away
+        journal.updatePosition(
+            mediaId = "throttle-test",
+            mediaUri = "content://media/throttle/1",
+            positionMs = 14_000L,
+            durationMs = 60_000L,
+            immediate = true
+        )
+        assertEquals(14_000L, journal.getActiveEntry()?.positionMs)
     }
 }
