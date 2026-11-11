@@ -1576,7 +1576,7 @@ private fun TransferProgressDialog(
                 .height(6.dp)
                 .clip(RoundedCornerShape(3.dp)),
             color = ApturaColors.AccentPrimary,
-            trackColor = ApturaColors.SurfaceElevated3,
+            trackColor = ApturaColors.ControlTrack,
             gapSize = 0.dp,
             drawStopIndicator = {}
         )

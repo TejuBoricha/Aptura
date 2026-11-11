@@ -153,7 +153,7 @@ internal fun SheetSwitchRow(
                 checkedTrackColor = ApturaColors.AccentPrimary,
                 checkedBorderColor = ApturaColors.AccentPrimary,
                 uncheckedThumbColor = ApturaColors.TextMediumEmphasis,
-                uncheckedTrackColor = ApturaColors.SurfaceElevated3,
+                uncheckedTrackColor = ApturaColors.ControlTrack,
                 uncheckedBorderColor = ApturaColors.TextLowEmphasis
             )
         )
@@ -210,7 +210,7 @@ internal fun ApturaSlider(
     val currentOnChange by rememberUpdatedState(onValueChange)
     val span = (valueRange.endInclusive - valueRange.start).takeIf { it > 0f } ?: 1f
     val thumbRadius = 10.dp
-    val trackColor = ApturaColors.SurfaceElevated3
+    val trackColor = ApturaColors.ControlTrack
     val fillColor = ApturaColors.AccentPrimary
     val originMarkColor = ApturaColors.TextMediumEmphasis
     val thumbHaloColor = ApturaColors.SurfaceElevated2

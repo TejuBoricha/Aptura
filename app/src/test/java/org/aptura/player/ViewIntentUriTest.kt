@@ -90,7 +90,12 @@ class ViewIntentUriTest {
         val outside = temp.newFolder("outside")
         val target = File(dataDir, "files/secret.bin").apply { parentFile!!.mkdirs(); writeText("x") }
         val link = File(outside, "movie.mp4")
-        Files.createSymbolicLink(link.toPath(), target.toPath())
+        try {
+            Files.createSymbolicLink(link.toPath(), target.toPath())
+        } catch (e: Exception) {
+            org.junit.Assume.assumeNoException("Symlink creation not permitted in this environment", e)
+            return
+        }
 
         assertNull("a link resolves to the private file", accepted(Uri.fromFile(link).toString()))
     }
