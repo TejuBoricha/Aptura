@@ -10,13 +10,15 @@ import android.util.Size
 import androidx.annotation.VisibleForTesting
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.io.FileOutputStream
 import java.security.MessageDigest
 
 /**
- * Manages persistent, hardware-accelerated, disk-cached thumbnails for video media (audit P1-13).
+ * Manages persistent, hardware-accelerated, disk-cached thumbnails for video media (audit P1-13, PERF-04).
  *
  * Coil's default [coil3.video.VideoFrameDecoder] does not disk-cache decoded frames for local file/content URIs,
  * resulting in repeated [MediaMetadataRetriever] frame extractions on every LazyGrid scroll or memory eviction.
@@ -24,6 +26,8 @@ import java.security.MessageDigest
  * This repository generates thumbnails once, compresses them to lightweight 16:9 JPEGs (~15-30 KB),
  * and persists them in [context.cacheDir]/thumbnails keyed by URI hash and modification timestamp.
  * If the source video file is modified or replaced on disk, the cache key automatically invalidates.
+ * Concurrency is bounded via [limitedParallelism], extraction is guarded by a timeout, and disk usage
+ * is bounded via LRU eviction.
  */
 object ThumbnailRepository {
 
@@ -33,6 +37,14 @@ object ThumbnailRepository {
     private const val JPEG_QUALITY = 85
     private const val FRAME_OFFSET_US = 2_000_000L // 2.0s offset avoids initial black title cards
     private const val MAX_FAILED_KEYS = 512
+
+    const val MAX_PARALLEL_EXTRACTIONS = 3
+    const val DEFAULT_EXTRACTION_TIMEOUT_MS = 5_000L
+    const val MAX_DISK_CACHE_BYTES = 50L * 1024L * 1024L // 50 MB LRU cap
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val defaultExtractionDispatcher: CoroutineDispatcher =
+        Dispatchers.IO.limitedParallelism(MAX_PARALLEL_EXTRACTIONS)
 
     /** Session-scoped negative cache so un-decodable files do not re-trigger MediaMetadataRetriever on every scroll. */
     private val failedExtractionKeys = java.util.Collections.synchronizedSet( LinkedHashSet<String>() )
@@ -67,30 +79,47 @@ object ThumbnailRepository {
      */
     fun getCachedThumbnailFile(context: Context, uri: String, dateModifiedSec: Long): File? {
         val file = getThumbnailFile(context, uri, dateModifiedSec)
-        return if (file.exists() && file.length() > 0L) file else null
+        return if (file.exists() && file.length() > 0L) {
+            try {
+                file.setLastModified(System.currentTimeMillis())
+            } catch (_: Throwable) {}
+            file
+        } else {
+            null
+        }
     }
 
     /**
      * Retrieves an existing cached thumbnail or generates, compresses, and saves a new one to disk.
      * Uses platform hardware acceleration ([android.content.ContentResolver.loadThumbnail]) on API 29+
      * with graceful fallback to [MediaMetadataRetriever].
+     *
+     * Guarded by [defaultExtractionDispatcher] (`limitedParallelism(3)`), [timeoutMs] (`withTimeoutOrNull`),
+     * and [trimDiskCacheToLimit] LRU eviction (audit PERF-04).
      */
     suspend fun getOrCreateThumbnail(
         context: Context,
         uri: String,
         dateModifiedSec: Long,
-        dispatcher: CoroutineDispatcher = Dispatchers.IO
+        dispatcher: CoroutineDispatcher = defaultExtractionDispatcher,
+        timeoutMs: Long = DEFAULT_EXTRACTION_TIMEOUT_MS,
+        extractor: suspend (Context, String) -> Bitmap? = { ctx, u -> extractThumbnailBitmap(ctx, u) }
     ): File? = withContext(dispatcher) {
         val fileName = getThumbnailFileName(uri, dateModifiedSec)
         val targetFile = File(getThumbnailDir(context), fileName)
         if (targetFile.exists() && targetFile.length() > 0L) {
+            try {
+                targetFile.setLastModified(System.currentTimeMillis())
+            } catch (_: Throwable) {}
             return@withContext targetFile
         }
         if (failedExtractionKeys.contains(fileName)) {
             return@withContext null
         }
 
-        val bitmap = extractThumbnailBitmap(context, uri)
+        val bitmap = withTimeoutOrNull(timeoutMs) {
+            extractor(context, uri)
+        }
         if (bitmap == null) {
             synchronized(failedExtractionKeys) {
                 if (failedExtractionKeys.size >= MAX_FAILED_KEYS) {
@@ -103,6 +132,10 @@ object ThumbnailRepository {
 
         saveBitmapToCache(context, targetFile, bitmap, uri, dateModifiedSec)
     }
+
+    @VisibleForTesting
+    fun isMarkedFailed(uri: String, dateModifiedSec: Long): Boolean =
+        failedExtractionKeys.contains(getThumbnailFileName(uri, dateModifiedSec))
 
     private fun extractThumbnailBitmap(context: Context, uriString: String): Bitmap? {
         val uri = try {
@@ -181,12 +214,45 @@ object ThumbnailRepository {
             val renamed = tempFile.renameTo(targetFile)
             if (renamed || (tempFile.copyTo(targetFile, overwrite = true).also { tempFile.delete() }.exists())) {
                 purgeStaleThumbnails(context, uri, dateModifiedSec)
+                trimDiskCacheToLimit(parent, MAX_DISK_CACHE_BYTES, preserveFile = targetFile)
                 return targetFile
             }
         } catch (_: Throwable) {
             tempFile.delete()
         }
         return null
+    }
+
+    /**
+     * Enforces an LRU disk cache cap ([maxBytes]) on [dir] by evicting the least-recently-modified
+     * thumbnail files first while always preserving [preserveFile] (audit PERF-04).
+     */
+    @VisibleForTesting
+    fun trimDiskCacheToLimit(
+        dir: File,
+        maxBytes: Long = MAX_DISK_CACHE_BYTES,
+        preserveFile: File? = null
+    ) {
+        try {
+            if (!dir.exists() || maxBytes <= 0L) return
+            val files = dir.listFiles { file ->
+                file.isFile && file.name.startsWith("thumb_") && file.name.endsWith(".jpg")
+            } ?: return
+            var totalBytes = files.sumOf { it.length() }
+            if (totalBytes <= maxBytes) return
+
+            val sortedOldestFirst = files.sortedWith(
+                compareBy<File> { it.lastModified() }.thenBy { it.name }
+            )
+            for (candidate in sortedOldestFirst) {
+                if (totalBytes <= maxBytes) break
+                if (preserveFile != null && candidate.absolutePath == preserveFile.absolutePath) continue
+                val len = candidate.length()
+                if (candidate.delete()) {
+                    totalBytes -= len
+                }
+            }
+        } catch (_: Throwable) {}
     }
 
     /**
