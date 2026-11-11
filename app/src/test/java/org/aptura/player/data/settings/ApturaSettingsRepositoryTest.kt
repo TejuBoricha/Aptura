@@ -221,4 +221,26 @@ class ApturaSettingsRepositoryTest {
 
         assertEquals(LibraryLayout.GRID, repository.settingsFlow.first().libraryLayout)
     }
+
+    @Test
+    fun corruptionReset_surfacesFlagAndAcknowledgePersistsRecoveredFolders() = runTest {
+        assertFalse(repository.settingsFlow.first().wasResetByCorruption)
+
+        repository.setResetByCorruptionForTesting(true)
+        val resetSettings = repository.settingsFlow.first()
+        assertTrue(resetSettings.wasResetByCorruption)
+
+        val recovered = setOf("content://com.android.externalstorage.documents/tree/primary%3ARecovered")
+        repository.acknowledgeSettingsReset(recoveredFolders = recovered)
+
+        val acknowledged = repository.settingsFlow.first()
+        assertFalse(acknowledged.wasResetByCorruption)
+        assertEquals(recovered, acknowledged.persistedSafFolders)
+    }
+
+    @Test
+    fun recoverPersistedSafFolders_handlesEmptyOrPermissionQueriesGracefully() {
+        val recovered = recoverPersistedSafFolders(context)
+        assertTrue(recovered.isEmpty())
+    }
 }

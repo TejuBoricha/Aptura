@@ -79,8 +79,10 @@ class SettingsCorruptionTest {
     @Test
     fun aDamagedFile_startsFromDefaultsInsteadOfFailing() = runBlocking {
         val store = openStore(damagedFile(), withHandler = true)
+        val data = store.data.first()
 
-        assertTrue("settings start empty", store.data.first().asMap().isEmpty())
+        assertEquals(true, data[PreferencesKeys.SETTINGS_RESET_BY_CORRUPTION])
+        assertNull("user settings start unset", data[key])
     }
 
     @Test
@@ -107,6 +109,7 @@ class SettingsCorruptionTest {
 
         assertEquals("ROSE", second.data.first()[key])
         assertNull(second.data.first()[stringPreferencesKey("never_written")])
+        assertNull(second.data.first()[PreferencesKeys.SETTINGS_RESET_BY_CORRUPTION])
     }
 
     /** The handler is only worth anything if the real store uses it, and that store is private to the repository. */
