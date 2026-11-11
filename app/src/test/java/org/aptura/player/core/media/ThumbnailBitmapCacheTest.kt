@@ -69,6 +69,7 @@ class ThumbnailBitmapCacheTest {
     }
 
     @Test
+    @Suppress("DEPRECATION")
     fun whenAndroidAsksForMemory_theCacheGivesBackAccordingToHowTightItIs() {
         repeat(4) { ThumbnailBitmapCache.put("thumb_$it.jpg", bitmap(1000, 1000)) }
 

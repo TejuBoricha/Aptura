@@ -872,6 +872,7 @@ private fun folderDisplayName(folderUri: String): String = try {
  */
 @Composable
 private fun CodecSupportDialog(report: CodecSupportReport?, onDismiss: () -> Unit) {
+    @Suppress("DEPRECATION")
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
     ApturaDialog(

@@ -133,7 +133,7 @@ object SubtitleZipExtractor {
                 out?.close()
             }
 
-            if (wanted && destination != null && mimeType != null) {
+            if (wanted && destination != null) {
                 // Prioritize English or .srt if multiple exist
                 val isEnglish = fileName.contains("eng", ignoreCase = true) || fileName.contains(".en.", ignoreCase = true)
                 val previous = best

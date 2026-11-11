@@ -59,10 +59,11 @@ class ApturaThemeTest {
         composeRule.waitForIdle()
 
         val expected = ApturaPalettes.light(AccentColor.AMBER)
-        assertFalse(seen!!.isDark)
-        assertEquals(expected.surfaceBase, seen!!.base)
-        assertEquals(expected.accentPrimary, seen!!.accent)
-        assertEquals(expected.textHighEmphasis, seen!!.textHigh)
+        val s = checkNotNull(seen)
+        assertFalse(s.isDark)
+        assertEquals(expected.surfaceBase, s.base)
+        assertEquals(expected.accentPrimary, s.accent)
+        assertEquals(expected.textHighEmphasis, s.textHigh)
     }
 
     @Test
@@ -74,9 +75,10 @@ class ApturaThemeTest {
         composeRule.waitForIdle()
 
         val expected = ApturaPalettes.dark(AccentColor.CYAN)
-        assertTrue(seen!!.isDark)
-        assertEquals(expected.surfaceBase, seen!!.base)
-        assertEquals(expected.accentPrimary, seen!!.accent)
+        val s = checkNotNull(seen)
+        assertTrue(s.isDark)
+        assertEquals(expected.surfaceBase, s.base)
+        assertEquals(expected.accentPrimary, s.accent)
     }
 
     @Test
@@ -85,7 +87,7 @@ class ApturaThemeTest {
         composeRule.setContent { Probe { seen = it } }
         composeRule.waitForIdle()
 
-        assertEquals(ApturaPalettes.dark(AccentColor.CYAN).surfaceBase, seen!!.base)
+        assertEquals(ApturaPalettes.dark(AccentColor.CYAN).surfaceBase, checkNotNull(seen).base)
     }
 
     @Test
@@ -97,15 +99,15 @@ class ApturaThemeTest {
             ApturaTheme(themeMode = mode, accentColor = accent) { Probe { seen = it } }
         }
         composeRule.waitForIdle()
-        assertEquals(AccentColor.CYAN.darkPrimary, seen!!.accent)
+        assertEquals(AccentColor.CYAN.darkPrimary, checkNotNull(seen).accent)
 
         accent = AccentColor.ROSE
         composeRule.waitForIdle()
-        assertEquals(AccentColor.ROSE.darkPrimary, seen!!.accent)
+        assertEquals(AccentColor.ROSE.darkPrimary, checkNotNull(seen).accent)
 
         mode = ThemeMode.LIGHT
         composeRule.waitForIdle()
-        assertEquals(AccentColor.ROSE.lightPrimary, seen!!.accent)
+        assertEquals(AccentColor.ROSE.lightPrimary, checkNotNull(seen).accent)
     }
 
     /**

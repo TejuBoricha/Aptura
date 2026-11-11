@@ -49,10 +49,10 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.automirrored.outlined.ViewList
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Tune
-import androidx.compose.material.icons.outlined.ViewList
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -432,7 +432,7 @@ internal fun LibraryVideoPane(
                 trailing = {
                     IconButton(onClick = onToggleLayout, modifier = Modifier.size(48.dp).testTag(LAYOUT_TOGGLE_TAG)) {
                         Icon(
-                            imageVector = if (isList) Icons.Outlined.GridView else Icons.Outlined.ViewList,
+                            imageVector = if (isList) Icons.Outlined.GridView else Icons.AutoMirrored.Outlined.ViewList,
                             contentDescription = if (isList) "Show videos as a grid" else "Show videos as a list",
                             tint = ApturaColors.TextMediumEmphasis
                         )
