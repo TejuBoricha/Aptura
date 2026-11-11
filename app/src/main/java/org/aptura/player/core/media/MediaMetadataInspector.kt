@@ -67,8 +67,8 @@ object MediaMetadataInspector {
         var inspected = false
 
         // 1. MediaMetadataRetriever pass for overall container stats
+        val retriever = MediaMetadataRetriever()
         try {
-            val retriever = MediaMetadataRetriever()
             retriever.setDataSource(context, uri)
             val brStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)
             if (!brStr.isNullOrBlank()) {
@@ -78,17 +78,22 @@ object MediaMetadataInspector {
             if (!durStr.isNullOrBlank()) {
                 durationMs = durStr.toLongOrNull() ?: 0L
             }
-            retriever.release()
         } catch (_: Throwable) {
             // best-effort
+        } finally {
+            try {
+                retriever.release()
+            } catch (_: Throwable) {}
         }
 
         // 2. MediaExtractor pass for granular track inspection
         val extractor = MediaExtractor()
         try {
             extractor.setDataSource(context, uri, null)
-            inspected = true
             val trackCount = extractor.trackCount
+            if (trackCount > 0) {
+                inspected = true
+            }
             for (i in 0 until trackCount) {
                 val format = extractor.getTrackFormat(i)
                 val mime = format.getString(MediaFormat.KEY_MIME).orEmpty()
@@ -174,7 +179,9 @@ object MediaMetadataInspector {
             try {
                 val trackGroups = MetadataRetriever.retrieveMetadata(context, MediaItem.fromUri(uri))
                     .get(2, TimeUnit.SECONDS)
-                inspected = true
+                if (trackGroups.length > 0) {
+                    inspected = true
+                }
                 for (i in 0 until trackGroups.length) {
                     val group = trackGroups.get(i)
                     if (group.length <= 0) continue
