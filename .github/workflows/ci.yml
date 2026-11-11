@@ -2,6 +2,9 @@ name: CI
 
 # The same checks as tools/gate.ps1 (compile tests, run unit tests, lint), plus an R8 release build so a shrinker
 # problem shows up before a release does. No secrets are needed: the release build is left unsigned.
+#
+# Parallelized verification pipeline: unit tests, lint, and release build run concurrently across separate runners,
+# fanning into a final 'verify' status check required by branch rulesets.
 on:
   push:
     branches: [main]
@@ -16,14 +19,14 @@ permissions:
   pull-requests: read # tools/agents/pr_checks.py lists other open pull requests and their files
 
 jobs:
-  verify:
+  unit-tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
 
       # Several AI agents work in parallel (AGENTS.md). Runs first because it takes seconds: attribution trailers,
-      # one open PR per hot file, one open PR per issue. Inside `verify`, so the ruleset already requires it.
+      # one open PR per hot file, one open PR per issue.
       - name: Agent coordination checks
         if: github.event_name == 'pull_request'
         env:
@@ -57,28 +60,82 @@ jobs:
       # under Gradle's Terms of Use; v5 is the last MIT release and already runs on Node 24.
       - uses: gradle/actions/setup-gradle@v5
 
-      - name: Compile unit tests
-        run: ./gradlew compileDebugUnitTestKotlin --stacktrace
-
       - name: Unit tests
         run: ./gradlew testDebugUnitTest --stacktrace
 
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-reports
+          path: app/build/reports/tests/
+
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v5
+
       - name: Lint
         run: ./gradlew lintDebug --stacktrace
+
+      - name: Upload lint reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: lint-reports
+          path: app/build/reports/lint-results-debug.html
+
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v5
 
       # assembleRelease is finalized by verifyReleaseApk: the build fails if the shipped code contains a network stack
       # or a telemetry SDK (R8 mapping + dex check), complementing the dependency-graph and merged-manifest unit tests.
       - name: Release build (R8 + resource shrinking) and shipped-code invariants
         run: ./gradlew assembleRelease --stacktrace
 
-      - name: Upload reports
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: reports
-          path: |
-            app/build/reports/tests/
-            app/build/reports/lint-results-debug.html
+  verify:
+    needs: [unit-tests, lint, release]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Consolidate verification results
+        run: |
+          failed=0
+          if [ "${{ needs.unit-tests.result }}" != "success" ]; then
+            echo "::error::Job 'unit-tests' failed or was cancelled (result: ${{ needs.unit-tests.result }})."
+            failed=1
+          fi
+          if [ "${{ needs.lint.result }}" != "success" ]; then
+            echo "::error::Job 'lint' failed or was cancelled (result: ${{ needs.lint.result }})."
+            failed=1
+          fi
+          if [ "${{ needs.release.result }}" != "success" ]; then
+            echo "::error::Job 'release' failed or was cancelled (result: ${{ needs.release.result }})."
+            failed=1
+          fi
+          if [ "$failed" -ne 0 ]; then
+            exit 1
+          fi
+          echo "All verification checks (unit-tests, lint, release) passed successfully."
 
   # The unit gate is JVM-only. DocumentsProviderRenameTest needs a real DocumentsProvider and ApturaAppE2eTest needs a
   # real activity, so they run here on an API 35 tablet image. This is the same command verified locally; the job is
