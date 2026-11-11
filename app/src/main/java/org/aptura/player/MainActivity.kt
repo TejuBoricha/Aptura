@@ -42,7 +42,10 @@ class MainActivity : ComponentActivity() {
     private var pendingShowPlayer by mutableStateOf(false)
 
     /** Mirrors the "Background Audio Playback" setting so [onStop] can honour it synchronously. */
-    private var backgroundAudioEnabled = true
+    internal var backgroundAudioEnabled = true
+
+    /** True when video track was disabled in [onStop] during background audio playback, to re-enable on [onStart]. */
+    internal var videoDisabledForBackground = false
 
     /** True only while the active navigation destination is [PlayerKey]. */
     private var isPlayerRouteActive = false
@@ -110,21 +113,63 @@ class MainActivity : ComponentActivity() {
     /**
      * The system stops the idle playback service while the app is in the background, and the player outlives it.
      * Bring the service back whenever the app returns, so the player has its session and notification again.
+     * If video was disabled during background audio, re-enable it on return.
      */
     override fun onStart() {
         super.onStart()
         PlayerManager.ensureServiceRunning(this)
+        if (videoDisabledForBackground) {
+            videoDisabledForBackground = false
+            lifecycleScope.launch {
+                PlayerManager.activeController?.setVideoEnabled(true)
+            }
+        }
     }
 
     /**
      * "Background Audio Playback" was a toggle nothing read. When it is OFF, leaving the app (not merely rotating
-     * or going into picture-in-picture) pauses playback.
+     * or going into picture-in-picture) pauses playback. When it is ON and playback is active, video track decoding
+     * is disabled while in the background to prevent battery drain and CPU overheating (audit PERF-05).
      */
     override fun onStop() {
         super.onStop()
-        if (!backgroundAudioEnabled && !isChangingConfigurations && !isInPictureInPictureMode) {
-            PlayerManager.activeController?.player?.pause()
+        val controller = PlayerManager.activeController
+        val shouldDisable = handleBackgroundAudioOnStop(
+            player = controller?.player,
+            backgroundAudioEnabled = backgroundAudioEnabled,
+            isChangingConfigurations = isChangingConfigurations,
+            isInPictureInPictureMode = isInPictureInPictureMode
+        )
+        if (shouldDisable) {
+            videoDisabledForBackground = true
+            lifecycleScope.launch {
+                controller?.setVideoEnabled(false)
+            }
         }
+    }
+
+    internal fun handleBackgroundAudioOnStop(
+        player: Player?,
+        backgroundAudioEnabled: Boolean,
+        isChangingConfigurations: Boolean,
+        isInPictureInPictureMode: Boolean
+    ): Boolean {
+        if (!isChangingConfigurations && !isInPictureInPictureMode) {
+            if (!backgroundAudioEnabled) {
+                player?.pause()
+                return false
+            } else if (player?.playWhenReady == true) {
+                val isAlreadyDisabled = try {
+                    player.trackSelectionParameters.disabledTrackTypes.contains(C.TRACK_TYPE_VIDEO)
+                } catch (_: Throwable) {
+                    false
+                }
+                if (!isAlreadyDisabled) {
+                    return true
+                }
+            }
+        }
+        return false
     }
 
     /** A second "Open with" while the app is already running reuses this instance (launchMode=singleTask). */
