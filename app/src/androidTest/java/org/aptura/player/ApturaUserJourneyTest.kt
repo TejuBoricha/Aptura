@@ -95,6 +95,19 @@ class ApturaUserJourneyTest {
         }
     }
 
+    private fun navigateBackFromSettings() {
+        val backNode = runCatching {
+            composeTestRule.onNodeWithContentDescription("Back").assertIsDisplayed()
+        }.getOrNull()
+        if (backNode != null) {
+            backNode.performClick()
+        } else {
+            device.pressBack()
+        }
+        device.waitForIdle()
+        waitForLibraryLoaded()
+    }
+
     @Test
     fun journey_settingsAndPrivacyPolicy_interactsAndDismisses() {
         // 1. Open Settings from Library
@@ -148,10 +161,7 @@ class ApturaUserJourneyTest {
             .assertIsDisplayed()
 
         // 6. Navigate Back to Library
-        device.pressBack()
-        device.waitForIdle()
-
-        waitForLibraryLoaded()
+        navigateBackFromSettings()
     }
 
     @Test
@@ -193,9 +203,7 @@ class ApturaUserJourneyTest {
         device.waitForIdle()
 
         // 6. Return to Library cleanly
-        device.pressBack()
-        device.waitForIdle()
-        waitForLibraryLoaded()
+        navigateBackFromSettings()
     }
 
     @Test
