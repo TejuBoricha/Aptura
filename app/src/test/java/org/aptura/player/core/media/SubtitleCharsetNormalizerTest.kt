@@ -139,4 +139,85 @@ class SubtitleCharsetNormalizerTest {
         org.junit.Assert.assertFalse("Stale dir pruned", staleDir.exists())
         assertTrue("Fresh dir preserved", freshDir.exists())
     }
+
+    private fun findFixture(relativePath: String): File {
+        val direct = File(relativePath)
+        if (direct.exists()) return direct
+        val parent = File("..", relativePath)
+        if (parent.exists()) return parent
+        error("Fixture not found at $relativePath or ../$relativePath (user.dir=${System.getProperty("user.dir")})")
+    }
+
+    @Test
+    fun normalizeToUtf8_cjkGb18030Fixture_transcodesToCleanUtf8() {
+        val cacheDir = tempFolder.newFolder("cache_gb18030")
+        val fixture = findFixture("fixtures/adv_sub/encodings/adv_sub_enc_gb18030.srt")
+
+        val result = SubtitleCharsetNormalizer.normalizeToUtf8(fixture, cacheDir)
+        assertTrue(result.exists())
+        val text = result.readText(StandardCharsets.UTF_8)
+        assertTrue("Must contain decoded Chinese text (DATA-11)", text.contains("GB18030 中文字幕测试"))
+    }
+
+    @Test
+    fun normalizeToUtf8_cjkShiftJisFixture_transcodesToCleanUtf8() {
+        val cacheDir = tempFolder.newFolder("cache_sjis")
+        val fixture = findFixture("fixtures/adv_sub/encodings/adv_sub_enc_shift_jis.srt")
+
+        val result = SubtitleCharsetNormalizer.normalizeToUtf8(fixture, cacheDir)
+        assertTrue(result.exists())
+        val text = result.readText(StandardCharsets.UTF_8)
+        assertTrue("Must contain decoded Japanese text (DATA-11)", text.contains("Shift-JIS 日本語字幕テスト"))
+    }
+
+    @Test
+    fun normalizeToUtf8_cyrillicKoi8RFixture_transcodesToCleanUtf8() {
+        val cacheDir = tempFolder.newFolder("cache_koi8r")
+        val fixture = findFixture("fixtures/adv_sub/encodings/adv_sub_enc_koi8_r.srt")
+
+        val result = SubtitleCharsetNormalizer.normalizeToUtf8(fixture, cacheDir)
+        assertTrue(result.exists())
+        val text = result.readText(StandardCharsets.UTF_8)
+        assertTrue("Must contain decoded Russian Cyrillic text (DATA-11)", text.contains("KOI8-R Русский субтитр"))
+    }
+
+    @Test
+    fun normalizeToUtf8_utf16WithoutBomFixtures_transcodeToCleanUtf8() {
+        val cacheDir = tempFolder.newFolder("cache_utf16_nobom")
+        val beFixture = findFixture("fixtures/adv_sub/encodings/adv_sub_enc_utf16_be.srt")
+        val leFixture = findFixture("fixtures/adv_sub/encodings/adv_sub_enc_utf16_le.srt")
+
+        val beResult = SubtitleCharsetNormalizer.normalizeToUtf8(beFixture, cacheDir)
+        val leResult = SubtitleCharsetNormalizer.normalizeToUtf8(leFixture, cacheDir)
+
+        assertTrue(beResult.readText(StandardCharsets.UTF_8).contains("UTF-16 Big Endian"))
+        assertTrue(leResult.readText(StandardCharsets.UTF_8).contains("UTF-16 Little Endian"))
+    }
+
+    @Test
+    fun normalizeToUtf8_utf32WithoutBomFixtures_transcodeToCleanUtf8() {
+        val cacheDir = tempFolder.newFolder("cache_utf32_nobom")
+        val beFixture = findFixture("fixtures/adv_sub/encodings/adv_sub_enc_utf32_be.srt")
+        val leFixture = findFixture("fixtures/adv_sub/encodings/adv_sub_enc_utf32_le.srt")
+
+        val beResult = SubtitleCharsetNormalizer.normalizeToUtf8(beFixture, cacheDir)
+        val leResult = SubtitleCharsetNormalizer.normalizeToUtf8(leFixture, cacheDir)
+
+        assertTrue(beResult.readText(StandardCharsets.UTF_8).contains("UTF-32 Big Endian"))
+        assertTrue(leResult.readText(StandardCharsets.UTF_8).contains("UTF-32 Little Endian"))
+    }
+
+    @Test
+    fun normalizeToUtf8_withExplicitCharsetOverride_usesSpecifiedCharset() {
+        val cacheDir = tempFolder.newFolder("cache_override")
+        val file = tempFolder.newFile("arabic.srt")
+        val arabicText = "1\n00:00:01,000 --> 00:00:03,000\nمرحبا بك في مشغل الفيديو"
+        val cp1256 = Charset.forName("windows-1256")
+        file.writeBytes(arabicText.toByteArray(cp1256))
+
+        val result = SubtitleCharsetNormalizer.normalizeToUtf8(file, cacheDir, overrideCharset = cp1256)
+
+        assertTrue(result.exists())
+        assertEquals(arabicText, result.readText(StandardCharsets.UTF_8))
+    }
 }
