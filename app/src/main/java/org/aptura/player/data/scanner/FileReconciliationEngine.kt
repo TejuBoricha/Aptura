@@ -3,6 +3,7 @@ package org.aptura.player.data.scanner
 import org.aptura.player.core.diagnostics.ApturaDiagnostics
 import org.aptura.player.core.diagnostics.EventCode
 import org.aptura.player.data.database.MediaItemEntity
+import org.aptura.player.data.repository.MediaRepositoryImpl
 import kotlin.math.abs
 
 /**
@@ -102,6 +103,12 @@ object FileReconciliationEngine {
                         "sizeBytes" to existing.sizeBytes.toString()
                     )
                 )
+            } else if (existing.folderPath == MediaRepositoryImpl.EXTERNAL_FOLDER_PATH) {
+                // External single-open history rows (UX-02) come from opening a file outside scanned folders
+                // and must not be marked missing by a library scan.
+                if (existing.isMissing) {
+                    itemsToUpsert.add(existing.copy(isMissing = false))
+                }
             } else {
                 // Pass 3: Unmatched existing files are marked as missing (FR-LIB-018, FR-LIB-021)
                 // NEVER silently delete; preserve bookmarks and progress for when the storage reconnects
