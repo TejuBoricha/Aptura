@@ -731,10 +731,18 @@ class MediaLibraryScreenUiTest {
                 }
             }
         }
-        composeTestRule.waitForIdle()
-
-        // Heads-up educational dialog before invoking Android's delete confirmation
-        composeTestRule.onNodeWithText("Remove original from device?").assertIsDisplayed()
+        val promptDeadline = System.currentTimeMillis() + 10_000
+        var dialogFound = false
+        while (!dialogFound && System.currentTimeMillis() < promptDeadline) {
+            shadowOf(Looper.getMainLooper()).idle()
+            composeTestRule.waitForIdle()
+            if (composeTestRule.onAllNodesWithText("Remove original from device?").fetchSemanticsNodes().isNotEmpty()) {
+                dialogFound = true
+                break
+            }
+            Thread.sleep(20)
+        }
+        assertTrue("Remove original from device? prompt was displayed within 10 seconds", dialogFound)
         composeTestRule.onNodeWithText("Continue").performClick()
 
         val deadline = System.currentTimeMillis() + 5_000
