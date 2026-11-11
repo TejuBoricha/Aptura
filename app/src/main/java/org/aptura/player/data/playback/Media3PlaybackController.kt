@@ -393,10 +393,9 @@ class Media3PlaybackController(
                 )
             )
 
-            // If surface or runtime check failed, clear the surface to prevent repeated renderer crash loops
-            if (error.errorCode == PlaybackException.ERROR_CODE_FAILED_RUNTIME_CHECK) {
-                player.clearVideoSurface()
-            }
+            // Audit FUNC-09: Do not clear the video surface on runtime check error.
+            // Clearing the surface detaches it permanently from PlayerView without any way to restore it on Retry,
+            // leaving a black screen. Keeping the surface allows retryPlayback to cleanly resume rendering.
 
             updatePlaybackState()
             updatePlaybackStats()
