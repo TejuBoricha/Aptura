@@ -123,7 +123,7 @@ object PlayerManager {
         // The screen's view model also saves progress, but it dies with the screen. This one lives with the player, so
         // the sound that goes on after the task is swiped away still has its position kept.
         val database = ApturaDatabase.getInstance(appContext)
-        val repository = MediaRepositoryImpl(database.mediaItemDao(), database.bookmarkDao())
+        val repository = MediaRepositoryImpl(database.mediaItemDao(), database.bookmarkDao(), appContext)
         progressRecorderJob = PlaybackProgressRecorder(
             playbackState = controller.playbackState,
             playbackQueue = controller.playbackQueue,

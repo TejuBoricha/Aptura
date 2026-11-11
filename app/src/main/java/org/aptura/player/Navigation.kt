@@ -245,7 +245,7 @@ private fun AppNavHost(
     }
 
     val database = remember { ApturaDatabase.getInstance(context) }
-    val mediaRepository = remember { MediaRepositoryImpl(database.mediaItemDao(), database.bookmarkDao()) }
+    val mediaRepository = remember { MediaRepositoryImpl(database.mediaItemDao(), database.bookmarkDao(), context.applicationContext) }
     val libraryViewModel: MediaLibraryViewModel = viewModel {
         MediaLibraryViewModel(
             mediaRepository,
@@ -567,9 +567,10 @@ private fun AppNavHost(
                 val domainItems = (uiState as? MediaLibraryUiState.Success)?.videos?.map { it.rawItem } ?: emptyList()
                 val item = domainItems.find { it.uri == detailsKey.videoUri }
                     ?: remember(detailsKey.videoUri) {
+                        val seg = detailsKey.videoUri.substringAfterLast('/')
                         DomainMediaItem(
                             uri = detailsKey.videoUri,
-                            title = detailsKey.videoUri.substringAfterLast('/'),
+                            title = if (seg.isNotBlank() && !seg.all { it.isDigit() }) seg else "External Video",
                             durationMs = 0L,
                             sizeBytes = 0L,
                             mimeType = "video/*"

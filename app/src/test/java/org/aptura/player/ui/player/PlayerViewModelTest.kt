@@ -3507,6 +3507,22 @@ class PlayerViewModelTest {
     }
 
     @Test
+    fun extractTitleFromUri_purelyNumericMediaStoreContentUri_avoidsRawNumericIdTitle() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val numericUri = "content://media/external/video/media/1000000475"
+
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+        viewModel.loadAndPlay(numericUri)
+        runCurrent()
+
+        // Numeric MediaStore ID should never be shown as raw title (UX-04)
+        assertFalse("Title must not be raw numeric ID 1000000475", viewModel.uiState.value.videoTitle == "1000000475")
+        assertEquals("External Video", viewModel.uiState.value.videoTitle)
+        viewModel.clearForTesting()
+    }
+
+    @Test
     fun positionTicks_whenControlsHidden_suppressUiStateUpdates_untilControlsRevealed() = runTest(testDispatcher) {
         val controller = FakePlaybackController()
         val repository = FakeMediaRepository()

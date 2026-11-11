@@ -222,9 +222,23 @@ object ErrorTaxonomy {
                 )
             }
 
-            errorCode == PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND ||
-            errorCode == PlaybackException.ERROR_CODE_IO_NO_PERMISSION ||
             errorCode == PlaybackException.ERROR_CODE_IO_READ_POSITION_OUT_OF_RANGE -> {
+                TaxonomyError(
+                    code = "CORRUPT_MEDIA",
+                    title = "Truncated or Incomplete File",
+                    whatHappened = "The media file ended unexpectedly before reaching its declared stream length, or contains truncated data.",
+                    whatWasTried = "Direct stream read at the requested offset was attempted.",
+                    suggestedActions = listOf(
+                        "Check source file for damage",
+                        "Re-copy or re-download the complete file"
+                    ),
+                    canSwitchToSoftware = false,
+                    isRecoverable = false
+                )
+            }
+
+            errorCode == PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND ||
+            errorCode == PlaybackException.ERROR_CODE_IO_NO_PERMISSION -> {
                 val isPermission = errorCode == PlaybackException.ERROR_CODE_IO_NO_PERMISSION
                 TaxonomyError(
                     code = if (isPermission) "PERMISSION_LOST" else "IO_STORAGE_UNAVAILABLE",
