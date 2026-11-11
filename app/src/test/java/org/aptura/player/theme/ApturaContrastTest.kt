@@ -88,12 +88,12 @@ class ApturaContrastTest {
     }
 
     @Test
-    fun darkSeekBarTrack_isVisibleOnTheSurfacesThePlayerDrawsItOn() {
+    fun darkControlTrack_isVisibleOnTheSurfacesItSitsOn() {
         val p = ApturaPalettes.dark(AccentColor.CYAN)
         assertNone(
-            "dark unfilled seek track",
+            "dark unfilled control track",
             3.0,
-            failures(p, p.controlTrack, 3.0, listOf("pure black", "base", "elevated 1"))
+            failures(p, p.controlTrack, 3.0, listOf("pure black", "base", "elevated 1", "elevated 2 (sheets)"))
         )
     }
 

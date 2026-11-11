@@ -429,7 +429,7 @@ private fun VerticalMixerFader(
         )
         Spacer(Modifier.height(8.dp))
         val accent = ApturaColors.AccentPrimary
-        val trackColor = ApturaColors.SurfaceElevated3
+        val trackColor = ApturaColors.ControlTrack
         val zeroColor = ApturaColors.TextLowEmphasis
         val ring = ApturaColors.SurfaceElevated1
         Canvas(

@@ -109,7 +109,7 @@ fun UpNextOverlay(
                         progress = { progress },
                         modifier = Modifier.fillMaxSize(),
                         color = ApturaColors.AccentPrimary,
-                        trackColor = ApturaColors.SurfaceElevated3,
+                        trackColor = ApturaColors.ControlTrack,
                         strokeWidth = 5.dp
                     )
                     Column(

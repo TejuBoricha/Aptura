@@ -110,7 +110,7 @@ internal object ApturaPalettes {
         surfaceRecessed = Color(0x80000000),
         surfaceScrim = Color(0xCC000000),
         surfaceGlass = Color(0xB316181D),
-        controlTrack = Color(0xFF5E6674),
+        controlTrack = Color(0xFF687282),
         accentPrimary = accent.darkPrimary,
         accentSecondary = accent.darkSecondary,
         accentSubtle = accent.darkPrimary.copy(alpha = 0.15f),
