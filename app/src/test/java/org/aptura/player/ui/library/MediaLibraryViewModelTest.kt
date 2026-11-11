@@ -554,9 +554,28 @@ class MediaLibraryViewModelTest {
         assertEquals("10 MB", MediaFormatters.formatFileSize(10485760L))
         assertEquals("2 GB", MediaFormatters.formatFileSize(2147483648L))
         // One decimal below ten units only, so sibling cards never mix "782 MB" with "753.4 MB".
-        assertEquals("753 MB", MediaFormatters.formatFileSize(790_000_000L))
-        assertEquals("3.9 GB", MediaFormatters.formatFileSize(4_200_000_000L))
-        assertEquals("10 MB", MediaFormatters.formatFileSize(10_800_000L))
+        assertEquals("753 MB", MediaFormatters.formatFileSize(790_000_000L, java.util.Locale.US))
+        assertEquals("3.9 GB", MediaFormatters.formatFileSize(4_200_000_000L, java.util.Locale.US))
+        assertEquals("10 MB", MediaFormatters.formatFileSize(10_800_000L, java.util.Locale.US))
+    }
+
+    @Test
+    fun mediaFormatters_respectUserLocaleForFileSizeExactBytesAndTimestamp() {
+        // File size decimal separator and .0 / ,0 stripping across US and German/French locales (I18N-03)
+        assertEquals("3.9 GB", MediaFormatters.formatFileSize(4_200_000_000L, java.util.Locale.US))
+        assertEquals("3,9 GB", MediaFormatters.formatFileSize(4_200_000_000L, java.util.Locale.GERMANY))
+        assertEquals("2 GB", MediaFormatters.formatFileSize(2_147_483_648L, java.util.Locale.GERMANY))
+
+        // Exact byte grouping separators across US and German locales
+        assertEquals("1,234,567 bytes", MediaFormatters.formatExactBytes(1_234_567L, java.util.Locale.US))
+        assertEquals("1.234.567 bytes", MediaFormatters.formatExactBytes(1_234_567L, java.util.Locale.GERMANY))
+
+        // Timestamp formatting respects locale date/time conventions
+        val usTimestamp = MediaFormatters.formatTimestamp(1_700_000_000L, java.util.Locale.US)
+        val deTimestamp = MediaFormatters.formatTimestamp(1_700_000_000L, java.util.Locale.GERMANY)
+        assertTrue("US timestamp must include middle-dot separator: $usTimestamp", usTimestamp.contains(" · "))
+        assertTrue("DE timestamp must include middle-dot separator: $deTimestamp", deTimestamp.contains(" · "))
+        assertTrue("US and DE timestamps must differ in date/time formatting", usTimestamp != deTimestamp)
     }
 
     @Test

@@ -48,4 +48,13 @@ class MediaLanguageLabelsTest {
     fun unknownButWellFormedCode_isShownAsACode_notDropped() {
         assertEquals("QQQ", MediaLanguageLabels.displayName("qqq"))
     }
+
+    @Test
+    fun displayName_respectsDisplayLocale() {
+        assertEquals("English", MediaLanguageLabels.displayName("en", java.util.Locale.ENGLISH))
+        assertEquals("Anglais", MediaLanguageLabels.displayName("en", java.util.Locale.FRENCH))
+        assertEquals("Englisch", MediaLanguageLabels.displayName("en", java.util.Locale.GERMAN))
+        assertEquals("Français", MediaLanguageLabels.displayName("fra", java.util.Locale.FRENCH))
+        assertEquals("Französisch", MediaLanguageLabels.displayName("fra", java.util.Locale.GERMAN))
+    }
 }

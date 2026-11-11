@@ -107,16 +107,18 @@ object MediaFormatters {
     /**
      * "752 MB", "3.9 GB", "10.8 MB". One decimal only below 10, where it carries information; above that a decimal is
      * noise, and a grid that mixed "782 MB" with "753.4 MB" looked inconsistent.
+     * Respects [locale] decimal separators (audit I18N-03).
      */
-    fun formatFileSize(bytes: Long): String {
+    fun formatFileSize(bytes: Long, locale: Locale = Locale.getDefault()): String {
         if (bytes <= 0L) return "0 B"
         val kb = bytes / 1024.0
         val mb = kb / 1024.0
         val gb = mb / 1024.0
+        val zeroDecimalSuffix = "${java.text.DecimalFormatSymbols.getInstance(locale).decimalSeparator}0"
 
         fun scaled(value: Double, unit: String): String =
             if (value < 10.0) {
-                "${String.format(Locale.US, "%.1f", value).removeSuffix(".0")} $unit"
+                "${String.format(locale, "%.1f", value).removeSuffix(zeroDecimalSuffix)} $unit"
             } else {
                 "${Math.round(value)} $unit"
             }
@@ -159,16 +161,17 @@ object MediaFormatters {
         }
     }
 
-    fun formatExactBytes(bytes: Long): String {
+    fun formatExactBytes(bytes: Long, locale: Locale = Locale.getDefault()): String {
         if (bytes <= 0L) return "0 bytes"
-        return String.format(Locale.US, "%,d bytes", bytes)
+        return String.format(locale, "%,d bytes", bytes)
     }
 
-    fun formatTimestamp(seconds: Long): String {
+    fun formatTimestamp(seconds: Long, locale: Locale = Locale.getDefault()): String {
         if (seconds <= 0L) return "Unknown"
         val date = java.util.Date(seconds * 1000L)
-        val sdf = java.text.SimpleDateFormat("MMM d, yyyy · h:mm a", Locale.US)
-        return sdf.format(date)
+        val datePart = java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM, locale).format(date)
+        val timePart = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT, locale).format(date)
+        return "$datePart · $timePart"
     }
 
     fun formatResolution(width: Int, height: Int): String {

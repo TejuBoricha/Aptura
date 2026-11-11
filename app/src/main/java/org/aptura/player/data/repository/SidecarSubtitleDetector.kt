@@ -349,10 +349,10 @@ object SidecarSubtitleDetector {
         return matches.distinctBy { it.displayName }
     }
 
-    private fun buildLabel(code: String?, roles: List<String>): String {
+    private fun buildLabel(code: String?, roles: List<String>, locale: Locale = Locale.getDefault()): String {
         val language = code?.let { c ->
-            LANGUAGE_MAP[c.lowercase()]
-                ?: Locale.forLanguageTag(c).getDisplayLanguage(Locale.ENGLISH).takeIf { it.isNotBlank() }
+            org.aptura.player.core.media.MediaLanguageLabels.displayName(c, locale)
+                ?: LANGUAGE_MAP[c.lowercase()]
                 ?: c.uppercase(Locale.ROOT)
         }
         val roleText = roles.joinToString(" · ") { r ->
