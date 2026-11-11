@@ -120,6 +120,7 @@ import android.net.Uri
 import android.widget.Toast
 import org.aptura.player.core.diagnostics.ApturaDiagnostics
 import org.aptura.player.core.diagnostics.ErrorTaxonomy
+import org.aptura.player.core.media.LocalSubtitleImportCoordinator
 import org.aptura.player.core.media.SubtitleFileValidator
 import org.aptura.player.core.media.SubtitleValidationResult
 import org.aptura.player.core.playback.PlaybackSpeedOptions
@@ -317,27 +318,19 @@ fun PlayerScreen(
         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
     }
 
+    val subtitleImportCoordinator = LocalSubtitleImportCoordinator.current
     val subtitlePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            // Validating reads the file, and for a zip unpacks it, so it must not run on the main thread (audit SEC-02).
             coroutineScope.launch {
-                val validation = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    SubtitleFileValidator.validate(context, uri)
-                }
-                when (validation) {
-                    is SubtitleValidationResult.Valid -> {
-                        val targetUri = validation.validatedUri ?: uri
-                        onExternalSubtitleSelected(targetUri, validation.mimeType, validation.displayName)
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        Toast.makeText(context, "Loaded subtitle: ${validation.displayName}", Toast.LENGTH_SHORT).show()
-                    }
-                    is SubtitleValidationResult.Invalid -> {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        Toast.makeText(context, validation.reason, Toast.LENGTH_LONG).show()
-                    }
-                }
+                subtitleImportCoordinator.importSubtitle(
+                    context = context,
+                    uri = uri,
+                    onExternalSubtitleSelected = onExternalSubtitleSelected,
+                    showToast = { msg, duration -> Toast.makeText(context, msg, duration).show() },
+                    performHaptic = { type -> haptic.performHapticFeedback(type) }
+                )
             }
         }
     }
