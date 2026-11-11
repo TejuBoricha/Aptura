@@ -3,6 +3,7 @@ package org.aptura.player.core.media
 import android.content.Context
 import android.graphics.Bitmap
 import androidx.test.core.app.ApplicationProvider
+import kotlinx.coroutines.launch
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -180,4 +181,107 @@ class ThumbnailRepositoryTest {
             File(context.cacheDir, SubtitleZipExtractor.EXTRACT_DIR_NAME).listFiles()?.toList().orEmpty()
         )
     }
+
+    @Test
+    fun testTrimDiskCacheToLimit_evictsOldestThumbnailsWhenExceedingCap_andPreservesNewest() {
+        val dir = ThumbnailRepository.getThumbnailDir(context)
+        val oldFile = File(dir, "thumb_1111111111111111_100.jpg").apply {
+            writeBytes(ByteArray(1_000) { 0x01 })
+            setLastModified(1_000L)
+        }
+        val midFile = File(dir, "thumb_2222222222222222_100.jpg").apply {
+            writeBytes(ByteArray(1_000) { 0x02 })
+            setLastModified(2_000L)
+        }
+        val newFile = File(dir, "thumb_3333333333333333_100.jpg").apply {
+            writeBytes(ByteArray(1_000) { 0x03 })
+            setLastModified(3_000L)
+        }
+
+        // Cap at 2,000 bytes: oldest file (oldFile) must be evicted while midFile and newFile remain
+        ThumbnailRepository.trimDiskCacheToLimit(dir, maxBytes = 2_000L, preserveFile = newFile)
+
+        assertFalse("Oldest thumbnail must be evicted when exceeding cap (PERF-04)", oldFile.exists())
+        assertTrue("Middle thumbnail within cap must remain", midFile.exists())
+        assertTrue("Newest preserved thumbnail must remain", newFile.exists())
+    }
+
+    @Test
+    fun testGetOrCreateThumbnail_whenExtractionExceedsTimeout_returnsNullAndRecordsFailureKey() =
+        kotlinx.coroutines.test.runTest {
+            val uri = "content://media/external/video/media/stalled_corrupt"
+            val modSec = 5000L
+
+            var extractorCalls = 0
+            val result = ThumbnailRepository.getOrCreateThumbnail(
+                context = context,
+                uri = uri,
+                dateModifiedSec = modSec,
+                dispatcher = kotlinx.coroutines.test.StandardTestDispatcher(testScheduler),
+                timeoutMs = 1_000L,
+                extractor = { _, _ ->
+                    extractorCalls++
+                    kotlinx.coroutines.delay(10_000L)
+                    Bitmap.createBitmap(16, 16, Bitmap.Config.ARGB_8888)
+                }
+            )
+
+            assertNull("Hung extraction must time out and return null (PERF-04)", result)
+            assertEquals(1, extractorCalls)
+            assertTrue(
+                "Timed-out URI must be recorded in negative cache to prevent repeat stalls",
+                ThumbnailRepository.isMarkedFailed(uri, modSec)
+            )
+
+            // Subsequent call must short-circuit via negative cache without invoking extractor again
+            val second = ThumbnailRepository.getOrCreateThumbnail(
+                context = context,
+                uri = uri,
+                dateModifiedSec = modSec,
+                dispatcher = kotlinx.coroutines.test.StandardTestDispatcher(testScheduler),
+                timeoutMs = 1_000L,
+                extractor = { _, _ ->
+                    extractorCalls++
+                    Bitmap.createBitmap(16, 16, Bitmap.Config.ARGB_8888)
+                }
+            )
+            assertNull(second)
+            assertEquals("Negative cache must prevent re-probing failed URI", 1, extractorCalls)
+        }
+
+    @Test
+    fun testDefaultExtractionDispatcher_boundsConcurrentExtractionsToMaxThree() =
+        kotlinx.coroutines.runBlocking {
+            val activeCount = java.util.concurrent.atomic.AtomicInteger(0)
+            val maxObserved = java.util.concurrent.atomic.AtomicInteger(0)
+            val holdLatch = java.util.concurrent.CountDownLatch(1)
+            val enteredLatch = java.util.concurrent.CountDownLatch(ThumbnailRepository.MAX_PARALLEL_EXTRACTIONS)
+
+            val jobs = (1..8).map { idx ->
+                kotlinx.coroutines.CoroutineScope(ThumbnailRepository.defaultExtractionDispatcher).launch(
+                    kotlinx.coroutines.CoroutineName("thumb-$idx")
+                ) {
+                    val current = activeCount.incrementAndGet()
+                    maxObserved.accumulateAndGet(current, ::maxOf)
+                    enteredLatch.countDown()
+                    holdLatch.await(2, java.util.concurrent.TimeUnit.SECONDS)
+                    activeCount.decrementAndGet()
+                }
+            }
+
+            assertTrue(
+                "3 workers should start promptly",
+                enteredLatch.await(2, java.util.concurrent.TimeUnit.SECONDS)
+            )
+            // Give any 4th unbounded thread a chance to erroneously enter before releasing
+            Thread.sleep(50)
+            val peakWhileHeld = maxObserved.get()
+            holdLatch.countDown()
+            jobs.forEach { it.join() }
+
+            assertTrue(
+                "Concurrent thumbnail extractions must not exceed MAX_PARALLEL_EXTRACTIONS (3), was $peakWhileHeld",
+                peakWhileHeld <= ThumbnailRepository.MAX_PARALLEL_EXTRACTIONS
+            )
+        }
 }
