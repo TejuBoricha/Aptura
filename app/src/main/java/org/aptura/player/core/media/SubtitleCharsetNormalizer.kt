@@ -5,6 +5,7 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.nio.charset.Charset
 import java.nio.charset.StandardCharsets
+import java.util.UUID
 
 /**
  * Normalizes subtitle files to clean UTF-8 without BOM.
@@ -12,6 +13,9 @@ import java.nio.charset.StandardCharsets
  * and Windows-1252/ISO-8859-1 files.
  */
 object SubtitleCharsetNormalizer {
+
+    const val NORMALIZED_DIR_NAME = "subtitles_normalized"
+    const val STALE_IMPORT_MS = 7L * 24L * 60L * 60L * 1000L
 
     fun normalizeToUtf8(sourceFile: File, cacheDir: File): File {
         if (!sourceFile.exists() || sourceFile.length() == 0L) return sourceFile
@@ -28,8 +32,10 @@ object SubtitleCharsetNormalizer {
 
         val text = decodeToCleanText(bytes, detectedCharset)
         val ext = sourceFile.extension.ifBlank { "srt" }
-        val normalizedDir = File(cacheDir, "subtitles_normalized").apply { mkdirs() }
-        val normalizedFile = File(normalizedDir, "norm_${sourceFile.nameWithoutExtension}.$ext")
+        val root = File(cacheDir, NORMALIZED_DIR_NAME).apply { mkdirs() }
+        pruneStaleImports(root)
+        val importDir = File(root, "norm_${UUID.randomUUID()}").apply { mkdirs() }
+        val normalizedFile = File(importDir, "${sourceFile.nameWithoutExtension}.$ext")
         FileOutputStream(normalizedFile).use { fos ->
             fos.write(text.toByteArray(StandardCharsets.UTF_8))
         }
@@ -45,12 +51,23 @@ object SubtitleCharsetNormalizer {
         }
         val text = decodeToCleanText(bytes, detectedCharset)
         val safeName = displayName.replace(Regex("[^a-zA-Z0-9._-]"), "_").ifBlank { "subtitle.srt" }
-        val normalizedDir = File(cacheDir, "subtitles_normalized").apply { mkdirs() }
-        val normalizedFile = File(normalizedDir, "norm_$safeName")
+        val root = File(cacheDir, NORMALIZED_DIR_NAME).apply { mkdirs() }
+        pruneStaleImports(root)
+        val importDir = File(root, "norm_${UUID.randomUUID()}").apply { mkdirs() }
+        val normalizedFile = File(importDir, safeName)
         FileOutputStream(normalizedFile).use { fos ->
             fos.write(text.toByteArray(StandardCharsets.UTF_8))
         }
         return normalizedFile
+    }
+
+    internal fun pruneStaleImports(root: File, nowMs: Long = System.currentTimeMillis()) {
+        val cutoff = nowMs - STALE_IMPORT_MS
+        root.listFiles()?.forEach { file ->
+            if (file.isDirectory && file.lastModified() < cutoff) {
+                file.deleteRecursively()
+            }
+        }
     }
 
     private fun decodeToCleanText(bytes: ByteArray, detectedCharset: Charset): String {
