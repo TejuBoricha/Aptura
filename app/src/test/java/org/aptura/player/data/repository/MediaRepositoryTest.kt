@@ -641,4 +641,64 @@ class MediaRepositoryTest {
         assertNotNull(inserted)
         assertEquals("vacation_trip.mp4", inserted?.title)
     }
+
+    @Test
+    fun externalVideoOpen_isIsolatedFromLibraryVideosFoldersSearchMissingAndStats_whilePreservingDirectLookup() = runTest(testDispatcher) {
+        val fakeMediaDao = FakeMediaItemDao()
+        val repo = MediaRepositoryImpl(fakeMediaDao, testDispatcher)
+
+        val libraryVideo = MediaItemEntity(
+            id = 1L,
+            mediaStoreId = 100L,
+            uri = "content://media/external/video/media/100",
+            title = "Library Movie",
+            displayName = "library.mp4",
+            durationMs = 60_000L,
+            sizeBytes = 10_000L,
+            mimeType = "video/mp4",
+            folderPath = "Movies"
+        )
+        fakeMediaDao.insertOrUpdate(libraryVideo)
+
+        val externalUri = "content://com.otherapp.provider/files/external_clip.mp4"
+        repo.savePlaybackPosition(externalUri, positionMs = 15_000L, isCompleted = false)
+        repo.savePlaybackPreferences(
+            uri = externalUri,
+            resizeMode = "ZOOM",
+            playbackSpeed = 1.25f,
+            decoderStrategy = 2,
+            audioDelayMs = 100L,
+            subtitleDelayMs = -50L
+        )
+
+        // Direct lookup by URI retains saved playback state and preferences for external re-opens
+        val direct = repo.getVideoByUri(externalUri)
+        assertNotNull(direct)
+        assertEquals("external_clip.mp4", direct?.title)
+        assertEquals(15_000L, direct?.playbackPositionMs)
+        assertEquals("ZOOM", direct?.resizeMode)
+        assertEquals(1.25f, direct?.playbackSpeed)
+
+        // Library videos list excludes external single-open rows (UX-02)
+        val allVideos = repo.getAllVideos().first()
+        assertEquals(1, allVideos.size)
+        assertEquals("Library Movie", allVideos.single().title)
+
+        // Folders list excludes "External"
+        val folders = repo.getAllFolders().first()
+        assertEquals(listOf("Movies"), folders)
+
+        // Search excludes external single-open rows
+        assertTrue(repo.searchVideos("external_clip").first().isEmpty())
+
+        // Missing videos list excludes external single-open rows even if flagged in DAO
+        fakeMediaDao.updateMissingStatusByUri(externalUri, true)
+        assertTrue(repo.getMissingVideos().first().isEmpty())
+
+        // Library statistics count only actual library items
+        val stats = repo.getLibraryStatistics()
+        assertEquals(1, stats.totalVideos)
+        assertEquals(60_000L, stats.totalDurationMs)
+        assertEquals(10_000L, stats.totalSizeBytes)
+    }
 }

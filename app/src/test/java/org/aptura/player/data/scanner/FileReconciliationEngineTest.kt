@@ -175,4 +175,96 @@ class FileReconciliationEngineTest {
         assertEquals(1, result.newCount)
         assertFalse(result.itemsToUpsert.first().isMissing)
     }
+
+    @Test
+    fun externalOpenRow_notMatchedByScan_isExcludedFromMissingLogic() {
+        val existing = listOf(
+            MediaItemEntity(
+                id = 50L,
+                mediaStoreId = -12345L,
+                uri = "content://com.otherapp.provider/files/clip.mp4",
+                title = "clip.mp4",
+                displayName = "clip.mp4",
+                durationMs = 0L,
+                sizeBytes = 0L,
+                mimeType = "video/*",
+                folderPath = "External",
+                playbackPositionMs = 12_000L,
+                isMissing = false
+            )
+        )
+
+        val result = FileReconciliationEngine.reconcile(scannedItems = emptyList(), existingItems = existing)
+
+        assertEquals("External single-open rows must not be counted missing (UX-02)", 0, result.missingCount)
+        assertTrue("Unmatched external row must not be rewritten as missing", result.itemsToUpsert.isEmpty())
+    }
+
+    @Test
+    fun externalOpenRow_previouslyMarkedMissing_isHealedOnNextScan() {
+        val existing = listOf(
+            MediaItemEntity(
+                id = 51L,
+                mediaStoreId = -12346L,
+                uri = "content://com.otherapp.provider/files/legacy_clip.mp4",
+                title = "legacy_clip.mp4",
+                displayName = "legacy_clip.mp4",
+                durationMs = 0L,
+                sizeBytes = 0L,
+                mimeType = "video/*",
+                folderPath = "External",
+                playbackPositionMs = 20_000L,
+                isMissing = true
+            )
+        )
+
+        val result = FileReconciliationEngine.reconcile(scannedItems = emptyList(), existingItems = existing)
+
+        assertEquals(0, result.missingCount)
+        assertEquals(1, result.itemsToUpsert.size)
+        assertFalse("Previously missing external row must be cleared of missing status", result.itemsToUpsert.single().isMissing)
+    }
+
+    @Test
+    fun externalOpenRow_laterFoundByScanner_promotesToLibraryFolderAndKeepsProgress() {
+        val uri = "content://media/external/video/media/777"
+        val existing = listOf(
+            MediaItemEntity(
+                id = 52L,
+                mediaStoreId = -9999L,
+                uri = uri,
+                title = "External Video",
+                displayName = "External Video",
+                durationMs = 0L,
+                sizeBytes = 0L,
+                mimeType = "video/*",
+                folderPath = "External",
+                playbackPositionMs = 45_000L,
+                playbackSpeed = 1.5f
+            )
+        )
+        val scanned = listOf(
+            MediaItemEntity(
+                id = 0L,
+                mediaStoreId = 777L,
+                uri = uri,
+                title = "Downloaded Lecture",
+                displayName = "lecture.mp4",
+                durationMs = 120_000L,
+                sizeBytes = 50_000_000L,
+                mimeType = "video/mp4",
+                folderPath = "Download"
+            )
+        )
+
+        val result = FileReconciliationEngine.reconcile(scannedItems = scanned, existingItems = existing)
+
+        assertEquals(1, result.itemsToUpsert.size)
+        val promoted = result.itemsToUpsert.single()
+        assertEquals("Download", promoted.folderPath)
+        assertEquals("Downloaded Lecture", promoted.title)
+        assertEquals(45_000L, promoted.playbackPositionMs)
+        assertEquals(1.5f, promoted.playbackSpeed)
+        assertFalse(promoted.isMissing)
+    }
 }

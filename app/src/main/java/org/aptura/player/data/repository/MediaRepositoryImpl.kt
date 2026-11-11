@@ -30,6 +30,10 @@ class MediaRepositoryImpl(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : MediaRepository {
 
+    companion object {
+        const val EXTERNAL_FOLDER_PATH = "External"
+    }
+
     constructor(
         mediaItemDao: MediaItemDao,
         ioDispatcher: CoroutineDispatcher
@@ -43,7 +47,10 @@ class MediaRepositoryImpl(
 
     override fun getAllVideos(): Flow<List<DomainMediaItem>> {
         return mediaItemDao.getAllVideosSortedByDate()
-            .map { list -> list.map { it.toDomainMediaItem() } }
+            .map { list ->
+                list.filter { it.folderPath != EXTERNAL_FOLDER_PATH }
+                    .map { it.toDomainMediaItem() }
+            }
             .flowOn(ioDispatcher)
     }
 
@@ -55,12 +62,16 @@ class MediaRepositoryImpl(
 
     override fun getAllFolders(): Flow<List<String>> {
         return mediaItemDao.getAllFolders()
+            .map { folders -> folders.filter { it != EXTERNAL_FOLDER_PATH } }
             .flowOn(ioDispatcher)
     }
 
     override fun searchVideos(query: String): Flow<List<DomainMediaItem>> {
         return mediaItemDao.searchVideos(query)
-            .map { list -> list.map { it.toDomainMediaItem() } }
+            .map { list ->
+                list.filter { it.folderPath != EXTERNAL_FOLDER_PATH }
+                    .map { it.toDomainMediaItem() }
+            }
             .flowOn(ioDispatcher)
     }
 
@@ -87,7 +98,7 @@ class MediaRepositoryImpl(
                     sizeBytes = 0L,
                     dateAddedSec = now / 1000L,
                     mimeType = "video/*",
-                    folderPath = "External",
+                    folderPath = EXTERNAL_FOLDER_PATH,
                     playbackPositionMs = positionMs,
                     isCompleted = isCompleted,
                     lastPlayedTimestamp = now
@@ -147,14 +158,24 @@ class MediaRepositoryImpl(
     }
 
     override suspend fun getLibraryStatistics(): org.aptura.player.domain.repository.LibraryStatistics = withContext(ioDispatcher) {
-        val count = mediaItemDao.getMediaItemCount()
-        val duration = mediaItemDao.getTotalDurationMs() ?: 0L
-        val size = mediaItemDao.getTotalSizeBytes() ?: 0L
-        org.aptura.player.domain.repository.LibraryStatistics(
-            totalVideos = count,
-            totalDurationMs = duration,
-            totalSizeBytes = size
-        )
+        val raw = mediaItemDao.getAllVideosRaw()
+        if (raw.any { it.folderPath == EXTERNAL_FOLDER_PATH }) {
+            val libraryItems = raw.filter { !it.isHidden && it.folderPath != EXTERNAL_FOLDER_PATH }
+            org.aptura.player.domain.repository.LibraryStatistics(
+                totalVideos = libraryItems.size,
+                totalDurationMs = libraryItems.sumOf { it.durationMs },
+                totalSizeBytes = libraryItems.sumOf { it.sizeBytes }
+            )
+        } else {
+            val count = mediaItemDao.getMediaItemCount()
+            val duration = mediaItemDao.getTotalDurationMs() ?: 0L
+            val size = mediaItemDao.getTotalSizeBytes() ?: 0L
+            org.aptura.player.domain.repository.LibraryStatistics(
+                totalVideos = count,
+                totalDurationMs = duration,
+                totalSizeBytes = size
+            )
+        }
     }
 
     override fun getBookmarks(mediaUri: String): Flow<List<Bookmark>> {
@@ -177,7 +198,10 @@ class MediaRepositoryImpl(
 
     override fun getMissingVideos(): Flow<List<DomainMediaItem>> {
         return mediaItemDao.getMissingVideos()
-            .map { list -> list.map { it.toDomainMediaItem() } }
+            .map { list ->
+                list.filter { it.folderPath != EXTERNAL_FOLDER_PATH }
+                    .map { it.toDomainMediaItem() }
+            }
             .flowOn(ioDispatcher)
     }
 
@@ -224,7 +248,7 @@ class MediaRepositoryImpl(
                     sizeBytes = 0L,
                     dateAddedSec = System.currentTimeMillis() / 1000L,
                     mimeType = "video/*",
-                    folderPath = "External",
+                    folderPath = EXTERNAL_FOLDER_PATH,
                     resizeMode = resizeMode,
                     playbackSpeed = playbackSpeed,
                     decoderStrategy = decoderStrategy ?: 0,
