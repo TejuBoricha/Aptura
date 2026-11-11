@@ -18,6 +18,9 @@ class ApturaPlaybackService : MediaSessionService() {
 
     private var mediaSession: MediaSession? = null
 
+    @androidx.annotation.VisibleForTesting
+    internal val currentMediaSession: MediaSession? get() = mediaSession
+
     /** Set when the user leaves for good (task swiped away with nothing playing): the player goes with the service. */
     private var releasePlayerOnDestroy = false
 
