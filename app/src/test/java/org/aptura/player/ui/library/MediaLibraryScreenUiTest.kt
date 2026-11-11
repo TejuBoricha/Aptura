@@ -14,6 +14,7 @@ import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeRight
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -24,10 +25,17 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isSelectable
+import android.os.Looper
+import androidx.test.core.app.ApplicationProvider
+import androidx.work.testing.WorkManagerTestInitHelper
+import org.aptura.player.core.media.DeleteOutcome
+import org.aptura.player.data.transfer.MediaTransferJob
+import org.aptura.player.data.transfer.MediaTransferJournal
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 /**
@@ -671,5 +679,129 @@ class MediaLibraryScreenUiTest {
         val containerCenter = (container.left.value + container.right.value) / 2f
         val barCenter = (bar.left.value + bar.right.value) / 2f
         assertEquals("selection bar must be centered under the search row", containerCenter, barCenter, 0.5f)
+    }
+
+    @Test
+    fun crossVolumeMoveCompletion_invokesOnVideoMovedAway_notOnVideoDeleted() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        try {
+            WorkManagerTestInitHelper.initializeTestWorkManager(context)
+        } catch (_: IllegalStateException) {}
+        MediaTransferJournal.clear(context)
+        val targetUri = "content://media/1"
+        val movedAwayCalls = mutableListOf<String>()
+        val deletedCalls = mutableListOf<String>()
+
+        val fakeDeleteEngine = object : MediaDeleteEngine {
+            override fun delete(uri: String): DeleteOutcome = DeleteOutcome.Deleted
+            override fun requestBatchDeleteConsent(uris: List<String>): android.content.IntentSender? = null
+        }
+
+        // Simulate WorkManager having finished cross-volume file copy
+        val job = MediaTransferJob(
+            id = "test-job-move",
+            sources = listOf(targetUri),
+            destination = "SAF/SDCard",
+            isMove = true,
+            fromClipboard = false,
+            copiedUris = listOf(targetUri),
+            copyFinished = true
+        )
+        MediaTransferJournal.write(context, job)
+
+        composeTestRule.setContent {
+            ApturaTheme {
+                CompositionLocalProvider(LocalMediaDeleteEngine provides fakeDeleteEngine) {
+                    MediaLibraryScreen(
+                        uiState = MediaLibraryUiState.Success(
+                            videos = sampleUiVideos,
+                            folders = listOf("Movies"),
+                            selectedFolder = null,
+                            searchQuery = "",
+                            sortOrder = LibrarySortOrder.DATE_ADDED_DESC
+                        ),
+                        onVideoClick = { _, _ -> },
+                        onSearchQueryChanged = {},
+                        onFolderSelected = {},
+                        onSortOrderChanged = {},
+                        onRefresh = {},
+                        onVideoDeleted = { deletedCalls += it },
+                        onVideoMovedAway = { movedAwayCalls += it }
+                    )
+                }
+            }
+        }
+        composeTestRule.waitForIdle()
+
+        // Heads-up educational dialog before invoking Android's delete confirmation
+        composeTestRule.onNodeWithText("Remove original from device?").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Continue").performClick()
+
+        val deadline = System.currentTimeMillis() + 5_000
+        while (movedAwayCalls.isEmpty() && System.currentTimeMillis() < deadline) {
+            shadowOf(Looper.getMainLooper()).idle()
+            composeTestRule.waitForIdle()
+            Thread.sleep(20)
+        }
+
+        // Assert: DATA-01 callback choice contract:
+        // Moving away calls onVideoMovedAway so the database row is kept (marked missing with progress/bookmarks),
+        // and NEVER calls onVideoDeleted (which purges the row).
+        assertEquals("onVideoMovedAway was called for the original video", listOf(targetUri), movedAwayCalls)
+        assertTrue("onVideoDeleted was NEVER called during move cleanup", deletedCalls.isEmpty())
+        MediaTransferJournal.clear(context)
+    }
+
+    @Test
+    fun permanentDeletion_invokesOnVideoDeleted_notOnVideoMovedAway() {
+        val targetUri = "content://media/1"
+        val movedAwayCalls = mutableListOf<String>()
+        val deletedCalls = mutableListOf<String>()
+
+        val fakeDeleteEngine = object : MediaDeleteEngine {
+            override fun delete(uri: String): DeleteOutcome = DeleteOutcome.Deleted
+            override fun requestBatchDeleteConsent(uris: List<String>): android.content.IntentSender? = null
+        }
+
+        composeTestRule.setContent {
+            ApturaTheme {
+                CompositionLocalProvider(LocalMediaDeleteEngine provides fakeDeleteEngine) {
+                    MediaLibraryScreen(
+                        uiState = MediaLibraryUiState.Success(
+                            videos = sampleUiVideos,
+                            folders = listOf("Movies"),
+                            selectedFolder = null,
+                            searchQuery = "",
+                            sortOrder = LibrarySortOrder.DATE_ADDED_DESC
+                        ),
+                        onVideoClick = { _, _ -> },
+                        onSearchQueryChanged = {},
+                        onFolderSelected = {},
+                        onSortOrderChanged = {},
+                        onRefresh = {},
+                        onVideoDeleted = { deletedCalls += it },
+                        onVideoMovedAway = { movedAwayCalls += it }
+                    )
+                }
+            }
+        }
+
+        composeTestRule.onNodeWithText("Oppenheimer").performTouchInput { longClick() }
+        composeTestRule.onNodeWithContentDescription("More actions for selected videos").performClick()
+        composeTestRule.onNodeWithText("Delete videos").performClick()
+
+        // Confirmation dialog: choose permanent deletion
+        composeTestRule.onNodeWithText("Delete from device?").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Delete permanently").performClick()
+
+        val deadline = System.currentTimeMillis() + 5_000
+        while (deletedCalls.isEmpty() && System.currentTimeMillis() < deadline) {
+            shadowOf(Looper.getMainLooper()).idle()
+            composeTestRule.waitForIdle()
+            Thread.sleep(20)
+        }
+
+        assertEquals("onVideoDeleted was called for the deleted video", listOf(targetUri), deletedCalls)
+        assertTrue("onVideoMovedAway was NEVER called for explicit deletion", movedAwayCalls.isEmpty())
     }
 }

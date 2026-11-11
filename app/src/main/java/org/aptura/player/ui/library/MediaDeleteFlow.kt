@@ -16,6 +16,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.net.toUri
 import org.aptura.player.core.media.DeleteOutcome
@@ -41,6 +42,34 @@ class MediaDeleteFlow internal constructor(
     fun deleteAll(uris: List<String>, onFinished: ((DeleteBatchResult) -> Unit)? = null) = start(uris, onFinished)
 }
 
+/** What the delete flow needs from the platform: [MediaDeleter] and [MediaStore] in the app, a fake in tests. */
+internal interface MediaDeleteEngine {
+    fun delete(uri: String): DeleteOutcome
+    fun requestBatchDeleteConsent(uris: List<String>): android.content.IntentSender?
+}
+
+private class DefaultMediaDeleteEngine(
+    private val context: android.content.Context,
+    private val deleter: MediaDeleter = MediaDeleter(context)
+) : MediaDeleteEngine {
+    override fun delete(uri: String): DeleteOutcome = deleter.delete(uri)
+
+    override fun requestBatchDeleteConsent(uris: List<String>): android.content.IntentSender? {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+            uris.size > 1 &&
+            uris.all { it.toUri().authority == MediaStore.AUTHORITY }
+        ) {
+            return MediaStore.createDeleteRequest(
+                context.contentResolver,
+                uris.map(Uri::parse)
+            ).intentSender
+        }
+        return null
+    }
+}
+
+internal val LocalMediaDeleteEngine = staticCompositionLocalOf<MediaDeleteEngine?> { null }
+
 /**
  * Remembers the whole delete journey: direct delete when Android allows it, the system consent dialog
  * when it doesn't, and an honest message when neither is possible. Used by every delete entry point so the
@@ -49,7 +78,17 @@ class MediaDeleteFlow internal constructor(
 @Composable
 fun rememberMediaDeleteFlow(onDeleted: (uri: String) -> Unit): MediaDeleteFlow {
     val context = LocalContext.current
-    val deleter = remember(context) { MediaDeleter(context) }
+    val localEngine = LocalMediaDeleteEngine.current
+    val engine = remember(context, localEngine) { localEngine ?: DefaultMediaDeleteEngine(context) }
+    return rememberMediaDeleteFlow(onDeleted, engine)
+}
+
+@Composable
+internal fun rememberMediaDeleteFlow(
+    onDeleted: (uri: String) -> Unit,
+    deleter: MediaDeleteEngine
+): MediaDeleteFlow {
+    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val currentOnDeleted by rememberUpdatedState(onDeleted)
     var deleteQueue by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -65,49 +104,81 @@ fun rememberMediaDeleteFlow(onDeleted: (uri: String) -> Unit): MediaDeleteFlow {
         val batch = awaitingBatchConsent
         if (batch.isNotEmpty()) {
             awaitingBatchConsent = emptyList()
+            val newDeleted: List<String>
+            val newFailed: List<String>
             if (result.resultCode == Activity.RESULT_OK) {
-                deletedUris = deletedUris + batch
+                newDeleted = deletedUris + batch
+                newFailed = failedUris
+                deletedUris = newDeleted
                 batch.forEach(currentOnDeleted)
             } else {
-                failedUris = failedUris + batch
+                newDeleted = deletedUris
+                newFailed = failedUris + batch
+                failedUris = newFailed
                 Toast.makeText(context, "Deletion cancelled. The files were kept.", Toast.LENGTH_SHORT).show()
             }
             deleteQueue = deleteQueue.filterNot(batch.toSet()::contains)
+            completionCallback?.invoke(DeleteBatchResult(newDeleted, newFailed))
+            completionCallback = null
             return@rememberLauncherForActivityResult
         }
         val uri = awaitingConsentUri
         if (uri == null) return@rememberLauncherForActivityResult
         if (result.resultCode != Activity.RESULT_OK) {
-            failedUris = failedUris + uri
+            val newFailed = failedUris + uri
+            failedUris = newFailed
             Toast.makeText(context, "Deletion cancelled. The file was kept.", Toast.LENGTH_SHORT).show()
             awaitingConsentUri = null
+            val remaining = deleteQueue.dropWhile { it != uri }.drop(1)
+            deleteQueue = remaining
+            if (remaining.isEmpty()) {
+                completionCallback?.invoke(DeleteBatchResult(deletedUris, newFailed))
+                completionCallback = null
+            }
+            return@rememberLauncherForActivityResult
         } else if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
             // Android 10: the consent only grants access; the app must repeat the delete itself.
             coroutineScope.launch {
+                var updatedDeleted = deletedUris
+                var updatedFailed = failedUris
                 when (val retry = withContext(Dispatchers.IO) { deleter.delete(uri) }) {
                     DeleteOutcome.Deleted -> {
-                        deletedUris = deletedUris + uri
+                        updatedDeleted = updatedDeleted + uri
+                        deletedUris = updatedDeleted
                         currentOnDeleted(uri)
                     }
                     is DeleteOutcome.Failed -> {
-                        failedUris = failedUris + uri
+                        updatedFailed = updatedFailed + uri
+                        failedUris = updatedFailed
                         Toast.makeText(context, retry.message, Toast.LENGTH_LONG).show()
                     }
                     is DeleteOutcome.NeedsConsent -> {
-                        failedUris = failedUris + uri
+                        updatedFailed = updatedFailed + uri
+                        failedUris = updatedFailed
                         Toast.makeText(context, "Android did not allow the deletion.", Toast.LENGTH_LONG).show()
                     }
                 }
                 awaitingConsentUri = null
-                deleteQueue = deleteQueue.dropWhile { it != uri }.drop(1)
+                val remaining = deleteQueue.dropWhile { it != uri }.drop(1)
+                deleteQueue = remaining
+                if (remaining.isEmpty()) {
+                    completionCallback?.invoke(DeleteBatchResult(updatedDeleted, updatedFailed))
+                    completionCallback = null
+                }
             }
             return@rememberLauncherForActivityResult
         } else {
-            deletedUris = deletedUris + uri
+            val newDeleted = deletedUris + uri
+            deletedUris = newDeleted
             currentOnDeleted(uri)
             awaitingConsentUri = null
+            val remaining = deleteQueue.dropWhile { it != uri }.drop(1)
+            deleteQueue = remaining
+            if (remaining.isEmpty()) {
+                completionCallback?.invoke(DeleteBatchResult(newDeleted, failedUris))
+                completionCallback = null
+            }
         }
-        deleteQueue = deleteQueue.dropWhile { it != uri }.drop(1)
     }
 
     LaunchedEffect(deleteQueue, awaitingConsentUri, awaitingBatchConsent) {
@@ -150,18 +221,12 @@ fun rememberMediaDeleteFlow(onDeleted: (uri: String) -> Unit): MediaDeleteFlow {
                 deletedUris = emptyList()
                 failedUris = emptyList()
                 completionCallback = onFinished
-                if (uniqueUris.size > 1 &&
-                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
-                    uniqueUris.all { it.toUri().authority == MediaStore.AUTHORITY }
-                ) {
+                val batchSender = deleter.requestBatchDeleteConsent(uniqueUris)
+                if (batchSender != null) {
                     try {
                         awaitingBatchConsent = uniqueUris
                         deleteQueue = uniqueUris
-                        val sender = MediaStore.createDeleteRequest(
-                            context.contentResolver,
-                            uniqueUris.map(Uri::parse)
-                        ).intentSender
-                        consentLauncher.launch(IntentSenderRequest.Builder(sender).build())
+                        consentLauncher.launch(IntentSenderRequest.Builder(batchSender).build())
                     } catch (_: Exception) {
                         awaitingBatchConsent = emptyList()
                         deleteQueue = emptyList()
