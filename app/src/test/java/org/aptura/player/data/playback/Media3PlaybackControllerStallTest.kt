@@ -55,6 +55,7 @@ class Media3PlaybackControllerStallTest {
         var error: PlaybackException? = null
         var stops = 0
         var prepares = 0
+        var clearVideoSurfaceCalls = 0
 
         fun startPlaying() {
             state = Player.STATE_READY
@@ -85,6 +86,7 @@ class Media3PlaybackControllerStallTest {
                 null
             }
             "prepare" -> { prepares++; changeState(Player.STATE_BUFFERING); null }
+            "clearVideoSurface" -> { clearVideoSurfaceCalls++; null }
             "stop" -> { stops++; isPlaying = false; changeState(Player.STATE_IDLE); null }
             "play" -> { playWhenReady = true; listeners.forEach { it.onPlayWhenReadyChanged(true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST) }; null }
             "pause" -> { playWhenReady = false; isPlaying = false; listeners.forEach { it.onPlayWhenReadyChanged(false, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST) }; null }
@@ -370,5 +372,28 @@ class Media3PlaybackControllerStallTest {
         assertEquals("Auto is allowed to recover by itself", 1, player.stops)
         assertEquals(2, controller.currentDecoderStrategy)
         assertTrue(controller.isCompatibilityMode.value)
+    }
+
+    @Test
+    fun runtimeCheckError_doesNotClearVideoSurface_andRetryPreservesSurface() = runTest(dispatcher) {
+        val player = StuckPlayer()
+        val controller = controllerWith(player)
+        controller.playQueue(listOf(video), 0)
+        runCurrent()
+
+        val runtimeError = PlaybackException("Surface detached", null, PlaybackException.ERROR_CODE_FAILED_RUNTIME_CHECK)
+        player.error = runtimeError
+        player.listeners.forEach { it.onPlayerError(runtimeError) }
+        runCurrent()
+
+        assertEquals("Surface must NOT be cleared on runtime check error", 0, player.clearVideoSurfaceCalls)
+
+        val preparesBeforeRetry = player.prepares
+        controller.retryPlayback()
+        runCurrent()
+
+        assertEquals("retryPlayback prepares the player", preparesBeforeRetry + 1, player.prepares)
+        assertTrue("retryPlayback starts playback", player.playWhenReady)
+        assertEquals("surface remains intact after retry", 0, player.clearVideoSurfaceCalls)
     }
 }
