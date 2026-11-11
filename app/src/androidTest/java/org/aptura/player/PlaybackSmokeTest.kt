@@ -21,6 +21,7 @@ import org.aptura.player.data.scanner.MediaScanScheduler
 import org.aptura.player.data.settings.ApturaSettingsRepository
 import org.aptura.player.domain.model.DomainMediaItem
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Rule
@@ -131,6 +132,41 @@ class PlaybackSmokeTest {
         assertPlays(controller.player, "the controller, 558 items starting at 301")
         val index = onMain { controller.player.currentMediaItemIndex }
         if (index != 300) fail("The queue started at item ${index + 1}, not 301.")
+    }
+
+    /**
+     * Audit finding FUNC-03: An activity recreation caused by a system configuration change
+     * (such as flipping uiMode / dark mode) while playing queue item 2 must keep the queue intact
+     * and must not restart playback from video 1.
+     */
+    @Test
+    fun uiModeRecreationOnQueueItemTwo_preservesQueueAndCurrentItem() {
+        val controller = PlayerManager.getOrCreate(context)
+        val queue = listOf(
+            item(clipUri, "queue item 1"),
+            item(hevcUri, "queue item 2"),
+            item(clipUri, "queue item 3")
+        )
+        runBlocking(Dispatchers.Main) { controller.playQueue(queue, 1) }
+        assertPlays(controller.player, "the controller, queue item 2")
+
+        val uiAutomation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        val currentUiMode = context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
+        val targetNight = if (currentUiMode == android.content.res.Configuration.UI_MODE_NIGHT_YES) "no" else "yes"
+        try {
+            uiAutomation.executeShellCommand("cmd uimode night $targetNight")
+            composeRule.waitForIdle()
+            composeRule.activityRule.scenario.recreate()
+            composeRule.waitForIdle()
+
+            val index = onMain { controller.player.currentMediaItemIndex }
+            val count = onMain { controller.player.mediaItemCount }
+            assertEquals("The queue was dropped or truncated", 3, count)
+            assertEquals("Playback reverted instead of staying on queue item 2", 1, index)
+        } finally {
+            val restoreNight = if (currentUiMode == android.content.res.Configuration.UI_MODE_NIGHT_YES) "yes" else "no"
+            uiAutomation.executeShellCommand("cmd uimode night $restoreNight")
+        }
     }
 
     @Test
