@@ -487,6 +487,12 @@ private fun AppNavHost(
                         pendingCrash?.let { ApturaDiagnostics.acknowledgeCrash(it.name) }
                         pendingCrash = null
                     },
+                    showSettingsResetNotice = settings.wasResetByCorruption,
+                    onDismissSettingsResetNotice = {
+                        coroutineScope.launch {
+                            settingsRepository.acknowledgeSettingsReset()
+                        }
+                    },
                     onVideoClick = { item, items ->
                         val request = buildPlayQueueRequest(item, items)
                         playerViewModel.playQueue(request.items, request.startIndex)

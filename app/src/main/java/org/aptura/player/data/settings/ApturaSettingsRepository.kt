@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.mutablePreferencesOf
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -28,16 +29,48 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import java.io.IOException
 
+internal object PreferencesKeys {
+    val SETTINGS_RESET_BY_CORRUPTION = booleanPreferencesKey("settings_reset_by_corruption")
+    val DEFAULT_PLAYBACK_SPEED = floatPreferencesKey("default_playback_speed")
+    val DEFAULT_RESIZE_MODE = intPreferencesKey("default_resize_mode")
+    val SEEK_DELTA_SECONDS = intPreferencesKey("seek_delta_seconds")
+    val BACKGROUND_AUDIO_ENABLED = booleanPreferencesKey("background_audio_enabled")
+    val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
+    val LAST_SEEN_GUIDE_VERSION = intPreferencesKey("last_seen_guide_version")
+    val THEME_MODE = stringPreferencesKey("theme_mode")
+    val ACCENT_COLOR = stringPreferencesKey("accent_color")
+    val AUTO_ADVANCE_COUNTDOWN = intPreferencesKey("auto_advance_countdown")
+    val SUBTITLE_FONT_SIZE_SP = intPreferencesKey("subtitle_font_size_sp")
+    val SUBTITLE_TEXT_COLOR_HEX = stringPreferencesKey("subtitle_text_color_hex")
+    val SUBTITLE_BACKGROUND_ENABLED = booleanPreferencesKey("subtitle_background_enabled")
+    val DEFAULT_DECODER_STRATEGY = intPreferencesKey("default_decoder_strategy")
+    val PERSISTED_SAF_FOLDERS = stringSetPreferencesKey("persisted_saf_folders")
+    val FX_ENABLED = booleanPreferencesKey("fx_enabled")
+    val FX_PRESET = stringPreferencesKey("fx_preset")
+    val FX_BAND_LEVELS = stringPreferencesKey("fx_band_levels")
+    val FX_BASS = intPreferencesKey("fx_bass_percent")
+    val FX_VIRTUALIZER = intPreferencesKey("fx_virtualizer_percent")
+    val FX_LOUDNESS = intPreferencesKey("fx_loudness_percent")
+    val IS_SUPPORTER = booleanPreferencesKey("is_supporter")
+    val LIBRARY_LAYOUT = stringPreferencesKey("library_layout")
+    val LIBRARY_DENSITY = stringPreferencesKey("library_density")
+    val LIBRARY_DETAIL = stringPreferencesKey("library_detail")
+    val FOLDER_LAYOUT = stringPreferencesKey("folder_layout")
+    val LIBRARY_SORT = stringPreferencesKey("library_sort")
+}
+
 /**
  * What to do with a settings file that cannot be read (a torn write, a full disk, a bad restore).
  *
  * Without a handler every read and every write fails with a CorruptionException for good: the file is never replaced,
  * so a person could not change a single setting again until they cleared the app's data. With it, the unreadable file
- * is replaced by an empty one, the app starts from its defaults, and the next change is saved normally. Losing the
- * settings is the cost; the alternative is losing the ability to save any.
+ * is replaced by an empty one marked with [PreferencesKeys.SETTINGS_RESET_BY_CORRUPTION], the app starts from its
+ * defaults, and the next change is saved normally.
  */
 internal val settingsCorruptionHandler: ReplaceFileCorruptionHandler<Preferences> =
-    ReplaceFileCorruptionHandler { emptyPreferences() }
+    ReplaceFileCorruptionHandler {
+        mutablePreferencesOf(PreferencesKeys.SETTINGS_RESET_BY_CORRUPTION to true)
+    }
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
     name = "aptura_settings",
@@ -47,6 +80,18 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
 /** A stored enum by name; a missing or unknown name (a downgrade, a hand-edited file) falls back to [default]. */
 private inline fun <reified E : Enum<E>> Preferences.enumOr(key: Preferences.Key<String>, default: E): E =
     this[key]?.let { name -> enumValues<E>().firstOrNull { it.name == name } } ?: default
+
+/** Recovers read-granted tree URIs persisted by Android's ContentResolver across app restarts/resets. */
+internal fun recoverPersistedSafFolders(context: Context): Set<String> {
+    return try {
+        context.contentResolver.persistedUriPermissions
+            .filter { it.isReadPermission }
+            .map { it.uri.toString() }
+            .toSet()
+    } catch (_: Exception) {
+        emptySet()
+    }
+}
 
 @Immutable
 data class ApturaSettings(
@@ -65,6 +110,8 @@ data class ApturaSettings(
     val subtitleBackgroundEnabled: Boolean = false,
     val defaultDecoderStrategy: Int = 0, // 0: Auto, 1: Hardware, 2: Software
     val persistedSafFolders: Set<String> = emptySet(),
+    /** Set to true when settings were recovered to defaults from a corrupted file (DATA-07). */
+    val wasResetByCorruption: Boolean = false,
     val audioEffects: AudioEffectsSettings = AudioEffectsSettings(),
     val isSupporter: Boolean = false,
     val libraryLayout: LibraryLayout = LibraryLayout.GRID,
@@ -85,35 +132,6 @@ data class ApturaSettings(
  */
 class ApturaSettingsRepository(private val context: Context) : AudioEffectsStore {
 
-    private object PreferencesKeys {
-        val DEFAULT_PLAYBACK_SPEED = floatPreferencesKey("default_playback_speed")
-        val DEFAULT_RESIZE_MODE = intPreferencesKey("default_resize_mode")
-        val SEEK_DELTA_SECONDS = intPreferencesKey("seek_delta_seconds")
-        val BACKGROUND_AUDIO_ENABLED = booleanPreferencesKey("background_audio_enabled")
-        val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
-        val LAST_SEEN_GUIDE_VERSION = intPreferencesKey("last_seen_guide_version")
-        val THEME_MODE = stringPreferencesKey("theme_mode")
-        val ACCENT_COLOR = stringPreferencesKey("accent_color")
-        val AUTO_ADVANCE_COUNTDOWN = intPreferencesKey("auto_advance_countdown")
-        val SUBTITLE_FONT_SIZE_SP = intPreferencesKey("subtitle_font_size_sp")
-        val SUBTITLE_TEXT_COLOR_HEX = stringPreferencesKey("subtitle_text_color_hex")
-        val SUBTITLE_BACKGROUND_ENABLED = booleanPreferencesKey("subtitle_background_enabled")
-        val DEFAULT_DECODER_STRATEGY = intPreferencesKey("default_decoder_strategy")
-        val PERSISTED_SAF_FOLDERS = stringSetPreferencesKey("persisted_saf_folders")
-        val FX_ENABLED = booleanPreferencesKey("fx_enabled")
-        val FX_PRESET = stringPreferencesKey("fx_preset")
-        val FX_BAND_LEVELS = stringPreferencesKey("fx_band_levels")
-        val FX_BASS = intPreferencesKey("fx_bass_percent")
-        val FX_VIRTUALIZER = intPreferencesKey("fx_virtualizer_percent")
-        val FX_LOUDNESS = intPreferencesKey("fx_loudness_percent")
-        val IS_SUPPORTER = booleanPreferencesKey("is_supporter")
-        val LIBRARY_LAYOUT = stringPreferencesKey("library_layout")
-        val LIBRARY_DENSITY = stringPreferencesKey("library_density")
-        val LIBRARY_DETAIL = stringPreferencesKey("library_detail")
-        val FOLDER_LAYOUT = stringPreferencesKey("folder_layout")
-        val LIBRARY_SORT = stringPreferencesKey("library_sort")
-    }
-
     val settingsFlow: Flow<ApturaSettings> = context.dataStore.data
         .catch { exception ->
             if (exception is IOException) {
@@ -123,6 +141,13 @@ class ApturaSettingsRepository(private val context: Context) : AudioEffectsStore
             }
         }
         .map { preferences ->
+            val wasReset = preferences[PreferencesKeys.SETTINGS_RESET_BY_CORRUPTION] ?: false
+            val storedSaf = preferences[PreferencesKeys.PERSISTED_SAF_FOLDERS]
+            val effectiveSaf = if (wasReset && storedSaf.isNullOrEmpty()) {
+                recoverPersistedSafFolders(context)
+            } else {
+                storedSaf ?: emptySet()
+            }
             ApturaSettings(
                 defaultPlaybackSpeed = preferences[PreferencesKeys.DEFAULT_PLAYBACK_SPEED] ?: 1.0f,
                 defaultResizeMode = preferences[PreferencesKeys.DEFAULT_RESIZE_MODE] ?: 0,
@@ -141,7 +166,8 @@ class ApturaSettingsRepository(private val context: Context) : AudioEffectsStore
                 subtitleTextColorHex = preferences[PreferencesKeys.SUBTITLE_TEXT_COLOR_HEX] ?: "#FFFFFF",
                 subtitleBackgroundEnabled = preferences[PreferencesKeys.SUBTITLE_BACKGROUND_ENABLED] ?: false,
                 defaultDecoderStrategy = preferences[PreferencesKeys.DEFAULT_DECODER_STRATEGY] ?: 0,
-                persistedSafFolders = preferences[PreferencesKeys.PERSISTED_SAF_FOLDERS] ?: emptySet(),
+                persistedSafFolders = effectiveSaf,
+                wasResetByCorruption = wasReset,
                 audioEffects = AudioEffectsSettings(
                     enabled = preferences[PreferencesKeys.FX_ENABLED] ?: false,
                     preset = preferences[PreferencesKeys.FX_PRESET]
@@ -311,10 +337,31 @@ class ApturaSettingsRepository(private val context: Context) : AudioEffectsStore
         }
     }
 
+    /**
+     * Clears the corruption reset notice flag and ensures any recovered SAF folder permissions
+     * are permanently saved to preferences (DATA-07).
+     */
+    suspend fun acknowledgeSettingsReset(recoveredFolders: Set<String>? = null) {
+        val foldersToPersist = recoveredFolders ?: recoverPersistedSafFolders(context)
+        context.dataStore.edit { preferences ->
+            preferences.remove(PreferencesKeys.SETTINGS_RESET_BY_CORRUPTION)
+            if (foldersToPersist.isNotEmpty() && preferences[PreferencesKeys.PERSISTED_SAF_FOLDERS].isNullOrEmpty()) {
+                preferences[PreferencesKeys.PERSISTED_SAF_FOLDERS] = foldersToPersist
+            }
+        }
+    }
+
     /** Stores [value] under a raw string [key], as an older or newer build might have. */
     @androidx.annotation.VisibleForTesting
     suspend fun writeRawForTesting(key: String, value: String) {
         context.dataStore.edit { preferences -> preferences[stringPreferencesKey(key)] = value }
+    }
+
+    @androidx.annotation.VisibleForTesting
+    suspend fun setResetByCorruptionForTesting(reset: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.SETTINGS_RESET_BY_CORRUPTION] = reset
+        }
     }
 
     @androidx.annotation.VisibleForTesting

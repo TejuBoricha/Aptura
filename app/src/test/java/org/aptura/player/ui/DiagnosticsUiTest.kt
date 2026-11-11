@@ -238,4 +238,27 @@ class DiagnosticsUiTest {
         composeRule.onNodeWithText("Delete").performClick()
         assertEquals(1, deletions)
     }
+
+    @Test
+    fun settingsResetNotice_isDisplayedAndCanBeDismissed() {
+        var dismissed = 0
+        composeRule.setContent {
+            ApturaTheme {
+                MediaLibraryScreen(
+                    uiState = libraryState(),
+                    onVideoClick = { _, _ -> },
+                    onSearchQueryChanged = {},
+                    onFolderSelected = {},
+                    onSortOrderChanged = {},
+                    onRefresh = {},
+                    showSettingsResetNotice = true,
+                    onDismissSettingsResetNotice = { dismissed++ }
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Settings restored").assertIsDisplayed()
+        composeRule.onNodeWithText("Dismiss").performClick()
+        assertEquals(1, dismissed)
+    }
 }

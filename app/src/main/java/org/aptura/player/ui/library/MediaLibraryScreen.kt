@@ -235,6 +235,8 @@ fun MediaLibraryScreen(
     showCrashNotice: Boolean = false,
     onShareCrashDetails: () -> Unit = {},
     onDismissCrashNotice: () -> Unit = {},
+    showSettingsResetNotice: Boolean = false,
+    onDismissSettingsResetNotice: () -> Unit = {},
     viewPrefs: LibraryViewPrefs = LibraryViewPrefs(),
     onViewPrefsChanged: (LibraryViewPrefs) -> Unit = {},
     modifier: Modifier = Modifier
@@ -317,6 +319,8 @@ fun MediaLibraryScreen(
                         showCrashNotice = showCrashNotice,
                         onShareCrashDetails = onShareCrashDetails,
                         onDismissCrashNotice = onDismissCrashNotice,
+                        showSettingsResetNotice = showSettingsResetNotice,
+                        onDismissSettingsResetNotice = onDismissSettingsResetNotice,
                         viewPrefs = viewPrefs,
                         onViewPrefsChanged = onViewPrefsChanged,
                         topPadding = innerPadding.calculateTopPadding(),
@@ -353,6 +357,8 @@ private fun MediaLibraryContentView(
     showCrashNotice: Boolean = false,
     onShareCrashDetails: () -> Unit = {},
     onDismissCrashNotice: () -> Unit = {},
+    showSettingsResetNotice: Boolean = false,
+    onDismissSettingsResetNotice: () -> Unit = {},
     viewPrefs: LibraryViewPrefs = LibraryViewPrefs(),
     onViewPrefsChanged: (LibraryViewPrefs) -> Unit = {},
     topPadding: androidx.compose.ui.unit.Dp = 0.dp,
@@ -824,6 +830,19 @@ private fun MediaLibraryContentView(
                 onDismiss = onDismissCrashNotice,
                 modifier = Modifier.padding(horizontal = pagePadding, vertical = 6.dp)
             )
+        }
+
+        // Settings reset by corruption notice (DATA-07): quiet, once, never blocks the library.
+        if (showSettingsResetNotice) {
+            NoticeBanner(
+                icon = Icons.Outlined.Info,
+                title = "Settings restored",
+                message = "A damaged settings file was replaced with default settings. Custom folders and library data were preserved.",
+                tint = ApturaColors.AccentPrimary,
+                modifier = Modifier.padding(horizontal = pagePadding, vertical = 6.dp)
+            ) {
+                ApturaTextButton(text = "Dismiss", onClick = onDismissSettingsResetNotice)
+            }
         }
 
         // Limited Storage Mode Banner (SCR-012)
