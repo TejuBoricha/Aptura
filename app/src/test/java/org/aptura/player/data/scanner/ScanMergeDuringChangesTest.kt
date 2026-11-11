@@ -3,6 +3,8 @@ package org.aptura.player.data.scanner
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import org.aptura.player.data.database.ApturaDatabase
 import org.aptura.player.data.database.MediaItemEntity
@@ -151,5 +153,38 @@ class ScanMergeDuringChangesTest {
         assertEquals(6_000_000L, row.sizeBytes)
         assertEquals("the person's position is not the scan's to change", 12_000L, row.playbackPositionMs)
         assertFalse(row.isMissing)
+    }
+
+    /**
+     * Audit finding DATA-05: A truly concurrent write test asserting that concurrent user modifications
+     * (playback progress, custom rename, bookmarks) running simultaneously with [MediaScanWorker.persistScan]
+     * are serialized safely by Room's transaction boundary without deadlocks or reverting user changes.
+     */
+    @Test
+    fun concurrentDatabaseWrites_duringScanMerge_areSerializedSafelyWithoutCorruption() = runBlocking {
+        val initialItems = List(50) { id -> file(id.toLong()) }
+        val snapshot = startScan(*initialItems.toTypedArray())
+
+        val writeJob = async(Dispatchers.IO) {
+            repeat(20) { i ->
+                val targetUri = initialItems[i].uri
+                db.mediaItemDao().updatePlaybackPosition(targetUri, (i * 1000).toLong(), i % 2 == 0, System.currentTimeMillis())
+                db.mediaItemDao().updateCustomTitle(targetUri, "User Title $i")
+            }
+        }
+
+        val scanJob = async(Dispatchers.IO) {
+            MediaScanWorker.persistScan(db, initialItems, snapshot, hasStorage = true)
+        }
+
+        writeJob.await()
+        scanJob.await()
+
+        val allVideos = db.mediaItemDao().getAllVideosRaw()
+        assertEquals(50, allVideos.size)
+        repeat(20) { i ->
+            val row = allVideos.first { it.uri == initialItems[i].uri }
+            assertEquals("User Title $i", row.customTitle)
+        }
     }
 }
