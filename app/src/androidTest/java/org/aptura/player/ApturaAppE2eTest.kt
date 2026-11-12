@@ -76,7 +76,7 @@ class ApturaAppE2eTest {
         val labels = listOf(
             "No videos yet",
             "Storage Permission Required",
-            "Scan device",
+            "Rescan library",
             "All videos",
             "Search videos"
         )
@@ -135,9 +135,9 @@ class ApturaAppE2eTest {
         dismissOnboardingIfShown()
         waitForLibraryLoaded()
 
-        // Verify Scan Device button is interactive when present (empty library only)
+        // Verify Rescan library button is interactive when present (empty library only)
         runCatching {
-            composeTestRule.onNodeWithText("Scan device")
+            composeTestRule.onNodeWithText("Rescan library")
                 .assertIsDisplayed()
                 .performClick()
         }

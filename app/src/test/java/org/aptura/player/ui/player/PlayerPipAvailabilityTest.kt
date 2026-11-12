@@ -45,6 +45,6 @@ class PlayerPipAvailabilityTest {
 
         composeRule.onNodeWithContentDescription("More options").assertIsDisplayed().performClick()
         composeRule.onAllNodesWithText("Picture in picture").assertCountEquals(0)
-        composeRule.onAllNodes(hasContentDescription("Picture in Picture")).assertCountEquals(0)
+        composeRule.onAllNodes(hasContentDescription("Picture in picture")).assertCountEquals(0)
     }
 }

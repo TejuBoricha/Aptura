@@ -151,9 +151,9 @@ class PlayerAccessibilityTest {
         show()
 
         listOf(
-            "Back", "More options", "Playback Queue",
-            "Previous Video", "Rewind 10s", "Pause", "Forward 10s", "Next Video",
-            "Lock Controls", "Subtitles", "Audio Track", "Advanced Settings",
+            "Back", "More options", "Playback queue",
+            "Previous video", "Rewind 10s", "Pause", "Forward 10s", "Next video",
+            "Lock controls", "Subtitles", "Audio track", "Advanced settings",
             "Play mode: play in order"
         ).forEach { description ->
             composeRule.onNodeWithContentDescription(description).assertTouchTarget48()
@@ -192,7 +192,7 @@ class PlayerAccessibilityTest {
         val calls = show()
 
         // not squeezed into the bar...
-        assertEquals(0, countWithDescription("Aspect Ratio"))
+        assertEquals(0, countWithDescription("Aspect ratio"))
         // ...but one tap away
         composeRule.onNodeWithContentDescription("More options").performClick()
         composeRule.onNodeWithText("Aspect ratio").assertTouchTarget48().performClick()

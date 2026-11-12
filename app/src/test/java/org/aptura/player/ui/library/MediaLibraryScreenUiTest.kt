@@ -144,8 +144,8 @@ class MediaLibraryScreenUiTest {
         composeTestRule.onNodeWithText("No videos yet").assertIsDisplayed()
 
         // Verify Scan Device button is displayed and triggers callback
-        composeTestRule.onNodeWithText("Scan device").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Scan device").performClick()
+        composeTestRule.onNodeWithText("Rescan library").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Rescan library").performClick()
         assertTrue(refreshClicked)
     }
 

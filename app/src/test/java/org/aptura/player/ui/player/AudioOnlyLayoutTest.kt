@@ -79,7 +79,7 @@ class AudioOnlyLayoutTest {
                 .getUnclippedBoundsInRoot().toRect(),
             "the Show video button" to composeRule.onNodeWithText("Show video").getUnclippedBoundsInRoot().toRect()
         )
-        val controls = listOf("Back", "Previous Video", "Pause", "Next Video").associateWith {
+        val controls = listOf("Back", "Previous video", "Pause", "Next video").associateWith {
             composeRule.onNodeWithContentDescription(it).getUnclippedBoundsInRoot().toRect()
         }
         controls.forEach { (name, bounds) ->

@@ -112,7 +112,7 @@ fun StatsOverlay(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.ContentCopy,
-                            contentDescription = "Copy Stats",
+                            contentDescription = "Copy stats",
                             tint = ApturaColors.TextMediumEmphasis,
                             modifier = Modifier.size(16.dp)
                         )
@@ -125,7 +125,7 @@ fun StatsOverlay(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Close,
-                            contentDescription = "Close Stats",
+                            contentDescription = "Close stats",
                             tint = ApturaColors.TextMediumEmphasis,
                             modifier = Modifier.size(16.dp)
                         )

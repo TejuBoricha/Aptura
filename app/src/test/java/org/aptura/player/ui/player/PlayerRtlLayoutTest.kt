@@ -89,7 +89,7 @@ class PlayerRtlLayoutTest {
     fun transportButtons_keepTheirOrder_inRightToLeft() {
         render(LayoutDirection.Rtl, controlsOn())
 
-        val xs = listOf("Previous Video", "Rewind 10s", "Pause", "Forward 10s", "Next Video").map(::centerX)
+        val xs = listOf("Previous video", "Rewind 10s", "Pause", "Forward 10s", "Next video").map(::centerX)
         assertEquals("Previous, Rewind, Play, Forward, Next must run left to right: $xs", xs.sorted(), xs)
     }
 
@@ -136,7 +136,7 @@ class PlayerRtlLayoutTest {
     fun theSameChecks_passInLeftToRight() {
         render(LayoutDirection.Ltr, controlsOn())
 
-        val xs = listOf("Previous Video", "Rewind 10s", "Pause", "Forward 10s", "Next Video").map(::centerX)
+        val xs = listOf("Previous video", "Rewind 10s", "Pause", "Forward 10s", "Next video").map(::centerX)
         assertEquals(xs.sorted(), xs)
         val elapsed = composeTestRule.onNodeWithText(MediaFormatters.formatDuration(125_000L)).fetchSemanticsNode().boundsInRoot.center.x
         val total = composeTestRule.onNodeWithText(MediaFormatters.formatDuration(3_725_000L)).fetchSemanticsNode().boundsInRoot.center.x

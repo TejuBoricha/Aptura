@@ -1960,7 +1960,7 @@ private fun MediaLibraryEmptyView(
 
                     else -> {
                         ApturaButton(
-                            text = "Scan device",
+                            text = "Rescan library",
                             icon = Icons.Default.Refresh,
                             onClick = onRefresh,
                             modifier = Modifier.fillMaxWidth()

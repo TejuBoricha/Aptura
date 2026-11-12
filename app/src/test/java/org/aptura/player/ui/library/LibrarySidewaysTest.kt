@@ -103,7 +103,7 @@ class LibrarySidewaysTest {
         composeRule.onNode(hasText("Movies", substring = true) and hasAnyAncestor(hasTestTag(FOLDER_STRIP_TAG))).assertIsDisplayed()
 
         // Every button of the rail is fully on screen, including the last one.
-        listOf("Open File", "Refresh", "Settings").forEach { assertWithinWindow(it, windowHeightDp) }
+        listOf("Open file", "Rescan library", "Settings").forEach { assertWithinWindow(it, windowHeightDp) }
     }
 
     @Config(qualifiers = "w891dp-h411dp-xhdpi")

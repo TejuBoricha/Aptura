@@ -277,7 +277,7 @@ internal fun LibraryCompactRail(
         NavigationRailItem(
             selected = false,
             onClick = onOpenFilePicker,
-            icon = { Icon(Icons.Filled.FolderOpen, contentDescription = "Open File") },
+            icon = { Icon(Icons.Filled.FolderOpen, contentDescription = "Open file") },
             label = if (showLabels) {
                 { Text("Open", style = ApturaTypography.labelSmall) }
             } else {
@@ -298,11 +298,11 @@ internal fun LibraryCompactRail(
                         color = ApturaColors.AccentPrimary
                     )
                 } else {
-                    Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                    Icon(Icons.Default.Refresh, contentDescription = "Rescan library")
                 }
             },
             label = if (showLabels) {
-                { Text("Refresh", style = ApturaTypography.labelSmall) }
+                { Text("Rescan", style = ApturaTypography.labelSmall) }
             } else {
                 null
             },
