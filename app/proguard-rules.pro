@@ -17,3 +17,14 @@
 # Coroutines: Main dispatcher is resolved through ServiceLoader.
 -keepnames class kotlinx.coroutines.internal.MainDispatcherFactory { *; }
 -keepnames class kotlinx.coroutines.CoroutineExceptionHandler { *; }
+
+# Strip logging in release builds to eliminate log overhead and prevent leaking framework/playback internals (SEC-12).
+-assumenosideeffects class android.util.Log {
+    public static boolean isLoggable(java.lang.String, int);
+    public static int v(...);
+    public static int d(...);
+    public static int i(...);
+    public static int w(...);
+    public static int e(...);
+    public static int wtf(...);
+}

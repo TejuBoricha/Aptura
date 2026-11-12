@@ -67,6 +67,48 @@ class PlatformInvariantsTest {
     }
 
     @Test
+    fun manifest_configuresDataExtractionAndBackupExclusionRules() {
+        assertTrue("AndroidManifest.xml must exist", manifestFile.exists())
+        val content = manifestFile.readText()
+        assertTrue(
+            "CRITICAL INVARIANT VIOLATION (SEC-08): AndroidManifest.xml must specify android:dataExtractionRules=\"@xml/data_extraction_rules\"",
+            content.contains("android:dataExtractionRules=\"@xml/data_extraction_rules\"")
+        )
+        assertTrue(
+            "CRITICAL INVARIANT VIOLATION (SEC-08): AndroidManifest.xml must specify android:fullBackupContent=\"@xml/backup_rules\"",
+            content.contains("android:fullBackupContent=\"@xml/backup_rules\"")
+        )
+
+        val dataExtractionFile = File("src/main/res/xml/data_extraction_rules.xml")
+        assertTrue("data_extraction_rules.xml must exist", dataExtractionFile.exists())
+        val extractionText = dataExtractionFile.readText()
+        assertTrue(
+            "data_extraction_rules.xml must declare <cloud-backup>",
+            extractionText.contains("<cloud-backup>")
+        )
+        assertTrue(
+            "data_extraction_rules.xml must declare <device-transfer>",
+            extractionText.contains("<device-transfer>")
+        )
+        listOf("root", "file", "database", "sharedpref", "external").forEach { domain ->
+            assertTrue(
+                "data_extraction_rules.xml must exclude domain '$domain'",
+                extractionText.contains("domain=\"$domain\"")
+            )
+        }
+
+        val backupRulesFile = File("src/main/res/xml/backup_rules.xml")
+        assertTrue("backup_rules.xml must exist", backupRulesFile.exists())
+        val backupText = backupRulesFile.readText()
+        listOf("root", "file", "database", "sharedpref", "external").forEach { domain ->
+            assertTrue(
+                "backup_rules.xml must exclude domain '$domain'",
+                backupText.contains("domain=\"$domain\"")
+            )
+        }
+    }
+
+    @Test
     fun manifest_containsZeroAudioPermission() {
         assertTrue("AndroidManifest.xml must exist", manifestFile.exists())
         val permissions = getDeclaredPermissions(manifestFile.readText())
@@ -130,6 +172,17 @@ class PlatformInvariantsTest {
         assertFalse(
             "CRITICAL INVARIANT VIOLATION (R-B02): MainActivity must never declare android:screenOrientation; it must remain resizable and continuum-fluid",
             content.contains("android:screenOrientation")
+        )
+    }
+
+    @Test
+    fun proguardRules_stripAndroidUtilLoggingInRelease() {
+        val proguardFile = File("proguard-rules.pro")
+        assertTrue("proguard-rules.pro must exist", proguardFile.exists())
+        val content = proguardFile.readText()
+        assertTrue(
+            "CRITICAL INVARIANT VIOLATION (SEC-12): proguard-rules.pro must contain -assumenosideeffects class android.util.Log to strip framework logging in release builds",
+            content.contains("-assumenosideeffects class android.util.Log")
         )
     }
 }
