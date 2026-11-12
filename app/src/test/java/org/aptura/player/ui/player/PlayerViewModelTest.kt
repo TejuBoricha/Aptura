@@ -1966,6 +1966,12 @@ class PlayerViewModelTest {
         viewModel.setSubtitleBackgroundEnabled(true)
         assertTrue(viewModel.uiState.value.subtitleBackgroundEnabled)
 
+        viewModel.setSubtitleUseSystemStyle(false)
+        assertFalse(viewModel.uiState.value.subtitleUseSystemStyle)
+
+        viewModel.setSubtitleUseSystemStyle(true)
+        assertTrue(viewModel.uiState.value.subtitleUseSystemStyle)
+
         viewModel.clearForTesting()
     }
 

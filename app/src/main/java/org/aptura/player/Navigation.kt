@@ -901,6 +901,7 @@ private fun AppNavHost(
                             playerViewModel.setSubtitleFontSize(settings.subtitleFontSizeSp)
                             playerViewModel.setSubtitleTextColor(settings.subtitleTextColorHex)
                             playerViewModel.setSubtitleBackgroundEnabled(settings.subtitleBackgroundEnabled)
+                            playerViewModel.setSubtitleUseSystemStyle(settings.subtitleUseSystemStyle)
                         }
 
                         val uiState by playerViewModel.uiState.collectAsStateWithLifecycle()
@@ -1019,6 +1020,10 @@ private fun AppNavHost(
                             onSubtitleBackgroundChanged = { enabled ->
                                 playerViewModel.setSubtitleBackgroundEnabled(enabled)
                                 coroutineScope.launch { settingsRepository.updateSubtitleBackground(enabled) }
+                            },
+                            onSubtitleUseSystemStyleChanged = { enabled ->
+                                playerViewModel.setSubtitleUseSystemStyle(enabled)
+                                coroutineScope.launch { settingsRepository.updateSubtitleUseSystemStyle(enabled) }
                             },
                             onAddBookmark = playerViewModel::addBookmark,
                             onDeleteBookmark = playerViewModel::deleteBookmark,

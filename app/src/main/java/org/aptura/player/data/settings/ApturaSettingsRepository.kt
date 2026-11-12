@@ -43,6 +43,7 @@ internal object PreferencesKeys {
     val SUBTITLE_FONT_SIZE_SP = intPreferencesKey("subtitle_font_size_sp")
     val SUBTITLE_TEXT_COLOR_HEX = stringPreferencesKey("subtitle_text_color_hex")
     val SUBTITLE_BACKGROUND_ENABLED = booleanPreferencesKey("subtitle_background_enabled")
+    val SUBTITLE_USE_SYSTEM_STYLE = booleanPreferencesKey("subtitle_use_system_style")
     val DEFAULT_DECODER_STRATEGY = intPreferencesKey("default_decoder_strategy")
     val PERSISTED_SAF_FOLDERS = stringSetPreferencesKey("persisted_saf_folders")
     val FX_ENABLED = booleanPreferencesKey("fx_enabled")
@@ -109,6 +110,8 @@ data class ApturaSettings(
     val subtitleFontSizeSp: Int = 18,
     val subtitleTextColorHex: String = "#FFFFFF",
     val subtitleBackgroundEnabled: Boolean = false,
+    /** When enabled, follows system caption styles and font scale set in Android accessibility settings (audit A11Y-05). */
+    val subtitleUseSystemStyle: Boolean = true,
     val defaultDecoderStrategy: Int = 0, // 0: Auto, 1: Hardware, 2: Software
     val persistedSafFolders: Set<String> = emptySet(),
     /** Set to true when settings were recovered to defaults from a corrupted file (DATA-07). */
@@ -168,6 +171,7 @@ class ApturaSettingsRepository(private val context: Context) : AudioEffectsStore
                 subtitleFontSizeSp = preferences[PreferencesKeys.SUBTITLE_FONT_SIZE_SP] ?: 18,
                 subtitleTextColorHex = preferences[PreferencesKeys.SUBTITLE_TEXT_COLOR_HEX] ?: "#FFFFFF",
                 subtitleBackgroundEnabled = preferences[PreferencesKeys.SUBTITLE_BACKGROUND_ENABLED] ?: false,
+                subtitleUseSystemStyle = preferences[PreferencesKeys.SUBTITLE_USE_SYSTEM_STYLE] ?: true,
                 defaultDecoderStrategy = preferences[PreferencesKeys.DEFAULT_DECODER_STRATEGY] ?: 0,
                 persistedSafFolders = effectiveSaf,
                 wasResetByCorruption = wasReset,
@@ -301,6 +305,12 @@ class ApturaSettingsRepository(private val context: Context) : AudioEffectsStore
     suspend fun updateSubtitleBackground(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.SUBTITLE_BACKGROUND_ENABLED] = enabled
+        }
+    }
+
+    suspend fun updateSubtitleUseSystemStyle(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.SUBTITLE_USE_SYSTEM_STYLE] = enabled
         }
     }
 

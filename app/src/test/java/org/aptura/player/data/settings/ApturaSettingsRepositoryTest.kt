@@ -110,6 +110,12 @@ class ApturaSettingsRepositoryTest {
             repository.updateSubtitleBackground(true)
             assertTrue(awaitItem().subtitleBackgroundEnabled)
 
+            repository.updateSubtitleUseSystemStyle(false)
+            assertFalse(awaitItem().subtitleUseSystemStyle)
+
+            repository.updateSubtitleUseSystemStyle(true)
+            assertTrue(awaitItem().subtitleUseSystemStyle)
+
             // Update decoder strategy
             repository.updateDefaultDecoderStrategy(1)
             assertEquals(1, awaitItem().defaultDecoderStrategy)

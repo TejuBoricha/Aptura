@@ -1305,6 +1305,13 @@ class PlayerViewModel(
         }
     }
 
+    fun setSubtitleUseSystemStyle(enabled: Boolean) {
+        _uiState.update { it.copy(subtitleUseSystemStyle = enabled) }
+        viewModelScope.launch(dispatcher + errorHandler) {
+            settingsRepository?.updateSubtitleUseSystemStyle(enabled)
+        }
+    }
+
     fun setCleanSearchQuery(query: String) {
         _uiState.update { it.copy(cleanSearchQuery = query) }
     }
