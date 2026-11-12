@@ -28,6 +28,10 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.focusable
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.geometry.CornerRadius
@@ -408,6 +412,112 @@ fun PlayerScreen(
         audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 100
     }
 
+    val stepVolume = remember(audioManager, maxVolume) {
+        { delta: Int ->
+            if (audioManager != null && maxVolume > 0) {
+                val currentVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+                val newVol = (currentVol + delta).coerceIn(0, maxVolume)
+                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onVolumePercentChanged((newVol * 100 / maxVolume))
+            }
+        }
+    }
+
+    var lastNonZeroVolume by remember { mutableIntStateOf(maxVolume / 2) }
+    val toggleMute = remember(audioManager, maxVolume) {
+        {
+            if (audioManager != null && maxVolume > 0) {
+                val currentVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+                if (currentVol > 0) {
+                    lastNonZeroVolume = currentVol
+                    audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, 0, 0)
+                    onVolumePercentChanged(0)
+                } else {
+                    val restoreVol = lastNonZeroVolume.coerceIn(1, maxVolume)
+                    audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, restoreVol, 0)
+                    onVolumePercentChanged((restoreVol * 100 / maxVolume))
+                }
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            }
+        }
+    }
+
+    val dismissAnyActiveSheet = remember(uiState.isAnySheetVisible) {
+        {
+            if (uiState.isAnySheetVisible) {
+                onSpeedSheetVisible(false)
+                onAudioSheetVisible(false)
+                onSubtitleSheetVisible(false)
+                onAdvancedSheetVisible(false)
+                onQueueSheetVisible(false)
+                onDismissWhyCompatibilitySheet()
+                onDismissWebSearchDialog()
+                true
+            } else {
+                false
+            }
+        }
+    }
+
+    val toggleSubtitles = remember(uiState.subtitleTracks, uiState.selectedSubtitleTrackIndex) {
+        {
+            if (uiState.subtitleTracks.isNotEmpty()) {
+                if (uiState.selectedSubtitleTrackIndex != null) {
+                    onSubtitleTrackSelected(null)
+                } else {
+                    onSubtitleTrackSelected(0)
+                }
+            }
+        }
+    }
+
+    val seekToFraction = remember(player, uiState.durationMs) {
+        { fraction: Float ->
+            if (player != null && uiState.durationMs > 0) {
+                val targetMs = (uiState.durationMs * fraction).toLong().coerceIn(0L, uiState.durationMs)
+                player.seekTo(targetMs)
+            }
+        }
+    }
+
+    val keyActions = remember(
+        onPlayPauseClick,
+        onSeekRelative,
+        uiState.seekStepMs,
+        stepVolume,
+        toggleMute,
+        onResizeModeToggle,
+        toggleSubtitles,
+        onSkipNext,
+        onSkipPrevious,
+        dismissAnyActiveSheet,
+        onBackClick,
+        onTriggerLockHint,
+        seekToFraction
+    ) {
+        PlayerKeyActions(
+            onPlayPause = onPlayPauseClick,
+            onSeekRelative = onSeekRelative,
+            onSeekToFraction = seekToFraction,
+            onSeekToStart = { player?.seekTo(0L) },
+            onStepVolume = stepVolume,
+            onToggleMute = toggleMute,
+            onToggleResizeMode = onResizeModeToggle,
+            onToggleSubtitles = toggleSubtitles,
+            onSkipNext = onSkipNext,
+            onSkipPrevious = onSkipPrevious,
+            onDismissActiveSheet = dismissAnyActiveSheet,
+            onBack = onBackClick,
+            onTriggerLockHint = onTriggerLockHint
+        )
+    }
+
+    val playerFocusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        playerFocusRequester.requestFocus()
+    }
+
     androidx.compose.runtime.DisposableEffect(player) {
         onDispose {
             player?.clearVideoSurface()
@@ -426,6 +536,17 @@ fun PlayerScreen(
             // The player is always dark; keep the letterbox black even on the first frame, before the dark theme
             // override has been applied to the rest of the chrome.
             .background(Color.Black)
+            .focusRequester(playerFocusRequester)
+            .focusable()
+            .onKeyEvent { event ->
+                handlePlayerKeyEvent(
+                    event = event,
+                    isLocked = uiState.isLocked,
+                    isAnySheetVisible = uiState.isAnySheetVisible,
+                    seekStepMs = uiState.seekStepMs,
+                    actions = keyActions
+                )
+            }
     ) {
         val screenWidth = maxWidth
         val transport = TransportSizing(screenWidth)
@@ -678,20 +799,13 @@ fun PlayerScreen(
                                         change.consume()
                                         rightDragAccumulator -= dragAmount
                                         if (audioManager != null && maxVolume > 0) {
-                                            val currentVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
                                             val stepThreshold = (rightBoxHeightPx / maxVolume.toFloat()).coerceIn(20f, 60f)
                                             if (rightDragAccumulator > stepThreshold) {
-                                                val newVol = (currentVol + 1).coerceIn(0, maxVolume)
-                                                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
+                                                stepVolume(1)
                                                 rightDragAccumulator = 0f
-                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                onVolumePercentChanged((newVol * 100 / maxVolume))
                                             } else if (rightDragAccumulator < -stepThreshold) {
-                                                val newVol = (currentVol - 1).coerceIn(0, maxVolume)
-                                                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
+                                                stepVolume(-1)
                                                 rightDragAccumulator = 0f
-                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                onVolumePercentChanged((newVol * 100 / maxVolume))
                                             }
                                         }
                                     }
