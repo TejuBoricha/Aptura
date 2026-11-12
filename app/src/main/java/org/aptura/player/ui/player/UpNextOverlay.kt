@@ -200,7 +200,7 @@ fun UpNextOverlay(
                                 color = ApturaColors.TextHighEmphasis,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
+                                maxLines = 2,
                                 overflow = TextOverflow.Ellipsis
                             )
                             if (nextDurationMs != null && nextDurationMs > 0L) {

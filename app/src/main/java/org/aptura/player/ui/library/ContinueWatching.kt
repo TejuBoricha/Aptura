@@ -121,7 +121,7 @@ private fun ContinueWatchingCard(
             Text(
                 text = card.title,
                 style = ApturaTypography.titleMedium,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 color = ApturaColors.TextHighEmphasis
             )

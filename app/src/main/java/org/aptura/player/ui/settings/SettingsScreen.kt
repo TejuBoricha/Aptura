@@ -887,7 +887,7 @@ private fun FolderChip(name: String, onRemove: () -> Unit) {
             text = name,
             style = ApturaTypography.bodyMedium,
             color = ApturaColors.TextHighEmphasis,
-            maxLines = 1,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Start,
             modifier = Modifier.weight(1f)
@@ -938,7 +938,7 @@ private fun CodecSupportDialog(report: CodecSupportReport?, onDismiss: () -> Uni
             text = report?.deviceLabel ?: "Reading decoder list\u2026",
             style = ApturaTypography.labelMedium,
             color = ApturaColors.TextLowEmphasis,
-            maxLines = 1,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis
         )
         Spacer(modifier = Modifier.height(14.dp))
@@ -989,7 +989,7 @@ private fun CodecSection(title: String, entries: List<CodecSupportEntry>) {
                     text = entry.decoderName,
                     style = ApturaTypography.labelSmall,
                     color = ApturaColors.TextLowEmphasis,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
             }

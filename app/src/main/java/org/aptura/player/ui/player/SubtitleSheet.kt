@@ -270,7 +270,7 @@ private fun SubtitleTracksTab(
                             text = "${recent.displayName} • ${recent.languageLabel}",
                             style = ApturaTypography.labelSmall,
                             color = ApturaColors.TextHighEmphasis,
-                            maxLines = 1,
+                            maxLines = 2,
                             overflow = TextOverflow.Ellipsis
                         )
                     }
@@ -544,7 +544,7 @@ private fun TrackOptionCard(
                     text = title,
                     style = ApturaTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                     color = if (selected) ApturaColors.AccentPrimary else ApturaColors.TextHighEmphasis,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
                 Row(
@@ -771,7 +771,7 @@ private fun SubtitleStyleTab(
         SheetSection("Style source") {
             SheetSwitchRow(
                 title = "Use system caption style",
-                subtitle = "Follow size, colors and background set in Android accessibility settings",
+                subtitle = "Follow Android accessibility settings",
                 checked = useSystemStyle,
                 onCheckedChange = onUseSystemStyleChanged
             )

@@ -483,7 +483,7 @@ private fun QueueItemRow(
                             color = if (isPlaying) ApturaColors.AccentPrimary else ApturaColors.TextHighEmphasis,
                             fontSize = 14.sp,
                             fontWeight = if (isPlaying) FontWeight.SemiBold else FontWeight.Normal,
-                            maxLines = 1,
+                            maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false)
                         )

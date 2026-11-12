@@ -50,7 +50,7 @@ class SubtitleSystemStyleTest {
 
         // Verify "Use system caption style" switch and text exists
         composeRule.onNodeWithText("Use system caption style").assertExists()
-        composeRule.onNodeWithText("Follow size, colors and background set in Android accessibility settings").assertExists()
+        composeRule.onNodeWithText("Follow Android accessibility settings").assertExists()
 
         // Toggle the switch via semantics action (Robolectric bottom sheet requirement)
         composeRule.onNodeWithText("Use system caption style").performSemanticsAction(SemanticsActions.OnClick)

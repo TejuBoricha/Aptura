@@ -52,6 +52,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.SecureFlagPolicy
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.aptura.player.theme.ApturaColors
@@ -94,8 +95,9 @@ private fun RowScope.ButtonLabel(text: String, icon: ImageVector?) {
         text = text,
         style = ApturaTypography.labelLarge.copy(fontFeatureSettings = ""),
         fontWeight = FontWeight.SemiBold,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+        textAlign = TextAlign.Center
     )
 }
 
@@ -422,7 +424,7 @@ fun SectionTitle(
                 text = title,
                 style = ApturaTypography.headlineSmall,
                 color = ApturaColors.TextHighEmphasis,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .weight(1f, fill = false)

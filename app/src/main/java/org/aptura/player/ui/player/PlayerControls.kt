@@ -445,7 +445,7 @@ internal fun SheetOptionRow(
                 text = title,
                 style = ApturaTypography.titleMedium,
                 color = if (selected) ApturaColors.AccentPrimary else ApturaColors.TextHighEmphasis,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
             if (subtitle != null) {
