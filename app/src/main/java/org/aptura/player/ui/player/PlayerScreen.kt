@@ -292,6 +292,7 @@ fun PlayerScreen(
     onMoveQueueItem: (Int, Int) -> Unit = { _, _ -> },
     onRemoveQueueItem: (Int) -> Unit = {},
     onClearQueue: () -> Unit = {},
+    onUndoClearQueue: () -> Unit = {},
     onReplayCurrentItem: () -> Unit = {},
     onToggleStatsOverlay: () -> Unit = {},
     onWhyCompatibilityClick: () -> Unit = {},
@@ -1962,7 +1963,8 @@ fun PlayerScreen(
                 onMoveItem = onMoveQueueItem,
                 onRemoveItem = onRemoveQueueItem,
                 onClearQueue = onClearQueue,
-                onTogglePlayMode = onPlayModeToggle
+                onTogglePlayMode = onPlayModeToggle,
+                onUndoClearQueue = onUndoClearQueue
             )
         }
 

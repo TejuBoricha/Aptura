@@ -117,6 +117,7 @@ fun MediaDetailsContent(
     onOpenWithClick: () -> Unit = {},
     onShareClick: () -> Unit = {},
     onResetProgressClick: () -> Unit = {},
+    onUndoResetProgressClick: (Long, Boolean) -> Unit = { _, _ -> },
     onRenameClick: () -> Unit = {},
     onHideClick: () -> Unit = {},
     onDeleteClick: () -> Unit = {},
@@ -249,6 +250,7 @@ fun MediaDetailsContent(
 
         // ---- Progress -------------------------------------------------------------------------------------------
         val hasProgress = item.playbackPositionMs >= 1000L || item.isCompleted
+        var previousProgress by remember(item.uri) { mutableStateOf<Pair<Long, Boolean>?>(null) }
         DetailsSection("Progress") {
             Row(
                 modifier = Modifier
@@ -263,6 +265,7 @@ fun MediaDetailsContent(
                         item.playbackPositionMs >= 1000L ->
                             "Stopped at ${MediaFormatters.formatDuration(item.playbackPositionMs)} of " +
                                 MediaFormatters.formatDuration(item.durationMs)
+                        previousProgress != null -> "Progress reset"
                         else -> "Not started"
                     },
                     style = ApturaTypography.bodyLarge.copy(fontFeatureSettings = "tnum"),
@@ -270,7 +273,24 @@ fun MediaDetailsContent(
                     modifier = Modifier.weight(1f)
                 )
                 if (hasProgress) {
-                    ApturaTextButton(text = "Reset", onClick = onResetProgressClick, tone = ApturaTone.Accent)
+                    ApturaTextButton(
+                        text = "Reset",
+                        onClick = {
+                            previousProgress = item.playbackPositionMs to item.isCompleted
+                            onResetProgressClick()
+                        },
+                        tone = ApturaTone.Accent
+                    )
+                } else if (previousProgress != null) {
+                    ApturaTextButton(
+                        text = "Undo",
+                        onClick = {
+                            val saved = previousProgress ?: return@ApturaTextButton
+                            previousProgress = null
+                            onUndoResetProgressClick(saved.first, saved.second)
+                        },
+                        tone = ApturaTone.Accent
+                    )
                 }
             }
         }
@@ -529,6 +549,7 @@ fun MediaDetailsSheet(
     onOpenWithClick: () -> Unit = {},
     onShareClick: () -> Unit,
     onResetProgressClick: () -> Unit = {},
+    onUndoResetProgressClick: (Long, Boolean) -> Unit = { _, _ -> },
     onRenameClick: () -> Unit = {},
     onHideClick: () -> Unit = {},
     onDeleteClick: () -> Unit = {},
@@ -562,6 +583,7 @@ fun MediaDetailsSheet(
             },
             onShareClick = onShareClick,
             onResetProgressClick = onResetProgressClick,
+            onUndoResetProgressClick = onUndoResetProgressClick,
             onRenameClick = {
                 onDismiss()
                 onRenameClick()

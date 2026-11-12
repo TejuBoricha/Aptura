@@ -1073,6 +1073,24 @@ class Media3PlaybackController(
         publishQueue()
     }
 
+    override suspend fun restoreClearedQueue(
+        beforeCurrent: List<DomainMediaItem>,
+        afterCurrent: List<DomainMediaItem>
+    ) {
+        if (queueItems.isEmpty()) return
+        if (beforeCurrent.isNotEmpty()) {
+            queueItems.addAll(0, beforeCurrent)
+            val beforeMedia = beforeCurrent.map { buildMediaItem(it, emptyList(), null) }
+            player.addMediaItems(0, beforeMedia)
+        }
+        if (afterCurrent.isNotEmpty()) {
+            queueItems.addAll(afterCurrent)
+            val afterMedia = afterCurrent.map { buildMediaItem(it, emptyList(), null) }
+            player.addMediaItems(afterMedia)
+        }
+        publishQueue()
+    }
+
     override suspend fun setPlaybackSpeed(speed: Float) {
         val clampedSpeed = speed.coerceIn(0.1f, 4.0f)
         player.setPlaybackSpeed(clampedSpeed)

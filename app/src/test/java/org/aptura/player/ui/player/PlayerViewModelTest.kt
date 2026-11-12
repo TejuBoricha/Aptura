@@ -327,6 +327,18 @@ class PlayerViewModelTest {
             _playbackQueue.value = if (current != null) queue.copy(items = listOf(current), currentIndex = 0) else DomainPlaybackQueue()
         }
 
+        override suspend fun restoreClearedQueue(
+            beforeCurrent: List<DomainMediaItem>,
+            afterCurrent: List<DomainMediaItem>
+        ) {
+            val queue = _playbackQueue.value
+            val current = queue.currentItem ?: return
+            _playbackQueue.value = queue.copy(
+                items = beforeCurrent + current + afterCurrent,
+                currentIndex = beforeCurrent.size
+            )
+        }
+
         override suspend fun release() {}
     }
 
@@ -3555,6 +3567,38 @@ class PlayerViewModelTest {
         viewModel.toggleControlsVisibility()
         assertTrue(viewModel.uiState.value.isControlsVisible)
         assertEquals(1750L, viewModel.uiState.value.currentPositionMs)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun clearQueue_andUndoClearQueue_restoresItemsBeforeAndAfterCurrent() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repo = FakeMediaRepository()
+        val viewModel = PlayerViewModel(
+            playbackController = controller,
+            mediaRepository = repo,
+            dispatcher = testDispatcher
+        )
+
+        val item1 = DomainMediaItem(uri = "content://media/1", title = "Ep 1", durationMs = 60_000L, sizeBytes = 100L, mimeType = "video/mp4")
+        val item2 = DomainMediaItem(uri = "content://media/2", title = "Ep 2", durationMs = 60_000L, sizeBytes = 100L, mimeType = "video/mp4")
+        val item3 = DomainMediaItem(uri = "content://media/3", title = "Ep 3", durationMs = 60_000L, sizeBytes = 100L, mimeType = "video/mp4")
+
+        viewModel.playQueue(listOf(item1, item2, item3), startIndex = 1)
+        runCurrent()
+        assertEquals(listOf(item1, item2, item3), viewModel.uiState.value.queueItems)
+        assertEquals(1, viewModel.uiState.value.currentQueueIndex)
+
+        viewModel.clearQueue()
+        runCurrent()
+        assertEquals(listOf(item2), viewModel.uiState.value.queueItems)
+        assertEquals(0, viewModel.uiState.value.currentQueueIndex)
+
+        viewModel.undoClearQueue()
+        runCurrent()
+        assertEquals(listOf(item1, item2, item3), viewModel.uiState.value.queueItems)
+        assertEquals(1, viewModel.uiState.value.currentQueueIndex)
 
         viewModel.clearForTesting()
     }

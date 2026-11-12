@@ -100,6 +100,36 @@ class PlaybackQueueUiTest {
     }
 
     @Test
+    fun playbackQueueSheet_clearQueueShowsUndo_andUndoRestoresClearedQueue() {
+        var cleared = false
+        var undone = false
+
+        composeTestRule.setContent {
+            ApturaTheme {
+                PlaybackQueueContent(
+                    queueItems = sampleItems,
+                    currentIndex = 1,
+                    playMode = PlayMode.NORMAL,
+                    onJumpToItem = {},
+                    onMoveItem = { _, _ -> },
+                    onRemoveItem = {},
+                    onClearQueue = { cleared = true },
+                    onTogglePlayMode = {},
+                    onUndoClearQueue = { undone = true }
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithContentDescription("Clear queue").performClick()
+        assertTrue(cleared)
+        composeTestRule.onNodeWithText("Cleared 2 videos from queue").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Undo").assertIsDisplayed()
+
+        composeTestRule.onNodeWithText("Undo").performClick()
+        assertTrue(undone)
+    }
+
+    @Test
     fun playbackQueueSheet_playModeToggleWorks() {
         var playModeToggled = false
 

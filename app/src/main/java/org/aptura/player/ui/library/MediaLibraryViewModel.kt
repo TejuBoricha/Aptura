@@ -244,10 +244,19 @@ class MediaLibraryViewModel(
         }
     }
 
+    private var lastResetProgress: Triple<String, Long, Boolean>? = null
+
     /** Hides a video from the library; the hide survives rescans until restored. */
     fun hideVideo(uri: String) {
         viewModelScope.launch(dispatcher + errorHandler) {
             mediaRepository.hideVideo(uri)
+        }
+    }
+
+    /** Restores a single hidden video after a hide action is undone (audit UX-03). */
+    fun unhideVideo(uri: String) {
+        viewModelScope.launch(dispatcher + errorHandler) {
+            mediaRepository.unhideVideo(uri)
         }
     }
 
@@ -293,8 +302,24 @@ class MediaLibraryViewModel(
 
     fun resetVideoProgress(uri: String) {
         viewModelScope.launch(dispatcher + errorHandler) {
+            val existing = mediaRepository.getVideoByUri(uri)
+            if (existing != null && (existing.playbackPositionMs > 0L || existing.isCompleted)) {
+                lastResetProgress = Triple(uri, existing.playbackPositionMs, existing.isCompleted)
+            }
             mediaRepository.savePlaybackPosition(uri, 0L, isCompleted = false)
         }
+    }
+
+    fun restoreVideoProgress(uri: String, positionMs: Long, isCompleted: Boolean) {
+        viewModelScope.launch(dispatcher + errorHandler) {
+            mediaRepository.savePlaybackPosition(uri, positionMs, isCompleted = isCompleted)
+        }
+    }
+
+    fun undoResetVideoProgress() {
+        val prev = lastResetProgress ?: return
+        lastResetProgress = null
+        restoreVideoProgress(prev.first, prev.second, prev.third)
     }
 
     fun onSearchQueryChanged(newQuery: String) {

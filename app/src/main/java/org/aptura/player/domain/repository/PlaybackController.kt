@@ -62,6 +62,17 @@ interface PlaybackController {
     suspend fun removeFromQueue(index: Int) {}
     suspend fun moveQueueItem(fromIndex: Int, toIndex: Int) {}
     suspend fun clearQueue() {}
+    suspend fun restoreClearedQueue(
+        beforeCurrent: List<DomainMediaItem>,
+        afterCurrent: List<DomainMediaItem>
+    ) {
+        afterCurrent.forEach { addToQueue(it) }
+        beforeCurrent.forEachIndexed { idx, item ->
+            addToQueue(item)
+            val lastIdx = playbackQueue.value.items.lastIndex
+            if (lastIdx > idx) moveQueueItem(lastIdx, idx)
+        }
+    }
 
     /** When true the player pauses at the end of every item (so the Up Next countdown can run); false = gapless. */
     suspend fun setPauseAtEndOfItems(enabled: Boolean) {}

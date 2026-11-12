@@ -802,9 +802,25 @@ class PlayerViewModel(
         }
     }
 
+    private var lastClearedQueue: Pair<List<DomainMediaItem>, List<DomainMediaItem>>? = null
+
     fun clearQueue() {
+        val queue = playbackController.playbackQueue.value
+        if (queue.items.size > 1 && queue.currentIndex in queue.items.indices) {
+            val before = queue.items.subList(0, queue.currentIndex).toList()
+            val after = queue.items.subList(queue.currentIndex + 1, queue.items.size).toList()
+            lastClearedQueue = before to after
+        }
         viewModelScope.launch(dispatcher + errorHandler) {
             playbackController.clearQueue()
+        }
+    }
+
+    fun undoClearQueue() {
+        val cleared = lastClearedQueue ?: return
+        lastClearedQueue = null
+        viewModelScope.launch(dispatcher + errorHandler) {
+            playbackController.restoreClearedQueue(cleared.first, cleared.second)
         }
     }
 

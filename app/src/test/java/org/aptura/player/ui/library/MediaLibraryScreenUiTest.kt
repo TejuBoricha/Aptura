@@ -345,6 +345,7 @@ class MediaLibraryScreenUiTest {
     @Config(sdk = [34], qualifiers = "w900dp-h1100dp-xhdpi")
     fun longPressEntersMultiSelect_andHideActionIsNonDestructive() {
         val hiddenUris = mutableListOf<String>()
+        val unhiddenUris = mutableListOf<String>()
         composeTestRule.setContent {
             ApturaTheme {
                 MediaLibraryScreen(
@@ -360,7 +361,8 @@ class MediaLibraryScreenUiTest {
                     onFolderSelected = {},
                     onSortOrderChanged = {},
                     onRefresh = {},
-                    onRemoveVideo = { hiddenUris += it }
+                    onRemoveVideo = { hiddenUris += it },
+                    onUnhideVideo = { unhiddenUris += it }
                 )
             }
         }
@@ -377,6 +379,9 @@ class MediaLibraryScreenUiTest {
         composeTestRule.onNodeWithText("Hide videos").performClick()
 
         assertEquals(setOf("content://media/1", "content://media/2"), hiddenUris.toSet())
+        composeTestRule.onNodeWithText("2 videos hidden").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Undo").performClick()
+        assertEquals(setOf("content://media/1", "content://media/2"), unhiddenUris.toSet())
     }
 
     @Test
@@ -811,5 +816,79 @@ class MediaLibraryScreenUiTest {
 
         assertEquals("onVideoDeleted was called for the deleted video", listOf(targetUri), deletedCalls)
         assertTrue("onVideoMovedAway was NEVER called for explicit deletion", movedAwayCalls.isEmpty())
+    }
+
+    @Test
+    fun singleVideoHide_immediatelyHidesWithoutDialog_andShowsSnackbarUndo() {
+        val hiddenUris = mutableListOf<String>()
+        val unhiddenUris = mutableListOf<String>()
+
+        composeTestRule.setContent {
+            ApturaTheme {
+                MediaLibraryScreen(
+                    uiState = MediaLibraryUiState.Success(
+                        videos = sampleUiVideos.take(1),
+                        folders = listOf("Movies"),
+                        selectedFolder = null,
+                        searchQuery = "",
+                        sortOrder = LibrarySortOrder.DATE_ADDED_DESC
+                    ),
+                    onVideoClick = { _, _ -> },
+                    onSearchQueryChanged = {},
+                    onFolderSelected = {},
+                    onSortOrderChanged = {},
+                    onRefresh = {},
+                    onRemoveVideo = { hiddenUris += it },
+                    onUnhideVideo = { unhiddenUris += it }
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithContentDescription("More actions for Oppenheimer").performClick()
+        composeTestRule.onNodeWithText("Hide from library").performClick()
+
+        // Single-item hide is non-destructive and immediate, showing an undo snackbar instead of a modal confirmation
+        assertEquals(listOf("content://media/1"), hiddenUris)
+        composeTestRule.onNodeWithText("\"Oppenheimer\" hidden from library").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Undo").performClick()
+        assertEquals(listOf("content://media/1"), unhiddenUris)
+    }
+
+    @Test
+    fun resetProgress_inMediaDetailsContent_showsUndo_andRestoresPreviousProgress() {
+        var resetCalled = false
+        var restored: Pair<Long, Boolean>? = null
+
+        composeTestRule.setContent {
+            var currentItem by remember {
+                mutableStateOf(
+                    sampleVideos.first().copy(playbackPositionMs = 45_000L, isCompleted = false)
+                )
+            }
+            ApturaTheme {
+                MediaDetailsContent(
+                    item = currentItem,
+                    onClose = {},
+                    onPlayClick = {},
+                    onResetProgressClick = {
+                        resetCalled = true
+                        currentItem = currentItem.copy(playbackPositionMs = 0L, isCompleted = false)
+                    },
+                    onUndoResetProgressClick = { pos, completed ->
+                        restored = pos to completed
+                        currentItem = currentItem.copy(playbackPositionMs = pos, isCompleted = completed)
+                    }
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithText("Reset").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Reset").performClick()
+        assertTrue(resetCalled)
+
+        composeTestRule.onNodeWithText("Progress reset").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Undo").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Undo").performClick()
+        assertEquals(45_000L to false, restored)
     }
 }

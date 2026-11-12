@@ -48,7 +48,11 @@ class MediaLibraryViewModelTest {
         override suspend fun getVideoByUri(uri: String): DomainMediaItem? =
             videosFlow.value.firstOrNull { it.uri == uri }
 
-        override suspend fun savePlaybackPosition(uri: String, positionMs: Long, isCompleted: Boolean) {}
+        override suspend fun savePlaybackPosition(uri: String, positionMs: Long, isCompleted: Boolean) {
+            videosFlow.value = videosFlow.value.map {
+                if (it.uri == uri) it.copy(playbackPositionMs = positionMs, isCompleted = isCompleted) else it
+            }
+        }
 
         override suspend fun removeVideoFromLibrary(uri: String) {
             videosFlow.value = videosFlow.value.filter { it.uri != uri }
@@ -74,9 +78,19 @@ class MediaLibraryViewModelTest {
         }
 
         val hiddenUris = MutableStateFlow<Set<String>>(emptySet())
+        private val hiddenItems = mutableMapOf<String, DomainMediaItem>()
         override suspend fun hideVideo(uri: String) {
+            videosFlow.value.firstOrNull { it.uri == uri }?.let { hiddenItems[uri] = it }
             hiddenUris.value = hiddenUris.value + uri
             videosFlow.value = videosFlow.value.filter { it.uri != uri }
+        }
+        override suspend fun unhideVideo(uri: String) {
+            hiddenUris.value = hiddenUris.value - uri
+            hiddenItems.remove(uri)?.let { restored ->
+                if (videosFlow.value.none { it.uri == uri }) {
+                    videosFlow.value = videosFlow.value + restored
+                }
+            }
         }
         override suspend fun restoreHiddenVideos() { hiddenUris.value = emptySet() }
         override fun getHiddenVideoCount(): Flow<Int> = kotlinx.coroutines.flow.MutableStateFlow(0)
@@ -914,5 +928,38 @@ class MediaLibraryViewModelTest {
             assertTrue("the permission screen was held back for $waitedMs ms", waitedMs < 1_000)
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun hideAndUnhideVideo_andResetAndUndoProgress_restoreSavedState() = runTest(testDispatcher) {
+        val repo = FakeMediaRepository()
+        val item = DomainMediaItem(
+            uri = "content://media/42",
+            title = "Arrival",
+            durationMs = 120_000L,
+            sizeBytes = 1000L,
+            mimeType = "video/mp4",
+            playbackPositionMs = 45_000L,
+            isCompleted = false
+        )
+        repo.videosFlow.value = listOf(item)
+        val viewModel = MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 0L)
+
+        viewModel.hideVideo(item.uri)
+        runCurrent()
+        assertTrue(item.uri in repo.hiddenUris.value)
+
+        viewModel.unhideVideo(item.uri)
+        runCurrent()
+        assertFalse(item.uri in repo.hiddenUris.value)
+        assertEquals(1, repo.videosFlow.value.size)
+
+        viewModel.resetVideoProgress(item.uri)
+        runCurrent()
+        assertEquals(0L, repo.getVideoByUri(item.uri)?.playbackPositionMs)
+
+        viewModel.undoResetVideoProgress()
+        runCurrent()
+        assertEquals(45_000L, repo.getVideoByUri(item.uri)?.playbackPositionMs)
     }
 }
