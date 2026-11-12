@@ -238,6 +238,20 @@ class PlayerGalleryTest : GalleryBase() {
     @Test fun why() { player(base.copy(activeSheet = PlayerSheet.WhyCompatibility)); shoot("sheet_why") }
     @Test fun web() { player(base.copy(activeSheet = PlayerSheet.WebSearch, cleanSearchQuery = "Blade Runner 2049")); shoot("sheet_websearch") }
 
+    // 200% Accessibility Font Scale Gallery Verification (A11Y-07)
+    @Config(fontScale = 2.0f)
+    @Test fun hudFont200() { player(base); shoot("player_hud_font200") }
+    @Config(fontScale = 2.0f)
+    @Test fun speedFont200() { player(base.copy(activeSheet = PlayerSheet.Speed)); shoot("sheet_speed_font200") }
+    @Config(fontScale = 2.0f)
+    @Test fun audioFont200() { player(base.copy(activeSheet = PlayerSheet.Audio)); shoot("sheet_audio_font200") }
+    @Config(fontScale = 2.0f)
+    @Test fun subtitleFont200() { player(base.copy(activeSheet = PlayerSheet.Subtitle)); shoot("sheet_subtitle_font200") }
+    @Config(fontScale = 2.0f)
+    @Test fun advancedFont200() { player(base.copy(activeSheet = PlayerSheet.Advanced)); shoot("sheet_advanced_font200") }
+    @Config(fontScale = 2.0f)
+    @Test fun queueFont200() { player(base.copy(activeSheet = PlayerSheet.Queue)); shoot("sheet_queue_font200") }
+
     @Test fun audioOnly() { player(base.copy(isAudioOnly = true, videoTitle = "VID-20260928-WA0034")); shoot("player_audio_only") }
 
     @Config(qualifiers = "w740dp-h360dp-xhdpi")

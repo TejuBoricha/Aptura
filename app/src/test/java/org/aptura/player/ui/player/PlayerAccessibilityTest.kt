@@ -153,7 +153,7 @@ class PlayerAccessibilityTest {
         listOf(
             "Back", "More options", "Playback queue",
             "Previous video", "Rewind 10s", "Pause", "Forward 10s", "Next video",
-            "Lock controls", "Subtitles", "Audio track", "Advanced settings",
+            "Lock controls", "Subtitles", "Audio track", "Playback tools",
             "Play mode: play in order"
         ).forEach { description ->
             composeRule.onNodeWithContentDescription(description).assertTouchTarget48()
