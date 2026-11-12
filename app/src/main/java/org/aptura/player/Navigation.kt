@@ -168,6 +168,8 @@ fun MainNavigation(
     isPipMode: Boolean = false,
     // Devices without the PiP feature (some TVs and low-end tablets) must not show a control that can never work.
     pipSupported: Boolean = true,
+    // Large screens (tablets/foldables sw >= 600dp) hide the orientation toggle (UX-08).
+    orientationSupported: Boolean = true,
     onEnterPip: () -> Unit = {},
     onPlayerRouteActiveChanged: (Boolean) -> Unit = {}
 ) {
@@ -208,6 +210,7 @@ fun MainNavigation(
                     onShowPlayerHandled = onShowPlayerHandled,
                     isPipMode = isPipMode,
                     pipSupported = pipSupported,
+                    orientationSupported = orientationSupported,
                     onEnterPip = onEnterPip,
                     onPlayerRouteActiveChanged = onPlayerRouteActiveChanged
                 )
@@ -228,6 +231,7 @@ private fun AppNavHost(
     onShowPlayerHandled: () -> Unit,
     isPipMode: Boolean,
     pipSupported: Boolean,
+    orientationSupported: Boolean,
     onEnterPip: () -> Unit,
     onPlayerRouteActiveChanged: (Boolean) -> Unit
 ) {
@@ -937,6 +941,7 @@ private fun AppNavHost(
                             player = playbackController.player,
                             isPipMode = isPipMode,
                             pipSupported = pipSupported,
+                            orientationSupported = orientationSupported,
                             onEnterPip = onEnterPip,
                             onBackClick = { handleBack(backStack, dismissPlayerAndResetOrientation) },
                             onPlayPauseClick = playerViewModel::togglePlayPause,

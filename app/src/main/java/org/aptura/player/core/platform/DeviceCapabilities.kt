@@ -18,4 +18,13 @@ object DeviceCapabilities {
         sdkInt: Int = Build.VERSION.SDK_INT
     ): Boolean = sdkInt >= Build.VERSION_CODES.O &&
         packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+
+    /**
+     * Large screens (tablets and foldables with sw >= 600dp) generally ignore requested orientation
+     * or letterbox the app inappropriately (UX-08, Android 16 large screens). Hiding the orientation
+     * toggle on large screens avoids offering a control that either does nothing or breaks tablet ergonomics.
+     */
+    fun supportsOrientationLock(
+        smallestScreenWidthDp: Int
+    ): Boolean = smallestScreenWidthDp < 600
 }
