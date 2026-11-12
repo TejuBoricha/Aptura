@@ -91,6 +91,7 @@ class MainActivity : ComponentActivity() {
                 onShowPlayerHandled = { pendingShowPlayer = false },
                 isPipMode = isPipMode.value,
                 pipSupported = supportsPictureInPicture(),
+                orientationSupported = supportsOrientationLock(),
                 onEnterPip = ::enterPictureInPicture,
                 onPlayerRouteActiveChanged = { active ->
                     isPlayerRouteActive = active
@@ -212,6 +213,9 @@ class MainActivity : ComponentActivity() {
 
     private fun supportsPictureInPicture(): Boolean =
         DeviceCapabilities.supportsPictureInPicture(packageManager)
+
+    private fun supportsOrientationLock(): Boolean =
+        DeviceCapabilities.supportsOrientationLock(resources.configuration.smallestScreenWidthDp)
 
     /** True only when the user is on the Player screen and actively playing video (not in Audio-Only mode). */
     private fun isPlayingVideo(): Boolean {

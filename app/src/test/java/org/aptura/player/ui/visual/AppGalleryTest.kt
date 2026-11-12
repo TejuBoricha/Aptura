@@ -249,6 +249,12 @@ class PlayerGalleryTest : GalleryBase() {
     @Config(qualifiers = "w320dp-h640dp-xhdpi")
     @Test fun smallPortraitAudioOnly() { player(base.copy(isAudioOnly = true, videoTitle = "VID-20260928-WA0034")); shoot("player_audio_only_small_portrait") }
 
+    @Config(qualifiers = "w1280dp-h800dp-xhdpi")
+    @Test fun tabletHud() { player(base); shoot("player_tablet_hud") }
+
+    @Config(qualifiers = "w891dp-h411dp-xhdpi")
+    @Test fun landscapePhoneHud() { player(base); shoot("player_phone_landscape_hud") }
+
     @Config(qualifiers = "w740dp-h360dp-xhdpi")
     @Test fun smallSidewaysHud() { player(base); shoot("player_small_sideways_hud") }
 

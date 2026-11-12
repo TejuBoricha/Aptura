@@ -12,9 +12,9 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/** On a tablet-width window there is room for everything, so nothing hides behind the overflow menu. */
+/** On a wide phone held sideways there is room for everything, so nothing hides behind the overflow menu. */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34], qualifiers = "w800dp-h600dp-xhdpi")
+@Config(sdk = [34], qualifiers = "w891dp-h411dp-xhdpi")
 class PlayerWideTopBarTest {
 
     @get:Rule
@@ -63,6 +63,30 @@ class PlayerWideTopBarTest {
         assertEquals(0, composeRule.onAllNodes(hasContentDescription("Picture in picture")).fetchSemanticsNodes().size)
         listOf("Screen orientation", "Aspect ratio", "Speed").forEach { description ->
             composeRule.onNodeWithContentDescription(description).assertIsDisplayed()
+        }
+    }
+
+    @Test
+    @Config(qualifiers = "w1280dp-h800dp-xhdpi")
+    fun onATablet_theOrientationControlIsHidden_butTheOtherActionsStay() {
+        composeRule.setContent {
+            ApturaTheme {
+                PlayerScreen(
+                    uiState = PlayerUiState(videoTitle = "Show.S01E01", durationMs = 120_000L, isPlaying = true, isControlsVisible = true),
+                    player = null,
+                    onBackClick = {}, onPlayPauseClick = {}, onSeekRelative = {}, onScrubStart = {}, onScrubMove = {},
+                    onScrubEnd = {}, onControlsVisibilityToggle = {}, onLockToggle = {}, onSpeedSelected = {},
+                    onResizeModeToggle = {}, onSpeedSheetVisible = {}, onAudioSheetVisible = {}, onSubtitleSheetVisible = {},
+                    onAudioTrackSelected = {}, onSubtitleTrackSelected = {}, onVolumePercentChanged = {},
+                    onBrightnessPercentChanged = {}, onRetryPlayback = {}
+                )
+            }
+        }
+
+        assertEquals(0, composeRule.onAllNodes(hasContentDescription("Screen orientation")).fetchSemanticsNodes().size)
+        listOf("Picture in picture", "Aspect ratio", "Speed").forEach { description ->
+            composeRule.onNodeWithContentDescription(description).assertIsDisplayed()
+                .assertTouchTarget(composeRule.density)
         }
     }
 }

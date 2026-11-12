@@ -270,6 +270,10 @@ fun PlayerScreen(
     isPipMode: Boolean = false,
     // False on devices without the PiP system feature: the control is hidden instead of failing silently.
     pipSupported: Boolean = true,
+    // False on large screens (tablets/foldables sw >= 600dp) where orientation locking is ignored or disruptive (UX-08).
+    orientationSupported: Boolean = org.aptura.player.core.platform.DeviceCapabilities.supportsOrientationLock(
+        androidx.compose.ui.platform.LocalConfiguration.current.smallestScreenWidthDp
+    ),
     onEnterPip: () -> Unit = {},
     onExternalSubtitleSelected: (android.net.Uri, String, String) -> Unit = { _, _, _ -> },
     onRemoveExternalSubtitle: (String) -> Unit = {},
@@ -355,9 +359,11 @@ fun PlayerScreen(
         }
     }
 
-    DisposableEffect(activity) {
+    DisposableEffect(activity, orientationSupported) {
         onDispose {
-            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            if (orientationSupported) {
+                activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            }
         }
     }
 
@@ -1115,7 +1121,9 @@ fun PlayerScreen(
                         var overflowOpen by remember { mutableStateOf(false) }
 
                         if (!compactTopBar) {
-                            TopBarIconButton(Icons.Filled.ScreenRotation, "Screen orientation", orientationTint, onOrientationClick)
+                            if (orientationSupported) {
+                                TopBarIconButton(Icons.Filled.ScreenRotation, "Screen orientation", orientationTint, onOrientationClick)
+                            }
                             if (pipSupported) {
                                 TopBarIconButton(Icons.Filled.PictureInPictureAlt, "Picture in picture", ApturaColors.TextHighEmphasis, onEnterPip)
                             }
@@ -1175,9 +1183,11 @@ fun PlayerScreen(
                                         overflowOpen = false
                                         onResizeModeToggle()
                                     }
-                                    OverflowMenuItem(Icons.Filled.ScreenRotation, "Screen orientation") {
-                                        overflowOpen = false
-                                        onOrientationClick()
+                                    if (orientationSupported) {
+                                        OverflowMenuItem(Icons.Filled.ScreenRotation, "Screen orientation") {
+                                            overflowOpen = false
+                                            onOrientationClick()
+                                        }
                                     }
                                     if (pipSupported) {
                                         OverflowMenuItem(Icons.Filled.PictureInPictureAlt, "Picture in picture") {

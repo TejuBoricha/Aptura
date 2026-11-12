@@ -45,4 +45,19 @@ class DeviceCapabilitiesTest {
             DeviceCapabilities.supportsPictureInPicture(packageManager, sdkInt = Build.VERSION_CODES.N)
         )
     }
+
+    @Test
+    fun phones_supportOrientationLock() {
+        assertTrue(DeviceCapabilities.supportsOrientationLock(smallestScreenWidthDp = 360))
+        assertTrue(DeviceCapabilities.supportsOrientationLock(smallestScreenWidthDp = 411))
+        assertTrue(DeviceCapabilities.supportsOrientationLock(smallestScreenWidthDp = 599))
+    }
+
+    @Test
+    fun largeScreensAndTablets_hideOrientationLock() {
+        assertFalse(DeviceCapabilities.supportsOrientationLock(smallestScreenWidthDp = 600))
+        assertFalse(DeviceCapabilities.supportsOrientationLock(smallestScreenWidthDp = 700))
+        assertFalse(DeviceCapabilities.supportsOrientationLock(smallestScreenWidthDp = 800))
+        assertFalse(DeviceCapabilities.supportsOrientationLock(smallestScreenWidthDp = 1280))
+    }
 }
