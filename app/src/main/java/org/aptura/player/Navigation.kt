@@ -941,8 +941,11 @@ private fun AppNavHost(
                             }
                         }
 
+                        val positionState = playerViewModel.positionState.collectAsStateWithLifecycle()
+
                         PlayerScreen(
                             uiState = uiState,
+                            positionProvider = { positionState.value },
                             player = playbackController.player,
                             isPipMode = isPipMode,
                             pipSupported = pipSupported,

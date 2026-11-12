@@ -63,6 +63,16 @@ sealed interface PlayerSheet {
 }
 
 /**
+ * Fast-changing playback position separated from [PlayerUiState] so 250 ms position ticks
+ * only invalidate the leaf time label and scrubber draw phase without recomposing [PlayerScreen].
+ */
+@Immutable
+data class PlayerPositionState(
+    val currentPositionMs: Long = 0L,
+    val bufferedPositionMs: Long = 0L
+)
+
+/**
  * Immutable UI state for the video player screen (SCR-010).
  * Backed by Unidirectional Data Flow (UDF) from PlayerViewModel.
  */

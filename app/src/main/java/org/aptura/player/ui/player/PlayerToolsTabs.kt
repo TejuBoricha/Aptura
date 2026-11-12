@@ -86,7 +86,10 @@ internal fun PlaybackToolsTab(
     onDeleteBookmark: (Long) -> Unit,
     onUpdateBookmarkNote: (Long, String) -> Unit,
     onToggleStatsOverlay: () -> Unit,
-    onResetVideoPreferences: () -> Unit
+    onResetVideoPreferences: () -> Unit,
+    positionProvider: () -> PlayerPositionState = {
+        PlayerPositionState(uiState.currentPositionMs, uiState.bufferedPositionMs)
+    }
 ) {
     val context = LocalContext.current
     Column(verticalArrangement = Arrangement.spacedBy(22.dp)) {
@@ -266,10 +269,7 @@ internal fun PlaybackToolsTab(
 
         SheetSection("Frame by frame") {
             // To the millisecond: frame stepping is how people find an exact cut, and m:ss can't tell frames apart.
-            SheetRowText(
-                title = "At ${MediaFormatters.formatDuration(uiState.currentPositionMs)}.${"%03d".format(uiState.currentPositionMs.coerceAtLeast(0L) % 1000)}",
-                subtitle = "Pauses the video and moves one frame at a time"
-            )
+            FrameStepPositionRow(positionProvider = positionProvider)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 ApturaOutlinedButton(
                     text = "Previous",
@@ -289,10 +289,9 @@ internal fun PlaybackToolsTab(
         SheetSection(
             "Bookmarks",
             trailing = {
-                ApturaTextButton(
-                    text = "Add at ${MediaFormatters.formatDuration(uiState.currentPositionMs)}",
-                    onClick = onAddBookmark,
-                    tone = ApturaTone.Accent
+                AddBookmarkAtPositionButton(
+                    positionProvider = positionProvider,
+                    onClick = onAddBookmark
                 )
             }
         ) {
@@ -350,6 +349,28 @@ internal fun PlaybackToolsTab(
             )
         }
     }
+}
+
+@Composable
+private fun FrameStepPositionRow(positionProvider: () -> PlayerPositionState) {
+    val posMs = positionProvider().currentPositionMs
+    SheetRowText(
+        title = "At ${MediaFormatters.formatDuration(posMs)}.${"%03d".format(posMs.coerceAtLeast(0L) % 1000)}",
+        subtitle = "Pauses the video and moves one frame at a time"
+    )
+}
+
+@Composable
+private fun AddBookmarkAtPositionButton(
+    positionProvider: () -> PlayerPositionState,
+    onClick: () -> Unit
+) {
+    val posMs = positionProvider().currentPositionMs
+    ApturaTextButton(
+        text = "Add at ${MediaFormatters.formatDuration(posMs)}",
+        onClick = onClick,
+        tone = ApturaTone.Accent
+    )
 }
 
 @Composable
