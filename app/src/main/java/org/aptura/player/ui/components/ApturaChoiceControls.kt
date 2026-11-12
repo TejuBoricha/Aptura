@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
@@ -67,6 +68,10 @@ fun TonalSegmentedPicker(
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
+    val fontScale = androidx.compose.ui.platform.LocalDensity.current.fontScale
+    // Proportionally scale down font size when accessibility font scale is enlarged (> 1.15f)
+    // so that single-word options (e.g. "Comfortable") fit within column segments without ellipsis.
+    val effectiveSp = if (fontScale > 1.15f) (14f / (fontScale / 1.15f)).sp else 14.sp
     val position by animateFloatAsState(
         targetValue = selectedIndex.coerceAtLeast(0).toFloat(),
         animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMedium),
@@ -80,7 +85,7 @@ fun TonalSegmentedPicker(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(48.dp)
+            .heightIn(min = 48.dp)
             .clip(trackShape)
             .background(ApturaColors.SurfaceRecessed)
             .border(1.dp, ApturaColors.BorderSubtle, trackShape)
@@ -123,12 +128,13 @@ fun TonalSegmentedPicker(
             ) {
                 Text(
                     text = text,
-                    style = ApturaTypography.titleMedium.copy(fontSize = 14.sp),
+                    style = ApturaTypography.titleMedium.copy(fontSize = effectiveSp),
                     color = textColor,
                     fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
                     maxLines = 2,
                     softWrap = true,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
             }
         }

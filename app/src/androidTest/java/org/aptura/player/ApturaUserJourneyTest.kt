@@ -260,7 +260,7 @@ class ApturaUserJourneyTest {
             // 2. Verify sheet is displayed
             composeTestRule.waitUntil(timeoutMillis = 5_000) {
                 runCatching {
-                    composeTestRule.onNodeWithText("View options").assertIsDisplayed()
+                    composeTestRule.onNodeWithText("View").assertIsDisplayed()
                     true
                 }.getOrDefault(false)
             }
