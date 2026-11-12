@@ -282,6 +282,7 @@ fun PlayerScreen(
     onSubtitleTextColorChanged: (String) -> Unit = {},
     onSubtitleBackgroundChanged: (Boolean) -> Unit = {},
     onSubtitleUseSystemStyleChanged: (Boolean) -> Unit = {},
+    onSubtitleEncodingChanged: (String?) -> Unit = {},
     onAddBookmark: () -> Unit = {},
     onDeleteBookmark: (Long) -> Unit = {},
     onUpdateBookmarkNote: (Long, String) -> Unit = { _, _ -> },
@@ -2081,6 +2082,7 @@ fun PlayerScreen(
                 onSubtitleTextColorChanged = onSubtitleTextColorChanged,
                 onSubtitleBackgroundChanged = onSubtitleBackgroundChanged,
                 onSubtitleUseSystemStyleChanged = onSubtitleUseSystemStyleChanged,
+                onSubtitleEncodingChanged = onSubtitleEncodingChanged,
                 onSearchWebClick = onSearchWebClick,
                 onAttachRecentSubtitle = onAttachRecentSubtitle,
                 onDismissRecentSubtitle = onDismissRecentSubtitle

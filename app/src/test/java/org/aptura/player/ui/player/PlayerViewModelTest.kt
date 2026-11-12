@@ -1972,6 +1972,12 @@ class PlayerViewModelTest {
         viewModel.setSubtitleUseSystemStyle(true)
         assertTrue(viewModel.uiState.value.subtitleUseSystemStyle)
 
+        viewModel.setSubtitleEncoding("windows-1256")
+        assertEquals("windows-1256", viewModel.uiState.value.subtitleEncoding)
+
+        viewModel.setSubtitleEncoding(null)
+        assertNull(viewModel.uiState.value.subtitleEncoding)
+
         viewModel.clearForTesting()
     }
 

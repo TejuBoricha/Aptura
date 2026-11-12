@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -115,6 +116,12 @@ class ApturaSettingsRepositoryTest {
 
             repository.updateSubtitleUseSystemStyle(true)
             assertTrue(awaitItem().subtitleUseSystemStyle)
+
+            repository.updateSubtitleEncoding("windows-1256")
+            assertEquals("windows-1256", awaitItem().subtitleEncoding)
+
+            repository.updateSubtitleEncoding(null)
+            assertNull(awaitItem().subtitleEncoding)
 
             // Update decoder strategy
             repository.updateDefaultDecoderStrategy(1)

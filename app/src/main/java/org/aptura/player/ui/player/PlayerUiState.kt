@@ -126,6 +126,7 @@ data class PlayerUiState(
     val subtitleTextColorHex: String = "#FFFFFF",
     val subtitleBackgroundEnabled: Boolean = false,
     val subtitleUseSystemStyle: Boolean = true,
+    val subtitleEncoding: String? = null,
     val bookmarks: List<org.aptura.player.domain.model.Bookmark> = emptyList(),
     /** The decoder in effect for the current video (its own choice, else the Settings default, else a fallback). */
     val decoderStrategy: Int = 0,

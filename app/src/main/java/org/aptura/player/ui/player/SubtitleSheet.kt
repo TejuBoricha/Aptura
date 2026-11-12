@@ -109,6 +109,7 @@ fun SubtitleSheet(
     onSubtitleTextColorChanged: (String) -> Unit,
     onSubtitleBackgroundChanged: (Boolean) -> Unit,
     onSubtitleUseSystemStyleChanged: (Boolean) -> Unit = {},
+    onSubtitleEncodingChanged: (String?) -> Unit = {},
     onSearchWebClick: () -> Unit = {},
     onAttachRecentSubtitle: (DetectedSidecarSubtitle) -> Unit = {},
     onDismissRecentSubtitle: () -> Unit = {},
@@ -181,6 +182,8 @@ fun SubtitleSheet(
                     2 -> SubtitleStyleTab(
                         useSystemStyle = uiState.subtitleUseSystemStyle,
                         onUseSystemStyleChanged = onSubtitleUseSystemStyleChanged,
+                        subtitleEncoding = uiState.subtitleEncoding,
+                        onSubtitleEncodingChanged = onSubtitleEncodingChanged,
                         fontSizeSp = uiState.subtitleFontSizeSp,
                         textColorHex = uiState.subtitleTextColorHex,
                         backgroundEnabled = uiState.subtitleBackgroundEnabled,
@@ -711,6 +714,8 @@ private fun TapMarkButton(text: String, marked: Boolean, modifier: Modifier = Mo
 private fun SubtitleStyleTab(
     useSystemStyle: Boolean,
     onUseSystemStyleChanged: (Boolean) -> Unit,
+    subtitleEncoding: String? = null,
+    onSubtitleEncodingChanged: (String?) -> Unit = {},
     fontSizeSp: Int,
     textColorHex: String,
     backgroundEnabled: Boolean,
@@ -833,6 +838,29 @@ private fun SubtitleStyleTab(
                 selectedIndex = if (backgroundEnabled) 1 else 0,
                 onSelect = { onBackgroundChanged(it == 1) },
                 label = "Subtitle background"
+            )
+        }
+
+        SheetSection("Encoding") {
+            SheetRowText("Character set", "Override encoding if non-English subtitle characters display corrupted")
+            val group1 = listOf(null to "Auto", "UTF-8" to "UTF-8", "windows-1252" to "Western", "windows-1256" to "Arabic")
+            val group2 = listOf("GB18030" to "Chinese", "Shift_JIS" to "Japanese", "windows-1251" to "Cyrillic")
+
+            val selectedInGroup1 = group1.indexOfFirst { it.first.equals(subtitleEncoding, ignoreCase = true) }
+            val selectedInGroup2 = group2.indexOfFirst { it.first.equals(subtitleEncoding, ignoreCase = true) }
+
+            org.aptura.player.ui.settings.SegmentedPicker(
+                options = group1.map { it.second },
+                selectedIndex = if (selectedInGroup2 >= 0) -1 else if (selectedInGroup1 >= 0) selectedInGroup1 else 0,
+                onSelect = { onSubtitleEncodingChanged(group1[it].first) },
+                label = "Common character encodings"
+            )
+            Spacer(Modifier.height(8.dp))
+            org.aptura.player.ui.settings.SegmentedPicker(
+                options = group2.map { it.second },
+                selectedIndex = selectedInGroup2,
+                onSelect = { onSubtitleEncodingChanged(group2[it].first) },
+                label = "Regional character encodings"
             )
         }
     }

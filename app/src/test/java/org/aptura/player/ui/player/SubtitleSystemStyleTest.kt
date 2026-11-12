@@ -92,4 +92,43 @@ class SubtitleSystemStyleTest {
 
         assertEquals(true, systemStyleToggled)
     }
+
+    @Test
+    fun subtitleSheet_rendersEncodingPicker_andSelectingEncodingCallsCallback() {
+        var selectedEncoding: String? = null
+
+        composeRule.setContent {
+            ApturaTheme {
+                SubtitleSheet(
+                    uiState = PlayerUiState(
+                        activeSheet = PlayerSheet.Subtitle,
+                        subtitleEncoding = null
+                    ),
+                    onDismissRequest = {},
+                    onSubtitleTrackSelected = {},
+                    onSubtitleDelayChanged = {},
+                    onImportSubtitleClick = {},
+                    onSubtitleFontSizeChanged = {},
+                    onSubtitleTextColorChanged = {},
+                    onSubtitleBackgroundChanged = {},
+                    onSubtitleUseSystemStyleChanged = {},
+                    onSubtitleEncodingChanged = { selectedEncoding = it },
+                    initialTab = 2
+                )
+            }
+        }
+
+        composeRule.waitForIdle()
+
+        // Verify encoding section and options exist
+        composeRule.onNodeWithText("Character set").assertExists()
+        composeRule.onNodeWithText("Auto").assertExists()
+        composeRule.onNodeWithText("Arabic").assertExists()
+
+        // Select Arabic encoding
+        composeRule.onNodeWithText("Arabic").performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.waitForIdle()
+
+        assertEquals("windows-1256", selectedEncoding)
+    }
 }

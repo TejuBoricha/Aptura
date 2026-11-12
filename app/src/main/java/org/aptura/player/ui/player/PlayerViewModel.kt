@@ -256,7 +256,12 @@ class PlayerViewModel(
                         seekStepMs = settings.seekDeltaSeconds * 1000L,
                         autoAdvanceTotalSeconds = settings.autoAdvanceCountdownSeconds.coerceAtLeast(1),
                         resizeMode = if (it.resizeMode == prevDefaultResize) defaultResizeMode else it.resizeMode,
-                        playbackSpeed = if (it.playbackSpeed == prevDefaultSpeed) defaultPlaybackSpeed else it.playbackSpeed
+                        playbackSpeed = if (it.playbackSpeed == prevDefaultSpeed) defaultPlaybackSpeed else it.playbackSpeed,
+                        subtitleFontSizeSp = settings.subtitleFontSizeSp,
+                        subtitleTextColorHex = settings.subtitleTextColorHex,
+                        subtitleBackgroundEnabled = settings.subtitleBackgroundEnabled,
+                        subtitleUseSystemStyle = settings.subtitleUseSystemStyle,
+                        subtitleEncoding = settings.subtitleEncoding
                     )
                 }
                 if (_uiState.value.playbackSpeed == defaultPlaybackSpeed && prevDefaultSpeed != defaultPlaybackSpeed) {
@@ -1309,6 +1314,13 @@ class PlayerViewModel(
         _uiState.update { it.copy(subtitleUseSystemStyle = enabled) }
         viewModelScope.launch(dispatcher + errorHandler) {
             settingsRepository?.updateSubtitleUseSystemStyle(enabled)
+        }
+    }
+
+    fun setSubtitleEncoding(encoding: String?) {
+        _uiState.update { it.copy(subtitleEncoding = encoding) }
+        viewModelScope.launch(dispatcher + errorHandler) {
+            settingsRepository?.updateSubtitleEncoding(encoding)
         }
     }
 
