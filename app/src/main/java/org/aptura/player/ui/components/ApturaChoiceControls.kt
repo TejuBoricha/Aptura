@@ -126,8 +126,8 @@ fun TonalSegmentedPicker(
                     style = ApturaTypography.titleMedium.copy(fontSize = 14.sp),
                     color = textColor,
                     fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                    maxLines = 1,
-                    softWrap = false,
+                    maxLines = 2,
+                    softWrap = true,
                     overflow = TextOverflow.Ellipsis
                 )
             }

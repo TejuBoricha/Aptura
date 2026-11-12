@@ -476,7 +476,7 @@ private fun FolderRow(entry: FolderEntry, selected: Boolean, onClick: () -> Unit
                 text = entry.label,
                 style = ApturaTypography.titleMedium,
                 color = if (selected) ApturaColors.AccentPrimary else ApturaColors.TextHighEmphasis,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
             entry.summary?.let {
@@ -539,7 +539,7 @@ private fun FolderCard(entry: FolderEntry, selected: Boolean, onClick: () -> Uni
             text = entry.label,
             style = ApturaTypography.titleMedium,
             color = if (selected) ApturaColors.AccentPrimary else ApturaColors.TextHighEmphasis,
-            maxLines = 1,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(start = 4.dp, top = 8.dp)
         )

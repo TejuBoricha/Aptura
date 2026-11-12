@@ -83,7 +83,7 @@ internal fun PlayerSheetHeader(
                 text = title,
                 style = ApturaTypography.titleLarge.copy(fontSize = 18.sp),
                 color = ApturaColors.TextHighEmphasis,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.semantics { heading() }
             )
@@ -92,7 +92,7 @@ internal fun PlayerSheetHeader(
                     text = subtitle,
                     style = ApturaTypography.bodySmall,
                     color = if (subtitleIsActive) ApturaColors.AccentPrimary else ApturaColors.TextMediumEmphasis,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
             }

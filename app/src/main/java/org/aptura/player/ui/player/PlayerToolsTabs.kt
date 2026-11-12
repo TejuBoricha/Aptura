@@ -397,7 +397,7 @@ private fun BookmarkRow(
                     text = note.ifBlank { "Untitled bookmark" },
                     style = ApturaTypography.bodyLarge,
                     color = if (note.isBlank()) ApturaColors.TextMediumEmphasis else ApturaColors.TextHighEmphasis,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
             }

@@ -319,8 +319,8 @@ internal fun SegmentedPicker(
                     style = ApturaTypography.titleMedium.copy(fontSize = 14.sp, fontFeatureSettings = "tnum"),
                     color = textColor,
                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                    maxLines = 1,
-                    softWrap = false,
+                    maxLines = 2,
+                    softWrap = true,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center
                 )

@@ -253,7 +253,7 @@ private fun DestinationFolderRow(
                     style = ApturaTypography.bodyLarge,
                     fontWeight = FontWeight.SemiBold,
                     color = if (isCurrentFolder) ApturaColors.TextMediumEmphasis else ApturaColors.TextHighEmphasis,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false)
                 )
