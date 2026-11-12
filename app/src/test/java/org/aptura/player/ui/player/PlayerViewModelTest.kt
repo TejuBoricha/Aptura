@@ -2808,7 +2808,7 @@ class PlayerViewModelTest {
             isPlaying = true
         )
         runCurrent()
-        assertEquals(5_000L, viewModel.uiState.value.currentPositionMs)
+        assertEquals(5_000L, viewModel.positionState.value.currentPositionMs)
 
         // The controls hide, and playback carries on for 30 minutes.
         if (viewModel.uiState.value.isControlsVisible) viewModel.toggleControlsVisibility()
@@ -2820,8 +2820,9 @@ class PlayerViewModelTest {
             isPlaying = true
         )
         runCurrent()
-        // The precondition of the bug: the UI copy is still the old position.
-        assertEquals(5_000L, viewModel.uiState.value.currentPositionMs)
+        // The UI copy is never updated on playback ticks (PERF-01); positionState holds the live position.
+        assertEquals(0L, viewModel.uiState.value.currentPositionMs)
+        assertEquals(1_800_000L, viewModel.positionState.value.currentPositionMs)
 
         viewModel.onHorizontalSwipeSeekStart()
         assertEquals(1_800_000L, viewModel.uiState.value.swipeSeekTargetMs)
@@ -3565,28 +3566,30 @@ class PlayerViewModelTest {
         runCurrent()
         assertTrue(viewModel.uiState.value.isControlsVisible)
 
-        // Initial tick while controls are visible updates currentPositionMs
+        // Playing ticks update positionState, NOT uiState.currentPositionMs (avoids 4 Hz PlayerScreen recomposition)
         controller.emitPlayingTick(1000L)
         runCurrent()
-        assertEquals(1000L, viewModel.uiState.value.currentPositionMs)
+        assertEquals(1000L, viewModel.positionState.value.currentPositionMs)
+        assertEquals(0L, viewModel.uiState.value.currentPositionMs)
 
         // User hides controls
         viewModel.toggleControlsVisibility()
         assertFalse(viewModel.uiState.value.isControlsVisible)
 
-        // Position ticks while controls hidden must NOT update uiState.currentPositionMs (avoids 4 Hz Compose recomposition)
+        // Subsequent position ticks also update positionState without touching uiState
         controller.emitPlayingTick(1250L)
         runCurrent()
         controller.emitPlayingTick(1500L)
         runCurrent()
         controller.emitPlayingTick(1750L)
         runCurrent()
-        assertEquals(1000L, viewModel.uiState.value.currentPositionMs)
+        assertEquals(1750L, viewModel.positionState.value.currentPositionMs)
+        assertEquals(0L, viewModel.uiState.value.currentPositionMs)
 
-        // Revealing controls immediately syncs the latest position
+        // Revealing controls keeps positionState at the latest position without copying into uiState
         viewModel.toggleControlsVisibility()
         assertTrue(viewModel.uiState.value.isControlsVisible)
-        assertEquals(1750L, viewModel.uiState.value.currentPositionMs)
+        assertEquals(1750L, viewModel.positionState.value.currentPositionMs)
 
         viewModel.clearForTesting()
     }

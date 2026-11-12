@@ -174,6 +174,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -312,6 +313,9 @@ fun PlayerScreen(
     onAudioOnlyChanged: (Boolean) -> Unit = {},
     // The system's accessibility settings as they apply to the controls: (touchExplorationOn, recommendedAutoHideMs).
     onAccessibilityPolicyChanged: (Boolean, Long) -> Unit = { _, _ -> },
+    positionProvider: () -> PlayerPositionState = {
+        PlayerPositionState(uiState.currentPositionMs, uiState.bufferedPositionMs)
+    },
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -575,6 +579,24 @@ fun PlayerScreen(
         val swipeSensitivityMsPerPixel = remember(uiState.durationMs) {
             (uiState.durationMs.toFloat() / 1500f).coerceIn(50f, 500f)
         }
+        val currentIsLocked by rememberUpdatedState(uiState.isLocked)
+        val currentIsPlaying by rememberUpdatedState(uiState.isPlaying)
+        val currentDurationMs by rememberUpdatedState(uiState.durationMs)
+        val currentSeekDeltaSeconds by rememberUpdatedState(uiState.seekDeltaSeconds)
+        val currentDoubleTapSeekSide by rememberUpdatedState(uiState.doubleTapSeekSide)
+        val currentSeekStepMs by rememberUpdatedState(uiState.seekStepMs)
+        val currentSwipeSensitivity by rememberUpdatedState(swipeSensitivityMsPerPixel)
+        val currentOnTwoFingerTap by rememberUpdatedState(onTwoFingerTap)
+        val currentOnHorizontalSwipeSeekStart by rememberUpdatedState(onHorizontalSwipeSeekStart)
+        val currentOnHorizontalSwipeSeek by rememberUpdatedState(onHorizontalSwipeSeek)
+        val currentOnHorizontalSwipeSeekCommit by rememberUpdatedState(onHorizontalSwipeSeekCommit)
+        val currentOnHorizontalSwipeSeekCancel by rememberUpdatedState(onHorizontalSwipeSeekCancel)
+        val currentOnTriggerLockHint by rememberUpdatedState(onTriggerLockHint)
+        val currentOnSeekRelativeWithSide by rememberUpdatedState(onSeekRelativeWithSide)
+        val currentOnControlsVisibilityToggle by rememberUpdatedState(onControlsVisibilityToggle)
+        val currentOnStartHoldSpeed by rememberUpdatedState(onStartHoldSpeed)
+        val currentOnEndHoldSpeed by rememberUpdatedState(onEndHoldSpeed)
+        val currentOnBrightnessPercentChanged by rememberUpdatedState(onBrightnessPercentChanged)
 
         Box(
             modifier = Modifier
@@ -596,7 +618,7 @@ fun PlayerScreen(
                         )
                     }
                 }
-                .pointerInput(uiState.isLocked) {
+                .pointerInput(Unit) {
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
                         var twoFingerDetected = false
@@ -618,36 +640,44 @@ fun PlayerScreen(
                             val allUp = event.changes.all { !it.pressed }
                             if (allUp) {
                                 val elapsed = System.currentTimeMillis() - startTime
-                                if (twoFingerDetected && !movedPastSlop && elapsed < 500L && !uiState.isLocked) {
+                                if (twoFingerDetected && !movedPastSlop && elapsed < 500L && !currentIsLocked) {
                                     event.changes.forEach { it.consume() }
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    onTwoFingerTap()
+                                    currentOnTwoFingerTap()
                                 }
                                 break
                             }
                         }
                     }
                 }
-                .pointerInput(uiState.isLocked, uiState.durationMs) {
-                    if (!uiState.isLocked && uiState.durationMs > 0L) {
+                .pointerInput(uiState.isLocked) {
+                    if (!uiState.isLocked) {
                         detectHorizontalDragGestures(
                             onDragStart = {
-                                swipeDragAccumulator = 0f
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                onHorizontalSwipeSeekStart()
+                                if (currentDurationMs > 0L) {
+                                    swipeDragAccumulator = 0f
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    currentOnHorizontalSwipeSeekStart()
+                                }
                             },
                             onHorizontalDrag = { change, dragAmount ->
-                                change.consume()
-                                swipeDragAccumulator += dragAmount
-                                val deltaMs = (swipeDragAccumulator * swipeSensitivityMsPerPixel).toLong()
-                                onHorizontalSwipeSeek(deltaMs)
+                                if (currentDurationMs > 0L) {
+                                    change.consume()
+                                    swipeDragAccumulator += dragAmount
+                                    val deltaMs = (swipeDragAccumulator * currentSwipeSensitivity).toLong()
+                                    currentOnHorizontalSwipeSeek(deltaMs)
+                                }
                             },
                             onDragEnd = {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                onHorizontalSwipeSeekCommit()
+                                if (currentDurationMs > 0L) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    currentOnHorizontalSwipeSeekCommit()
+                                }
                             },
                             onDragCancel = {
-                                onHorizontalSwipeSeekCancel()
+                                if (currentDurationMs > 0L) {
+                                    currentOnHorizontalSwipeSeekCancel()
+                                }
                             }
                         )
                     }
@@ -662,28 +692,28 @@ fun PlayerScreen(
                         .weight(1f)
                         .fillMaxHeight()
                         .onSizeChanged { leftBoxHeightPx = it.height.toFloat().coerceAtLeast(200f) }
-                        .pointerInput(uiState.isLocked, uiState.isPlaying, uiState.seekDeltaSeconds, uiState.doubleTapSeekSide, uiState.seekStepMs) {
+                        .pointerInput(Unit) {
                             detectTapGestures(
                                 onTap = {
                                     if (android.os.SystemClock.uptimeMillis() - lastLongPressReleaseUptimeMs < 350L) {
                                         return@detectTapGestures
                                     }
-                                    if (uiState.isLocked) {
-                                        onTriggerLockHint()
+                                    if (currentIsLocked) {
+                                        currentOnTriggerLockHint()
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    } else if (uiState.seekDeltaSeconds != null && uiState.doubleTapSeekSide == SeekTapSide.LEFT) {
+                                    } else if (currentSeekDeltaSeconds != null && currentDoubleTapSeekSide == SeekTapSide.LEFT) {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        onSeekRelativeWithSide(-uiState.seekStepMs, SeekTapSide.LEFT)
+                                        currentOnSeekRelativeWithSide(-currentSeekStepMs, SeekTapSide.LEFT)
                                     } else {
-                                        onControlsVisibilityToggle()
+                                        currentOnControlsVisibilityToggle()
                                     }
                                 },
                                 onDoubleTap = {
-                                    if (!uiState.isLocked) {
+                                    if (!currentIsLocked) {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        onSeekRelativeWithSide(-uiState.seekStepMs, SeekTapSide.LEFT)
+                                        currentOnSeekRelativeWithSide(-currentSeekStepMs, SeekTapSide.LEFT)
                                     } else {
-                                        onTriggerLockHint()
+                                        currentOnTriggerLockHint()
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     }
                                 },
@@ -691,11 +721,11 @@ fun PlayerScreen(
                                     var longPressActive = false
                                     val job = coroutineScope.launch {
                                         kotlinx.coroutines.delay(400L)
-                                        if (!uiState.isLocked && uiState.isPlaying) {
+                                        if (!currentIsLocked && currentIsPlaying) {
                                             longPressActive = true
                                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                             is2xSpeedActive = true
-                                            onStartHoldSpeed()
+                                            currentOnStartHoldSpeed()
                                         }
                                     }
                                     try {
@@ -705,7 +735,7 @@ fun PlayerScreen(
                                         if (longPressActive) {
                                             lastLongPressReleaseUptimeMs = android.os.SystemClock.uptimeMillis()
                                             is2xSpeedActive = false
-                                            onEndHoldSpeed()
+                                            currentOnEndHoldSpeed()
                                         }
                                     }
                                 }
@@ -726,7 +756,7 @@ fun PlayerScreen(
                                             if (newPercent / 10 != oldPercent / 10 || newPercent == 100 || newPercent == 1) {
                                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                             }
-                                            onBrightnessPercentChanged(newPercent)
+                                            currentOnBrightnessPercentChanged(newPercent)
                                         }
                                     }
                                 )
@@ -742,28 +772,28 @@ fun PlayerScreen(
                         .weight(1f)
                         .fillMaxHeight()
                         .onSizeChanged { rightBoxHeightPx = it.height.toFloat().coerceAtLeast(200f) }
-                        .pointerInput(uiState.isLocked, uiState.isPlaying, uiState.seekDeltaSeconds, uiState.doubleTapSeekSide, uiState.seekStepMs) {
+                        .pointerInput(Unit) {
                             detectTapGestures(
                                 onTap = {
                                     if (android.os.SystemClock.uptimeMillis() - lastLongPressReleaseUptimeMs < 350L) {
                                         return@detectTapGestures
                                     }
-                                    if (uiState.isLocked) {
-                                        onTriggerLockHint()
+                                    if (currentIsLocked) {
+                                        currentOnTriggerLockHint()
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    } else if (uiState.seekDeltaSeconds != null && uiState.doubleTapSeekSide == SeekTapSide.RIGHT) {
+                                    } else if (currentSeekDeltaSeconds != null && currentDoubleTapSeekSide == SeekTapSide.RIGHT) {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        onSeekRelativeWithSide(uiState.seekStepMs, SeekTapSide.RIGHT)
+                                        currentOnSeekRelativeWithSide(currentSeekStepMs, SeekTapSide.RIGHT)
                                     } else {
-                                        onControlsVisibilityToggle()
+                                        currentOnControlsVisibilityToggle()
                                     }
                                 },
                                 onDoubleTap = {
-                                    if (!uiState.isLocked) {
+                                    if (!currentIsLocked) {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        onSeekRelativeWithSide(uiState.seekStepMs, SeekTapSide.RIGHT)
+                                        currentOnSeekRelativeWithSide(currentSeekStepMs, SeekTapSide.RIGHT)
                                     } else {
-                                        onTriggerLockHint()
+                                        currentOnTriggerLockHint()
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     }
                                 },
@@ -771,11 +801,11 @@ fun PlayerScreen(
                                     var longPressActive = false
                                     val job = coroutineScope.launch {
                                         kotlinx.coroutines.delay(400L)
-                                        if (!uiState.isLocked && uiState.isPlaying) {
+                                        if (!currentIsLocked && currentIsPlaying) {
                                             longPressActive = true
                                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                             is2xSpeedActive = true
-                                            onStartHoldSpeed()
+                                            currentOnStartHoldSpeed()
                                         }
                                     }
                                     try {
@@ -785,7 +815,7 @@ fun PlayerScreen(
                                         if (longPressActive) {
                                             lastLongPressReleaseUptimeMs = android.os.SystemClock.uptimeMillis()
                                             is2xSpeedActive = false
-                                            onEndHoldSpeed()
+                                            currentOnEndHoldSpeed()
                                         }
                                     }
                                 }
@@ -1508,256 +1538,28 @@ fun PlayerScreen(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = MediaFormatters.formatDuration(uiState.effectivePositionMs),
-                                style = ApturaTypography.labelSmall.copy(
-                                    fontFeatureSettings = "tnum"
-                                ),
-                                maxLines = 1,
-                                softWrap = false,
-                                color = ApturaColors.TextHighEmphasis
+                            PlayerElapsedTimeText(
+                                positionProvider = positionProvider,
+                                isScrubbing = uiState.isScrubbing,
+                                scrubPositionMs = uiState.scrubPositionMs
                             )
 
                             Spacer(modifier = Modifier.width(12.dp))
 
-                            // Custom Pixel-Perfect Video Scrubber (Concentric cy = size.height / 2f)
-                            var scrubberWidthPx by remember { mutableFloatStateOf(0f) }
-                            val trackHeight by androidx.compose.animation.core.animateDpAsState(
-                                targetValue = if (uiState.isScrubbing) 8.dp else 4.dp,
-                                animationSpec = androidx.compose.animation.core.spring(),
-                                label = "scrubberTrackHeight"
+                            PlayerSeekBar(
+                                positionProvider = positionProvider,
+                                durationMs = uiState.durationMs,
+                                isScrubbing = uiState.isScrubbing,
+                                scrubPositionMs = uiState.scrubPositionMs,
+                                seekStepMs = uiState.seekStepMs,
+                                bookmarks = uiState.bookmarks,
+                                abRepeat = uiState.abRepeat,
+                                onScrubStart = onScrubStart,
+                                onScrubMove = onScrubMove,
+                                onScrubEnd = onScrubEnd,
+                                onSeekRelative = onSeekRelative,
+                                modifier = Modifier.weight(1f)
                             )
-                            val thumbRadius by androidx.compose.animation.core.animateDpAsState(
-                                targetValue = if (uiState.isScrubbing) 10.dp else 8.dp,
-                                animationSpec = androidx.compose.animation.core.spring(),
-                                label = "scrubberThumbRadius"
-                            )
-
-                            val scrubberStepMs = uiState.seekStepMs
-                            // Read in composition: a draw lambda cannot read theme tokens.
-                            // The unfilled track is the bar's boundary: ControlTrack is 3:1 on the player's black (WCAG 1.4.11), where
-                            // SurfaceElevated3 was 1.57:1. Buffered sits on top of it, so its alpha was raised to stay a visible step.
-                            val scrubberTrackColor = ApturaColors.ControlTrack
-                            val scrubberBufferedColor = ApturaColors.TextMediumEmphasis.copy(alpha = 0.6f)
-                            val scrubberAccent = ApturaColors.AccentPrimary
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(48.dp)
-                                    .systemGestureExclusion()
-                                    .onSizeChanged { scrubberWidthPx = it.width.toFloat() }
-                                    // TalkBack: an adjustable seek bar (it used to be an unlabelled drawing).
-                                    .semantics {
-                                        contentDescription = "Seek bar"
-                                        stateDescription = "${MediaFormatters.formatDuration(uiState.effectivePositionMs)} of " +
-                                            MediaFormatters.formatDuration(uiState.durationMs)
-                                        progressBarRangeInfo = ProgressBarRangeInfo(
-                                            current = uiState.effectivePositionMs.toFloat().coerceIn(0f, uiState.durationMs.toFloat().coerceAtLeast(0f)),
-                                            range = 0f..uiState.durationMs.toFloat().coerceAtLeast(0f)
-                                        )
-                                        setProgress(label = "Seek") { targetMs ->
-                                            if (uiState.durationMs <= 0L) {
-                                                false
-                                            } else {
-                                                val target = targetMs.toLong().coerceIn(0L, uiState.durationMs)
-                                                onScrubStart(target)
-                                                onScrubMove(target)
-                                                onScrubEnd()
-                                                true
-                                            }
-                                        }
-                                        customActions = listOf(
-                                            CustomAccessibilityAction("Rewind ${scrubberStepMs / 1000} seconds") {
-                                                onSeekRelative(-scrubberStepMs)
-                                                true
-                                            },
-                                            CustomAccessibilityAction("Forward ${scrubberStepMs / 1000} seconds") {
-                                                onSeekRelative(scrubberStepMs)
-                                                true
-                                            }
-                                        )
-                                    }
-                                    .pointerInput(uiState.durationMs) {
-                                        detectTapGestures(
-                                            onPress = { offset ->
-                                                if (scrubberWidthPx > 0f && uiState.durationMs > 0) {
-                                                    val fraction = (offset.x / scrubberWidthPx).coerceIn(0f, 1f)
-                                                    val targetMs = (fraction * uiState.durationMs).toLong()
-                                                    onScrubStart(targetMs)
-                                                    onScrubMove(targetMs)
-                                                    tryAwaitRelease()
-                                                    onScrubEnd()
-                                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                }
-                                            }
-                                        )
-                                    }
-                                    .pointerInput(uiState.durationMs) {
-                                        detectHorizontalDragGestures(
-                                            onDragStart = { offset ->
-                                                if (scrubberWidthPx > 0f && uiState.durationMs > 0) {
-                                                    val fraction = (offset.x / scrubberWidthPx).coerceIn(0f, 1f)
-                                                    val targetMs = (fraction * uiState.durationMs).toLong()
-                                                    onScrubStart(targetMs)
-                                                    onScrubMove(targetMs)
-                                                }
-                                            },
-                                            onDragEnd = {
-                                                onScrubEnd()
-                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                            },
-                                            onDragCancel = {
-                                                onScrubEnd()
-                                            },
-                                            onHorizontalDrag = { change, _ ->
-                                                change.consume()
-                                                if (scrubberWidthPx > 0f && uiState.durationMs > 0) {
-                                                    val fraction = (change.position.x / scrubberWidthPx).coerceIn(0f, 1f)
-                                                    val targetMs = (fraction * uiState.durationMs).toLong()
-                                                    onScrubMove(targetMs)
-                                                }
-                                            }
-                                        )
-                                    },
-                                contentAlignment = Alignment.CenterStart
-                            ) {
-                                Canvas(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(48.dp)
-                                ) {
-                                    val cy = size.height / 2f
-                                    val trackH = trackHeight.toPx()
-                                    val thumbR = thumbRadius.toPx()
-                                    val totalW = size.width
-
-                                    // 1. Background Inactive Track
-                                    drawRoundRect(
-                                        color = scrubberTrackColor,
-                                        topLeft = Offset(0f, cy - trackH / 2f),
-                                        size = Size(totalW, trackH),
-                                        cornerRadius = CornerRadius(trackH / 2f, trackH / 2f)
-                                    )
-
-                                    // 2. Buffered Track
-                                    if (uiState.bufferedFraction > 0f) {
-                                        val buffW = totalW * uiState.bufferedFraction.coerceIn(0f, 1f)
-                                        drawRoundRect(
-                                            color = scrubberBufferedColor,
-                                            topLeft = Offset(0f, cy - trackH / 2f),
-                                            size = Size(buffW, trackH),
-                                            cornerRadius = CornerRadius(trackH / 2f, trackH / 2f)
-                                        )
-                                    }
-
-                                    // 3. Active Played Track
-                                    val activeW = totalW * uiState.progressFraction.coerceIn(0f, 1f)
-                                    if (activeW > 0f) {
-                                        drawRoundRect(
-                                            color = scrubberAccent,
-                                            topLeft = Offset(0f, cy - trackH / 2f),
-                                            size = Size(activeW, trackH),
-                                            cornerRadius = CornerRadius(trackH / 2f, trackH / 2f)
-                                        )
-                                    }
-
-                                    // 3b. Bookmark Pips (FR-CTRL-011)
-                                    if (uiState.durationMs > 0 && uiState.bookmarks.isNotEmpty()) {
-                                        val pipW = 3.dp.toPx()
-                                        val pipH = (trackH * 1.8f).coerceAtLeast(8.dp.toPx())
-                                        uiState.bookmarks.forEach { bookmark ->
-                                            val pipFraction = (bookmark.timestampMs.toFloat() / uiState.durationMs.toFloat()).coerceIn(0f, 1f)
-                                            val pipX = totalW * pipFraction
-                                            drawRoundRect(
-                                                color = Color.White.copy(alpha = 0.9f),
-                                                topLeft = Offset(pipX - pipW / 2f, cy - pipH / 2f),
-                                                size = Size(pipW, pipH),
-                                                cornerRadius = CornerRadius(pipW / 2f, pipW / 2f)
-                                            )
-                                        }
-                                    }
-
-                                    // 3c. A-B Repeat Loop Markers & Span (F-19, FR-CTRL-010)
-                                    if (uiState.durationMs > 0) {
-                                        val ptA = uiState.abRepeat.pointA
-                                        val ptB = uiState.abRepeat.pointB
-                                        val markerW = 3.dp.toPx()
-                                        val markerH = (trackH * 2.4f).coerceAtLeast(12.dp.toPx())
-                                        if (ptA != null && ptB != null && ptB > ptA) {
-                                            val xA = totalW * (ptA.toFloat() / uiState.durationMs.toFloat()).coerceIn(0f, 1f)
-                                            val xB = totalW * (ptB.toFloat() / uiState.durationMs.toFloat()).coerceIn(0f, 1f)
-                                            drawRoundRect(
-                                                color = scrubberAccent.copy(alpha = 0.32f),
-                                                topLeft = Offset(xA, cy - trackH),
-                                                size = Size((xB - xA).coerceAtLeast(0f), trackH * 2f),
-                                                cornerRadius = CornerRadius(trackH, trackH)
-                                            )
-                                        }
-                                        if (ptA != null) {
-                                            val xA = totalW * (ptA.toFloat() / uiState.durationMs.toFloat()).coerceIn(0f, 1f)
-                                            drawRoundRect(
-                                                color = scrubberAccent,
-                                                topLeft = Offset(xA - markerW / 2f, cy - markerH / 2f),
-                                                size = Size(markerW, markerH),
-                                                cornerRadius = CornerRadius(markerW / 2f, markerW / 2f)
-                                            )
-                                        }
-                                        if (ptB != null) {
-                                            val xB = totalW * (ptB.toFloat() / uiState.durationMs.toFloat()).coerceIn(0f, 1f)
-                                            drawRoundRect(
-                                                color = scrubberAccent,
-                                                topLeft = Offset(xB - markerW / 2f, cy - markerH / 2f),
-                                                size = Size(markerW, markerH),
-                                                cornerRadius = CornerRadius(markerW / 2f, markerW / 2f)
-                                            )
-                                        }
-                                    }
-
-                                    // 4. Thumb Circle (Concentric cy = size.height / 2f)
-                                    val clampedThumbX = if (totalW > thumbR * 2) {
-                                        activeW.coerceIn(thumbR, totalW - thumbR)
-                                    } else {
-                                        totalW / 2f
-                                    }
-                                    drawCircle(
-                                        color = scrubberAccent,
-                                        radius = thumbR,
-                                        center = Offset(clampedThumbX, cy)
-                                    )
-                                }
-
-                                // 5. Floating Timecode Preview Chip while scrubbing (DESIGN.md §5.1, P2-19)
-                                if (uiState.isScrubbing && scrubberWidthPx > 0f) {
-                                    val density = LocalDensity.current
-                                    val chipWidthPx = with(density) { 68.dp.toPx() }
-                                    val rawThumbX = scrubberWidthPx * uiState.progressFraction.coerceIn(0f, 1f)
-                                    val chipOffsetX = (rawThumbX - chipWidthPx / 2f)
-                                        .coerceIn(0f, (scrubberWidthPx - chipWidthPx).coerceAtLeast(0f))
-                                    Surface(
-                                        shape = RoundedCornerShape(6.dp),
-                                        color = ApturaColors.SurfaceElevated2,
-                                        border = BorderStroke(1.dp, ApturaColors.AccentPrimary),
-                                        modifier = Modifier
-                                            .align(Alignment.TopStart)
-                                            .offset {
-                                                IntOffset(
-                                                    x = chipOffsetX.toInt(),
-                                                    y = with(density) { (-22).dp.roundToPx() }
-                                                )
-                                            }
-                                    ) {
-                                        Text(
-                                            text = MediaFormatters.formatDuration(uiState.effectivePositionMs),
-                                            style = ApturaTypography.labelSmall.copy(fontFeatureSettings = "tnum"),
-                                            color = ApturaColors.AccentPrimary,
-                                            fontWeight = FontWeight.Bold,
-                                            maxLines = 1,
-                                            softWrap = false,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                        )
-                                    }
-                                }
-                            }
 
                             Spacer(modifier = Modifier.width(12.dp))
 
@@ -2272,7 +2074,8 @@ fun PlayerScreen(
                             onDeleteBookmark = onDeleteBookmark,
                             onUpdateBookmarkNote = onUpdateBookmarkNote,
                             onToggleStatsOverlay = onToggleStatsOverlay,
-                            onResetVideoPreferences = onResetVideoPreferences
+                            onResetVideoPreferences = onResetVideoPreferences,
+                            positionProvider = positionProvider
                         )
                     } else {
                         PictureTab(

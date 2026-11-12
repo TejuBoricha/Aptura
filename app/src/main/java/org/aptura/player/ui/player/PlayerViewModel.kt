@@ -98,6 +98,14 @@ class PlayerViewModel(
     private val _uiState = MutableStateFlow(PlayerUiState())
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
 
+    /**
+     * High-frequency playback position stream (4 Hz ticks) separated from [uiState]
+     * so position updates only re-draw the seek bar and elapsed time label instead of
+     * recomposing the entire [PlayerScreen].
+     */
+    private val _positionState = MutableStateFlow(PlayerPositionState())
+    val positionState: StateFlow<PlayerPositionState> = _positionState.asStateFlow()
+
     private var autoHideJob: Job? = null
 
     /** Set while a screen reader is on: hiding the controls would leave it nothing to focus (audit A11Y-01). */
@@ -333,28 +341,41 @@ class PlayerViewModel(
                     }
                     is DomainPlaybackState.Buffering -> {
                         lastKnownPositionMs = state.positionMs
-                        _uiState.update {
-                            it.copy(
-                                isBuffering = true,
-                                isPlaying = false,
-                                isEnded = false,
-                                currentPositionMs = state.positionMs,
-                                errorMessage = null
-                            )
+                        _positionState.value = _positionState.value.copy(currentPositionMs = state.positionMs)
+                        val cur = _uiState.value
+                        if (!cur.isBuffering || cur.isPlaying || cur.isEnded || cur.errorMessage != null) {
+                            _uiState.update {
+                                it.copy(
+                                    isBuffering = true,
+                                    isPlaying = false,
+                                    isEnded = false,
+                                    errorMessage = null
+                                )
+                            }
                         }
                     }
                     is DomainPlaybackState.Ready -> {
-                        val wasPlaying = _uiState.value.isPlaying
+                        val cur = _uiState.value
+                        val wasPlaying = cur.isPlaying
                         val startedPlaying = state.isPlaying && !wasPlaying
                         lastKnownPositionMs = state.positionMs
 
-                        val isControlsOrSheetVisible = _uiState.value.isControlsVisible || _uiState.value.activeSheet != null
-                        val shouldUpdateUi = isControlsOrSheetVisible ||
-                            !state.isPlaying ||
-                            _uiState.value.currentPositionMs == 0L ||
-                            state.durationMs != _uiState.value.durationMs ||
-                            state.playbackSpeed != _uiState.value.playbackSpeed ||
-                            startedPlaying || (wasPlaying && !state.isPlaying)
+                        // Update fast position stream without touching _uiState (eliminates 4 Hz PlayerScreen recomposition).
+                        if (_positionState.value.currentPositionMs != state.positionMs ||
+                            _positionState.value.bufferedPositionMs != state.bufferedPositionMs
+                        ) {
+                            _positionState.value = PlayerPositionState(
+                                currentPositionMs = state.positionMs,
+                                bufferedPositionMs = state.bufferedPositionMs
+                            )
+                        }
+
+                        val shouldUpdateUi = cur.isBuffering ||
+                            cur.isEnded ||
+                            cur.isPlaying != state.isPlaying ||
+                            state.durationMs != cur.durationMs ||
+                            state.playbackSpeed != cur.playbackSpeed ||
+                            cur.errorMessage != null
 
                         if (shouldUpdateUi) {
                             _uiState.update {
@@ -362,9 +383,7 @@ class PlayerViewModel(
                                     isBuffering = false,
                                     isPlaying = state.isPlaying,
                                     isEnded = false,
-                                    currentPositionMs = state.positionMs,
                                     durationMs = state.durationMs,
-                                    bufferedPositionMs = state.bufferedPositionMs,
                                     playbackSpeed = state.playbackSpeed,
                                     errorMessage = null
                                 )
@@ -401,6 +420,7 @@ class PlayerViewModel(
                     }
                     is DomainPlaybackState.Ended -> {
                         lastKnownPositionMs = state.durationMs
+                        _positionState.value = _positionState.value.copy(currentPositionMs = state.durationMs)
                         _uiState.update {
                             it.copy(
                                 isPlaying = false,
@@ -1011,7 +1031,8 @@ class PlayerViewModel(
     fun onScrubEnd() {
         val targetMs = _uiState.value.scrubPositionMs
         lastKnownPositionMs = targetMs
-        _uiState.update { it.copy(isScrubbing = false, currentPositionMs = targetMs) }
+        _positionState.value = _positionState.value.copy(currentPositionMs = targetMs)
+        _uiState.update { it.copy(isScrubbing = false) }
         viewModelScope.launch(dispatcher + errorHandler) {
             playbackController.seekTo(targetMs)
             scheduleAutoHide()
@@ -1355,7 +1376,7 @@ class PlayerViewModel(
 
     fun addBookmark(note: String = "") {
         val uri = _uiState.value.videoUri
-        val pos = _uiState.value.currentPositionMs
+        val pos = currentEffectivePositionMs()
         if (uri.isNotBlank()) {
             viewModelScope.launch(dispatcher + errorHandler) {
                 mediaRepository.addBookmark(uri, pos, note)
@@ -1540,7 +1561,7 @@ class PlayerViewModel(
     }
 
     fun setAbPointA() {
-        val current = _uiState.value.currentPositionMs
+        val current = currentEffectivePositionMs()
         _uiState.update {
             val nextPointB = if (it.abRepeat.pointB != null && it.abRepeat.pointB <= current) null else it.abRepeat.pointB
             it.copy(
@@ -1554,7 +1575,7 @@ class PlayerViewModel(
     }
 
     fun setAbPointB() {
-        val current = _uiState.value.currentPositionMs
+        val current = currentEffectivePositionMs()
         val pointA = _uiState.value.abRepeat.pointA
         if (pointA != null && current > pointA) {
             _uiState.update {
@@ -1604,6 +1625,11 @@ class PlayerViewModel(
             }
         }
     }
+
+    private fun currentEffectivePositionMs(): Long =
+        lastKnownPositionMs.takeIf { it > 0L }
+            ?: _positionState.value.currentPositionMs.takeIf { it > 0L }
+            ?: _uiState.value.currentPositionMs
 
     private fun persistCurrentPosition(positionOverride: Long? = null) {
         val uri = _uiState.value.videoUri
