@@ -1,5 +1,6 @@
 package org.aptura.player.ui.library
 
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -59,6 +60,19 @@ import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
 import org.aptura.player.ui.components.ApturaMenuItem
 import org.aptura.player.ui.components.ApturaTone
+import kotlin.coroutines.CoroutineContext
+
+private val GridCardShape = RoundedCornerShape(16.dp)
+private val DefaultThumbnailShape = RoundedCornerShape(14.dp)
+private val ListRowShape = RoundedCornerShape(14.dp)
+private val ListThumbnailShape = RoundedCornerShape(10.dp)
+private val DropdownMenuShape = RoundedCornerShape(16.dp)
+
+private val CompactGridTitleStyle = ApturaTypography.bodyMedium.copy(fontWeight = FontWeight.Medium)
+private val LargeGridTitleStyle = ApturaTypography.titleMedium.copy(fontSize = 17.sp, lineHeight = 22.sp)
+
+private val CompactMetadataStyle = ApturaTypography.labelSmall.copy(fontFeatureSettings = "tnum")
+private val StandardMetadataStyle = ApturaTypography.bodySmall.copy(fontFeatureSettings = "tnum")
 
 /**
  * Everything a video can be asked to do from the library. Grouped so the grid card and the list row take the same
@@ -99,14 +113,18 @@ fun VideoGridCard(
     isSelected: Boolean = false,
     detail: LibraryDetail = LibraryDetail.STANDARD,
     density: LibraryDensity = LibraryDensity.COMFORTABLE,
-    thumbnail: (@Composable () -> Unit)? = null
+    thumbnail: (@Composable () -> Unit)? = null,
+    context: Context? = null,
+    decodeContext: CoroutineContext? = null
 ) {
     val compact = density == LibraryDensity.COMPACT
-    val metadata = remember(card, detail) { videoMetadataLines(card, detail) }
+    val metadata = remember(card.uri, card.fileSizeFormatted, card.folderName, card.rawItem.dateAddedSec, detail) {
+        videoMetadataLines(card, detail)
+    }
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(GridCardShape)
             .clickableCard(callbacks)
             .semantics { selected = isSelected }
     ) {
@@ -114,12 +132,15 @@ fun VideoGridCard(
             card = card,
             isSelected = isSelected,
             modifier = Modifier.fillMaxWidth(),
+            shape = DefaultThumbnailShape,
             thumbnail = thumbnail,
             overlayEnd = if (compact && callbacks.onMore != null) {
                 { VideoOverflowButton(card, callbacks, onScrim = true) }
             } else {
                 null
-            }
+            },
+            context = context,
+            decodeContext = decodeContext
         )
 
         Row(
@@ -132,9 +153,9 @@ fun VideoGridCard(
                 Text(
                     text = card.title,
                     style = when (density) {
-                        LibraryDensity.COMPACT -> ApturaTypography.bodyMedium.copy(fontWeight = FontWeight.Medium)
+                        LibraryDensity.COMPACT -> CompactGridTitleStyle
                         LibraryDensity.COMFORTABLE -> ApturaTypography.titleMedium
-                        LibraryDensity.LARGE -> ApturaTypography.titleMedium.copy(fontSize = 17.sp, lineHeight = 22.sp)
+                        LibraryDensity.LARGE -> LargeGridTitleStyle
                     },
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -165,19 +186,22 @@ fun VideoListRow(
     isSelected: Boolean = false,
     detail: LibraryDetail = LibraryDetail.STANDARD,
     density: LibraryDensity = LibraryDensity.COMFORTABLE,
-    thumbnail: (@Composable () -> Unit)? = null
+    thumbnail: (@Composable () -> Unit)? = null,
+    context: Context? = null,
+    decodeContext: CoroutineContext? = null
 ) {
-    val metadata = remember(card, detail) { videoMetadataLines(card, detail) }
+    val metadata = remember(card.uri, card.fileSizeFormatted, card.folderName, card.rawItem.dateAddedSec, detail) {
+        videoMetadataLines(card, detail)
+    }
     val remaining = if (card.progressFraction > 0f && !card.isCompleted && !card.isMissing) {
         MediaFormatters.formatRemaining(card.rawItem.playbackPositionMs, card.rawItem.durationMs)
     } else {
         null
     }
-    val rowShape = RoundedCornerShape(14.dp)
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(rowShape)
+            .clip(ListRowShape)
             .background(if (isSelected) ApturaColors.AccentSubtle else androidx.compose.ui.graphics.Color.Transparent)
             .clickableCard(callbacks)
             .semantics { selected = isSelected }
@@ -188,16 +212,18 @@ fun VideoListRow(
             card = card,
             isSelected = isSelected,
             modifier = Modifier.width(LibraryMetrics.listThumbnailWidth(density)),
-            shape = RoundedCornerShape(10.dp),
+            shape = ListThumbnailShape,
             pillsFit = density != LibraryDensity.COMPACT,
-            thumbnail = thumbnail
+            thumbnail = thumbnail,
+            context = context,
+            decodeContext = decodeContext
         )
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
             Text(
                 text = card.title,
                 style = if (density == LibraryDensity.COMPACT) {
-                    ApturaTypography.bodyMedium.copy(fontWeight = FontWeight.Medium)
+                    CompactGridTitleStyle
                 } else {
                     ApturaTypography.titleMedium
                 },
@@ -231,11 +257,11 @@ fun VideoListRow(
 
 @Composable
 private fun MetadataLines(lines: List<String>, compact: Boolean) {
+    val style = if (compact) CompactMetadataStyle else StandardMetadataStyle
     lines.forEachIndexed { index, line ->
         Text(
             text = line,
-            style = (if (compact) ApturaTypography.labelSmall else ApturaTypography.bodySmall)
-                .copy(fontFeatureSettings = "tnum"),
+            style = style,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             color = ApturaColors.TextMediumEmphasis,
@@ -266,11 +292,13 @@ internal fun VideoThumbnailFrame(
     card: VideoCardUiModel,
     isSelected: Boolean,
     modifier: Modifier = Modifier,
-    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(14.dp),
+    shape: androidx.compose.ui.graphics.Shape = DefaultThumbnailShape,
     pillsFit: Boolean = true,
     /** Replaces the video's own frame, for content that has no file behind it (the welcome guide's samples). */
     thumbnail: (@Composable () -> Unit)? = null,
-    overlayEnd: (@Composable () -> Unit)? = null
+    overlayEnd: (@Composable () -> Unit)? = null,
+    context: Context? = null,
+    decodeContext: CoroutineContext? = null
 ) {
     Box(
         modifier = modifier
@@ -286,7 +314,12 @@ internal fun VideoThumbnailFrame(
         if (thumbnail != null) {
             Box(modifier = Modifier.fillMaxSize()) { thumbnail() }
         } else {
-            VideoThumbnail(card = card, modifier = Modifier.fillMaxSize())
+            val thumbModifier = Modifier.fillMaxSize()
+            if (context != null && decodeContext != null) {
+                VideoThumbnail(card = card, modifier = thumbModifier, context = context, decodeContext = decodeContext)
+            } else {
+                VideoThumbnail(card = card, modifier = thumbModifier)
+            }
         }
 
         if (isSelected) {
@@ -409,12 +442,12 @@ internal fun VideoOverflowButton(card: VideoCardUiModel, callbacks: VideoCardCal
                 )
             }
         }
-        if (callbacks.hasContextActions) {
+        if (expanded && callbacks.hasContextActions) {
             DropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
                 containerColor = ApturaColors.SurfaceElevated2,
-                shape = RoundedCornerShape(16.dp)
+                shape = DropdownMenuShape
             ) {
                 fun pick(action: () -> Unit) {
                     expanded = false

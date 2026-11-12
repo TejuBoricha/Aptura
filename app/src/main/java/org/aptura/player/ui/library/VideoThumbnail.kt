@@ -1,5 +1,7 @@
 package org.aptura.player.ui.library
 
+import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -24,15 +26,21 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.withContext
 import org.aptura.player.core.media.ThumbnailBitmapCache
 import org.aptura.player.core.media.ThumbnailRepository
 import org.aptura.player.theme.ApturaColors
 import kotlin.coroutines.CoroutineContext
 
+@OptIn(ExperimentalCoroutinesApi::class)
+private val DefaultThumbnailDecodeDispatcher: CoroutineDispatcher =
+    Dispatchers.IO.limitedParallelism(ThumbnailRepository.MAX_PARALLEL_EXTRACTIONS)
+
 /** Where thumbnails are read and decoded. Replaced in tests whose graphics layer cannot decode off the main thread. */
-internal val LocalThumbnailDecodeContext = staticCompositionLocalOf<CoroutineContext> { Dispatchers.IO }
+internal val LocalThumbnailDecodeContext = staticCompositionLocalOf<CoroutineContext> { DefaultThumbnailDecodeDispatcher }
 
 private const val THUMBNAIL_FADE_IN_MS = 120
 
@@ -44,29 +52,47 @@ private const val THUMBNAIL_FADE_IN_MS = 120
  * that returns to the screen does not flicker. A picture that has to be read first fades in instead of popping.
  */
 @Composable
-internal fun VideoThumbnail(card: VideoCardUiModel, modifier: Modifier = Modifier) =
-    VideoThumbnail(card.uri, card.rawItem.dateModifiedSec, card.title, modifier)
+internal fun VideoThumbnail(
+    card: VideoCardUiModel,
+    modifier: Modifier = Modifier,
+    context: Context = LocalContext.current,
+    decodeContext: CoroutineContext = LocalThumbnailDecodeContext.current
+) = VideoThumbnail(card.uri, card.rawItem.dateModifiedSec, card.title, modifier, context, decodeContext)
 
 @Composable
-internal fun VideoThumbnail(uri: String, dateModifiedSec: Long, contentDescription: String?, modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    val decodeContext = LocalThumbnailDecodeContext.current
+internal fun VideoThumbnail(
+    uri: String,
+    dateModifiedSec: Long,
+    contentDescription: String?,
+    modifier: Modifier = Modifier,
+    context: Context = LocalContext.current,
+    decodeContext: CoroutineContext = LocalThumbnailDecodeContext.current
+) {
     val key = remember(uri, dateModifiedSec) { ThumbnailRepository.getThumbnailFileName(uri, dateModifiedSec) }
     var bitmap by remember(key) { mutableStateOf(ThumbnailBitmapCache[key]) }
-    // Fully visible at once when the picture was already in memory; otherwise it fades in when it arrives.
-    val alpha = remember(key) { Animatable(if (bitmap != null) 1f else 0f) }
+    val initialBitmap = remember(key) { bitmap }
+    // Fully visible at once without allocation when the picture was already in memory; otherwise it fades in when it arrives.
+    val alpha = remember(key) { if (initialBitmap == null) Animatable(0f) else null }
 
     LaunchedEffect(key) {
         if (bitmap != null) return@LaunchedEffect
+        val inMemory = ThumbnailBitmapCache[key]
+        if (inMemory != null) {
+            bitmap = inMemory
+            return@LaunchedEffect
+        }
         val decoded = withContext(decodeContext) {
             val file = ThumbnailRepository.getCachedThumbnailFile(context, uri, dateModifiedSec)
                 ?: ThumbnailRepository.getOrCreateThumbnail(context, uri, dateModifiedSec)
-            file?.let { BitmapFactory.decodeFile(it.path)?.asImageBitmap() }
+            file?.let {
+                val opts = BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.RGB_565 }
+                BitmapFactory.decodeFile(it.path, opts)?.asImageBitmap()
+            }
         }
         if (decoded != null) {
             ThumbnailBitmapCache.put(key, decoded)
             bitmap = decoded
-            alpha.animateTo(1f, tween(THUMBNAIL_FADE_IN_MS))
+            alpha?.animateTo(1f, tween(THUMBNAIL_FADE_IN_MS))
         }
     }
 
@@ -80,13 +106,18 @@ internal fun VideoThumbnail(uri: String, dateModifiedSec: Long, contentDescripti
                 modifier = Modifier.size(28.dp)
             )
         } else {
+            val imageModifier = if (alpha != null) {
+                Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { this.alpha = alpha.value }
+            } else {
+                Modifier.fillMaxSize()
+            }
             Image(
                 bitmap = shown,
                 contentDescription = contentDescription,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer { this.alpha = alpha.value }
+                modifier = imageModifier
             )
         }
     }
