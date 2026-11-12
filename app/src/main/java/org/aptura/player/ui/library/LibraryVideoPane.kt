@@ -71,6 +71,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -383,6 +384,8 @@ internal fun LibraryVideoPane(
     shortWindow: Boolean = false
 ) {
     val fontScale = LocalDensity.current.fontScale
+    val context = LocalContext.current
+    val decodeContext = LocalThumbnailDecodeContext.current
     val isList = prefs.layout == LibraryLayout.LIST
     // Fixed cells at 200% font turn titles into "Aptura Audit Cl…" and make sibling episodes indistinguishable.
     // Growing the cell with the font scale buys the extra line it needs (and at the extreme falls back to a single
@@ -451,7 +454,9 @@ internal fun LibraryVideoPane(
                     callbacks = callbacksFor(card),
                     isSelected = isSelected(card),
                     detail = prefs.detail,
-                    density = prefs.density
+                    density = prefs.density,
+                    context = context,
+                    decodeContext = decodeContext
                 )
             } else {
                 VideoGridCard(
@@ -459,7 +464,9 @@ internal fun LibraryVideoPane(
                     callbacks = callbacksFor(card),
                     isSelected = isSelected(card),
                     detail = prefs.detail,
-                    density = prefs.density
+                    density = prefs.density,
+                    context = context,
+                    decodeContext = decodeContext
                 )
             }
         }

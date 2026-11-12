@@ -1772,12 +1772,14 @@ private fun LibraryUndoSnackbar(
     }
 }
 
+private val ThumbnailPillShape = RoundedCornerShape(6.dp)
+
 /** A small dark pill over a thumbnail (duration, "Watched"). Fixed light text: it always sits on a scrim. */
 @Composable
 internal fun ThumbnailPill(text: String, modifier: Modifier = Modifier, icon: androidx.compose.ui.graphics.vector.ImageVector? = null) {
     Row(
         modifier = modifier
-            .background(ApturaColors.SurfaceScrim, RoundedCornerShape(6.dp))
+            .background(ApturaColors.SurfaceScrim, ThumbnailPillShape)
             .padding(horizontal = 6.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

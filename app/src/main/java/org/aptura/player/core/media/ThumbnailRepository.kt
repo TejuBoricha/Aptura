@@ -80,9 +80,6 @@ object ThumbnailRepository {
     fun getCachedThumbnailFile(context: Context, uri: String, dateModifiedSec: Long): File? {
         val file = getThumbnailFile(context, uri, dateModifiedSec)
         return if (file.exists() && file.length() > 0L) {
-            try {
-                file.setLastModified(System.currentTimeMillis())
-            } catch (_: Throwable) {}
             file
         } else {
             null
@@ -108,9 +105,6 @@ object ThumbnailRepository {
         val fileName = getThumbnailFileName(uri, dateModifiedSec)
         val targetFile = File(getThumbnailDir(context), fileName)
         if (targetFile.exists() && targetFile.length() > 0L) {
-            try {
-                targetFile.setLastModified(System.currentTimeMillis())
-            } catch (_: Throwable) {}
             return@withContext targetFile
         }
         if (failedExtractionKeys.contains(fileName)) {
