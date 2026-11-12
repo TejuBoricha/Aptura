@@ -434,6 +434,9 @@ private fun BookmarkRow(
 @Composable
 internal fun PictureTab(
     uiState: PlayerUiState,
+    /** The screen's brightness for this player, 0.01..1, or null where there is no window to set it on. */
+    brightness: Float? = null,
+    onBrightnessChanged: (Float) -> Unit = {},
     onResizeModeSelected: (AspectRatioMode) -> Unit,
     onNightModeToggle: (Boolean) -> Unit,
     onNightModeWarmthChanged: (Float) -> Unit,
@@ -462,6 +465,18 @@ internal fun PictureTab(
                 { ApturaTextButton(text = "Reset", onClick = onResetPictureAdjustment) }
             } else null
         ) {
+            // The same brightness the swipe on the left half of the picture changes, for anyone who cannot make that
+            // gesture: a tap on the track sets it (audit A11Y-06). It is not part of Reset: it is the screen, not the picture.
+            if (brightness != null) {
+                SheetSliderRow(
+                    title = "Brightness",
+                    subtitle = "Of the screen, until you leave the player",
+                    valueText = "${(brightness * 100).roundToInt()}%",
+                    value = brightness,
+                    onValueChange = onBrightnessChanged,
+                    valueRange = WindowBrightness.MIN..1f
+                )
+            }
             SheetSliderRow(
                 title = "Contrast",
                 valueText = relativePercent(picture.contrast),

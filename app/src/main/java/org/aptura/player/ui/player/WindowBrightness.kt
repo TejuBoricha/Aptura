@@ -27,9 +27,15 @@ class WindowBrightness(
     }
 
     /** Applies [delta] (fraction of the full range) and returns the new brightness, or null without a window. */
-    fun adjustBy(delta: Float): Float? {
+    fun adjustBy(delta: Float): Float? = setTo(current() + delta)
+
+    /**
+     * Sets the brightness to [fraction] of the full range, kept within [MIN]..1 so the screen is never fully dark, and
+     * returns what was set, or null without a window. The slider and the screen-reader actions use this (audit A11Y-06).
+     */
+    fun setTo(fraction: Float): Float? {
         val target = window ?: return null
-        val next = (current() + delta).coerceIn(MIN, 1f)
+        val next = fraction.coerceIn(MIN, 1f)
         val params = target.attributes
         params.screenBrightness = next
         target.attributes = params

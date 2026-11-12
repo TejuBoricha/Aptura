@@ -172,6 +172,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -387,6 +388,18 @@ fun PlayerScreen(
     DisposableEffect(windowBrightness) {
         onDispose { windowBrightness.restore() }
     }
+    // The level as state, so the slider in the tools sheet follows the swipe and the screen-reader actions too.
+    var brightnessLevel by remember(windowBrightness) { mutableFloatStateOf(windowBrightness.current()) }
+    // One step of the "Increase brightness" and "Decrease brightness" actions (audit A11Y-06): the swipe was the only
+    // way to change brightness, which leaves out anyone who cannot make that gesture or who uses a screen reader.
+    val stepBrightness: (Float) -> Boolean = { delta ->
+        val next = windowBrightness.adjustBy(delta)
+        if (next != null) {
+            brightnessLevel = next
+            onBrightnessPercentChanged((next * 100).roundToInt())
+        }
+        next != null
+    }
 
     val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager }
     val maxVolume = remember(audioManager) {
@@ -450,6 +463,13 @@ fun PlayerScreen(
                     onClick(label = if (uiState.isControlsVisible) "Hide playback controls" else "Show playback controls") {
                         onControlsVisibilityToggle()
                         true
+                    }
+                    // Lock mode turns the brightness swipe off, so it turns these off too.
+                    if (!uiState.isLocked) {
+                        customActions = listOf(
+                            CustomAccessibilityAction("Increase brightness") { stepBrightness(BRIGHTNESS_ACTION_STEP) },
+                            CustomAccessibilityAction("Decrease brightness") { stepBrightness(-BRIGHTNESS_ACTION_STEP) }
+                        )
                     }
                 }
                 .pointerInput(uiState.isLocked) {
@@ -577,6 +597,7 @@ fun PlayerScreen(
                                         val oldPercent = (windowBrightness.current() * 100).toInt()
                                         val newBrightness = windowBrightness.adjustBy(-dragAmount / leftBoxHeightPx)
                                         if (newBrightness != null) {
+                                            brightnessLevel = newBrightness
                                             val newPercent = (newBrightness * 100).toInt()
                                             if (newPercent / 10 != oldPercent / 10 || newPercent == 100 || newPercent == 1) {
                                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -2137,6 +2158,8 @@ fun PlayerScreen(
                     } else {
                         PictureTab(
                             uiState = uiState,
+                            brightness = brightnessLevel,
+                            onBrightnessChanged = { level -> windowBrightness.setTo(level)?.let { brightnessLevel = it } },
                             onResizeModeSelected = onResizeModeSelected,
                             onNightModeToggle = onNightModeToggle,
                             onNightModeWarmthChanged = onNightModeWarmthChanged,
@@ -2172,6 +2195,9 @@ private val TOP_BAR_INLINE_MIN_WIDTH = 560.dp
 // cluster below (half of its largest button, 36 dp, plus a gap).
 /** Where the transport buttons sit from the left edge while the stats panel is open on a short window. */
 private val STATS_DOCK_CLUSTER_MARGIN = 24.dp
+
+/** One step of the screen-reader brightness actions: a tenth of the range, so ten steps cross it. */
+private const val BRIGHTNESS_ACTION_STEP = 0.1f
 
 /** The seek bar and the bottom row of buttons (two 48 dp rows and their padding), which the stats panel must stay above. */
 private val STATS_BOTTOM_CLEARANCE = 120.dp
