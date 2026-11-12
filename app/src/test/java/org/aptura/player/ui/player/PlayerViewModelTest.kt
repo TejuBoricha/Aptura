@@ -461,6 +461,14 @@ class PlayerViewModelTest {
                 )
             }
         }
+
+        override suspend fun clearAllPlaybackHistory() {
+            items.keys.forEach { uri ->
+                items[uri]?.let {
+                    items[uri] = it.copy(playbackPositionMs = 0L, isCompleted = false)
+                }
+            }
+        }
     }
 
     private val sampleVideo = DomainMediaItem(

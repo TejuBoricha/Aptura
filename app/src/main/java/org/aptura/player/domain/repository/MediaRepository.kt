@@ -138,6 +138,11 @@ interface MediaRepository {
      * Resets per-video playback preferences back to global defaults (FR-CTRL-012).
      */
     suspend fun resetPlaybackPreferences(uri: String)
+
+    /**
+     * Resets playback position, completed status, and last played timestamp across all indexed media items (audit DATA-09).
+     */
+    suspend fun clearAllPlaybackHistory()
 }
 
 /**

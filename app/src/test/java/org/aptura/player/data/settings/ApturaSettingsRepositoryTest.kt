@@ -54,6 +54,7 @@ class ApturaSettingsRepositoryTest {
             assertFalse(initial.subtitleBackgroundEnabled)
             assertEquals(0, initial.defaultDecoderStrategy)
             assertFalse(initial.isSupporter)
+            assertFalse(initial.isPrivateMode)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -242,5 +243,14 @@ class ApturaSettingsRepositoryTest {
     fun recoverPersistedSafFolders_handlesEmptyOrPermissionQueriesGracefully() {
         val recovered = recoverPersistedSafFolders(context)
         assertTrue(recovered.isEmpty())
+    }
+
+    @Test
+    fun updatePrivateMode_persistsCorrectly() = runTest {
+        assertFalse(repository.settingsFlow.first().isPrivateMode)
+        repository.updatePrivateMode(true)
+        assertTrue(repository.settingsFlow.first().isPrivateMode)
+        repository.updatePrivateMode(false)
+        assertFalse(repository.settingsFlow.first().isPrivateMode)
     }
 }
