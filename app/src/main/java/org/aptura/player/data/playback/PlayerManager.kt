@@ -15,6 +15,8 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.ts.TsExtractor
 import kotlinx.coroutines.CoroutineScope
@@ -99,8 +101,22 @@ object PlayerManager {
             .setConstantBitrateSeekingAlwaysEnabled(true)
             .setTsExtractorTimestampSearchBytes(1500 * TsExtractor.TS_PACKET_SIZE)
 
+        // Offline-only DataSource boundary (DEC-012, SEC-09): network playback throws IOException immediately.
+        val offlineBaseDataSourceFactory = DataSource.Factory {
+            object : DataSource {
+                override fun addTransferListener(transferListener: androidx.media3.datasource.TransferListener) {}
+                override fun open(dataSpec: androidx.media3.datasource.DataSpec): Long {
+                    throw java.io.IOException("Network playback is forbidden. Aptura is strictly offline-only (DEC-012).")
+                }
+                override fun read(buffer: ByteArray, offset: Int, length: Int): Int = -1
+                override fun getUri(): android.net.Uri? = null
+                override fun close() {}
+            }
+        }
+        val localDataSourceFactory = DefaultDataSource.Factory(appContext, offlineBaseDataSourceFactory)
+
         val player = ExoPlayer.Builder(appContext, renderersFactory)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(appContext, extractorsFactory))
+            .setMediaSourceFactory(DefaultMediaSourceFactory(localDataSourceFactory, extractorsFactory))
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)

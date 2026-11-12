@@ -125,6 +125,14 @@ class LibraryGalleryTest : GalleryBase() {
         shoot("details_sheet_dark")
     }
 
+    @Config(fontScale = 2.0f)
+    @Test fun detailsSheetFont200() {
+        themed(ThemeMode.DARK) {
+            MediaDetailsSheet(item = sampleItems[2], onDismiss = {}, onPlayClick = {}, onShareClick = {})
+        }
+        shoot("details_sheet_font200")
+    }
+
     @Config(qualifiers = "w411dp-h2200dp-xhdpi")
     @Test fun detailsSheetTall() {
         themed(ThemeMode.LIGHT) {

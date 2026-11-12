@@ -1707,7 +1707,7 @@ fun PlayerScreen(
                                 ) {
                                     Icon(
                                         imageVector = Icons.Filled.Tune,
-                                        contentDescription = "Advanced settings",
+                                        contentDescription = "Playback tools",
                                         tint = if (uiState.subtitleDelayMs != 0L || uiState.audioDelayMs != 0L || uiState.sleepTimerEndsAtElapsedRealtime != null || uiState.sleepTimerExpired || uiState.sleepAtEndOfVideo)
                                             ApturaColors.AccentPrimary
                                         else
