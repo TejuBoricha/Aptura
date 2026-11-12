@@ -149,6 +149,12 @@ Use one video with several audio tracks, one sidecar `.srt`, and Bluetooth headp
       library opens and no player appears. Then `-d file:///sdcard/Movies/<a real video>.mp4` plays it, and so does
       "Open with Aptura" from a file manager. *(Not run on a phone. The URI check is tested on the JVM as a function; the
       activity's use of it is not.)*
+- [ ] **Brightness without the swipe (`A11Y-06`):** in the player open the tools sheet, then `Picture`: tap along the
+      `Brightness` slider and the screen follows; swipe on the left half of the picture, open the sheet again, and the
+      slider shows the level the swipe left. With TalkBack on, focus the `Video` item and open the actions menu:
+      `Increase brightness` and `Decrease brightness` are there and each changes the screen by a step. Leaving the
+      player puts the brightness back. *(Not run on a phone or with TalkBack. Tested on the JVM with Robolectric against
+      the window's brightness value.)*
 - [x] **Font scale:** at 200%, the sleep chips wrap without clipping and every target stays at least 48 dp. *(PASS on Galaxy S24)*
 - [x] **Light theme:** with the app in Light, the player and every player sheet stay dark. *(PASS on Galaxy S24)*
 
