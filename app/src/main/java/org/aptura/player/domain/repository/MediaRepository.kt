@@ -59,6 +59,9 @@ interface MediaRepository {
      */
     suspend fun hideVideo(uri: String)
 
+    /** Restores a single hidden video to the library (audit UX-03). */
+    suspend fun unhideVideo(uri: String) {}
+
     /** Un-hides every hidden video. */
     suspend fun restoreHiddenVideos()
 

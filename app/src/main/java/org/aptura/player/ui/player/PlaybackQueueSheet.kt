@@ -56,6 +56,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -90,7 +93,8 @@ fun PlaybackQueueSheet(
     onMoveItem: (Int, Int) -> Unit,
     onRemoveItem: (Int) -> Unit,
     onClearQueue: () -> Unit,
-    onTogglePlayMode: () -> Unit
+    onTogglePlayMode: () -> Unit,
+    onUndoClearQueue: () -> Unit = {}
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -109,7 +113,8 @@ fun PlaybackQueueSheet(
             onMoveItem = onMoveItem,
             onRemoveItem = onRemoveItem,
             onClearQueue = onClearQueue,
-            onTogglePlayMode = onTogglePlayMode
+            onTogglePlayMode = onTogglePlayMode,
+            onUndoClearQueue = onUndoClearQueue
         )
     }
 }
@@ -127,9 +132,11 @@ fun PlaybackQueueContent(
     onRemoveItem: (Int) -> Unit,
     onClearQueue: () -> Unit,
     onTogglePlayMode: () -> Unit,
+    onUndoClearQueue: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
+    var clearedCount by remember { mutableIntStateOf(0) }
 
     Column(
         modifier = modifier
@@ -244,6 +251,7 @@ fun PlaybackQueueContent(
                         IconButton(
                             onClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                clearedCount = (queueItems.size - 1).coerceAtLeast(1)
                                 onClearQueue()
                             },
                             modifier = Modifier.size(48.dp)
@@ -264,6 +272,45 @@ fun PlaybackQueueContent(
                 thickness = 1.dp,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
+
+            AnimatedVisibility(visible = clearedCount > 0) {
+                Surface(
+                    color = ApturaColors.SurfaceElevated3,
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, ApturaColors.BorderSubtle),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Cleared $clearedCount ${if (clearedCount == 1) "video" else "videos"} from queue",
+                            color = ApturaColors.TextHighEmphasis,
+                            style = ApturaTypography.bodySmall,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                clearedCount = 0
+                                onUndoClearQueue()
+                            }
+                        ) {
+                            Text(
+                                text = "Undo",
+                                color = ApturaColors.AccentPrimary,
+                                style = ApturaTypography.labelLarge
+                            )
+                        }
+                    }
+                }
+            }
 
             // Queue Items List
             if (queueItems.isEmpty()) {

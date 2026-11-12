@@ -545,9 +545,11 @@ private fun AppNavHost(
                         permissionLauncher.launch(PermissionHelper.getRequiredPermissions())
                     },
                     onRemoveVideo = libraryViewModel::hideVideo,
+                    onUnhideVideo = libraryViewModel::unhideVideo,
                     onVideoDeleted = libraryViewModel::onVideoDeleted,
                     onVideoMovedAway = libraryViewModel::onVideoMovedAway,
                     onResetProgress = libraryViewModel::resetVideoProgress,
+                    onRestoreProgress = libraryViewModel::restoreVideoProgress,
                     onRenameVideo = libraryViewModel::renameVideo,
                     onRemoveMissingVideo = libraryViewModel::removeMissingVideo,
                     onAddFolderClick = { folderPickerLauncher.launch(null) },
@@ -667,6 +669,9 @@ private fun AppNavHost(
                     },
                     onResetProgressClick = {
                         libraryViewModel.resetVideoProgress(item.uri)
+                    },
+                    onUndoResetProgressClick = { pos, completed ->
+                        libraryViewModel.restoreVideoProgress(item.uri, pos, completed)
                     },
                     onRenameClick = {
                         itemToRename = item
@@ -1045,6 +1050,7 @@ private fun AppNavHost(
                             onMoveQueueItem = playerViewModel::moveQueueItem,
                             onRemoveQueueItem = playerViewModel::removeFromQueue,
                             onClearQueue = playerViewModel::clearQueue,
+                            onUndoClearQueue = playerViewModel::undoClearQueue,
                             onReplayCurrentItem = playerViewModel::replayCurrentItem,
                             onToggleStatsOverlay = playerViewModel::toggleStatsOverlay,
                             onWhyCompatibilityClick = { playerViewModel.setWhyCompatibilitySheetVisible(true) },

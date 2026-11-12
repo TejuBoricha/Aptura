@@ -125,6 +125,11 @@ class MediaRepositoryImpl(
         mediaItemDao.hideByUri(uri)
     }
 
+    override suspend fun unhideVideo(uri: String): Unit = withContext(ioDispatcher) {
+        val existing = mediaItemDao.getVideoByUri(uri) ?: return@withContext
+        mediaItemDao.insertOrUpdate(existing.copy(isHidden = false))
+    }
+
     override suspend fun restoreHiddenVideos(): Unit = withContext(ioDispatcher) {
         mediaItemDao.restoreAllHidden()
     }

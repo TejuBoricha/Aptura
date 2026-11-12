@@ -2,6 +2,7 @@ package org.aptura.player.ui.library
 
 import androidx.activity.compose.BackHandler
 import androidx.core.net.toUri
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -202,6 +203,12 @@ internal sealed interface LibraryActiveModal {
     ) : LibraryActiveModal
 }
 
+internal data class LibraryUndoPrompt(
+    val message: String,
+    val token: Long,
+    val onUndo: () -> Unit
+)
+
 /** The collection index needs at least this much height: below it the rail is used, however wide the window is. */
 private val SIDEBAR_MIN_HEIGHT = 600.dp
 
@@ -222,7 +229,9 @@ fun MediaLibraryScreen(
     onOpenFilePicker: () -> Unit = {},
     onRequestPermission: () -> Unit = {},
     onRemoveVideo: (String) -> Unit = {},
+    onUnhideVideo: (String) -> Unit = {},
     onResetProgress: (String) -> Unit = {},
+    onRestoreProgress: (String, Long, Boolean) -> Unit = { _, _, _ -> },
     onRenameVideo: (String, String, String?, String?) -> Unit = { _, _, _, _ -> },
     onRemoveMissingVideo: (String) -> Unit = {},
     onShowDetails: ((DomainMediaItem) -> Unit)? = null,
@@ -241,6 +250,14 @@ fun MediaLibraryScreen(
     onViewPrefsChanged: (LibraryViewPrefs) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    var undoPrompt by remember { mutableStateOf<LibraryUndoPrompt?>(null) }
+    LaunchedEffect(undoPrompt?.token) {
+        if (undoPrompt != null) {
+            kotlinx.coroutines.delay(6000)
+            undoPrompt = null
+        }
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = ApturaColors.SurfaceBase,
@@ -306,7 +323,17 @@ fun MediaLibraryScreen(
                         onOpenFilePicker = onOpenFilePicker,
                         onRequestPermission = onRequestPermission,
                         onRemoveVideo = onRemoveVideo,
+                        onUnhideVideo = onUnhideVideo,
                         onResetProgress = onResetProgress,
+                        onRestoreProgress = onRestoreProgress,
+                        onShowUndo = { message, onUndo ->
+                            undoPrompt = LibraryUndoPrompt(
+                                message = message,
+                                token = (undoPrompt?.token ?: 0L) + 1L,
+                                onUndo = onUndo
+                            )
+                        },
+                        onDismissUndo = { undoPrompt = null },
                         onRenameVideo = onRenameVideo,
                         onRemoveMissingVideo = onRemoveMissingVideo,
                         onShowDetails = onShowDetails,
@@ -328,6 +355,23 @@ fun MediaLibraryScreen(
                     )
                 }
             }
+
+            LibraryUndoSnackbar(
+                prompt = undoPrompt,
+                onUndo = {
+                    val current = undoPrompt
+                    undoPrompt = null
+                    current?.onUndo?.invoke()
+                },
+                onDismiss = { undoPrompt = null },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(
+                        start = 16.dp,
+                        end = 16.dp,
+                        bottom = innerPadding.calculateBottomPadding() + 16.dp
+                    )
+            )
         }
     }
 }
@@ -344,7 +388,11 @@ private fun MediaLibraryContentView(
     onOpenFilePicker: () -> Unit,
     onRequestPermission: () -> Unit,
     onRemoveVideo: (String) -> Unit,
+    onUnhideVideo: (String) -> Unit = {},
     onResetProgress: (String) -> Unit,
+    onRestoreProgress: (String, Long, Boolean) -> Unit = { _, _, _ -> },
+    onShowUndo: (String, () -> Unit) -> Unit = { _, _ -> },
+    onDismissUndo: () -> Unit = {},
     onRenameVideo: (String, String, String?, String?) -> Unit = { _, _, _, _ -> },
     onRemoveMissingVideo: (String) -> Unit = {},
     onShowDetails: ((DomainMediaItem) -> Unit)? = null,
@@ -1156,7 +1204,14 @@ private fun MediaLibraryContentView(
                             },
                             onPlayNext = { onPlayNext(card.rawItem) },
                             onAddToQueue = { onAddToQueue(card.rawItem) },
-                            onHide = { activeModal = LibraryActiveModal.Hide(card.rawItem) },
+                            onHide = {
+                                val targetUri = card.rawItem.uri
+                                val cleanTitle = MediaFormatters.cleanTitle(card.rawItem.title)
+                                onRemoveVideo(targetUri)
+                                onShowUndo("\"$cleanTitle\" hidden from library") {
+                                    onUnhideVideo(targetUri)
+                                }
+                            },
                             onDelete = { activeModal = LibraryActiveModal.Delete(card.rawItem) },
                             onRemoveMissing = { activeModal = LibraryActiveModal.RemoveMissing(card.rawItem) },
                             onMoreFileActions = { activeModal = LibraryActiveModal.MoreFileActions(card.rawItem) },
@@ -1223,14 +1278,37 @@ private fun MediaLibraryContentView(
                         }
                     },
                     onResetProgressClick = {
+                        val prevPos = item.playbackPositionMs
+                        val prevCompleted = item.isCompleted
                         onResetProgress(item.uri)
                         activeModal = LibraryActiveModal.Details(item.copy(playbackPositionMs = 0L, isCompleted = false))
+                        onShowUndo("Progress reset for \"${MediaFormatters.cleanTitle(item.title)}\"") {
+                            onRestoreProgress(item.uri, prevPos, prevCompleted)
+                            if ((activeModal as? LibraryActiveModal.Details)?.item?.uri == item.uri) {
+                                activeModal = LibraryActiveModal.Details(
+                                    item.copy(playbackPositionMs = prevPos, isCompleted = prevCompleted)
+                                )
+                            }
+                        }
+                    },
+                    onUndoResetProgressClick = { pos, completed ->
+                        onRestoreProgress(item.uri, pos, completed)
+                        activeModal = LibraryActiveModal.Details(
+                            item.copy(playbackPositionMs = pos, isCompleted = completed)
+                        )
+                        onDismissUndo()
                     },
                     onRenameClick = {
                         activeModal = LibraryActiveModal.Rename(item)
                     },
                     onHideClick = {
-                        activeModal = LibraryActiveModal.Hide(item)
+                        val targetUri = item.uri
+                        val cleanTitle = MediaFormatters.cleanTitle(item.title)
+                        activeModal = null
+                        onRemoveVideo(targetUri)
+                        onShowUndo("\"$cleanTitle\" hidden from library") {
+                            onUnhideVideo(targetUri)
+                        }
                     },
                     onDeleteClick = {
                         activeModal = LibraryActiveModal.Delete(item)
@@ -1338,8 +1416,13 @@ private fun MediaLibraryContentView(
                 HideFromLibraryDialog(
                     itemTitle = MediaFormatters.cleanTitle(item.title),
                     onConfirm = {
-                        onRemoveVideo(item.uri)
+                        val targetUri = item.uri
+                        val cleanTitle = MediaFormatters.cleanTitle(item.title)
+                        onRemoveVideo(targetUri)
                         activeModal = null
+                        onShowUndo("\"$cleanTitle\" hidden from library") {
+                            onUnhideVideo(targetUri)
+                        }
                     },
                     onDismiss = { activeModal = null }
                 )
@@ -1385,14 +1468,13 @@ private fun MediaLibraryContentView(
                     message = "The files stay on your device. They will be hidden from Aptura, including after a rescan, and can be restored from Settings.",
                     confirmLabel = "Hide videos",
                     onConfirm = {
+                        val hiddenUris = items.map { it.uri }
                         items.forEach { onRemoveVideo(it.uri) }
                         selectedUris = emptySet()
                         activeModal = null
-                        Toast.makeText(
-                            context,
-                            "${items.size} ${if (items.size == 1) "video" else "videos"} hidden",
-                            Toast.LENGTH_SHORT
-                        ).show()
+                        onShowUndo("${items.size} ${if (items.size == 1) "video" else "videos"} hidden") {
+                            hiddenUris.forEach { onUnhideVideo(it) }
+                        }
                     }
                 )
             }
@@ -1628,6 +1710,66 @@ private fun TransferProgressDialog(
 @Composable
 internal fun MenuDivider() {
     HorizontalDivider(color = ApturaColors.BorderSubtle, modifier = Modifier.padding(vertical = 4.dp))
+}
+
+/**
+ * Floating snackbar pill for reversible library actions (hide from library, reset progress — audit UX-03).
+ */
+@Composable
+private fun LibraryUndoSnackbar(
+    prompt: LibraryUndoPrompt?,
+    onUndo: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (prompt == null) return
+    val haptic = LocalHapticFeedback.current
+    Surface(
+        color = ApturaColors.SurfaceElevated2,
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, ApturaColors.BorderSubtle),
+        shadowElevation = 6.dp,
+        modifier = modifier.widthIn(max = 460.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(start = 16.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = prompt.message,
+                style = ApturaTypography.bodyMedium,
+                color = ApturaColors.TextHighEmphasis,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false)
+            )
+            TextButton(
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onUndo()
+                }
+            ) {
+                Text(
+                    text = "Undo",
+                    style = ApturaTypography.labelLarge,
+                    color = ApturaColors.AccentPrimary
+                )
+            }
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Dismiss undo notice",
+                    tint = ApturaColors.TextLowEmphasis,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+    }
 }
 
 /** A small dark pill over a thumbnail (duration, "Watched"). Fixed light text: it always sits on a scrim. */
