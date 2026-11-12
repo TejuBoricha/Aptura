@@ -1025,6 +1025,10 @@ private fun AppNavHost(
                                 playerViewModel.setSubtitleUseSystemStyle(enabled)
                                 coroutineScope.launch { settingsRepository.updateSubtitleUseSystemStyle(enabled) }
                             },
+                            onSubtitleEncodingChanged = { encoding ->
+                                playerViewModel.setSubtitleEncoding(encoding)
+                                coroutineScope.launch { settingsRepository.updateSubtitleEncoding(encoding) }
+                            },
                             onAddBookmark = playerViewModel::addBookmark,
                             onDeleteBookmark = playerViewModel::deleteBookmark,
                             onUpdateBookmarkNote = playerViewModel::updateBookmarkNote,
