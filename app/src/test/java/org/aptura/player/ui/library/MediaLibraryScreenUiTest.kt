@@ -1,7 +1,10 @@
 package org.aptura.player.ui.library
 
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertWidthIsAtLeast
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -850,8 +853,31 @@ class MediaLibraryScreenUiTest {
         // Single-item hide is non-destructive and immediate, showing an undo snackbar instead of a modal confirmation
         assertEquals(listOf("content://media/1"), hiddenUris)
         composeTestRule.onNodeWithText("\"Oppenheimer\" hidden from library").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("Dismiss undo notice")
+            .assertWidthIsAtLeast(48.dp)
+            .assertHeightIsAtLeast(48.dp)
         composeTestRule.onNodeWithText("Undo").performClick()
         assertEquals(listOf("content://media/1"), unhiddenUris)
+    }
+
+    @Test
+    fun mediaDetailsContent_quickActions_meetAccessibleTouchTargetMinimum() {
+        composeTestRule.setContent {
+            ApturaTheme {
+                MediaDetailsContent(
+                    item = sampleVideos.first(),
+                    onClose = {},
+                    onPlayClick = {},
+                    onResetProgressClick = {},
+                    onUndoResetProgressClick = { _, _ -> }
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithText("Play").assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp)
+        composeTestRule.onNodeWithText("Share").assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp)
+        composeTestRule.onNodeWithText("Rename").assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp)
+        composeTestRule.onNodeWithText("Delete").assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp)
     }
 
     @Test

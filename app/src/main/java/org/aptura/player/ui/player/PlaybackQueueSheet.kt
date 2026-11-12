@@ -66,6 +66,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -393,7 +394,6 @@ private fun QueueItemRow(
     val borderColor = if (isPlaying) ApturaColors.AccentPrimary else ApturaColors.BorderSubtle
 
     Surface(
-        onClick = onClick,
         color = backgroundColor,
         shape = RoundedCornerShape(12.dp),
         border = BorderStroke(1.dp, borderColor),
@@ -402,101 +402,116 @@ private fun QueueItemRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = 8.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            // Index or Playing Icon Indicator
-            if (isPlaying) {
+            // Main clickable item target (plays/jumps to item)
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(
+                        role = Role.Button,
+                        onClickLabel = "Play ${item.title}",
+                        onClick = onClick
+                    )
+                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // Index or Playing Icon Indicator
+                if (isPlaying) {
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(ApturaColors.AccentSubtle),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Equalizer,
+                            contentDescription = "Now Playing",
+                            tint = ApturaColors.AccentPrimary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                } else {
+                    Text(
+                        text = "${index + 1}",
+                        color = ApturaColors.TextLowEmphasis,
+                        style = ApturaTypography.bodySmall.copy(
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            fontFeatureSettings = "tnum"
+                        ),
+                        modifier = Modifier.width(28.dp)
+                    )
+                }
+
+                // The video's own frame: a column of identical file glyphs gave no way to recognise an episode at a glance.
                 Box(
                     modifier = Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(ApturaColors.AccentSubtle),
-                    contentAlignment = Alignment.Center
+                        .width(72.dp)
+                        .aspectRatio(16f / 9f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(ApturaColors.SurfaceElevated3)
+                        .border(
+                            1.dp,
+                            if (isPlaying) ApturaColors.AccentPrimary else ApturaColors.BorderSubtle,
+                            RoundedCornerShape(8.dp)
+                        )
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Equalizer,
-                        contentDescription = "Now Playing",
-                        tint = ApturaColors.AccentPrimary,
-                        modifier = Modifier.size(16.dp)
+                    org.aptura.player.ui.library.VideoThumbnail(
+                        uri = item.uri,
+                        dateModifiedSec = item.dateModifiedSec,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize()
                     )
                 }
-            } else {
-                Text(
-                    text = "${index + 1}",
-                    color = ApturaColors.TextLowEmphasis,
-                    style = ApturaTypography.bodySmall.copy(
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                        fontFeatureSettings = "tnum"
-                    ),
-                    modifier = Modifier.width(28.dp)
-                )
-            }
 
-            // The video's own frame: a column of identical file glyphs gave no way to recognise an episode at a glance.
-            Box(
-                modifier = Modifier
-                    .width(72.dp)
-                    .aspectRatio(16f / 9f)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(ApturaColors.SurfaceElevated3)
-                    .border(
-                        1.dp,
-                        if (isPlaying) ApturaColors.AccentPrimary else ApturaColors.BorderSubtle,
-                        RoundedCornerShape(8.dp)
-                    )
-            ) {
-                org.aptura.player.ui.library.VideoThumbnail(
-                    uri = item.uri,
-                    dateModifiedSec = item.dateModifiedSec,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-
-            // Video Title & Duration
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                // Video Title & Duration
+                Column(
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Text(
-                        text = MediaFormatters.cleanTitle(item.title),
-                        color = if (isPlaying) ApturaColors.AccentPrimary else ApturaColors.TextHighEmphasis,
-                        fontSize = 14.sp,
-                        fontWeight = if (isPlaying) FontWeight.SemiBold else FontWeight.Normal,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
-                    )
-                    if (isPlaying) {
-                        Surface(
-                            color = ApturaColors.AccentPrimary,
-                            shape = RoundedCornerShape(4.dp)
-                        ) {
-                            Text(
-                                text = "NOW",
-                                color = ApturaColors.TextOnAccent,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                            )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = MediaFormatters.cleanTitle(item.title),
+                            color = if (isPlaying) ApturaColors.AccentPrimary else ApturaColors.TextHighEmphasis,
+                            fontSize = 14.sp,
+                            fontWeight = if (isPlaying) FontWeight.SemiBold else FontWeight.Normal,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        if (isPlaying) {
+                            Surface(
+                                color = ApturaColors.AccentPrimary,
+                                shape = RoundedCornerShape(4.dp)
+                            ) {
+                                Text(
+                                    text = "NOW",
+                                    color = ApturaColors.TextOnAccent,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
                         }
                     }
-                }
-                if (item.durationMs > 0L) {
-                    Text(
-                        text = MediaFormatters.formatDuration(item.durationMs),
-                        color = ApturaColors.TextMediumEmphasis,
-                        style = ApturaTypography.bodySmall.copy(
-                            fontSize = 12.sp,
-                            fontFeatureSettings = "tnum"
+                    if (item.durationMs > 0L) {
+                        Text(
+                            text = MediaFormatters.formatDuration(item.durationMs),
+                            color = ApturaColors.TextMediumEmphasis,
+                            style = ApturaTypography.bodySmall.copy(
+                                fontSize = 12.sp,
+                                fontFeatureSettings = "tnum"
+                            )
                         )
-                    )
+                    }
                 }
             }
 
@@ -508,7 +523,7 @@ private fun QueueItemRow(
                 if (canMoveUp) {
                     IconButton(
                         onClick = onMoveUp,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.KeyboardArrowUp,
@@ -521,7 +536,7 @@ private fun QueueItemRow(
                 if (canMoveDown) {
                     IconButton(
                         onClick = onMoveDown,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.KeyboardArrowDown,
@@ -534,7 +549,7 @@ private fun QueueItemRow(
                 if (canRemove) {
                     IconButton(
                         onClick = onRemove,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,

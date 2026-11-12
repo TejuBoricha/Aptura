@@ -142,13 +142,13 @@ fun WebSearchDialog(
 
                     IconButton(
                         onClick = onDismissRequest,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Close",
                             tint = ApturaColors.TextMediumEmphasis,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }

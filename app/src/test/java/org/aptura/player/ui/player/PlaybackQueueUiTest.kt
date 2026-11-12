@@ -1,10 +1,13 @@
 package org.aptura.player.ui.player
 
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.dp
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.domain.model.PlayMode
 import org.aptura.player.theme.ApturaTheme
@@ -97,6 +100,32 @@ class PlaybackQueueUiTest {
         // Clear queue
         composeTestRule.onNodeWithContentDescription("Clear queue").performClick()
         assertTrue(cleared)
+    }
+
+    @Test
+    fun playbackQueueSheet_actionButtons_meetAccessibleTouchTargetMinimum() {
+        composeTestRule.setContent {
+            ApturaTheme {
+                PlaybackQueueContent(
+                    queueItems = sampleItems,
+                    currentIndex = 1,
+                    playMode = PlayMode.NORMAL,
+                    onJumpToItem = {},
+                    onMoveItem = { _, _ -> },
+                    onRemoveItem = {},
+                    onClearQueue = {},
+                    onTogglePlayMode = {}
+                )
+            }
+        }
+
+        val moveUpButtons = composeTestRule.onAllNodes(androidx.compose.ui.test.hasContentDescription("Move Up"))
+        val moveDownButtons = composeTestRule.onAllNodes(androidx.compose.ui.test.hasContentDescription("Move Down"))
+        val removeButtons = composeTestRule.onAllNodes(androidx.compose.ui.test.hasContentDescription("Remove from Queue"))
+
+        moveUpButtons[0].assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp)
+        moveDownButtons[0].assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp)
+        removeButtons[0].assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp)
     }
 
     @Test
