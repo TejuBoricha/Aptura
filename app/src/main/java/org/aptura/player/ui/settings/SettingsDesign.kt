@@ -48,6 +48,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
@@ -156,7 +157,7 @@ internal fun ActionRow(
         Spacer(Modifier.width(16.dp))
         RowText(title, subtitle, Modifier.weight(1f))
         if (trailing != null) {
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(12.dp))
             trailing()
         }
     }
@@ -259,6 +260,11 @@ internal fun SegmentedPicker(
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
+    val fontScale = LocalDensity.current.fontScale
+    // Segmented button segments have fixed equal-width columns. At 200% font scale,
+    // single-word labels (e.g. "Medium", "Western") exceed column width and truncate with ellipsis.
+    // Scale font size proportionally to guarantee full readability without ellipsis (audit A11Y-08).
+    val effectiveSp = if (fontScale > 1.15f) (14f / (fontScale / 1.15f)).sp else 14.sp
     val position by animateFloatAsState(
         targetValue = selectedIndex.coerceAtLeast(0).toFloat(),
         animationSpec = spring(dampingRatio = 0.78f, stiffness = Spring.StiffnessMedium),
@@ -272,7 +278,7 @@ internal fun SegmentedPicker(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(54.dp)
+            .heightIn(min = 54.dp)
             .clip(trackShape)
             .background(ApturaColors.SurfaceRecessed)
             .border(1.dp, Hairline, trackShape)
@@ -316,7 +322,7 @@ internal fun SegmentedPicker(
             ) {
                 Text(
                     text = text,
-                    style = ApturaTypography.titleMedium.copy(fontSize = 14.sp, fontFeatureSettings = "tnum"),
+                    style = ApturaTypography.titleMedium.copy(fontSize = effectiveSp, fontFeatureSettings = "tnum"),
                     color = textColor,
                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                     maxLines = 2,
@@ -381,74 +387,115 @@ internal fun AccentPickerRow(
             )
         }
     }
+    val fontScale = LocalDensity.current.fontScale
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
         RowText(title, subtitle)
         Spacer(Modifier.height(14.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth().selectableGroup(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            AccentColor.entries.forEach { accent ->
-                val isSelected = accent == selected
-                val isGold = accent == AccentColor.GOLD
-                Column(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .selectable(
-                            selected = isSelected,
-                            role = Role.RadioButton,
-                            onClick = {
-                                if (!isSelected) {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    onSelect(accent)
-                                }
-                            }
-                        )
-                        .semantics { contentDescription = "${accent.label} accent" }
-                        .padding(vertical = 2.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .border(
-                                width = 2.dp,
-                                color = when {
-                                    isSelected && isGold -> if (ApturaColors.IsDark) Color(0xFFF5D77F) else Color(0xFF745700)
-                                    isSelected -> ApturaColors.TextHighEmphasis
-                                    else -> Color.Transparent
-                                },
-                                shape = CircleShape
-                            )
-                            .padding(3.dp)
-                            .clip(CircleShape)
-                            .then(
-                                if (isGold) Modifier.background(goldBrush)
-                                else Modifier.background(accent.previewPrimary(ApturaColors.IsDark))
-                            ),
-                        contentAlignment = Alignment.Center
+        if (fontScale > 1.2f) {
+            // Split into two rows of 3 to provide ample horizontal breathing room for text labels (audit A11Y-08)
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                AccentColor.entries.chunked(3).forEach { chunk ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().selectableGroup(),
+                        horizontalArrangement = Arrangement.SpaceAround
                     ) {
-                        if (isSelected) {
-                            Icon(
-                                imageVector = Icons.Default.Check,
-                                contentDescription = null,
-                                tint = if (ApturaColors.IsDark) Color(0xFF001217) else Color.White,
-                                modifier = Modifier.size(16.dp)
+                        chunk.forEach { accent ->
+                            AccentSwatchItem(
+                                accent = accent,
+                                isSelected = accent == selected,
+                                isGold = accent == AccentColor.GOLD,
+                                goldBrush = goldBrush,
+                                haptic = haptic,
+                                onSelect = onSelect
                             )
                         }
                     }
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = accent.label,
-                        style = ApturaTypography.labelMedium.copy(fontFeatureSettings = ""),
-                        color = if (isSelected) ApturaColors.TextHighEmphasis else ApturaColors.TextMediumEmphasis,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        maxLines = 1
+                }
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth().selectableGroup(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                AccentColor.entries.forEach { accent ->
+                    AccentSwatchItem(
+                        accent = accent,
+                        isSelected = accent == selected,
+                        isGold = accent == AccentColor.GOLD,
+                        goldBrush = goldBrush,
+                        haptic = haptic,
+                        onSelect = onSelect
                     )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun AccentSwatchItem(
+    accent: AccentColor,
+    isSelected: Boolean,
+    isGold: Boolean,
+    goldBrush: Brush,
+    haptic: androidx.compose.ui.hapticfeedback.HapticFeedback,
+    onSelect: (AccentColor) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .selectable(
+                selected = isSelected,
+                role = Role.RadioButton,
+                onClick = {
+                    if (!isSelected) {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onSelect(accent)
+                    }
+                }
+            )
+            .semantics { contentDescription = "${accent.label} accent" }
+            .padding(vertical = 2.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .border(
+                    width = 2.dp,
+                    color = when {
+                        isSelected && isGold -> if (ApturaColors.IsDark) Color(0xFFF5D77F) else Color(0xFF745700)
+                        isSelected -> ApturaColors.TextHighEmphasis
+                        else -> Color.Transparent
+                    },
+                    shape = CircleShape
+                )
+                .padding(3.dp)
+                .clip(CircleShape)
+                .then(
+                    if (isGold) Modifier.background(goldBrush)
+                    else Modifier.background(accent.previewPrimary(ApturaColors.IsDark))
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            if (isSelected) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = null,
+                    tint = if (ApturaColors.IsDark) Color(0xFF001217) else Color.White,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = accent.label,
+            style = ApturaTypography.labelMedium.copy(fontFeatureSettings = ""),
+            color = if (isSelected) ApturaColors.TextHighEmphasis else ApturaColors.TextMediumEmphasis,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+            maxLines = 1
+        )
     }
 }
 
@@ -457,13 +504,16 @@ internal fun AccentPickerRow(
 /** One figure of the library strip: a large tabular number over a small caption. */
 @Composable
 internal fun ReadoutCell(value: String, caption: String, modifier: Modifier = Modifier) {
+    val fontScale = LocalDensity.current.fontScale
+    val valueSp = if (fontScale > 1.15f) (21f / (fontScale / 1.15f)).sp else 21.sp
+    val captionSp = if (fontScale > 1.15f) (10f / (fontScale / 1.15f)).sp else 10.sp
     Column(
-        modifier = modifier.semantics(mergeDescendants = true) { }.padding(vertical = 16.dp, horizontal = 8.dp),
+        modifier = modifier.semantics(mergeDescendants = true) { }.padding(vertical = 16.dp, horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
             text = value,
-            style = ApturaTypography.headlineMedium.copy(fontSize = 21.sp, fontFeatureSettings = "tnum"),
+            style = ApturaTypography.headlineMedium.copy(fontSize = valueSp, fontFeatureSettings = "tnum"),
             color = ApturaColors.TextHighEmphasis,
             fontWeight = FontWeight.Bold,
             maxLines = 1,
@@ -472,7 +522,7 @@ internal fun ReadoutCell(value: String, caption: String, modifier: Modifier = Mo
         Spacer(Modifier.height(2.dp))
         Text(
             text = caption.uppercase(),
-            style = ApturaTypography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 1.2.sp),
+            style = ApturaTypography.labelSmall.copy(fontSize = captionSp, letterSpacing = 1.2.sp),
             color = ApturaColors.TextMediumEmphasis,
             maxLines = 1
         )
