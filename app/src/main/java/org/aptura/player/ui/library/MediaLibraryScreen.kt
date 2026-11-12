@@ -1090,13 +1090,13 @@ private fun MediaLibraryContentView(
                                                 isMove = clipboardIsCut
                                             )
                                         },
-                                        modifier = Modifier.size(36.dp)
+                                        modifier = Modifier.size(48.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.AutoMirrored.Filled.DriveFileMove,
                                             contentDescription = "Choose another folder",
                                             tint = ApturaColors.TextMediumEmphasis,
-                                            modifier = Modifier.size(18.dp)
+                                            modifier = Modifier.size(20.dp)
                                         )
                                     }
                                 } else {
@@ -1759,13 +1759,13 @@ private fun LibraryUndoSnackbar(
             }
             IconButton(
                 onClick = onDismiss,
-                modifier = Modifier.size(36.dp)
+                modifier = Modifier.size(48.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.Close,
                     contentDescription = "Dismiss undo notice",
                     tint = ApturaColors.TextLowEmphasis,
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(18.dp)
                 )
             }
         }

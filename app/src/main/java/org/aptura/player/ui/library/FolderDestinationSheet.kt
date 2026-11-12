@@ -221,7 +221,7 @@ private fun DestinationFolderRow(
         // Thumbnail / icon
         Box(
             modifier = Modifier
-                .size(44.dp)
+                .size(48.dp)
                 .clip(RoundedCornerShape(8.dp))
                 .background(ApturaColors.SurfaceElevated1),
             contentAlignment = Alignment.Center

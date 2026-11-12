@@ -562,12 +562,12 @@ private fun TrackOptionCard(
             }
 
             if (onRemove != null) {
-                IconButton(onClick = onRemove, modifier = Modifier.size(40.dp)) {
+                IconButton(onClick = onRemove, modifier = Modifier.size(48.dp)) {
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = "Remove external subtitle",
                         tint = ApturaColors.StatusError.copy(alpha = 0.85f),
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }

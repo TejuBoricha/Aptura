@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -139,7 +140,7 @@ fun AudioOnlyPanel(
                     onClick = onShowVideo,
                     colors = buttonColors,
                     contentPadding = PaddingValues(horizontal = 16.dp),
-                    modifier = Modifier.height(36.dp)
+                    modifier = Modifier.heightIn(min = 48.dp)
                 ) {
                     Icon(Icons.Filled.Videocam, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.size(8.dp))
