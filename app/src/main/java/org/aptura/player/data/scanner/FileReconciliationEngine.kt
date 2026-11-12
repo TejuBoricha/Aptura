@@ -65,8 +65,12 @@ object FileReconciliationEngine {
                     restoredCount++
                 }
 
-                // Preserve EVERY user-owned column (progress, per-video preferences, rename, hidden flag).
-                itemsToUpsert.add(matchedScanned.withUserDataFrom(existing).copy(isMissing = false))
+                // Preserve EVERY user-owned column (progress, per-video preferences, rename, hidden flag),
+                // and skip writing unchanged rows on rescan so Room writes scale with deltas, not library size (PERF-03).
+                val merged = matchedScanned.withUserDataFrom(existing).copy(isMissing = false)
+                if (merged != existing) {
+                    itemsToUpsert.add(merged)
+                }
             } else {
                 unmatchedExisting.add(existing)
             }

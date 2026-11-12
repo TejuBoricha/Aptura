@@ -98,6 +98,28 @@ class MediaScanWorker(
          * merge is not made against that snapshot. It reads the rows again inside the transaction that writes them, and
          * the person's changes win (audit DATA-05). The snapshot only tells which rows were removed meanwhile.
          */
+        internal fun deduplicateSafItems(
+            safItems: List<MediaItemEntity>,
+            seenUris: MutableSet<String>,
+            seenSizeAndName: MutableSet<Pair<Long, String>>
+        ): List<MediaItemEntity> {
+            val result = ArrayList<MediaItemEntity>(safItems.size)
+            for (saf in safItems) {
+                val sizeNameKey = if (saf.sizeBytes > 0L) {
+                    saf.sizeBytes to saf.displayName.lowercase(java.util.Locale.ROOT)
+                } else null
+                if (saf.uri in seenUris || (sizeNameKey != null && sizeNameKey in seenSizeAndName)) {
+                    continue
+                }
+                seenUris.add(saf.uri)
+                if (sizeNameKey != null) {
+                    seenSizeAndName.add(sizeNameKey)
+                }
+                result.add(saf)
+            }
+            return result
+        }
+
         internal suspend fun persistScan(
             database: ApturaDatabase,
             scanned: List<MediaItemEntity>,
@@ -134,11 +156,14 @@ class MediaScanWorker(
                 val (staleInternalToDelete, itemsToUpsert) = reconciliation.itemsToUpsert.partition { item ->
                     isPurgeableMissingRow(item, hasStorage)
                 }
+                val foundUris = found.mapTo(HashSet(found.size)) { it.uri }
+                val foundStoreIds = found.mapTo(HashSet(found.size)) { it.mediaStoreId }
                 val allIdsToDelete = reconciliation.idsToDelete +
                     staleInternalToDelete.mapNotNull { it.id.takeIf { id -> id > 0L } } +
                     current.filter { item ->
                         isPurgeableMissingRow(item, hasStorage) &&
-                            found.none { file -> file.uri == item.uri || file.mediaStoreId == item.mediaStoreId }
+                            item.uri !in foundUris &&
+                            item.mediaStoreId !in foundStoreIds
                     }.mapNotNull { it.id.takeIf { id -> id > 0L } }
 
                 // 4. Upsert, bookmark remapping and obsolete deletion
@@ -204,20 +229,22 @@ class MediaScanWorker(
             // 2. Scan each persisted SAF folder tree (differential metadata skip for unchanged files)
             if (persistedFolders.isNotEmpty()) {
                 val safScanner = SafTreeScanner(applicationContext)
+                val seenUris = allScanned.mapTo(HashSet(allScanned.size)) { it.uri }
+                val seenSizeAndName = HashSet<Pair<Long, String>>(allScanned.size)
+                for (existing in allScanned) {
+                    if (existing.sizeBytes > 0L) {
+                        seenSizeAndName.add(existing.sizeBytes to existing.displayName.lowercase(java.util.Locale.ROOT))
+                    }
+                }
                 for (folderUriStr in persistedFolders) {
                     try {
                         val treeUri = folderUriStr.toUri()
                         val safItems = safScanner.scanTree(treeUri, existingByUri)
-                        // Deduplicate SAF items against already-scanned MediaStore items so overlapping folders do not create duplicate cards
-                        val deduplicatedSaf = safItems.filterNot { saf ->
-                            allScanned.any { existing ->
-                                existing.uri == saf.uri || (
-                                    existing.sizeBytes > 0L &&
-                                        existing.sizeBytes == saf.sizeBytes &&
-                                        existing.displayName.equals(saf.displayName, ignoreCase = true)
-                                    )
-                            }
-                        }
+                        val deduplicatedSaf = deduplicateSafItems(
+                            safItems = safItems,
+                            seenUris = seenUris,
+                            seenSizeAndName = seenSizeAndName
+                        )
                         allScanned.addAll(deduplicatedSaf)
                     } catch (_: Throwable) {
                         // Skip unreadable or revoked SAF tree without failing overall scan

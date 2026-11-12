@@ -14,6 +14,7 @@ import org.aptura.player.domain.model.DomainMediaItem
     tableName = "media_items",
     indices = [
         Index(value = ["mediaStoreId"], unique = true),
+        Index(value = ["uri"]),
         Index(value = ["folderPath"]),
         Index(value = ["dateAddedSec"]),
         Index(value = ["title"])

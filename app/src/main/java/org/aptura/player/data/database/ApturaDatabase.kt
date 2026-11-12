@@ -9,7 +9,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 /** Current schema version. Bump it together with a new migration in [ApturaDatabase.ALL_MIGRATIONS]. */
-const val APTURA_DB_VERSION = 6
+const val APTURA_DB_VERSION = 7
 
 /**
  * Local Room SQLite database for Aptura Video Player.
@@ -61,8 +61,14 @@ abstract class ApturaDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_media_items_uri` ON `media_items` (`uri`)")
+            }
+        }
+
         /** Every migration, in order. A schema bump without a matching entry here fails the migration-chain test. */
-        val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+        val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
 
         @Volatile
         private var INSTANCE: ApturaDatabase? = null
