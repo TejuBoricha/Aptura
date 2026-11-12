@@ -1090,15 +1090,15 @@ fun PlayerScreen(
                             when (currentOrientationMode) {
                                 1 -> {
                                     activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-                                    orientationToastMessage = "Landscape Locked"
+                                    orientationToastMessage = "Landscape locked"
                                 }
                                 2 -> {
                                     activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-                                    orientationToastMessage = "Portrait Locked"
+                                    orientationToastMessage = "Portrait locked"
                                 }
                                 else -> {
                                     activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-                                    orientationToastMessage = "Auto-Rotate"
+                                    orientationToastMessage = "Auto-rotate"
                                 }
                             }
                             coroutineScope.launch {
@@ -1115,11 +1115,11 @@ fun PlayerScreen(
                         var overflowOpen by remember { mutableStateOf(false) }
 
                         if (!compactTopBar) {
-                            TopBarIconButton(Icons.Filled.ScreenRotation, "Screen Orientation", orientationTint, onOrientationClick)
+                            TopBarIconButton(Icons.Filled.ScreenRotation, "Screen orientation", orientationTint, onOrientationClick)
                             if (pipSupported) {
-                                TopBarIconButton(Icons.Filled.PictureInPictureAlt, "Picture in Picture", ApturaColors.TextHighEmphasis, onEnterPip)
+                                TopBarIconButton(Icons.Filled.PictureInPictureAlt, "Picture in picture", ApturaColors.TextHighEmphasis, onEnterPip)
                             }
-                            TopBarIconButton(Icons.Filled.AspectRatio, "Aspect Ratio", aspectTint, onResizeModeToggle)
+                            TopBarIconButton(Icons.Filled.AspectRatio, "Aspect ratio", aspectTint, onResizeModeToggle)
 
                             TopBarSpeedChip(uiState.playbackSpeed) { onSpeedSheetVisible(true) }
                         }
@@ -1145,7 +1145,7 @@ fun PlayerScreen(
                                 ) {
                                     Icon(
                                         imageVector = Icons.AutoMirrored.Filled.QueueMusic,
-                                        contentDescription = "Playback Queue",
+                                        contentDescription = "Playback queue",
                                         tint = ApturaColors.AccentPrimary,
                                         modifier = Modifier.size(16.dp)
                                     )
@@ -1262,7 +1262,7 @@ fun PlayerScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.SkipPrevious,
-                            contentDescription = "Previous Video",
+                            contentDescription = "Previous video",
                             tint = if (uiState.hasPrevious) ApturaColors.TextHighEmphasis else ApturaColors.TextLowEmphasis.copy(alpha = 0.38f),
                             modifier = Modifier.size(skipIconSize)
                         )
@@ -1333,7 +1333,7 @@ fun PlayerScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.SkipNext,
-                            contentDescription = "Next Video",
+                            contentDescription = "Next video",
                             tint = if (uiState.hasNext) ApturaColors.TextHighEmphasis else ApturaColors.TextLowEmphasis.copy(alpha = 0.38f),
                             modifier = Modifier.size(skipIconSize)
                         )
@@ -1636,7 +1636,7 @@ fun PlayerScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.LockOpen,
-                                    contentDescription = "Lock Controls",
+                                    contentDescription = "Lock controls",
                                     tint = ApturaColors.TextMediumEmphasis
                                 )
                             }
@@ -1662,7 +1662,7 @@ fun PlayerScreen(
                                 ) {
                                     Icon(
                                         imageVector = Icons.Filled.Audiotrack,
-                                        contentDescription = "Audio Track",
+                                        contentDescription = "Audio track",
                                         tint = ApturaColors.TextMediumEmphasis
                                     )
                                 }
@@ -1697,7 +1697,7 @@ fun PlayerScreen(
                                 ) {
                                     Icon(
                                         imageVector = Icons.Filled.Tune,
-                                        contentDescription = "Advanced Settings",
+                                        contentDescription = "Advanced settings",
                                         tint = if (uiState.subtitleDelayMs != 0L || uiState.audioDelayMs != 0L || uiState.sleepTimerEndsAtElapsedRealtime != null || uiState.sleepTimerExpired || uiState.sleepAtEndOfVideo)
                                             ApturaColors.AccentPrimary
                                         else

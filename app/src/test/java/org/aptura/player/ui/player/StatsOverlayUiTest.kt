@@ -73,7 +73,7 @@ class StatsOverlayUiTest {
         composeTestRule.onNodeWithText("-100 ms").assertExists()
 
         // Close action
-        composeTestRule.onNodeWithContentDescription("Close Stats").performClick()
+        composeTestRule.onNodeWithContentDescription("Close stats").performClick()
         assertTrue(closed)
     }
 

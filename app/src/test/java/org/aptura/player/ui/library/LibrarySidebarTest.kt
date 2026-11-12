@@ -165,8 +165,8 @@ class LibrarySidebarTest {
 
         // The rail keeps navigation; the wide index (and its stat block) yields its space to the grid.
         // At 200% the labels are gone, so the icons' descriptions are the accessible names.
-        composeRule.onNodeWithContentDescription("Open File").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("Refresh").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Open file").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Rescan library").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Settings").assertIsDisplayed()
         composeRule.onAllNodesWithText("APTURA").assertCountEquals(0)
         composeRule.onAllNodesWithText("Open").assertCountEquals(0)

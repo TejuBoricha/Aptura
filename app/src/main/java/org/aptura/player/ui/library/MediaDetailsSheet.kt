@@ -162,7 +162,7 @@ fun MediaDetailsContent(
             IconButton(onClick = onClose, modifier = Modifier.size(48.dp).offset(x = (-12).dp)) {
                 Icon(
                     imageVector = Icons.Default.Close,
-                    contentDescription = "Close Details",
+                    contentDescription = "Close details",
                     tint = ApturaColors.TextMediumEmphasis
                 )
             }
@@ -321,7 +321,7 @@ fun MediaDetailsContent(
                 ) {
                     Icon(
                         imageVector = Icons.Default.ContentCopy,
-                        contentDescription = "Copy Path",
+                        contentDescription = "Copy path",
                         tint = ApturaColors.TextMediumEmphasis,
                         modifier = Modifier.size(20.dp)
                     )

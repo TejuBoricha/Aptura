@@ -37,7 +37,7 @@ class PlayerWideTopBarTest {
         }
 
         assertEquals(0, composeRule.onAllNodes(hasContentDescription("More options")).fetchSemanticsNodes().size)
-        listOf("Screen Orientation", "Picture in Picture", "Aspect Ratio", "Speed").forEach { description ->
+        listOf("Screen orientation", "Picture in picture", "Aspect ratio", "Speed").forEach { description ->
             composeRule.onNodeWithContentDescription(description).assertIsDisplayed()
                 .assertTouchTarget(composeRule.density)
         }
@@ -60,8 +60,8 @@ class PlayerWideTopBarTest {
             }
         }
 
-        assertEquals(0, composeRule.onAllNodes(hasContentDescription("Picture in Picture")).fetchSemanticsNodes().size)
-        listOf("Screen Orientation", "Aspect Ratio", "Speed").forEach { description ->
+        assertEquals(0, composeRule.onAllNodes(hasContentDescription("Picture in picture")).fetchSemanticsNodes().size)
+        listOf("Screen orientation", "Aspect ratio", "Speed").forEach { description ->
             composeRule.onNodeWithContentDescription(description).assertIsDisplayed()
         }
     }

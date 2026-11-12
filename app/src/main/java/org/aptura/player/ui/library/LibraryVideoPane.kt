@@ -200,7 +200,7 @@ internal fun LibraryHeader(
                 } else {
                     Icon(
                         imageVector = Icons.Default.Refresh,
-                        contentDescription = "Refresh library",
+                        contentDescription = "Rescan library",
                         tint = ApturaColors.TextMediumEmphasis
                     )
                 }

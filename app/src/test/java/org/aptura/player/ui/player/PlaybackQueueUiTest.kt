@@ -92,7 +92,7 @@ class PlaybackQueueUiTest {
         }
 
         // Move item up (Episode 2 is index 1, can move up)
-        val moveUpButtons = composeTestRule.onAllNodes(androidx.compose.ui.test.hasContentDescription("Move Up"))
+        val moveUpButtons = composeTestRule.onAllNodes(androidx.compose.ui.test.hasContentDescription("Move up"))
         moveUpButtons[0].performClick()
         assertEquals(1, movedFrom)
         assertEquals(0, movedTo)
@@ -119,9 +119,9 @@ class PlaybackQueueUiTest {
             }
         }
 
-        val moveUpButtons = composeTestRule.onAllNodes(androidx.compose.ui.test.hasContentDescription("Move Up"))
-        val moveDownButtons = composeTestRule.onAllNodes(androidx.compose.ui.test.hasContentDescription("Move Down"))
-        val removeButtons = composeTestRule.onAllNodes(androidx.compose.ui.test.hasContentDescription("Remove from Queue"))
+        val moveUpButtons = composeTestRule.onAllNodes(androidx.compose.ui.test.hasContentDescription("Move up"))
+        val moveDownButtons = composeTestRule.onAllNodes(androidx.compose.ui.test.hasContentDescription("Move down"))
+        val removeButtons = composeTestRule.onAllNodes(androidx.compose.ui.test.hasContentDescription("Remove from queue"))
 
         moveUpButtons[0].assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp)
         moveDownButtons[0].assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp)

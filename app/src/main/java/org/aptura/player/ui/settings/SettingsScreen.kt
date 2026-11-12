@@ -311,7 +311,7 @@ fun SettingsScreen(
                         ReadoutDivider()
                         ReadoutCell(MediaFormatters.formatRuntime(libraryStats.totalDurationMs), "Runtime", Modifier.weight(1f))
                         ReadoutDivider()
-                        ReadoutCell(MediaFormatters.formatFileSize(libraryStats.totalSizeBytes), "Footprint", Modifier.weight(1f))
+                        ReadoutCell(MediaFormatters.formatFileSize(libraryStats.totalSizeBytes), "Storage", Modifier.weight(1f))
                     }
                 }
             }

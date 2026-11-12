@@ -431,7 +431,7 @@ private fun QueueItemRow(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Equalizer,
-                            contentDescription = "Now Playing",
+                            contentDescription = "Now playing",
                             tint = ApturaColors.AccentPrimary,
                             modifier = Modifier.size(16.dp)
                         )
@@ -527,7 +527,7 @@ private fun QueueItemRow(
                     ) {
                         Icon(
                             imageVector = Icons.Default.KeyboardArrowUp,
-                            contentDescription = "Move Up",
+                            contentDescription = "Move up",
                             tint = ApturaColors.TextMediumEmphasis,
                             modifier = Modifier.size(20.dp)
                         )
@@ -540,7 +540,7 @@ private fun QueueItemRow(
                     ) {
                         Icon(
                             imageVector = Icons.Default.KeyboardArrowDown,
-                            contentDescription = "Move Down",
+                            contentDescription = "Move down",
                             tint = ApturaColors.TextMediumEmphasis,
                             modifier = Modifier.size(20.dp)
                         )
@@ -553,7 +553,7 @@ private fun QueueItemRow(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
-                            contentDescription = "Remove from Queue",
+                            contentDescription = "Remove from queue",
                             tint = ApturaColors.TextLowEmphasis,
                             modifier = Modifier.size(18.dp)
                         )
