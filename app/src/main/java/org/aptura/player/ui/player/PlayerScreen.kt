@@ -281,6 +281,7 @@ fun PlayerScreen(
     onSubtitleFontSizeChanged: (Int) -> Unit = {},
     onSubtitleTextColorChanged: (String) -> Unit = {},
     onSubtitleBackgroundChanged: (Boolean) -> Unit = {},
+    onSubtitleUseSystemStyleChanged: (Boolean) -> Unit = {},
     onAddBookmark: () -> Unit = {},
     onDeleteBookmark: (Long) -> Unit = {},
     onUpdateBookmarkNote: (Long, String) -> Unit = { _, _ -> },
@@ -443,6 +444,7 @@ fun PlayerScreen(
             subtitleTextColorHex = uiState.subtitleTextColorHex,
             subtitleBackgroundEnabled = uiState.subtitleBackgroundEnabled,
             subtitleFontSizeSp = uiState.subtitleFontSizeSp,
+            subtitleUseSystemStyle = uiState.subtitleUseSystemStyle,
             isControlsVisible = uiState.isControlsVisible && !isPipMode
         )
 
@@ -2078,6 +2080,7 @@ fun PlayerScreen(
                 onSubtitleFontSizeChanged = onSubtitleFontSizeChanged,
                 onSubtitleTextColorChanged = onSubtitleTextColorChanged,
                 onSubtitleBackgroundChanged = onSubtitleBackgroundChanged,
+                onSubtitleUseSystemStyleChanged = onSubtitleUseSystemStyleChanged,
                 onSearchWebClick = onSearchWebClick,
                 onAttachRecentSubtitle = onAttachRecentSubtitle,
                 onDismissRecentSubtitle = onDismissRecentSubtitle

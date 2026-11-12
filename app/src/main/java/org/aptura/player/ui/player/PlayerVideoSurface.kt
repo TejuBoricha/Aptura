@@ -2,11 +2,13 @@
 
 package org.aptura.player.ui.player
 
+import android.content.Context
 import android.graphics.Color
 import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.TextureView
 import android.view.ViewGroup
+import android.view.accessibility.CaptioningManager
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
@@ -33,6 +35,7 @@ fun PlayerVideoSurface(
     subtitleTextColorHex: String,
     subtitleBackgroundEnabled: Boolean,
     subtitleFontSizeSp: Int,
+    subtitleUseSystemStyle: Boolean = true,
     isControlsVisible: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -86,27 +89,44 @@ fun PlayerVideoSurface(
                     }
                 }
 
-                val styleKey = "$subtitleTextColorHex|$subtitleBackgroundEnabled|$subtitleFontSizeSp|$isControlsVisible"
+                val captioningManager = if (subtitleUseSystemStyle) {
+                    playerView.context.getSystemService(Context.CAPTIONING_SERVICE) as? CaptioningManager
+                } else null
+                val isSystemCaptionsActive = captioningManager?.isEnabled == true
+                val systemFontScale = if (isSystemCaptionsActive) captioningManager.fontScale else 1f
+                val systemUserStyle = if (isSystemCaptionsActive) captioningManager.userStyle else null
+                val systemStyleHash = systemUserStyle?.hashCode() ?: 0
+
+                val styleKey = "$subtitleUseSystemStyle|$isSystemCaptionsActive|$systemStyleHash|$systemFontScale|$subtitleTextColorHex|$subtitleBackgroundEnabled|$subtitleFontSizeSp|$isControlsVisible"
                 if (playerView.tag != styleKey) {
                     playerView.tag = styleKey
-                    val fgColor = try {
-                        Color.parseColor(subtitleTextColorHex)
-                    } catch (_: Throwable) {
-                        Color.WHITE
-                    }
-                    val bgColor = if (subtitleBackgroundEnabled) {
-                        Color.argb(160, 0, 0, 0)
+                    val style: CaptionStyleCompat
+                    val effectiveSizeSp: Float
+                    if (subtitleUseSystemStyle && isSystemCaptionsActive && systemUserStyle != null) {
+                        style = CaptionStyleCompat.createFromCaptionStyle(systemUserStyle)
+                        effectiveSizeSp = subtitleFontSizeSp.toFloat() * systemFontScale
                     } else {
-                        Color.TRANSPARENT
-                    }
-                    val edgeType = if (subtitleBackgroundEnabled) {
-                        CaptionStyleCompat.EDGE_TYPE_NONE
-                    } else {
-                        CaptionStyleCompat.EDGE_TYPE_OUTLINE
+                        val fgColor = try {
+                            Color.parseColor(subtitleTextColorHex)
+                        } catch (_: Throwable) {
+                            Color.WHITE
+                        }
+                        val bgColor = if (subtitleBackgroundEnabled) {
+                            Color.argb(160, 0, 0, 0)
+                        } else {
+                            Color.TRANSPARENT
+                        }
+                        val edgeType = if (subtitleBackgroundEnabled) {
+                            CaptionStyleCompat.EDGE_TYPE_NONE
+                        } else {
+                            CaptionStyleCompat.EDGE_TYPE_OUTLINE
+                        }
+                        style = CaptionStyleCompat(fgColor, bgColor, Color.TRANSPARENT, edgeType, Color.BLACK, null)
+                        effectiveSizeSp = subtitleFontSizeSp.toFloat()
                     }
                     playerView.subtitleView?.apply {
-                        setFixedTextSize(TypedValue.COMPLEX_UNIT_SP, subtitleFontSizeSp.toFloat())
-                        setStyle(CaptionStyleCompat(fgColor, bgColor, Color.TRANSPARENT, edgeType, Color.BLACK, null))
+                        setFixedTextSize(TypedValue.COMPLEX_UNIT_SP, effectiveSizeSp)
+                        setStyle(style)
                         setBottomPaddingFraction(if (isControlsVisible) 0.16f else 0.09f)
                     }
                 }

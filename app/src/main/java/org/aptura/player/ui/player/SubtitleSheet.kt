@@ -108,12 +108,14 @@ fun SubtitleSheet(
     onSubtitleFontSizeChanged: (Int) -> Unit,
     onSubtitleTextColorChanged: (String) -> Unit,
     onSubtitleBackgroundChanged: (Boolean) -> Unit,
+    onSubtitleUseSystemStyleChanged: (Boolean) -> Unit = {},
     onSearchWebClick: () -> Unit = {},
     onAttachRecentSubtitle: (DetectedSidecarSubtitle) -> Unit = {},
     onDismissRecentSubtitle: () -> Unit = {},
+    initialTab: Int = 0,
     modifier: Modifier = Modifier
 ) {
-    var selectedTab by remember { mutableIntStateOf(0) }
+    var selectedTab by remember(initialTab) { mutableIntStateOf(initialTab) }
     val haptic = LocalHapticFeedback.current
 
     ModalBottomSheet(
@@ -177,6 +179,8 @@ fun SubtitleSheet(
                         onSubtitleDelayChanged = onSubtitleDelayChanged
                     )
                     2 -> SubtitleStyleTab(
+                        useSystemStyle = uiState.subtitleUseSystemStyle,
+                        onUseSystemStyleChanged = onSubtitleUseSystemStyleChanged,
                         fontSizeSp = uiState.subtitleFontSizeSp,
                         textColorHex = uiState.subtitleTextColorHex,
                         backgroundEnabled = uiState.subtitleBackgroundEnabled,
@@ -705,6 +709,8 @@ private fun TapMarkButton(text: String, marked: Boolean, modifier: Modifier = Mo
 /** Tab 3: how subtitles look, with a preview that uses exactly these settings. */
 @Composable
 private fun SubtitleStyleTab(
+    useSystemStyle: Boolean,
+    onUseSystemStyleChanged: (Boolean) -> Unit,
     fontSizeSp: Int,
     textColorHex: String,
     backgroundEnabled: Boolean,
@@ -760,6 +766,15 @@ private fun SubtitleStyleTab(
                     )
                 )
             }
+        }
+
+        SheetSection("Style source") {
+            SheetSwitchRow(
+                title = "Use system caption style",
+                subtitle = "Follow size, colors and background set in Android accessibility settings",
+                checked = useSystemStyle,
+                onCheckedChange = onUseSystemStyleChanged
+            )
         }
 
         SheetSection("Text") {
