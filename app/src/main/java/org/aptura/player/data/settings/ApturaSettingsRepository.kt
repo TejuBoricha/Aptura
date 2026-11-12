@@ -57,6 +57,7 @@ internal object PreferencesKeys {
     val LIBRARY_DETAIL = stringPreferencesKey("library_detail")
     val FOLDER_LAYOUT = stringPreferencesKey("folder_layout")
     val LIBRARY_SORT = stringPreferencesKey("library_sort")
+    val PRIVATE_MODE_ENABLED = booleanPreferencesKey("private_mode_enabled")
 }
 
 /**
@@ -119,7 +120,9 @@ data class ApturaSettings(
     val libraryDetail: LibraryDetail = LibraryDetail.STANDARD,
     val folderLayout: FolderLayout = FolderLayout.LIST,
     /** The name of the sort the user picked in the library, or null to let the library choose by folder. */
-    val librarySortName: String? = null
+    val librarySortName: String? = null,
+    /** When enabled, sets FLAG_SECURE on the window to block screenshots and mask recents previews (audit SEC-11). */
+    val isPrivateMode: Boolean = false
 ) {
     companion object {
         const val DEFAULT_SEEK_DELTA_SECONDS = 10
@@ -184,7 +187,8 @@ class ApturaSettingsRepository(private val context: Context) : AudioEffectsStore
                 libraryDensity = preferences.enumOr(PreferencesKeys.LIBRARY_DENSITY, LibraryDensity.COMFORTABLE),
                 libraryDetail = preferences.enumOr(PreferencesKeys.LIBRARY_DETAIL, LibraryDetail.STANDARD),
                 folderLayout = preferences.enumOr(PreferencesKeys.FOLDER_LAYOUT, FolderLayout.LIST),
-                librarySortName = preferences[PreferencesKeys.LIBRARY_SORT]
+                librarySortName = preferences[PreferencesKeys.LIBRARY_SORT],
+                isPrivateMode = preferences[PreferencesKeys.PRIVATE_MODE_ENABLED] ?: false
             )
         }
 
@@ -334,6 +338,12 @@ class ApturaSettingsRepository(private val context: Context) : AudioEffectsStore
         context.dataStore.edit { preferences ->
             val current = preferences[PreferencesKeys.PERSISTED_SAF_FOLDERS] ?: emptySet()
             preferences[PreferencesKeys.PERSISTED_SAF_FOLDERS] = current - treeUri
+        }
+    }
+
+    suspend fun updatePrivateMode(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.PRIVATE_MODE_ENABLED] = enabled
         }
     }
 

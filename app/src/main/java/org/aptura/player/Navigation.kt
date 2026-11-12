@@ -803,6 +803,10 @@ private fun AppNavHost(
                     onRestoreHiddenVideos = libraryViewModel::restoreHiddenVideos,
                     missingVideoCount = missingVideoCount,
                     onClearMissingVideos = libraryViewModel::clearMissingVideos,
+                    onClearPlaybackHistory = libraryViewModel::clearAllPlaybackHistory,
+                    onUpdatePrivateMode = { enabled ->
+                        coroutineScope.launch { settingsRepository.updatePrivateMode(enabled) }
+                    },
                     onBackClick = { backStack.removeLastOrNull() },
                     onUpdateSpeed = { speed ->
                         coroutineScope.launch { settingsRepository.updateDefaultPlaybackSpeed(speed) }

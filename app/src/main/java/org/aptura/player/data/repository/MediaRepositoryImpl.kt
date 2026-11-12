@@ -279,6 +279,10 @@ class MediaRepositoryImpl(
         mediaItemDao.resetPlaybackPreferences(uri)
     }
 
+    override suspend fun clearAllPlaybackHistory(): Unit = withContext(ioDispatcher) {
+        mediaItemDao.clearAllPlaybackHistory()
+    }
+
     private fun extractTitleFromUri(uri: String): String = try {
         if (uri.startsWith("content://") && context != null) {
             val parsed = android.net.Uri.parse(uri)

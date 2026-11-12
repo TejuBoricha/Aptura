@@ -340,4 +340,27 @@ class ApturaDatabaseRealSqlTest {
         assertEquals(1, bookmarks.size)
         assertEquals("Opening sequence", bookmarks[0].note)
     }
+
+    @Test
+    fun clearAllPlaybackHistory_resetsPlaybackPositionAndCompletedAcrossAllVideos() = runBlocking {
+        val dao = db.mediaItemDao()
+        val video1 = scanned(mediaStoreId = 1L, uri = "content://media/1", title = "V1")
+            .copy(playbackPositionMs = 25_000L, isCompleted = false, lastPlayedTimestamp = 1000L)
+        val video2 = scanned(mediaStoreId = 2L, uri = "content://media/2", title = "V2")
+            .copy(playbackPositionMs = 50_000L, isCompleted = true, lastPlayedTimestamp = 2000L)
+        dao.insertOrUpdateAll(listOf(video1, video2))
+
+        dao.clearAllPlaybackHistory()
+
+        val after1 = dao.getVideoByUri("content://media/1")!!
+        val after2 = dao.getVideoByUri("content://media/2")!!
+
+        assertEquals(0L, after1.playbackPositionMs)
+        assertFalse(after1.isCompleted)
+        assertEquals(0L, after1.lastPlayedTimestamp)
+
+        assertEquals(0L, after2.playbackPositionMs)
+        assertFalse(after2.isCompleted)
+        assertEquals(0L, after2.lastPlayedTimestamp)
+    }
 }

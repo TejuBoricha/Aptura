@@ -132,6 +132,9 @@ interface MediaItemDao {
     @Query("SELECT SUM(sizeBytes) FROM media_items WHERE isHidden = 0")
     suspend fun getTotalSizeBytes(): Long?
 
+    @Query("UPDATE media_items SET playbackPositionMs = 0, isCompleted = 0, lastPlayedTimestamp = 0")
+    suspend fun clearAllPlaybackHistory()
+
     @Query("DELETE FROM media_items")
     suspend fun clearAll()
 }

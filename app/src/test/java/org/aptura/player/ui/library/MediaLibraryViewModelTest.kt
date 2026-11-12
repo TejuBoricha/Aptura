@@ -128,6 +128,12 @@ class MediaLibraryViewModelTest {
         ) {}
 
         override suspend fun resetPlaybackPreferences(uri: String) {}
+
+        override suspend fun clearAllPlaybackHistory() {
+            videosFlow.value = videosFlow.value.map {
+                it.copy(playbackPositionMs = 0L, isCompleted = false)
+            }
+        }
     }
 
     private val item1 = DomainMediaItem(

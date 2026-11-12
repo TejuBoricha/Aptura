@@ -279,6 +279,13 @@ class MediaLibraryViewModel(
         }
     }
 
+    /** Clears watch progress, completion status, and last played timestamps across all videos (audit DATA-09). */
+    fun clearAllPlaybackHistory() {
+        viewModelScope.launch(dispatcher + errorHandler) {
+            mediaRepository.clearAllPlaybackHistory()
+        }
+    }
+
     fun renameVideo(
         uri: String,
         newName: String,

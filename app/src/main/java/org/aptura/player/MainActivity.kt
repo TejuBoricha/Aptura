@@ -107,6 +107,14 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             ApturaSettingsRepository(this@MainActivity).settingsFlow.collect { settings ->
                 backgroundAudioEnabled = settings.backgroundAudioEnabled
+                if (settings.isPrivateMode) {
+                    window.setFlags(
+                        android.view.WindowManager.LayoutParams.FLAG_SECURE,
+                        android.view.WindowManager.LayoutParams.FLAG_SECURE
+                    )
+                } else {
+                    window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+                }
             }
         }
     }

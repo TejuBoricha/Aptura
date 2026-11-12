@@ -47,7 +47,9 @@ import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
@@ -163,6 +165,8 @@ fun SettingsScreen(
     onRestoreHiddenVideos: () -> Unit = {},
     missingVideoCount: Int = 0,
     onClearMissingVideos: () -> Unit = {},
+    onClearPlaybackHistory: () -> Unit = {},
+    onUpdatePrivateMode: (Boolean) -> Unit = {},
     onDeleteDiagnosticData: () -> Unit = { ApturaDiagnostics.clearAll() },
     modifier: Modifier = Modifier
 ) {
@@ -170,6 +174,7 @@ fun SettingsScreen(
     val haptic = LocalHapticFeedback.current
     var isDeleteDiagnosticsDialogOpen by remember { mutableStateOf(false) }
     var isResetPlaybackDialogOpen by remember { mutableStateOf(false) }
+    var isClearHistoryDialogOpen by remember { mutableStateOf(false) }
     var isCodecDialogOpen by remember { mutableStateOf(false) }
     var isPrivacyPolicyDialogOpen by remember { mutableStateOf(false) }
     var codecReport by remember { mutableStateOf<CodecSupportReport?>(null) }
@@ -224,6 +229,22 @@ fun SettingsScreen(
                 isResetPlaybackDialogOpen = false
                 onResetPlaybackDefaults()
                 Toast.makeText(context, "Playback defaults restored", Toast.LENGTH_SHORT).show()
+            }
+        )
+    }
+
+    if (isClearHistoryDialogOpen) {
+        ApturaDialog(
+            onDismissRequest = { isClearHistoryDialogOpen = false },
+            icon = Icons.Default.History,
+            title = "Clear watch history?",
+            message = "This resets playback progress across all videos and empties Continue Watching. Your video files and bookmarks are not affected.",
+            confirmLabel = "Clear",
+            confirmTone = ApturaTone.Destructive,
+            onConfirm = {
+                isClearHistoryDialogOpen = false
+                onClearPlaybackHistory()
+                Toast.makeText(context, "Watch history cleared", Toast.LENGTH_SHORT).show()
             }
         )
     }
@@ -524,6 +545,20 @@ fun SettingsScreen(
                                 )
                             }
                         )
+                        PanelDivider()
+                        // Watch History Management (audit DATA-09)
+                        ActionRow(
+                            icon = Icons.Default.History,
+                            title = "Watch history",
+                            subtitle = "Playback progress and Continue Watching",
+                            trailing = {
+                                PillButton(
+                                    text = "Clear",
+                                    onClick = { isClearHistoryDialogOpen = true },
+                                    tint = ApturaColors.StatusError
+                                )
+                            }
+                        )
                     }
                 }
             }
@@ -560,6 +595,14 @@ fun SettingsScreen(
                                 )
                             }
                         }
+                        PanelDivider()
+                        // Screen Security / Private Mode (audit SEC-11)
+                        ToggleRow(
+                            title = "Screen security",
+                            subtitle = "Block screenshots and hide app preview in Recent Apps",
+                            checked = settings.isPrivateMode,
+                            onCheckedChange = onUpdatePrivateMode
+                        )
                         PanelDivider()
                         ActionRow(
                             icon = Icons.Default.Memory,

@@ -214,6 +214,12 @@ class MediaRepositoryTest {
         override suspend fun clearAll() {
             items.value = emptyList()
         }
+
+        override suspend fun clearAllPlaybackHistory() {
+            items.value = items.value.map {
+                it.copy(playbackPositionMs = 0L, isCompleted = false, lastPlayedTimestamp = 0L)
+            }
+        }
     }
 
     private class FakeBookmarkDao : BookmarkDao {

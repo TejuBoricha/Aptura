@@ -48,10 +48,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.SecureFlagPolicy
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.DialogProperties
 import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
 
@@ -210,12 +212,23 @@ fun ApturaDialog(
     properties: DialogProperties = DialogProperties(),
     content: (@Composable ColumnScope.() -> Unit)? = null
 ) {
-    BasicAlertDialog(onDismissRequest = onDismissRequest, modifier = modifier, properties = properties) {
+    val dialogProperties = if (confirmTone == ApturaTone.Destructive && properties.securePolicy == SecureFlagPolicy.Inherit) {
+        DialogProperties(
+            dismissOnBackPress = properties.dismissOnBackPress,
+            dismissOnClickOutside = properties.dismissOnClickOutside,
+            securePolicy = SecureFlagPolicy.SecureOn,
+            usePlatformDefaultWidth = properties.usePlatformDefaultWidth,
+            decorFitsSystemWindows = properties.decorFitsSystemWindows
+        )
+    } else {
+        properties
+    }
+    BasicAlertDialog(onDismissRequest = onDismissRequest, modifier = modifier, properties = dialogProperties) {
         Surface(
             shape = RoundedCornerShape(28.dp),
             color = ApturaColors.SurfaceElevated2,
             border = BorderStroke(1.dp, ApturaColors.BorderSubtle),
-            modifier = Modifier.widthIn(min = 280.dp, max = 460.dp)
+            modifier = Modifier.widthIn(min = 280.dp, max = 460.dp).filterTouchesWhenObscured()
         ) {
             Column(modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 16.dp)) {
                 if (icon != null) {
@@ -494,4 +507,26 @@ fun SkeletonBlock(modifier: Modifier = Modifier, shape: RoundedCornerShape = Rou
             // Ink at low opacity, not a surface token: the light surfaces are too close to the page to read as shapes.
             .background(ApturaColors.TextLowEmphasis.copy(alpha = 0.16f * alpha))
     )
+}
+
+/**
+ * Drops pointer events when the window is obscured or partially obscured by another overlay window,
+ * protecting destructive buttons and confirmation dialogs against tapjacking attacks (audit SEC-11).
+ */
+fun Modifier.filterTouchesWhenObscured(): Modifier = this.pointerInput(Unit) {
+    awaitPointerEventScope {
+        while (true) {
+            val event = awaitPointerEvent()
+            val native = event.motionEvent
+            if (native != null) {
+                val isObscured = (native.flags and (
+                    android.view.MotionEvent.FLAG_WINDOW_IS_OBSCURED or
+                    android.view.MotionEvent.FLAG_WINDOW_IS_PARTIALLY_OBSCURED
+                )) != 0
+                if (isObscured) {
+                    event.changes.forEach { it.consume() }
+                }
+            }
+        }
+    }
 }
