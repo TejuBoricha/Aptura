@@ -50,7 +50,7 @@ body:
     id: review
     attributes:
       label: Independent review needed?
-      description: Required for playback, file operations, Room schema or migrations, privacy invariants, or large changes.
+      description: Required for security (.github/, tools/agents/, tools/security/), privacy invariants, or Room schema/migrations.
       options:
         - "No"
         - "Yes, by a different model than the author"

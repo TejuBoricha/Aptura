@@ -12,25 +12,13 @@ PR's Verification section and in CI, not here, so most pull requests never need 
 - **Product:** Aptura, an offline-first Android video player. Package `org.aptura.player`. Public repo
   `TejuBoricha/Aptura` (personal account), Apache-2.0.
 - **Phase:** 1.0 pre-release polish. The 1.0 scope is feature-complete; hardware verification is the remaining gate.
-- **Team:** one owner (Tejas) and several AI agents working in parallel: Claude Code (cloud), OpenCode (various models,
-  including DeepSeek), Antigravity. Coordination rules: [`AGENTS.md`](../AGENTS.md),
-  [`docs/AGENT_WORKFLOW.md`](../docs/AGENT_WORKFLOW.md). This replaces the "solo AI developer" model in OD-4.
+- **Team:** one owner (Tejas) and AI coding agents coordinated through [`AGENTS.md`](../AGENTS.md) and
+  [`docs/AGENT_WORKFLOW.md`](../docs/AGENT_WORKFLOW.md).
 - **Owner's machine:** Windows, PowerShell. Use `;` not `&&` in commands meant for it. Python is `py -3` there.
-- **Coordination status page:** the open issue labelled
-  [`agent-status`](https://github.com/TejuBoricha/Aptura/issues?q=is%3Aissue+is%3Aopen+label%3Aagent-status), kept
-  current by the Agent status workflow whenever the owner's account comments or opens, labels or closes an issue,
-  and by hand from the Actions tab; there is no schedule. A run that sees a plain `To:` deadline within 35 minutes
-  waits for it, so a quiet stretch is still announced; a longer `Working:` note is seen by the next run after it
-  expires. It opens with what needs the owner.
-
-## Process freeze (audit finding DEV-03)
-
-Until Phase 2 of [`docs/audits/CURRENT_AUDIT.md`](../docs/audits/CURRENT_AUDIT.md) is finished: no new coordination tooling,
-status pages, workflows or process documents, and no debates (`AGENTS.md` rule 11). Fix `tools/agents/` and the agent
-workflows only when something there is broken. Kept on purpose: the PR template and Handoff block, `pr_checks.py` (hot
-files, one PR per issue), the attribution trailers, and the independent review for security, privacy and Room changes.
-Why: 11 of the last 46 PRs were process work and the status check was 63 of the last 100 Actions runs, while the product
-bugs in the audit waited. To undo it, delete this section and restore the schedule in `agent-status.yml`.
+- **Process cleanup (`DEV-03` completed):** legacy multi-agent stall bot, inbox polling, and debate tooling have been
+  removed. Remaining coordination gates: `tools/agents/pr_checks.py` (hot files, one PR per issue, commit attribution),
+  `## Handoff` on open/draft PRs, `tools/gate.ps1`, and independent different-vendor review for security, privacy
+  invariants, and Room schema/migration changes.
 
 ## Quality gate
 

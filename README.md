@@ -154,7 +154,7 @@ The domain layer has no Android imports. The UI talks to view models; view model
 | [DESIGN.md](DESIGN.md) | Colour, type, spacing, player HUD, component contracts |
 | [docs/audits/CURRENT_AUDIT.md](docs/audits/CURRENT_AUDIT.md) | The one active audit: findings, roadmap and progress |
 | [CHANGELOG.md](CHANGELOG.md) | What changed, in Keep a Changelog form |
-| [AGENTS.md](AGENTS.md) · [docs/AGENT_WORKFLOW.md](docs/AGENT_WORKFLOW.md) | How AI coding agents claim work, hand off and get reviewed |
+| [AGENTS.md](AGENTS.md) · [docs/AGENT_WORKFLOW.md](docs/AGENT_WORKFLOW.md) | Coding rules, hot files, attribution and review gates |
 
 ## Known limits
 
