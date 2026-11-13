@@ -15,6 +15,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.Dispatchers
+import org.aptura.player.core.platform.MediaAccessLevel
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.domain.repository.MediaRepository
 import org.junit.Assert.assertEquals
@@ -408,6 +409,37 @@ class MediaLibraryViewModelTest {
             val state2 = awaitItem()
             assertTrue(state2 is MediaLibraryUiState.Success)
             assertTrue((state2 as MediaLibraryUiState.Success).isLimitedMode)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun setMediaAccessLevel_distinguishesLimitedPartialAndFullWithoutConflation() = runTest(testDispatcher) {
+        val repo = FakeMediaRepository()
+        repo.videosFlow.value = listOf(item1)
+        val viewModel = MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 0L)
+
+        viewModel.uiState.test {
+            assertEquals(MediaLibraryUiState.Loading, awaitItem())
+            val initial = awaitItem() as MediaLibraryUiState.Success
+            assertFalse(initial.isLimitedMode)
+            assertFalse(initial.isPartialMediaAccess)
+
+            viewModel.setMediaAccessLevel(MediaAccessLevel.LIMITED)
+            val limited = awaitItem() as MediaLibraryUiState.Success
+            assertFalse("Selected-videos mode must not claim ZERO access", limited.isLimitedMode)
+            assertTrue(limited.isPartialMediaAccess)
+
+            viewModel.setMediaAccessLevel(MediaAccessLevel.NONE)
+            val none = awaitItem() as MediaLibraryUiState.Success
+            assertTrue(none.isLimitedMode)
+            assertFalse(none.isPartialMediaAccess)
+
+            viewModel.setMediaAccessLevel(MediaAccessLevel.FULL)
+            val full = awaitItem() as MediaLibraryUiState.Success
+            assertFalse(full.isLimitedMode)
+            assertFalse(full.isPartialMediaAccess)
 
             cancelAndIgnoreRemainingEvents()
         }

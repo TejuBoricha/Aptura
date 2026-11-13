@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.aptura.player.core.diagnostics.ApturaErrorHandler
 import org.aptura.player.core.diagnostics.EventCode
+import org.aptura.player.core.platform.MediaAccessLevel
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.domain.repository.MediaRepository
 import org.aptura.player.domain.model.matchesSearch
@@ -75,7 +76,12 @@ class MediaLibraryViewModel(
             }
         }
     }
-    private val _isPermissionDenied = MutableStateFlow(false)
+    private data class AccessFlags(
+        val isPermissionDenied: Boolean = false,
+        val isPartialMediaAccess: Boolean = false
+    )
+
+    private val _accessFlags = MutableStateFlow(AccessFlags())
 
     private data class FilterState(
         val query: String,
@@ -83,7 +89,8 @@ class MediaLibraryViewModel(
         val sort: LibrarySortOrder,
         val showContinueWatching: Boolean,
         val isRefreshing: Boolean,
-        val isPermissionDenied: Boolean
+        val isPermissionDenied: Boolean,
+        val isPartialMediaAccess: Boolean
     )
 
     // Blank input (initial value / clear) applies instantly; typed input waits for a pause.
@@ -96,8 +103,8 @@ class MediaLibraryViewModel(
         _selectedFolder,
         _chosenSort,
         _isRefreshing,
-        _isPermissionDenied
-    ) { query, folder, chosenSort, refreshing, permissionDenied ->
+        _accessFlags
+    ) { query, folder, chosenSort, refreshing, accessFlags ->
         FilterState(
             query = query,
             folder = folder,
@@ -105,7 +112,8 @@ class MediaLibraryViewModel(
             // "Continue watching" belongs to the unfiltered home view only.
             showContinueWatching = query.isBlank() && folder == null,
             isRefreshing = refreshing,
-            isPermissionDenied = permissionDenied
+            isPermissionDenied = accessFlags.isPermissionDenied,
+            isPartialMediaAccess = accessFlags.isPartialMediaAccess
         )
     }
 
@@ -144,7 +152,11 @@ class MediaLibraryViewModel(
             if (filter.isRefreshing && !filter.isPermissionDenied) {
                 MediaLibraryUiState.Loading
             } else {
-                MediaLibraryUiState.Empty(isFiltered = false, isPermissionDenied = filter.isPermissionDenied)
+                MediaLibraryUiState.Empty(
+                    isFiltered = false,
+                    isPermissionDenied = filter.isPermissionDenied,
+                    isPartialMediaAccess = filter.isPartialMediaAccess
+                )
             }
         } else {
             var filtered = allVideos
@@ -180,6 +192,7 @@ class MediaLibraryViewModel(
                     totalCount = cards.size,
                     isRefreshing = filter.isRefreshing,
                     isLimitedMode = filter.isPermissionDenied,
+                    isPartialMediaAccess = filter.isPartialMediaAccess,
                     continueWatching = if (filter.showContinueWatching) {
                         allVideos.continueWatching().map { it.toCardUiModel() }
                     } else {
@@ -220,7 +233,17 @@ class MediaLibraryViewModel(
     )
 
     fun setPermissionDenied(denied: Boolean) {
-        _isPermissionDenied.value = denied
+        _accessFlags.value = _accessFlags.value.copy(
+            isPermissionDenied = denied,
+            isPartialMediaAccess = if (denied) false else _accessFlags.value.isPartialMediaAccess
+        )
+    }
+
+    fun setMediaAccessLevel(level: MediaAccessLevel) {
+        _accessFlags.value = AccessFlags(
+            isPermissionDenied = level == MediaAccessLevel.NONE,
+            isPartialMediaAccess = level == MediaAccessLevel.LIMITED
+        )
     }
 
     /** Drops the index row of a video whose file no longer exists (after a real deletion). */

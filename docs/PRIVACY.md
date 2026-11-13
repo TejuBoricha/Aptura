@@ -15,6 +15,7 @@ Aptura is an offline video player. It does not collect, transmit or sell persona
 | Permission | Why |
 |---|---|
 | `READ_MEDIA_VIDEO` (Android 13+) | Read videos already indexed by Android's MediaStore. |
+| `READ_MEDIA_VISUAL_USER_SELECTED` (Android 14+) | Let you pick specific videos instead of granting access to the entire library. |
 | `READ_EXTERNAL_STORAGE` (Android 12 and lower) | The same access on older releases. |
 | `FOREGROUND_SERVICE` | Keep playback alive while the app is in the background. |
 | `FOREGROUND_SERVICE_MEDIA_PLAYBACK` | Declare the foreground service type required by Android 14+. |
