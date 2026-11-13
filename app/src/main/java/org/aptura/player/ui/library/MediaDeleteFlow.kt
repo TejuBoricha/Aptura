@@ -15,6 +15,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
@@ -91,12 +92,12 @@ internal fun rememberMediaDeleteFlow(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val currentOnDeleted by rememberUpdatedState(onDeleted)
-    var deleteQueue by remember { mutableStateOf<List<String>>(emptyList()) }
-    var awaitingConsentUri by remember { mutableStateOf<String?>(null) }
-    var awaitingBatchConsent by remember { mutableStateOf<List<String>>(emptyList()) }
+    var deleteQueue by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
+    var awaitingConsentUri by rememberSaveable { mutableStateOf<String?>(null) }
+    var awaitingBatchConsent by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
     var completionCallback by remember { mutableStateOf<((DeleteBatchResult) -> Unit)?>(null) }
-    var deletedUris by remember { mutableStateOf(emptyList<String>()) }
-    var failedUris by remember { mutableStateOf(emptyList<String>()) }
+    var deletedUris by rememberSaveable { mutableStateOf(emptyList<String>()) }
+    var failedUris by rememberSaveable { mutableStateOf(emptyList<String>()) }
 
     val consentLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartIntentSenderForResult()

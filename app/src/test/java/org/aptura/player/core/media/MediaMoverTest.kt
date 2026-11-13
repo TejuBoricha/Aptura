@@ -269,6 +269,50 @@ class MediaMoverTest {
     }
 
     @Test
+    fun canMoveInPlace_returnsFalseBelowApi29() {
+        val m = mover(sdk = Build.VERSION_CODES.P)
+        assertFalse(m.canMoveInPlace(videoUri, "Movies/"))
+        assertFalse(m.canMoveAllInPlace(listOf(videoUri), "Movies/"))
+    }
+
+    @Test
+    fun canMoveInPlace_returnsFalseForDownloadFolderOnApi29() {
+        val m = mover(sdk = Build.VERSION_CODES.Q)
+        assertFalse(m.canMoveInPlace(videoUri, "Download/"))
+        assertFalse(m.canMoveInPlace(videoUri, "Download/Subfolder"))
+        assertFalse(m.canMoveInPlace(videoUri, "/storage/emulated/0/Download"))
+        assertFalse(m.canMoveInPlace(videoUri, "Downloads/"))
+        assertTrue(m.canMoveInPlace(videoUri, "Movies/"))
+    }
+
+    @Test
+    fun canMoveInPlace_allowsDownloadFolderOnApi30Plus() {
+        val m = mover(sdk = Build.VERSION_CODES.R)
+        assertTrue(m.canMoveInPlace(videoUri, "Download/"))
+        assertTrue(m.canMoveInPlace(videoUri, "Download/Subfolder"))
+    }
+
+    @Test
+    fun moveInPlace_returnsFailedForDownloadFolderOnApi29() {
+        val m = mover(sdk = Build.VERSION_CODES.Q)
+        val result = m.moveInPlace(videoUri, "Download/Subfolder")
+        assertTrue(result is MoveOutcome.Failed)
+        assertTrue((result as MoveOutcome.Failed).message.contains("Download"))
+    }
+
+    @Test
+    fun isDownloadFolder_identifiesPublicDownloadsFolders() {
+        assertTrue(MediaMover.isDownloadFolder("Download"))
+        assertTrue(MediaMover.isDownloadFolder("Download/"))
+        assertTrue(MediaMover.isDownloadFolder("Download/Subfolder"))
+        assertTrue(MediaMover.isDownloadFolder("/storage/emulated/0/Download"))
+        assertTrue(MediaMover.isDownloadFolder("/storage/emulated/0/Downloads/Docs"))
+        assertFalse(MediaMover.isDownloadFolder("Movies/Download"))
+        assertFalse(MediaMover.isDownloadFolder("/storage/emulated/0/Movies"))
+        assertFalse(MediaMover.isDownloadFolder(""))
+    }
+
+    @Test
     fun moveInPlace_returnsFailedOnApi28WhenRefusedWithoutRecoverable() {
         mediaStore.refuse = SecurityException("Permission denied")
         val m = mover(sdk = Build.VERSION_CODES.P)

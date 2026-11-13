@@ -1504,51 +1504,63 @@ private fun MediaLibraryContentView(
             is LibraryActiveModal.MoveToFolder -> {
                 val uris = modal.uris
                 val isMove = modal.isMove
-                val sourceFolders = remember(uris, state.videos) {
-                    uris.mapNotNull { uri -> state.videos.firstOrNull { it.uri == uri }?.rawItem?.folderPath }.toSet()
-                }
-                FolderDestinationSheet(
-                    title = if (isMove) {
-                        "Move ${uris.size} ${if (uris.size == 1) "video" else "videos"} to..."
-                    } else {
-                        "Copy ${uris.size} ${if (uris.size == 1) "video" else "videos"} to..."
-                    },
-                    folders = state.folders,
-                    labels = labels,
-                    summaries = state.folderSummaries,
-                    currentFolders = sourceFolders,
-                    isMove = isMove,
-                    onSelectDestination = { destinationFolder ->
-                        activeModal = null
-                        val destLabel = labels[destinationFolder] ?: friendlyFolderName(destinationFolder)
-                        if (isMove && mover.canMoveAllInPlace(uris, destinationFolder)) {
-                            moveFlow.moveAll(uris, destinationFolder) { batch ->
-                                selectedUris = emptySet()
-                                forgetTransferredClipboard(batch.movedUris, modal.fromClipboard)
-                                onRefresh()
-                                if (batch.movedUris.isNotEmpty()) {
-                                    val count = batch.movedCount
-                                    val total = batch.movedCount + batch.failedCount
-                                    val noun = if (count == 1) "video" else "videos"
-                                    transferResult = TransferResultMessage(
-                                        title = "Move complete",
-                                        message = if (total == 1) "Moved $count $noun to $destLabel." else "$count of $total $noun moved to $destLabel."
-                                    )
-                                }
-                            }
-                        } else {
-                            launchTransfer(uris, destinationFolder, isMove, modal.fromClipboard)
-                        }
-                    },
-                    onBrowseStorage = {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                    // Android 8 and 9 (API < 29) lack RELATIVE_PATH in MediaStore.
+                    // Route directly to the SAF folder picker so files can be transferred safely (audit DATA-13).
+                    LaunchedEffect(modal) {
                         activeModal = null
                         transferUris = uris
                         transferIsMove = isMove
                         transferFromClipboard = modal.fromClipboard
                         folderPicker.launch(null)
-                    },
-                    onDismiss = { activeModal = null }
-                )
+                    }
+                } else {
+                    val sourceFolders = remember(uris, state.videos) {
+                        uris.mapNotNull { uri -> state.videos.firstOrNull { it.uri == uri }?.rawItem?.folderPath }.toSet()
+                    }
+                    FolderDestinationSheet(
+                        title = if (isMove) {
+                            "Move ${uris.size} ${if (uris.size == 1) "video" else "videos"} to..."
+                        } else {
+                            "Copy ${uris.size} ${if (uris.size == 1) "video" else "videos"} to..."
+                        },
+                        folders = state.folders,
+                        labels = labels,
+                        summaries = state.folderSummaries,
+                        currentFolders = sourceFolders,
+                        isMove = isMove,
+                        onSelectDestination = { destinationFolder ->
+                            activeModal = null
+                            val destLabel = labels[destinationFolder] ?: friendlyFolderName(destinationFolder)
+                            if (isMove && mover.canMoveAllInPlace(uris, destinationFolder)) {
+                                moveFlow.moveAll(uris, destinationFolder) { batch ->
+                                    selectedUris = emptySet()
+                                    forgetTransferredClipboard(batch.movedUris, modal.fromClipboard)
+                                    onRefresh()
+                                    if (batch.movedUris.isNotEmpty()) {
+                                        val count = batch.movedCount
+                                        val total = batch.movedCount + batch.failedCount
+                                        val noun = if (count == 1) "video" else "videos"
+                                        transferResult = TransferResultMessage(
+                                            title = "Move complete",
+                                            message = if (total == 1) "Moved $count $noun to $destLabel." else "$count of $total $noun moved to $destLabel."
+                                        )
+                                    }
+                                }
+                            } else {
+                                launchTransfer(uris, destinationFolder, isMove, modal.fromClipboard)
+                            }
+                        },
+                        onBrowseStorage = {
+                            activeModal = null
+                            transferUris = uris
+                            transferIsMove = isMove
+                            transferFromClipboard = modal.fromClipboard
+                            folderPicker.launch(null)
+                        },
+                        onDismiss = { activeModal = null }
+                    )
+                }
             }
 
             null -> Unit

@@ -16,6 +16,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.net.toUri
@@ -74,13 +75,13 @@ internal fun rememberMediaMoveFlow(onMoved: (uri: String) -> Unit, mover: InPlac
     val coroutineScope = rememberCoroutineScope()
     val currentOnMoved by rememberUpdatedState(onMoved)
 
-    var moveQueue by remember { mutableStateOf<List<String>>(emptyList()) }
-    var currentDestination by remember { mutableStateOf("") }
-    var awaitingConsentUri by remember { mutableStateOf<String?>(null) }
-    var awaitingBatchConsent by remember { mutableStateOf<List<String>>(emptyList()) }
+    var moveQueue by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
+    var currentDestination by rememberSaveable { mutableStateOf("") }
+    var awaitingConsentUri by rememberSaveable { mutableStateOf<String?>(null) }
+    var awaitingBatchConsent by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
     var completionCallback by remember { mutableStateOf<((MoveBatchResult) -> Unit)?>(null) }
-    var movedUris by remember { mutableStateOf(emptyList<String>()) }
-    var failedUris by remember { mutableStateOf(emptyList<String>()) }
+    var movedUris by rememberSaveable { mutableStateOf(emptyList<String>()) }
+    var failedUris by rememberSaveable { mutableStateOf(emptyList<String>()) }
 
     val consentLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartIntentSenderForResult()

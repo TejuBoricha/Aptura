@@ -31,6 +31,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,6 +41,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import org.aptura.player.core.media.MediaMover
 import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
 import org.aptura.player.ui.components.ApturaOutlinedButton
@@ -139,7 +141,15 @@ internal fun FolderDestinationSheetContent(
 
         Spacer(Modifier.height(16.dp))
 
-        val entries = folders.map { folder ->
+        val validFolders = remember(folders) {
+            if (android.os.Build.VERSION.SDK_INT <= android.os.Build.VERSION_CODES.Q) {
+                folders.filterNot { MediaMover.isDownloadFolder(it) }
+            } else {
+                folders
+            }
+        }
+
+        val entries = validFolders.map { folder ->
             FolderEntry(
                 folder = folder,
                 label = labels[folder] ?: friendlyFolderName(folder),
