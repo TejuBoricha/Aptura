@@ -211,8 +211,8 @@ object SubtitleFileValidator {
         // ZIP/APK/JAR magic: PK\x03\x04
         if (length >= 4 && buffer[0] == 'P'.code.toByte() && buffer[1] == 'K'.code.toByte() && buffer[2] == 0x03.toByte() && buffer[3] == 0x04.toByte()) return true
 
-        // UTF-16LE (FF FE) and UTF-16BE (FE FF) text files naturally contain 0x00 bytes on every ASCII char.
-        if (SubtitleCharsetNormalizer.hasUtf16Bom(buffer, length)) {
+        // UTF-16 and UTF-32 text files (with or without BOM) naturally contain 0x00 padding bytes.
+        if (SubtitleCharsetNormalizer.isUtf16OrUtf32(buffer, length)) {
             return false
         }
 

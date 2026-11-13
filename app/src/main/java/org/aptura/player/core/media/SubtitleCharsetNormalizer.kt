@@ -116,6 +116,43 @@ object SubtitleCharsetNormalizer {
         return isLe || isBe
     }
 
+    internal fun isUtf16OrUtf32(bytes: ByteArray, length: Int = bytes.size): Boolean {
+        if (hasUtf32Bom(bytes, length) || hasUtf16Bom(bytes, length)) return true
+        return detectBomlessUnicodeCharset(bytes, length) != null
+    }
+
+    internal fun detectBomlessUnicodeCharset(bytes: ByteArray, length: Int = bytes.size): Charset? {
+        val sampleSize = minOf(length, bytes.size, 400)
+        // Check for UTF-32 without BOM (3 nulls out of every 4 bytes for ASCII text in SRT/VTT)
+        if (sampleSize >= 8 && sampleSize % 4 == 0) {
+            val n = sampleSize / 4
+            val c0 = (0 until sampleSize step 4).count { bytes[it] == 0.toByte() }
+            val c1 = (1 until sampleSize step 4).count { bytes[it] == 0.toByte() }
+            val c2 = (2 until sampleSize step 4).count { bytes[it] == 0.toByte() }
+            val c3 = (3 until sampleSize step 4).count { bytes[it] == 0.toByte() }
+            if (c0 > n * 0.7 && c1 > n * 0.7 && c2 > n * 0.7 && c3 < n * 0.1) {
+                return Charset.forName("UTF-32BE")
+            }
+            if (c1 > n * 0.7 && c2 > n * 0.7 && c3 > n * 0.7 && c0 < n * 0.1) {
+                return Charset.forName("UTF-32LE")
+            }
+        }
+
+        // Check for UTF-16 without BOM (alternating nulls for ASCII text in SRT/VTT)
+        if (sampleSize >= 4 && sampleSize % 2 == 0) {
+            val n = sampleSize / 2
+            val zEven = (0 until sampleSize step 2).count { bytes[it] == 0.toByte() }
+            val zOdd = (1 until sampleSize step 2).count { bytes[it] == 0.toByte() }
+            if (zEven > n * 0.7 && zOdd < n * 0.1) {
+                return StandardCharsets.UTF_16BE
+            }
+            if (zOdd > n * 0.7 && zEven < n * 0.1) {
+                return StandardCharsets.UTF_16LE
+            }
+        }
+        return null
+    }
+
     internal fun detectCharset(bytes: ByteArray): Charset {
         // 1. Check 4-byte BOMs (UTF-32)
         if (bytes.size >= 4) {
@@ -142,37 +179,9 @@ object SubtitleCharsetNormalizer {
             }
         }
 
-        // 4. Sample-based heuristics for non-BOM multi-byte encodings
-        val sampleSize = if (bytes.size > 400) 400 else bytes.size
+        // 4. Sample-based heuristics for non-BOM multi-byte Unicode encodings
+        detectBomlessUnicodeCharset(bytes)?.let { return it }
         val sample = if (bytes.size > 400) bytes.copyOfRange(0, 400) else bytes
-
-        // Check for UTF-32 without BOM (3 nulls out of every 4 bytes for ASCII text in SRT/VTT)
-        if (sampleSize >= 8 && sampleSize % 4 == 0) {
-            val n = sampleSize / 4
-            val c0 = (0 until sampleSize step 4).count { sample[it] == 0.toByte() }
-            val c1 = (1 until sampleSize step 4).count { sample[it] == 0.toByte() }
-            val c2 = (2 until sampleSize step 4).count { sample[it] == 0.toByte() }
-            val c3 = (3 until sampleSize step 4).count { sample[it] == 0.toByte() }
-            if (c0 > n * 0.7 && c1 > n * 0.7 && c2 > n * 0.7 && c3 < n * 0.1) {
-                return Charset.forName("UTF-32BE")
-            }
-            if (c1 > n * 0.7 && c2 > n * 0.7 && c3 > n * 0.7 && c0 < n * 0.1) {
-                return Charset.forName("UTF-32LE")
-            }
-        }
-
-        // Check for UTF-16 without BOM (alternating nulls for ASCII text in SRT/VTT)
-        if (sampleSize >= 4 && sampleSize % 2 == 0) {
-            val n = sampleSize / 2
-            val zEven = (0 until sampleSize step 2).count { sample[it] == 0.toByte() }
-            val zOdd = (1 until sampleSize step 2).count { sample[it] == 0.toByte() }
-            if (zEven > n * 0.7 && zOdd < n * 0.1) {
-                return StandardCharsets.UTF_16BE
-            }
-            if (zOdd > n * 0.7 && zEven < n * 0.1) {
-                return StandardCharsets.UTF_16LE
-            }
-        }
 
         // 5. Check if bytes are valid UTF-8
         if (isValidUtf8(bytes)) {
