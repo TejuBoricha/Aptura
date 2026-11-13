@@ -44,9 +44,11 @@ Run-Step "Execute Android Lint (Debug)" {
     .\gradlew.bat lintDebug --daemon
 }
 
-Run-Step "Release APK + App Bundle (.aab) + shipped-code invariants (R8, no network/telemetry code)" {
+Run-Step "Release APK + shipped-code invariants (R8, no network/telemetry code)" {
     .\gradlew.bat assembleRelease --daemon
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
+
+Run-Step "Release App Bundle (.aab) + shipped-code invariants (R8, no network/telemetry code)" {
     .\gradlew.bat bundleRelease --daemon
 }
 

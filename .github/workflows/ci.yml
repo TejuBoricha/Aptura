@@ -75,7 +75,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: kover-report
-          path: app/build/reports/kover/report.xml
+          path: app/build/reports/kover/
 
   lint:
     runs-on: ubuntu-latest
