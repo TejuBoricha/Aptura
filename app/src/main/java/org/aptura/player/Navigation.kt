@@ -1002,6 +1002,8 @@ private fun AppNavHost(
                             onAdvancedSheetVisible = playerViewModel::setAdvancedSheetVisible,
                             onSubtitleDelayChanged = playerViewModel::setSubtitleDelay,
                             onAudioDelayChanged = playerViewModel::setAudioDelay,
+                            onApplyAudioDelayToAll = playerViewModel::applyAudioDelayToAllVideos,
+                            onResetAudioDelayToDefault = playerViewModel::resetAudioDelayToDefault,
                             onStartSleepTimer = playerViewModel::startSleepTimer,
                             onCancelSleepTimer = playerViewModel::cancelSleepTimer,
                             onExtendSleepTimer = playerViewModel::extendSleepTimer,

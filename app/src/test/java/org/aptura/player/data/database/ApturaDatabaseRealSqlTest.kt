@@ -68,7 +68,7 @@ class ApturaDatabaseRealSqlTest {
         dao.insertOrUpdate(scanned())
         val uri = "content://media/external/video/media/100"
         dao.updatePlaybackPosition(uri, 41_314L, true, 1234L)
-        dao.updatePlaybackPreferences(uri, "FILL", 1.5f, 2, true, 150L, -200L)
+        dao.updatePlaybackPreferences(uri, "FILL", 1.5f, 2, true, 150L, true, -200L)
         dao.updateCustomTitle(uri, "My Renamed Movie")
         dao.hideByUri(uri)
         val before = dao.getVideoByUri(uri)!!
@@ -88,6 +88,7 @@ class ApturaDatabaseRealSqlTest {
         assertEquals(2, after.decoderStrategy)
         assertTrue("the user's decoder choice must survive a rescan", after.decoderOverridden)
         assertEquals(150L, after.audioDelayMs)
+        assertTrue("the user's audio sync override must survive a rescan", after.audioDelayOverridden)
         assertEquals(-200L, after.subtitleDelayMs)
         assertEquals("My Renamed Movie", after.customTitle)
         assertTrue("hide must survive a rescan", after.isHidden)

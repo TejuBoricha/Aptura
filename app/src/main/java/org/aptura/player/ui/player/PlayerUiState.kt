@@ -100,6 +100,8 @@ data class PlayerUiState(
     val hasPrevious: Boolean = false,
     val subtitleDelayMs: Long = 0L,
     val audioDelayMs: Long = 0L,
+    /** True when [audioDelayMs] is this video's own choice rather than the Settings default (ISSUE-012). */
+    val audioDelayOverridden: Boolean = false,
     val delayStepMs: Long = 50L,
     val audioEnhancement: AudioEnhancementState = AudioEnhancementState(),
     val pictureAdjustment: PictureAdjustmentState = PictureAdjustmentState(),

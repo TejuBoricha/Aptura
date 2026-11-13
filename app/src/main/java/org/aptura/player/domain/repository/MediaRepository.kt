@@ -131,13 +131,20 @@ interface MediaRepository {
         /** The user's choice for this video, or null for "use the default from Settings". */
         decoderStrategy: Int?,
         audioDelayMs: Long,
-        subtitleDelayMs: Long
+        subtitleDelayMs: Long,
+        /** True when [audioDelayMs] is this video's own choice rather than following Settings. */
+        audioDelayOverridden: Boolean = audioDelayMs != 0L
     )
 
     /**
      * Resets per-video playback preferences back to global defaults (FR-CTRL-012).
      */
     suspend fun resetPlaybackPreferences(uri: String)
+
+    /**
+     * Clears every video's per-video audio sync override so all videos follow the global Settings default (ISSUE-012).
+     */
+    suspend fun clearAllAudioDelayOverrides() {}
 
     /**
      * Resets playback position, completed status, and last played timestamp across all indexed media items (audit DATA-09).

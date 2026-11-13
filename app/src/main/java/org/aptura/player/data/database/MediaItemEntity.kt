@@ -46,7 +46,10 @@ data class MediaItemEntity(
     val decoderStrategy: Int = 0,
     /** True once the user chose a decoder for this video. False = follow the default in Settings. */
     val decoderOverridden: Boolean = false,
+    /** Audio sync offset the user picked for this video; only meaningful when [audioDelayOverridden] is true. */
     val audioDelayMs: Long = 0L,
+    /** True once the user chose an audio sync offset for this video. False = follow the default in Settings. */
+    val audioDelayOverridden: Boolean = false,
     val subtitleDelayMs: Long = 0L,
     /** User-chosen title. Survives rescans (the scanner only owns [title]); null = use the scanned title. */
     val customTitle: String? = null,
@@ -67,6 +70,7 @@ data class MediaItemEntity(
         decoderStrategy = existing.decoderStrategy,
         decoderOverridden = existing.decoderOverridden,
         audioDelayMs = existing.audioDelayMs,
+        audioDelayOverridden = existing.audioDelayOverridden,
         subtitleDelayMs = existing.subtitleDelayMs,
         customTitle = existing.customTitle,
         isHidden = existing.isHidden
@@ -92,7 +96,8 @@ fun MediaItemEntity.toDomainMediaItem(): DomainMediaItem {
         resizeMode = resizeMode,
         playbackSpeed = playbackSpeed,
         decoderStrategy = if (decoderOverridden) decoderStrategy else null,
-        audioDelayMs = audioDelayMs,
+        audioDelayMs = if (audioDelayOverridden) audioDelayMs else 0L,
+        audioDelayOverridden = audioDelayOverridden,
         subtitleDelayMs = subtitleDelayMs,
         lastPlayedTimestamp = lastPlayedTimestamp
     )

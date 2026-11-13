@@ -422,6 +422,7 @@ class PlayerViewModelTest {
         var lastSavedResizeMode: String? = null
         var lastSavedSpeed: Float? = null
         var lastSavedDecoderStrategy: Int? = null
+        var lastSavedAudioDelayOverridden: Boolean? = null
         var savedPreferencesCount = 0
 
         override suspend fun savePlaybackPreferences(
@@ -430,12 +431,14 @@ class PlayerViewModelTest {
             playbackSpeed: Float,
             decoderStrategy: Int?,
             audioDelayMs: Long,
-            subtitleDelayMs: Long
+            subtitleDelayMs: Long,
+            audioDelayOverridden: Boolean
         ) {
             lastSavedPreferencesUri = uri
             lastSavedResizeMode = resizeMode
             lastSavedSpeed = playbackSpeed
             lastSavedDecoderStrategy = decoderStrategy
+            lastSavedAudioDelayOverridden = audioDelayOverridden
             savedPreferencesCount++
             items[uri]?.let {
                 items[uri] = it.copy(
@@ -443,6 +446,7 @@ class PlayerViewModelTest {
                     playbackSpeed = playbackSpeed,
                     decoderStrategy = decoderStrategy,
                     audioDelayMs = audioDelayMs,
+                    audioDelayOverridden = audioDelayOverridden,
                     subtitleDelayMs = subtitleDelayMs
                 )
             }
@@ -457,8 +461,19 @@ class PlayerViewModelTest {
                     playbackSpeed = 1.0f,
                     decoderStrategy = null,
                     audioDelayMs = 0L,
+                    audioDelayOverridden = false,
                     subtitleDelayMs = 0L
                 )
+            }
+        }
+
+        var clearAudioDelayOverridesCount = 0
+        override suspend fun clearAllAudioDelayOverrides() {
+            clearAudioDelayOverridesCount++
+            items.keys.forEach { uri ->
+                items[uri]?.let {
+                    items[uri] = it.copy(audioDelayOverridden = false, audioDelayMs = 0L)
+                }
             }
         }
 
@@ -3622,6 +3637,71 @@ class PlayerViewModelTest {
         runCurrent()
         assertEquals(listOf(item1, item2, item3), viewModel.uiState.value.queueItems)
         assertEquals(1, viewModel.uiState.value.currentQueueIndex)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun audioDelay_followsGlobalDefaultUntilOverridden_andApplyToAllPersistsGlobally() = runTest(testDispatcher) {
+        val defaultDelayFlow = MutableStateFlow(-200L)
+        val controller = FakePlaybackController()
+        val repo = FakeMediaRepository()
+        val video1 = sampleVideo.copy(uri = "content://media/a1", audioDelayMs = 0L, audioDelayOverridden = false)
+        val video2 = sampleVideo.copy(uri = "content://media/a2", title = "Second", audioDelayMs = 0L, audioDelayOverridden = false)
+        repo.items[video1.uri] = video1
+        repo.items[video2.uri] = video2
+
+        val viewModel = PlayerViewModel(
+            playbackController = controller,
+            mediaRepository = repo,
+            dispatcher = testDispatcher,
+            defaultAudioDelayFlow = defaultDelayFlow,
+            saveDefaultAudioDelay = { defaultDelayFlow.value = it }
+        )
+        runCurrent()
+
+        // Non-overridden video inherits the global default
+        viewModel.playQueue(listOf(video1, video2), 0)
+        runCurrent()
+        assertEquals(-200L, viewModel.uiState.value.audioDelayMs)
+        assertEquals(-200L, controller.lastAudioDelay)
+        assertFalse(viewModel.uiState.value.audioDelayOverridden)
+
+        // User adjusts this video -> becomes per-video override
+        viewModel.setAudioDelay(150L)
+        advanceTimeBy(PlayerViewModel.SYNC_APPLY_DEBOUNCE_MS + 10L)
+        runCurrent()
+        assertTrue(viewModel.uiState.value.audioDelayOverridden)
+        assertEquals(true, repo.items[video1.uri]?.audioDelayOverridden)
+        assertEquals(150L, repo.items[video1.uri]?.audioDelayMs)
+
+        // "Apply to all videos" promotes 150ms to Settings default, clears overrides, and marks it not overridden
+        viewModel.applyAudioDelayToAllVideos()
+        runCurrent()
+        assertEquals(150L, defaultDelayFlow.value)
+        assertFalse(viewModel.uiState.value.audioDelayOverridden)
+        assertEquals(1, repo.clearAudioDelayOverridesCount)
+        assertEquals(false, repo.items[video1.uri]?.audioDelayOverridden)
+
+        // Advancing to video2 inherits the newly promoted 150ms default
+        viewModel.skipToNext()
+        runCurrent()
+        assertEquals(150L, viewModel.uiState.value.audioDelayMs)
+        assertEquals(150L, controller.lastAudioDelay)
+        assertFalse(viewModel.uiState.value.audioDelayOverridden)
+
+        // Overriding video2 then clicking "Use default" reverts back to 150ms
+        viewModel.setAudioDelay(-350L)
+        advanceTimeBy(PlayerViewModel.SYNC_APPLY_DEBOUNCE_MS + 10L)
+        runCurrent()
+        assertTrue(viewModel.uiState.value.audioDelayOverridden)
+
+        viewModel.resetAudioDelayToDefault()
+        runCurrent()
+        assertFalse(viewModel.uiState.value.audioDelayOverridden)
+        assertEquals(150L, viewModel.uiState.value.audioDelayMs)
+        assertEquals(150L, controller.lastAudioDelay)
+        assertEquals(false, repo.items[video2.uri]?.audioDelayOverridden)
 
         viewModel.clearForTesting()
     }

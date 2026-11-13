@@ -40,6 +40,7 @@ class MissingRowPurgeTest {
             "playbackSpeed" to base.copy(playbackSpeed = 1.5f),
             "decoderOverridden" to base.copy(decoderOverridden = true),
             "decoderStrategy" to base.copy(decoderStrategy = 2),
+            "audioDelayOverridden" to base.copy(audioDelayOverridden = true),
             "audioDelayMs" to base.copy(audioDelayMs = -200L),
             "subtitleDelayMs" to base.copy(subtitleDelayMs = 300L),
             "customTitle" to base.copy(customTitle = "My title"),
@@ -77,7 +78,7 @@ class MissingRowPurgeTest {
         )
         val userOwned = setOf(
             "playbackPositionMs", "isCompleted", "lastPlayedTimestamp", "resizeMode", "playbackSpeed", "decoderStrategy",
-            "decoderOverridden", "audioDelayMs", "subtitleDelayMs", "customTitle", "isHidden"
+            "decoderOverridden", "audioDelayMs", "audioDelayOverridden", "subtitleDelayMs", "customTitle", "isHidden"
         )
         val declared = MediaItemEntity::class.java.declaredFields
             .filter { !it.isSynthetic && !Modifier.isStatic(it.modifiers) }

@@ -21,6 +21,7 @@ internal fun MediaItemEntity.hasUserData(): Boolean =
         playbackSpeed != DEFAULT_PLAYBACK_SPEED ||
         decoderOverridden ||
         decoderStrategy != 0 ||
+        audioDelayOverridden ||
         audioDelayMs != 0L ||
         subtitleDelayMs != 0L ||
         !customTitle.isNullOrBlank() ||

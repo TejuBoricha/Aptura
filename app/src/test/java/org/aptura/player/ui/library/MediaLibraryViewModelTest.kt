@@ -125,7 +125,8 @@ class MediaLibraryViewModelTest {
             playbackSpeed: Float,
             decoderStrategy: Int?,
             audioDelayMs: Long,
-            subtitleDelayMs: Long
+            subtitleDelayMs: Long,
+            audioDelayOverridden: Boolean
         ) {}
 
         override suspend fun resetPlaybackPreferences(uri: String) {}

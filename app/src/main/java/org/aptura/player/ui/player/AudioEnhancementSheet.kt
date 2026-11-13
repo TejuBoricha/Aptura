@@ -111,9 +111,12 @@ fun AudioEnhancementSheet(
     delayStepMs: Long,
     audioEnhancement: AudioEnhancementState,
     initialTab: Int = 0,
+    audioDelayOverridden: Boolean = false,
     onDismissRequest: () -> Unit,
     onAudioTrackSelected: (Int?) -> Unit,
     onAudioDelayChanged: (Long) -> Unit,
+    onApplyAudioDelayToAll: () -> Unit = {},
+    onResetAudioDelayToDefault: () -> Unit = {},
     onEqualizerEnabledChanged: (Boolean) -> Unit,
     onEqualizerPresetSelected: (EqualizerPreset) -> Unit,
     onEqualizerBandChanged: (Int, Int) -> Unit,
@@ -167,8 +170,11 @@ fun AudioEnhancementSheet(
                     selectedAudioTrackIndex = selectedAudioTrackIndex,
                     audioDelayMs = audioDelayMs,
                     delayStepMs = delayStepMs,
+                    audioDelayOverridden = audioDelayOverridden,
                     onAudioTrackSelected = onAudioTrackSelected,
-                    onAudioDelayChanged = onAudioDelayChanged
+                    onAudioDelayChanged = onAudioDelayChanged,
+                    onApplyAudioDelayToAll = onApplyAudioDelayToAll,
+                    onResetAudioDelayToDefault = onResetAudioDelayToDefault
                 )
                 1 -> EqualizerTab(
                     audioEnhancement = audioEnhancement,
@@ -197,8 +203,11 @@ private fun AudioTracksAndSyncTab(
     selectedAudioTrackIndex: Int?,
     audioDelayMs: Long,
     delayStepMs: Long,
+    audioDelayOverridden: Boolean,
     onAudioTrackSelected: (Int?) -> Unit,
-    onAudioDelayChanged: (Long) -> Unit
+    onAudioDelayChanged: (Long) -> Unit,
+    onApplyAudioDelayToAll: () -> Unit,
+    onResetAudioDelayToDefault: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -233,7 +242,17 @@ private fun AudioTracksAndSyncTab(
         // A positive offset delays the sound (see AudioDelayProcessor). Wireless headphones already make sound late,
         // so the fix for them is "Earlier". The old one-tap "Buds (+150ms)" preset made them worse, so device presets
         // are gone: the words now say which way to move.
-        SheetSection("Audio sync") {
+        SheetSection(
+            "Audio sync",
+            trailing = {
+                Text(
+                    text = if (audioDelayOverridden) "Set for this video" else "Using the default",
+                    style = ApturaTypography.bodySmall,
+                    color = ApturaColors.TextLowEmphasis,
+                    modifier = Modifier.padding(end = 4.dp)
+                )
+            }
+        ) {
             TimingOffsetControl(
                 offsetMs = audioDelayMs,
                 onOffsetChange = onAudioDelayChanged,
@@ -250,6 +269,24 @@ private fun AudioTracksAndSyncTab(
                     }
                 }
             )
+            if (audioDelayOverridden) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    ApturaTextButton(
+                        text = "Use default",
+                        onClick = onResetAudioDelayToDefault,
+                        tone = ApturaTone.Neutral
+                    )
+                    ApturaTextButton(
+                        text = "Apply to all videos",
+                        onClick = onApplyAudioDelayToAll,
+                        tone = ApturaTone.Accent
+                    )
+                }
+            }
             // Wireless audio is the usual cause of late sound, so when it is the output, offer the usual fix in one tap.
             // It is a starting point, not a preset: latency varies by headphone, and Android compensates for some.
             if (rememberBluetoothOutputConnected() && audioDelayMs == 0L) {

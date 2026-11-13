@@ -295,6 +295,7 @@ Every player sheet (Audio, Subtitles, Playback tools, Speed, Queue) is built fro
   - a slider snapped to the step;
   - both directions named in words under the slider.
 - **Sign convention:** a positive audio offset delays the sound. Bluetooth headphones already play sound late, so their fix is **negative** ("Sound earlier"). When Bluetooth output is connected and sync is at 0, the Audio sync section offers a one-tap "Try −200 ms" starting point. Never ship device presets that push the offset the wrong way.
+- **Audio sync is the default or this video's own** (ISSUE-012, DEC-015): the Audio sync label reads "Using the default" until the person moves the control, then "Set for this video". Only then do "Use default" (back to the default from Settings) and "Apply to all videos" (make this value the default and clear every video's own value) appear under the control. Choosing 0 ms is a choice, not "unset": an override of 0 ms stays 0 ms while the default is something else.
 - **Sleep timer** (FR-CTRL-009):
   - The choices are Off / 15 / 30 / 45 / 60 min, plus an "At the end of this video" switch.
   - "At the end of this video" pauses when the item ends, even under Repeat one, and does not start Up Next. It fires once.

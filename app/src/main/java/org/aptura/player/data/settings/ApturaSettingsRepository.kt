@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.mutablePreferencesOf
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
@@ -46,6 +47,7 @@ internal object PreferencesKeys {
     val SUBTITLE_USE_SYSTEM_STYLE = booleanPreferencesKey("subtitle_use_system_style")
     val SUBTITLE_ENCODING = stringPreferencesKey("subtitle_encoding")
     val DEFAULT_DECODER_STRATEGY = intPreferencesKey("default_decoder_strategy")
+    val DEFAULT_AUDIO_DELAY_MS = longPreferencesKey("default_audio_delay_ms")
     val PERSISTED_SAF_FOLDERS = stringSetPreferencesKey("persisted_saf_folders")
     val FX_ENABLED = booleanPreferencesKey("fx_enabled")
     val FX_PRESET = stringPreferencesKey("fx_preset")
@@ -116,6 +118,8 @@ data class ApturaSettings(
     /** Override character encoding for subtitle files, or null for auto-detect (PROD-G12). */
     val subtitleEncoding: String? = null,
     val defaultDecoderStrategy: Int = 0, // 0: Auto, 1: Hardware, 2: Software
+    /** Global audio sync offset applied to videos without a per-video override (ISSUE-012). */
+    val defaultAudioDelayMs: Long = 0L,
     val persistedSafFolders: Set<String> = emptySet(),
     /** Set to true when settings were recovered to defaults from a corrupted file (DATA-07). */
     val wasResetByCorruption: Boolean = false,
@@ -177,6 +181,7 @@ class ApturaSettingsRepository(private val context: Context) : AudioEffectsStore
                 subtitleUseSystemStyle = preferences[PreferencesKeys.SUBTITLE_USE_SYSTEM_STYLE] ?: true,
                 subtitleEncoding = preferences[PreferencesKeys.SUBTITLE_ENCODING],
                 defaultDecoderStrategy = preferences[PreferencesKeys.DEFAULT_DECODER_STRATEGY] ?: 0,
+                defaultAudioDelayMs = preferences[PreferencesKeys.DEFAULT_AUDIO_DELAY_MS] ?: 0L,
                 persistedSafFolders = effectiveSaf,
                 wasResetByCorruption = wasReset,
                 audioEffects = AudioEffectsSettings(
@@ -291,6 +296,7 @@ class ApturaSettingsRepository(private val context: Context) : AudioEffectsStore
             preferences[PreferencesKeys.BACKGROUND_AUDIO_ENABLED] = true
             preferences[PreferencesKeys.AUTO_ADVANCE_COUNTDOWN] = 10
             preferences[PreferencesKeys.DEFAULT_DECODER_STRATEGY] = 0
+            preferences[PreferencesKeys.DEFAULT_AUDIO_DELAY_MS] = 0L
         }
     }
 
@@ -331,6 +337,12 @@ class ApturaSettingsRepository(private val context: Context) : AudioEffectsStore
     suspend fun updateDefaultDecoderStrategy(strategy: Int) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.DEFAULT_DECODER_STRATEGY] = strategy
+        }
+    }
+
+    suspend fun updateDefaultAudioDelayMs(delayMs: Long) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.DEFAULT_AUDIO_DELAY_MS] = delayMs
         }
     }
 

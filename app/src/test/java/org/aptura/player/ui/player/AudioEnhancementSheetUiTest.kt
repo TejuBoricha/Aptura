@@ -259,4 +259,66 @@ class AudioEnhancementSheetUiTest {
         composeTestRule.onNodeWithText("French (Stereo)").performSemanticsAction(SemanticsActions.OnClick)
         assertEquals("a supported track still works", 2, chosen)
     }
+
+    @Test
+    fun audioSync_showsDefaultLabelWithoutButtons_andOverriddenShowsApplyToAllAndUseDefault() {
+        composeTestRule.setContent {
+            ApturaTheme {
+                AudioEnhancementSheet(
+                    audioTracks = sampleTracks,
+                    selectedAudioTrackIndex = 0,
+                    audioDelayMs = 150L,
+                    delayStepMs = 50L,
+                    audioEnhancement = sampleAudioEnhancement,
+                    audioDelayOverridden = false,
+                    onDismissRequest = {},
+                    onAudioTrackSelected = {},
+                    onAudioDelayChanged = {},
+                    onEqualizerEnabledChanged = {},
+                    onEqualizerPresetSelected = {},
+                    onEqualizerBandChanged = { _, _ -> },
+                    onBassBoostChanged = {},
+                    onVirtualizerChanged = {},
+                    onLoudnessBoostChanged = {}
+                )
+            }
+        }
+        composeTestRule.onNodeWithText("Using the default").assertIsDisplayed()
+        composeTestRule.onAllNodesWithText("Apply to all videos").assertCountEquals(0)
+        composeTestRule.onAllNodesWithText("Use default").assertCountEquals(0)
+    }
+
+    @Test
+    fun audioSyncOverridden_showsSetForThisVideo_andInvokesApplyToAllAndUseDefaultCallbacks() {
+        var appliedAll = 0
+        var resetDefault = 0
+        composeTestRule.setContent {
+            ApturaTheme {
+                AudioEnhancementSheet(
+                    audioTracks = sampleTracks,
+                    selectedAudioTrackIndex = 0,
+                    audioDelayMs = -150L,
+                    delayStepMs = 50L,
+                    audioEnhancement = sampleAudioEnhancement,
+                    audioDelayOverridden = true,
+                    onDismissRequest = {},
+                    onAudioTrackSelected = {},
+                    onAudioDelayChanged = {},
+                    onApplyAudioDelayToAll = { appliedAll++ },
+                    onResetAudioDelayToDefault = { resetDefault++ },
+                    onEqualizerEnabledChanged = {},
+                    onEqualizerPresetSelected = {},
+                    onEqualizerBandChanged = { _, _ -> },
+                    onBassBoostChanged = {},
+                    onVirtualizerChanged = {},
+                    onLoudnessBoostChanged = {}
+                )
+            }
+        }
+        composeTestRule.onNodeWithText("Set for this video").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Apply to all videos").performSemanticsAction(SemanticsActions.OnClick)
+        composeTestRule.onNodeWithText("Use default").performSemanticsAction(SemanticsActions.OnClick)
+        assertEquals(1, appliedAll)
+        assertEquals(1, resetDefault)
+    }
 }

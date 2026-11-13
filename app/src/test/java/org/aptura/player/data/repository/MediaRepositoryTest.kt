@@ -176,6 +176,7 @@ class MediaRepositoryTest {
             decoderStrategy: Int,
             decoderOverridden: Boolean,
             audioDelayMs: Long,
+            audioDelayOverridden: Boolean,
             subtitleDelayMs: Long
         ) {
             items.value = items.value.map {
@@ -186,6 +187,7 @@ class MediaRepositoryTest {
                         decoderStrategy = decoderStrategy,
                         decoderOverridden = decoderOverridden,
                         audioDelayMs = audioDelayMs,
+                        audioDelayOverridden = audioDelayOverridden,
                         subtitleDelayMs = subtitleDelayMs
                     )
                 } else it
@@ -201,9 +203,16 @@ class MediaRepositoryTest {
                         decoderStrategy = 0,
                         decoderOverridden = false,
                         audioDelayMs = 0L,
+                        audioDelayOverridden = false,
                         subtitleDelayMs = 0L
                     )
                 } else it
+            }
+        }
+
+        override suspend fun clearAllAudioDelayOverrides() {
+            items.value = items.value.map {
+                it.copy(audioDelayOverridden = false, audioDelayMs = 0L)
             }
         }
 
@@ -603,9 +612,16 @@ class MediaRepositoryTest {
         assertEquals(1.5f, updated?.playbackSpeed)
         assertEquals(2, updated?.decoderStrategy)
         assertEquals(150L, updated?.audioDelayMs)
+        assertTrue("overridden audio delay must persist", updated?.audioDelayOverridden == true)
         assertEquals(-200L, updated?.subtitleDelayMs)
 
-        // 2. Reset preferences restores defaults
+        // 2. Clear all audio delay overrides globally (ISSUE-012)
+        repo.clearAllAudioDelayOverrides()
+        val afterClear = repo.getVideoByUri("content://media/sample_vid")
+        assertFalse(afterClear?.audioDelayOverridden == true)
+        assertEquals(0L, afterClear?.audioDelayMs)
+
+        // 3. Reset preferences restores defaults
         repo.resetPlaybackPreferences("content://media/sample_vid")
 
         val resetItem = repo.getVideoByUri("content://media/sample_vid")
@@ -614,6 +630,7 @@ class MediaRepositoryTest {
         assertEquals(1.0f, resetItem?.playbackSpeed)
         assertNull("reset must go back to following the default", resetItem?.decoderStrategy)
         assertEquals(0L, resetItem?.audioDelayMs)
+        assertFalse(resetItem?.audioDelayOverridden == true)
         assertEquals(0L, resetItem?.subtitleDelayMs)
     }
 
