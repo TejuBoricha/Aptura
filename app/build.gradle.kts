@@ -181,6 +181,7 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     // Instrumented tests can target exactly one build type (AGP default: debug). Run the E2E
@@ -388,6 +389,9 @@ dependencies {
   testImplementation(libs.robolectric)
   testImplementation(libs.androidx.work.testing) // in-memory WorkManager database for the cold-start scan test
   testImplementation(libs.androidx.compose.ui.test.junit4)
+
+  // Baseline Profile installer
+  implementation(libs.androidx.profileinstaller)
 
   // Instrumented tests: jUnit rules and runners
   androidTestImplementation(libs.androidx.test.core)
