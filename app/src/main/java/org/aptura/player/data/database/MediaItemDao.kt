@@ -120,9 +120,6 @@ interface MediaItemDao {
     @Query("DELETE FROM media_items WHERE isMissing = 1")
     suspend fun clearMissingVideos()
 
-    @Query("DELETE FROM media_items WHERE mediaStoreId NOT IN (:existingMediaStoreIds)")
-    suspend fun deleteRemovedVideos(existingMediaStoreIds: List<Long>)
-
     @Query("SELECT COUNT(*) FROM media_items WHERE isHidden = 0")
     suspend fun getMediaItemCount(): Int
 
