@@ -13,20 +13,24 @@ The numbers change with every pull request, so they are not kept in this file. R
 | Release invariants | The **Release APK build and shipped-code invariants** (`verifyReleaseApk`) and **Release App Bundle (.aab) build and shipped-code invariants** (`verifyReleaseBundle`) steps of the `release` job (fanned into `verify`); uploads `release-invariant-reports`. |
 | Instrumented suite | The `connected` job: an API 35 tablet emulator |
 | Agent coordination checks | `python -m unittest discover -s tools/agents`, run by `tools/gate.ps1` when Python 3 is installed and by the **Agent coordination checks** step in CI `unit-tests`. |
+| Supply-chain & workflow pins | `python -m unittest discover -s tools/security` verifies secret file exclusions (`check_no_secret_files.py`) and 40-char commit SHA pinning on all `.github/workflows/*.yml` files (`test_workflow_pins.py`). |
+| Nightly corpus & API matrix | `.github/workflows/nightly.yml` (daily + `workflow_dispatch`): generates the `tools/corpus/` synthetic suite via `ffmpeg`, verifies `fixtures/manifest.csv`, runs `CommittedCorpusFixturesTest`, and runs `PlaybackSmokeTest` on API 26 and API 36 emulators. |
 
-`tools/gate.ps1` runs the same checks on your machine.
+`tools/gate.ps1` runs the same checks on your machine (pass `-Quick` during rapid coding to skip the Release APK/AAB R8 passes, and run full `.\tools\gate.ps1` before pushing).
 
 ## Run it
 
 ```powershell
-# Everything the local gate runs
+# Everything the local gate runs (pre-push)
 ./tools/gate.ps1
+
+# Rapid iteration (unit tests + lint + python guards, skips R8 APK/AAB)
+./tools/gate.ps1 -Quick
 ```
 
 Or individually:
 
 ```bash
-./gradlew compileDebugUnitTestKotlin
 ./gradlew testDebugUnitTest --fail-fast
 ./gradlew lintDebug
 ./gradlew detekt
@@ -34,9 +38,10 @@ Or individually:
 ./gradlew assembleRelease
 ./gradlew bundleRelease
 python -m unittest discover -s tools/agents
+python -m unittest discover -s tools/security
 ```
 
-The unit-test task has a 300-second whole-task timeout. That is a hang guard, not a performance target; a cold CI runner exceeded the old 120 seconds at ~680 tests. If the suite legitimately grows past it, raise the guard in `app/build.gradle.kts` instead of deleting it.
+The unit-test task uses parallel forks (up to 3 locally, 2 in CI) with a 300-second whole-task timeout and skips `APTURA_GALLERY_DIR`-gated `*GalleryTest` suites unless `APTURA_GALLERY_DIR` is set. If the suite legitimately grows past the 300 s hang guard, raise the guard in `app/build.gradle.kts` instead of deleting it.
 
 ## Test layers
 

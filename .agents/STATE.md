@@ -19,10 +19,9 @@ PR's Verification section and in CI, not here, so most pull requests never need 
 
 ## Quality gate
 
-- `tools/gate.ps1` and CI (`.github/workflows/ci.yml`: `verify` = agent coordination checks, unit tests + Kover 70% floor verification, lint + Detekt, R8 release APK + `.aab` bundle with `verifyReleaseApk` / `verifyReleaseBundle`; `connected` = instrumented tests on an API 35 tablet emulator).
-- The gate also runs the checker's Python tests (`python -m unittest discover -s tools/agents`) when Python 3 is
-  installed; CI always runs them.
-- `gradle/actions/setup-gradle` is pinned to **v5 on purpose** (v6 pulls a proprietary build-cache component).
+- `tools/gate.ps1` (`-Quick` skips Release R8 APK/AAB passes during iteration) and CI (`.github/workflows/ci.yml`: `verify` = agent checks, security/SHA-pin guards, parallel unit tests + Kover 70% floor verification, lint + Detekt, R8 release APK + `.aab` bundle with `verifyReleaseApk` / `verifyReleaseBundle`; `connected` = instrumented tests on an API 35 tablet emulator).
+- `.github/workflows/codeql.yml` runs static analysis (`java-kotlin` + `python`); `.github/workflows/nightly.yml` synthesizes the `tools/corpus/` suite (`ffmpeg`) and runs `PlaybackSmokeTest` across API 26 and API 36; `.github/workflows/release.yml` produces verified release APK/AAB + `SHA256SUMS.txt` on `v*` tags.
+- `gradle/actions/setup-gradle` is pinned to the **v5** commit SHA on purpose (v6 pulls a proprietary build-cache component). All GitHub Actions are SHA-pinned and checked by `tools/security/test_workflow_pins.py`.
 
 ## Current audit
 

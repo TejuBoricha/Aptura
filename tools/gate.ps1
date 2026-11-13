@@ -1,13 +1,16 @@
 # ==============================================================================
 # Aptura Local Quality Gate (Fail-Fast Verification)
 # Runs:
-#   1. Unit Test Compilation (Catches syntax & visibility errors)
-#   2. Unit Test Suite (Enforces 30s timeout & fail-fast execution)
-#   3. Android Lint (Validates opt-in annotations, licenses & offline invariants)
-#   4. Release APK + App Bundle builds, which also run verifyReleaseApk & verifyReleaseBundle (no network stack / telemetry SDK in the shipped code)
-#   5. Agent coordination checker tests (tools/agents), when Python 3 is installed; CI always runs them
-#   6. Secret file guard (tools/security): fails if a signing key or .env file is tracked; same condition as step 5
+#   1. Unit Test Suite (compiles debug + unit tests, enforces timeout & fail-fast execution)
+#   2. Android Lint (Validates opt-in annotations, licenses & offline invariants)
+#   3. Release APK + App Bundle builds (skipped with -Quick), which run verifyReleaseApk & verifyReleaseBundle
+#   4. Agent coordination checker tests (tools/agents), when Python 3 is installed; CI always runs them
+#   5. Secret & workflow pin guards (tools/security): fails on tracked secrets or unpinned workflow actions
 # ==============================================================================
+
+param(
+    [switch]$Quick
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -29,12 +32,8 @@ function Run-Step([string]$Name, [scriptblock]$Command) {
 }
 
 Write-Host "==========================================================" -ForegroundColor Yellow
-Write-Host " Aptura Atomic Verification Gate" -ForegroundColor Yellow
+Write-Host " Aptura Atomic Verification Gate$(if ($Quick) { ' (Quick Mode)' } else { '' })" -ForegroundColor Yellow
 Write-Host "==========================================================" -ForegroundColor Yellow
-
-Run-Step "Compile Debug & Unit Tests" {
-    .\gradlew.bat compileDebugUnitTestKotlin --daemon
-}
 
 Run-Step "Execute Unit Tests (Fail-Fast)" {
     .\gradlew.bat testDebugUnitTest --fail-fast --daemon
@@ -44,12 +43,16 @@ Run-Step "Execute Android Lint (Debug)" {
     .\gradlew.bat lintDebug --daemon
 }
 
-Run-Step "Release APK + shipped-code invariants (R8, no network/telemetry code)" {
-    .\gradlew.bat assembleRelease --daemon
-}
+if (-not $Quick) {
+    Run-Step "Release APK + shipped-code invariants (R8, no network/telemetry code)" {
+        .\gradlew.bat assembleRelease --daemon
+    }
 
-Run-Step "Release App Bundle (.aab) + shipped-code invariants (R8, no network/telemetry code)" {
-    .\gradlew.bat bundleRelease --daemon
+    Run-Step "Release App Bundle (.aab) + shipped-code invariants (R8, no network/telemetry code)" {
+        .\gradlew.bat bundleRelease --daemon
+    }
+} else {
+    Write-Host "`n>>> [SKIPPED] Release APK/AAB R8 builds (-Quick); run full .\tools\gate.ps1 before pushing." -ForegroundColor Yellow
 }
 
 # Windows installs Python as `py`, `python` or `python3`; any of them will do. Skipped, not failed, without one,
@@ -59,9 +62,9 @@ if ($python) {
     Run-Step "Agent coordination checker tests (tools/agents)" {
         & $python -m unittest discover -s tools/agents
     }
-    Run-Step "Secret file guard (tools/security)" {
+    Run-Step "Security & workflow pin guards (tools/security)" {
         & $python -m unittest discover -s tools/security
-        if ($LASTEXITCODE -ne 0) { throw "Secret file guard tests failed" }
+        if ($LASTEXITCODE -ne 0) { throw "Security guard tests failed" }
         & $python tools/security/check_no_secret_files.py
     }
 } else {

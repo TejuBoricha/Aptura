@@ -1,0 +1,105 @@
+name: Nightly Matrix & Corpus
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  synthetic-corpus:
+    name: Generate and verify B0.0 synthetic corpus (QA-07)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Generate synthetic subtitles, metadata bombs, adversarial media, instrumented clips & matrix
+        run: |
+          python3 tools/corpus/generate_subtitles.py
+          python3 tools/corpus/generate_metadata_bombs.py
+          python3 tools/corpus/generate_adversarial_media.py
+          python3 tools/corpus/generate_scale_library.py --count 1000 --name scale_1k
+          python3 tools/corpus/generate_instrumented.py
+          python3 tools/corpus/generate_media_matrix.py
+          test -s fixtures/manifest.csv
+          wc -l fixtures/manifest.csv
+
+      - name: Verify committed fixture corpus unit suite
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5
+
+      - name: Run CommittedCorpusFixturesTest
+        run: ./gradlew testDebugUnitTest --tests "org.aptura.player.core.media.CommittedCorpusFixturesTest" --stacktrace
+
+      - name: Upload corpus manifest
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: nightly-corpus-manifest
+          path: fixtures/manifest.csv
+
+  connected-matrix:
+    name: Connected smoke (API ${{ matrix.api-level }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - api-level: 26
+            target: google_apis
+            profile: pixel
+          - api-level: 36
+            target: google_apis
+            profile: pixel_7
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run instrumented tests on API ${{ matrix.api-level }}
+        uses: reactivecircus/android-emulator-runner@a421e43855164a805825da76410fe71c6996bb0d # v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          target: ${{ matrix.target }}
+          arch: x86_64
+          profile: ${{ matrix.profile }}
+          disk-size: 4096M
+          disable-animations: true
+          emulator-options: -no-window -no-snapshot -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: ./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=org.aptura.player.PlaybackSmokeTest --stacktrace
+
+      - name: Upload instrumented reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: nightly-connected-api-${{ matrix.api-level }}
+          path: app/build/reports/androidTests/
