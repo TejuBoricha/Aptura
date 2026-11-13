@@ -15,12 +15,28 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 
 /**
- * Whether Aptura may list the videos on this device, kept true to what the system says *now*.
- *
- * The answer used to be read once when the app opened and then only from the reply to Aptura's own dialog. Access given
- * or taken away anywhere else (the system's app settings, a dialog whose reply never arrived) was not noticed until the
- * app was closed and opened again: the library stayed empty after access was granted, and asked for it again after it
- * had been. The value is read again every time the app comes back to the front.
+ * Current video-library access level, refreshed every time the screen returns to the front.
+ * Re-reads both full (`READ_MEDIA_VIDEO`) and Android 14+ partial (`READ_MEDIA_VISUAL_USER_SELECTED`) grants.
+ */
+@Composable
+fun rememberVideoAccessLevel(): MutableState<MediaAccessLevel> {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val access = remember { mutableStateOf(PermissionHelper.getMediaAccessLevel(context)) }
+    DisposableEffect(lifecycleOwner, context) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                access.value = PermissionHelper.getMediaAccessLevel(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    return access
+}
+
+/**
+ * Whether Aptura has any MediaStore video access right now (full or Android 14+ selected videos), refreshed on resume.
  */
 @Composable
 fun rememberVideoAccess(): MutableState<Boolean> {
@@ -37,26 +53,21 @@ fun rememberVideoAccess(): MutableState<Boolean> {
     return access
 }
 
-/** What to do with the reply to the system's "allow access to your videos" dialog. */
-enum class AccessReply {
-    /** Access is allowed now. */
-    GRANTED,
+/** Intent opening Aptura's own page in Android's app settings, where permissions are managed. */
+fun appDetailsSettingsIntent(context: Context): Intent = Intent(
+    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+    Uri.fromParts("package", context.packageName, null)
+)
 
-    /** Refused this time; the system will ask again if the person asks again. */
-    DENIED,
+/** What the permission flow should do right after Android answers a permission request. */
+enum class AccessReply { GRANTED, DENIED, OPEN_SETTINGS }
 
-    /** Refused for good: the system no longer shows the dialog, so the only way left is its settings page. */
-    OPEN_SETTINGS
-}
-
-/** [canAskAgain] is `shouldShowRequestPermissionRationale` read after the reply: false once the system stops asking. */
+/**
+ * Decides the next step after Android's permission prompt returns.
+ * On Android 14+, both full access and selected-video (`LIMITED`) grants yield [AccessReply.GRANTED].
+ */
 fun replyToVideoAccessRequest(granted: Boolean, canAskAgain: Boolean): AccessReply = when {
     granted -> AccessReply.GRANTED
     canAskAgain -> AccessReply.DENIED
     else -> AccessReply.OPEN_SETTINGS
 }
-
-/** The system's page for this app, where its permissions can be changed. */
-fun appDetailsSettingsIntent(context: Context): Intent =
-    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
-        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

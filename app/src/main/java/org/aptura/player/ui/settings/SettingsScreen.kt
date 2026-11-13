@@ -154,7 +154,9 @@ fun SettingsScreen(
     onRescanClick: () -> Unit,
     onReplayOnboardingClick: () -> Unit,
     hasVideoAccess: Boolean = true,
+    isPartialVideoAccess: Boolean = false,
     onVideoAccessClick: () -> Unit = {},
+    onSelectMoreVideosClick: () -> Unit = onVideoAccessClick,
     onUpdateThemeMode: (ThemeMode) -> Unit = {},
     onUpdateAccentColor: (AccentColor) -> Unit = {},
     onUpdateDecoderStrategy: (Int) -> Unit = {},
@@ -458,15 +460,19 @@ fun SettingsScreen(
                         ActionRow(
                             icon = Icons.Default.VideoLibrary,
                             title = "Video access",
-                            subtitle = if (hasVideoAccess) {
-                                "Allowed. Aptura can list the videos on this device."
-                            } else {
-                                "Not allowed. Aptura only sees videos you open or add."
+                            subtitle = when {
+                                isPartialVideoAccess -> "Selected videos only. You can pick more or allow all videos."
+                                hasVideoAccess -> "Allowed. Aptura can list the videos on this device."
+                                else -> "Not allowed. Aptura only sees videos you open or add."
                             },
                             trailing = {
                                 PillButton(
-                                    text = if (hasVideoAccess) "Manage" else "Allow",
-                                    onClick = onVideoAccessClick,
+                                    text = when {
+                                        isPartialVideoAccess -> "Select more"
+                                        hasVideoAccess -> "Manage"
+                                        else -> "Allow"
+                                    },
+                                    onClick = if (isPartialVideoAccess) onSelectMoreVideosClick else onVideoAccessClick,
                                     modifier = Modifier.testTag(VIDEO_ACCESS_BUTTON_TAG)
                                 )
                             }

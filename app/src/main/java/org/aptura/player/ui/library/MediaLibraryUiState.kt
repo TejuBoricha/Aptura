@@ -15,7 +15,8 @@ sealed interface MediaLibraryUiState {
     data class Empty(
         val isFiltered: Boolean = false,
         val query: String = "",
-        val isPermissionDenied: Boolean = false
+        val isPermissionDenied: Boolean = false,
+        val isPartialMediaAccess: Boolean = false
     ) : MediaLibraryUiState
 
     data class Success(
@@ -27,6 +28,7 @@ sealed interface MediaLibraryUiState {
         val totalCount: Int = videos.size,
         val isRefreshing: Boolean = false,
         val isLimitedMode: Boolean = false,
+        val isPartialMediaAccess: Boolean = false,
         /** Started-but-unfinished videos, most recently played first. Empty while searching or inside a folder. */
         val continueWatching: List<VideoCardUiModel> = emptyList(),
         /**

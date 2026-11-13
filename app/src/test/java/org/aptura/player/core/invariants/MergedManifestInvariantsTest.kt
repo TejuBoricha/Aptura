@@ -103,6 +103,7 @@ class MergedManifestInvariantsTest {
         """
         <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="org.aptura.player">
             <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+            <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
             <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
             <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
             <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />

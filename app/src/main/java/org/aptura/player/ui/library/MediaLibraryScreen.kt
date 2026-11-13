@@ -229,6 +229,7 @@ fun MediaLibraryScreen(
     onSettingsClick: () -> Unit = {},
     onOpenFilePicker: () -> Unit = {},
     onRequestPermission: () -> Unit = {},
+    onOpenAppSettings: () -> Unit = {},
     onRemoveVideo: (String) -> Unit = {},
     onUnhideVideo: (String) -> Unit = {},
     onResetProgress: (String) -> Unit = {},
@@ -302,10 +303,12 @@ fun MediaLibraryScreen(
                             isFiltered = uiState.isFiltered,
                             query = uiState.query,
                             isPermissionDenied = uiState.isPermissionDenied,
+                            isPartialMediaAccess = uiState.isPartialMediaAccess,
                             onClearSearch = { onSearchQueryChanged("") },
                             onRefresh = onRefresh,
                             onOpenFilePicker = onOpenFilePicker,
                             onRequestPermission = onRequestPermission,
+                            onOpenAppSettings = onOpenAppSettings,
                             onAddFolderClick = onAddFolderClick,
                             modifier = Modifier.weight(1f)
                         )
@@ -323,6 +326,7 @@ fun MediaLibraryScreen(
                         onSettingsClick = onSettingsClick,
                         onOpenFilePicker = onOpenFilePicker,
                         onRequestPermission = onRequestPermission,
+                        onOpenAppSettings = onOpenAppSettings,
                         onRemoveVideo = onRemoveVideo,
                         onUnhideVideo = onUnhideVideo,
                         onResetProgress = onResetProgress,
@@ -388,6 +392,7 @@ private fun MediaLibraryContentView(
     onSettingsClick: () -> Unit,
     onOpenFilePicker: () -> Unit,
     onRequestPermission: () -> Unit,
+    onOpenAppSettings: () -> Unit = {},
     onRemoveVideo: (String) -> Unit,
     onUnhideVideo: (String) -> Unit = {},
     onResetProgress: (String) -> Unit,
@@ -905,6 +910,18 @@ private fun MediaLibraryContentView(
             ) {
                 ApturaTextButton(text = "Open a file", onClick = onOpenFilePicker)
                 ApturaTextButton(text = "Allow access", onClick = onRequestPermission, tone = ApturaTone.Accent)
+            }
+        } else if (state.isPartialMediaAccess) {
+            // Android 14+ READ_MEDIA_VISUAL_USER_SELECTED partial grant (UX-01)
+            NoticeBanner(
+                icon = Icons.Outlined.Lock,
+                title = "Selected videos only",
+                message = "Showing only the videos you selected. Pick more videos or allow all videos in settings.",
+                tint = ApturaColors.AccentPrimary,
+                modifier = Modifier.padding(horizontal = pagePadding, vertical = 6.dp)
+            ) {
+                ApturaTextButton(text = "Allow all", onClick = onOpenAppSettings)
+                ApturaTextButton(text = "Select more", onClick = onRequestPermission, tone = ApturaTone.Accent)
             }
         }
 
@@ -1905,10 +1922,12 @@ private fun MediaLibraryEmptyView(
     isFiltered: Boolean,
     query: String,
     isPermissionDenied: Boolean = false,
+    isPartialMediaAccess: Boolean = false,
     onClearSearch: () -> Unit,
     onRefresh: () -> Unit,
     onOpenFilePicker: () -> Unit = {},
     onRequestPermission: () -> Unit = {},
+    onOpenAppSettings: () -> Unit = {},
     onAddFolderClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -1937,7 +1956,7 @@ private fun MediaLibraryEmptyView(
                 ) {
                     Icon(
                         imageVector = when {
-                            isPermissionDenied -> Icons.Outlined.Lock
+                            isPermissionDenied || isPartialMediaAccess -> Icons.Outlined.Lock
                             isFiltered -> Icons.Outlined.SearchOff
                             else -> Icons.Outlined.VideoLibrary
                         },
@@ -1952,6 +1971,7 @@ private fun MediaLibraryEmptyView(
                 Text(
                     text = when {
                         isPermissionDenied -> "Allow access to your videos"
+                        isPartialMediaAccess -> "No videos selected"
                         isFiltered -> "No results for “$query”"
                         else -> "No videos yet"
                     },
@@ -1965,6 +1985,7 @@ private fun MediaLibraryEmptyView(
                 Text(
                     text = when {
                         isPermissionDenied -> "Aptura needs permission to list the videos on this device. You can also add only the folders you choose."
+                        isPartialMediaAccess -> "Aptura can only see the videos you select. Pick videos to show, or allow all videos in settings."
                         isFiltered -> "Check the spelling, or try a shorter part of the title."
                         else -> "Aptura lists the videos on this device and its SD card. Scan again after adding files, or add a folder it can't see yet."
                     },
@@ -1990,6 +2011,21 @@ private fun MediaLibraryEmptyView(
                             modifier = Modifier.fillMaxWidth()
                         )
                         ApturaTextButton(text = "Open a single file", onClick = onOpenFilePicker)
+                    }
+
+                    isPartialMediaAccess -> {
+                        ApturaButton(
+                            text = "Select more videos",
+                            onClick = onRequestPermission,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        ApturaOutlinedButton(
+                            text = "Allow all in settings",
+                            onClick = onOpenAppSettings,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        ApturaTextButton(text = "Add a folder", onClick = onAddFolderClick)
                     }
 
                     isFiltered -> ApturaButton(text = "Clear search", onClick = onClearSearch)

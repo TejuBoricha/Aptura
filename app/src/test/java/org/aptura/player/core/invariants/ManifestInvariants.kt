@@ -107,6 +107,7 @@ object ManifestInvariants {
     /** Every permission the shipped app may request, and why. Anything else fails until a person has reviewed it. */
     fun approvedPermissions(packageName: String): Map<String, String> = mapOf(
         "android.permission.READ_MEDIA_VIDEO" to "scoped video access on Android 13+ (DEC-011)",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED" to "partial photo/video selection on Android 14+ (UX-01, DEC-011)",
         "android.permission.READ_EXTERNAL_STORAGE" to "video access before Android 13; must stay capped with maxSdkVersion 32",
         "android.permission.FOREGROUND_SERVICE" to "background playback service",
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" to "background playback service type (API 34+)",

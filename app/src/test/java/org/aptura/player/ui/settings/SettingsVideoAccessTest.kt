@@ -27,8 +27,9 @@ class SettingsVideoAccessTest {
     val composeRule = createComposeRule()
 
     private var taps = 0
+    private var selectMoreTaps = 0
 
-    private fun show(hasVideoAccess: Boolean) {
+    private fun show(hasVideoAccess: Boolean, isPartialVideoAccess: Boolean = false) {
         composeRule.setContent {
             ApturaTheme {
                 SettingsScreen(
@@ -38,7 +39,9 @@ class SettingsVideoAccessTest {
                     onUpdateBackgroundAudio = {}, onUpdateAutoAdvanceCountdown = {}, onRescanClick = {},
                     onReplayOnboardingClick = {},
                     hasVideoAccess = hasVideoAccess,
-                    onVideoAccessClick = { taps++ }
+                    isPartialVideoAccess = isPartialVideoAccess,
+                    onVideoAccessClick = { taps++ },
+                    onSelectMoreVideosClick = { selectMoreTaps++ }
                 )
             }
         }
@@ -55,6 +58,18 @@ class SettingsVideoAccessTest {
 
         composeRule.onNodeWithTag(VIDEO_ACCESS_BUTTON_TAG).performClick()
         assertEquals(1, taps)
+    }
+
+    @Test
+    fun withPartialAccess_itSaysSelectedVideosOnly_andOffersSelectMore() {
+        show(hasVideoAccess = true, isPartialVideoAccess = true)
+        composeRule.onNodeWithText("Video access").assertIsDisplayed()
+        composeRule.onNodeWithText("Selected videos only. You can pick more or allow all videos.").assertIsDisplayed()
+        composeRule.onNodeWithText("Select more").assertIsDisplayed()
+
+        composeRule.onNodeWithTag(VIDEO_ACCESS_BUTTON_TAG).performClick()
+        assertEquals(1, selectMoreTaps)
+        assertEquals(0, taps)
     }
 
     @Test

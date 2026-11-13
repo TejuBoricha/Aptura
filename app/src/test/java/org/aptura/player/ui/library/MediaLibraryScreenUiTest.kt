@@ -917,4 +917,37 @@ class MediaLibraryScreenUiTest {
         composeTestRule.onNodeWithText("Undo").performClick()
         assertEquals(45_000L to false, restored)
     }
+
+    @Test
+    fun partialMediaAccessBanner_showsSelectMoreAndAllowAllActions() {
+        var selectMoreClicks = 0
+        var allowAllClicks = 0
+
+        composeTestRule.setContent {
+            ApturaTheme {
+                MediaLibraryScreen(
+                    uiState = MediaLibraryUiState.Success(
+                        videos = sampleUiVideos,
+                        folders = listOf("/storage/Movies"),
+                        isLimitedMode = false,
+                        isPartialMediaAccess = true
+                    ),
+                    onVideoClick = { _, _ -> },
+                    onSearchQueryChanged = {},
+                    onFolderSelected = {},
+                    onSortOrderChanged = {},
+                    onRefresh = {},
+                    onRequestPermission = { selectMoreClicks++ },
+                    onOpenAppSettings = { allowAllClicks++ }
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithText("Selected videos only").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Select more").performClick()
+        composeTestRule.onNodeWithText("Allow all").performClick()
+
+        assertEquals(1, selectMoreClicks)
+        assertEquals(1, allowAllClicks)
+    }
 }

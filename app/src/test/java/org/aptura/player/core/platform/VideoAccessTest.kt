@@ -78,6 +78,25 @@ class VideoAccessTest {
     }
 
     @Test
+    fun partialAccessOnAndroid14Plus_transitionsAcrossResumeLifecycle() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        composeRule.setContent {
+            val level by rememberVideoAccessLevel()
+            Text("level: ${level.name}")
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("level: NONE").assertExists()
+
+        shadowOf(app).grantPermissions(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)
+        comeBackToTheFront()
+        composeRule.onNodeWithText("level: LIMITED").assertExists()
+
+        shadowOf(app).grantPermissions(Manifest.permission.READ_MEDIA_VIDEO)
+        comeBackToTheFront()
+        composeRule.onNodeWithText("level: FULL").assertExists()
+    }
+
+    @Test
     fun aGrantIsAnswered_aRefusalCanBeAskedAgain_aFinalRefusalGoesToTheSettingsPage() {
         assertEquals(AccessReply.GRANTED, replyToVideoAccessRequest(granted = true, canAskAgain = false))
         assertEquals(AccessReply.GRANTED, replyToVideoAccessRequest(granted = true, canAskAgain = true))

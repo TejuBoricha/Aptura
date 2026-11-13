@@ -193,6 +193,9 @@ class MediaScanWorker(
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         val hasStorage = PermissionHelper.hasStoragePermission(applicationContext)
+        // Missing MediaStore rows may only be pruned when full library access is granted; under Android 14+ limited
+        // visual access (READ_MEDIA_VISUAL_USER_SELECTED) unselected videos are temporarily invisible, not deleted.
+        val hasFullStorage = PermissionHelper.hasFullStoragePermission(applicationContext)
 
         val settingsRepo = ApturaSettingsRepository(applicationContext)
         val persistedFolders = try {
@@ -253,7 +256,7 @@ class MediaScanWorker(
             }
 
             // 3. Merge the findings into the library, in one transaction (see persistScan).
-            val itemsToUpsert = persistScan(database, allScanned, existingVideos, hasStorage)
+            val itemsToUpsert = persistScan(database, allScanned, existingVideos, hasFullStorage)
 
             // 4c. Pre-warm persistent thumbnail disk cache for first batch of scanned items
             val preheatItems = itemsToUpsert.take(24)
