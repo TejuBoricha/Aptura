@@ -161,10 +161,6 @@ class MediaRepositoryTest {
             items.value = items.value.filter { !it.isMissing }
         }
 
-        override suspend fun deleteRemovedVideos(existingMediaStoreIds: List<Long>) {
-            items.value = items.value.filter { it.mediaStoreId in existingMediaStoreIds }
-        }
-
         override suspend fun getMediaItemCount(): Int = items.value.size
 
         override suspend fun getTotalDurationMs(): Long? =
