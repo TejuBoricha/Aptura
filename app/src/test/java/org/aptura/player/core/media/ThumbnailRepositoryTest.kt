@@ -41,6 +41,12 @@ class ThumbnailRepositoryTest {
         assertEquals("Same URI must produce identical cache keys", key1a, key1b)
         assertNotEquals("Distinct URIs must produce distinct cache keys", key1a, key2)
         assertEquals("Cache key length must be 16 characters", 16, key1a.length)
+
+        val expectedShaPrefix = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(uri1.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+            .take(16)
+        assertEquals("Cached hex prefix must match exact SHA-256 bytes", expectedShaPrefix, key1a)
     }
 
     @Test

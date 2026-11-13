@@ -22,8 +22,8 @@ class ThumbnailBitmapCacheTest {
     @After
     fun clear() = ThumbnailBitmapCache.clear()
 
-    private fun bitmap(width: Int = 4, height: Int = 4): ImageBitmap =
-        Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).asImageBitmap()
+    private fun bitmap(width: Int = 4, height: Int = 4, config: Bitmap.Config = Bitmap.Config.ARGB_8888): ImageBitmap =
+        Bitmap.createBitmap(width, height, config).asImageBitmap()
 
     @Test
     fun aStoredPicture_isReturned_andAMissingOneIsNot() {
@@ -78,5 +78,18 @@ class ThumbnailBitmapCacheTest {
 
         ThumbnailBitmapCache.trim(ComponentCallbacks2.TRIM_MEMORY_BACKGROUND)
         assertNull("in the background everything goes", ThumbnailBitmapCache["thumb_3.jpg"])
+    }
+
+    @Test
+    fun rgb565Pictures_useHalfTheBudgetOfArgb8888_allowingTwiceAsManyCachedThumbnails() {
+        // Fill just under maxBytes with 2 MB RGB_565 (1000 x 1000 * 2 B) images.
+        val expectedMaxRgb565Count = ThumbnailBitmapCache.maxBytes() / (1000 * 1000 * 2)
+        repeat(expectedMaxRgb565Count) { index ->
+            ThumbnailBitmapCache.put("rgb_$index.jpg", bitmap(1000, 1000, Bitmap.Config.RGB_565))
+        }
+        assertNotNull(
+            "RGB_565 entries must be accounted at 2 B/px so all $expectedMaxRgb565Count fit",
+            ThumbnailBitmapCache["rgb_0.jpg"]
+        )
     }
 }

@@ -74,25 +74,28 @@ internal fun VideoThumbnail(
     // Fully visible at once without allocation when the picture was already in memory; otherwise it fades in when it arrives.
     val alpha = remember(key) { if (initialBitmap == null) Animatable(0f) else null }
 
-    LaunchedEffect(key) {
-        if (bitmap != null) return@LaunchedEffect
-        val inMemory = ThumbnailBitmapCache[key]
-        if (inMemory != null) {
-            bitmap = inMemory
-            return@LaunchedEffect
-        }
-        val decoded = withContext(decodeContext) {
-            val file = ThumbnailRepository.getCachedThumbnailFile(context, uri, dateModifiedSec)
-                ?: ThumbnailRepository.getOrCreateThumbnail(context, uri, dateModifiedSec)
-            file?.let {
-                val opts = BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.RGB_565 }
-                BitmapFactory.decodeFile(it.path, opts)?.asImageBitmap()
+    // Launch a decode job only when the picture was not already in memory on first composition,
+    // avoiding coroutine allocations on memory-cached cards while keeping the fade animation alive until completion.
+    if (initialBitmap == null) {
+        LaunchedEffect(key) {
+            val inMemory = ThumbnailBitmapCache[key]
+            if (inMemory != null) {
+                bitmap = inMemory
+                return@LaunchedEffect
             }
-        }
-        if (decoded != null) {
-            ThumbnailBitmapCache.put(key, decoded)
-            bitmap = decoded
-            alpha?.animateTo(1f, tween(THUMBNAIL_FADE_IN_MS))
+            val decoded = withContext(decodeContext) {
+                val file = ThumbnailRepository.getCachedThumbnailFile(context, uri, dateModifiedSec)
+                    ?: ThumbnailRepository.getOrCreateThumbnail(context, uri, dateModifiedSec)
+                file?.let {
+                    val opts = BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.RGB_565 }
+                    BitmapFactory.decodeFile(it.path, opts)?.asImageBitmap()
+                }
+            }
+            if (decoded != null) {
+                ThumbnailBitmapCache.put(key, decoded)
+                bitmap = decoded
+                alpha?.animateTo(1f, tween(THUMBNAIL_FADE_IN_MS))
+            }
         }
     }
 
