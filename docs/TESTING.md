@@ -78,9 +78,11 @@ CI runs them on an API 35 `pixel_tablet` emulator. Locally:
 ./gradlew connectedDebugAndroidTest
 ```
 
-### 5. Gallery renders
+### 5. Visual regression & gallery renders
 
-`ui/visual/*GalleryTest` renders real composables to PNG through Robolectric native graphics. These are review evidence, not regression assertions, and are skipped unless `APTURA_GALLERY_DIR` is set.
+Unconditional Robolectric native-graphics pixel and layout regression tests (`ui/visual/KeyScreenVisualRegressionTest`: `PhonePortraitVisualRegressionTest`, `PhoneLandscapeVisualRegressionTest`, `TabletVisualRegressionTest`) plus targeted pixel tests (`SettingsTopBarPixelTest`, `PlayerSheetThemePixelTest`, `SelectionBarPixelTest`, `GuideFooterPixelTest`) run on every `testDebugUnitTest` build and assert surface theme fills, non-blank rendered content, and key node bounds across phone portrait, landscape, and tablet sizes without relying on PNG golden comparisons across host OS font rasterizers.
+
+`ui/visual/*GalleryTest` renders the full human-review PNG gallery through Robolectric native graphics and is skipped unless `APTURA_GALLERY_DIR` is set.
 
 See [BUILDING.md](BUILDING.md#design-gallery) for commands and limits.
 

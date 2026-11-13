@@ -62,6 +62,48 @@ class CapturedScreen internal constructor(private val pixels: PixelMap) {
             mismatches == 0
         )
     }
+
+    /**
+     * Samples the rendered frame on a uniform [step]-pixel grid, proving that the expected surface/palette fill
+     * covers a substantial portion of the viewport and that visible UI content (multiple distinct colors, not a blank
+     * wash) was drawn.
+     */
+    fun assertRenderedWithSurface(
+        expectedSurface: Color,
+        label: String,
+        minDistinctColors: Int = 3,
+        minSurfaceFraction: Double = 0.05,
+        step: Int = 8
+    ) {
+        assertTrue("$label: bitmap must have non-zero size (${width}x$height)", width > 0 && height > 0)
+        var totalSamples = 0
+        var surfaceHits = 0
+        val distinct = HashSet<Color>()
+
+        var y = 0
+        while (y < height) {
+            var x = 0
+            while (x < width) {
+                val c = pixels[x, y]
+                distinct.add(c)
+                if (c == expectedSurface) surfaceHits++
+                totalSamples++
+                x += step
+            }
+            y += step
+        }
+
+        val surfaceFraction = if (totalSamples > 0) surfaceHits.toDouble() / totalSamples else 0.0
+        assertTrue(
+            "$label: expected surface color $expectedSurface to cover >= ${(minSurfaceFraction * 100).toInt()}% " +
+                "of ${width}x$height buffer, got ${(surfaceFraction * 100).toInt()}% ($surfaceHits/$totalSamples; ${distinct.size} colors)",
+            surfaceFraction >= minSurfaceFraction
+        )
+        assertTrue(
+            "$label: expected at least $minDistinctColors distinct colors for drawn UI content, found ${distinct.size}",
+            distinct.size >= minDistinctColors
+        )
+    }
 }
 
 fun ComposeContentTestRule.captureScreen(): CapturedScreen = onRoot().captureRoot()
