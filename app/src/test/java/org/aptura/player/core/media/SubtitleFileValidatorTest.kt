@@ -82,4 +82,18 @@ class SubtitleFileValidatorTest {
         assertFalse(SubtitleFileValidator.isBinaryOrImage(utf16Le, utf16Le.size))
         assertFalse(SubtitleFileValidator.isBinaryOrImage(utf16Be, utf16Be.size))
     }
+
+    @Test
+    fun isBinaryOrImage_allowsBomlessUtf16AndUtf32SubtitlesDespiteZeroBytes() {
+        val text = "1\n00:00:01,000 --> 00:00:04,000\nMulti-byte Unicode Subtitle"
+        val bomlessUtf16Le = text.toByteArray(Charsets.UTF_16LE)
+        val bomlessUtf16Be = text.toByteArray(Charsets.UTF_16BE)
+        val bomlessUtf32Le = text.toByteArray(java.nio.charset.Charset.forName("UTF-32LE"))
+        val bomlessUtf32Be = text.toByteArray(java.nio.charset.Charset.forName("UTF-32BE"))
+
+        assertFalse(SubtitleFileValidator.isBinaryOrImage(bomlessUtf16Le, minOf(bomlessUtf16Le.size, 512)))
+        assertFalse(SubtitleFileValidator.isBinaryOrImage(bomlessUtf16Be, minOf(bomlessUtf16Be.size, 512)))
+        assertFalse(SubtitleFileValidator.isBinaryOrImage(bomlessUtf32Le, minOf(bomlessUtf32Le.size, 512)))
+        assertFalse(SubtitleFileValidator.isBinaryOrImage(bomlessUtf32Be, minOf(bomlessUtf32Be.size, 512)))
+    }
 }
