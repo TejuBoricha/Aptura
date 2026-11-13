@@ -8,11 +8,11 @@ The numbers change with every pull request, so they are not kept in this file. R
 
 | Check | Where to read the result |
 |---|---|
-| JVM tests | The **Unit tests** step of the `verify` job ends with `N tests completed, F failed, S skipped`. It was about 1,000 tests on 2026-11-05. The skipped ones are the opt-in gallery renders. |
-| Lint | The **Lint** step of the `verify` job |
-| Release invariants | The **Release build (R8 + resource shrinking) and shipped-code invariants** step of the `verify` job |
+| JVM tests & coverage | The **Unit tests and Kover coverage verification (min 70% lines)** step of the `unit-tests` job (fanned into `verify`); uploads `test-reports` and `kover-report` (`reportDebug.xml`). |
+| Lint & Detekt | The **Lint** step of the `lint` job (fanned into `verify`); runs Android Lint (`lintDebug`) and `detekt`. |
+| Release invariants | The **Release APK build and shipped-code invariants** (`verifyReleaseApk`) and **Release App Bundle (.aab) build and shipped-code invariants** (`verifyReleaseBundle`) steps of the `release` job (fanned into `verify`); uploads `release-invariant-reports`. |
 | Instrumented suite | The `connected` job: an API 35 tablet emulator |
-| Agent coordination checks | `python -m unittest discover -s tools/agents`, run by the gate when Python 3 is installed and always in CI |
+| Agent coordination checks | `python -m unittest discover -s tools/agents`, run by `tools/gate.ps1` when Python 3 is installed and by the **Agent coordination checks** step in CI `unit-tests`. |
 
 `tools/gate.ps1` runs the same checks on your machine.
 
