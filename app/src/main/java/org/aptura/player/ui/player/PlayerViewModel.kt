@@ -52,6 +52,11 @@ class PlayerViewModel(
     private val audioEffectsStore: AudioEffectsStore? = settingsRepository,
     /** The default decoder from Settings (0 Auto, 1 Hardware, 2 Software). Videos without a choice of their own follow it. */
     private val defaultDecoderFlow: Flow<Int>? = settingsRepository?.settingsFlow?.map { it.defaultDecoderStrategy },
+    /** The global default audio sync offset from Settings (ISSUE-012). Videos without a choice of their own follow it. */
+    private val defaultAudioDelayFlow: Flow<Long>? = settingsRepository?.settingsFlow?.map { it.defaultAudioDelayMs },
+    private val saveDefaultAudioDelay: (suspend (Long) -> Unit)? = settingsRepository?.let { repo ->
+        { delayMs -> repo.updateDefaultAudioDelayMs(delayMs) }
+    },
     /**
      * Whether this view model releases [audioEnhancementController] when it is cleared. `true` (the default) for one it
      * created itself. `false` when the controller is lent by [org.aptura.player.data.playback.PlayerManager], which
@@ -128,10 +133,11 @@ class PlayerViewModel(
     private var lastAppliedPreferencesUri: String? = null
     private var autoAdvanceCountdownSeconds: Int = 10
 
-    /** Global defaults from Settings: used when a video has not overridden its own speed, aspect ratio, or decoder. */
+    /** Global defaults from Settings: used when a video has not overridden its own speed, aspect ratio, audio delay, or decoder. */
     private var defaultDecoderStrategy: Int = 0
     private var defaultPlaybackSpeed: Float = 1.0f
     private var defaultResizeMode: AspectRatioMode = AspectRatioMode.FIT
+    private var defaultAudioDelayMs: Long = 0L
 
     /** Saved playback speed prior to a transient hold-for-2x gesture; null when not holding. */
     private var preHoldPlaybackSpeed: Float? = null
@@ -167,6 +173,7 @@ class PlayerViewModel(
         observeAudioSession()
         restoreAndPersistAudioEffects()
         observeDefaultDecoder()
+        observeDefaultAudioDelay()
         observeSleepTimer()
     }
 
@@ -176,6 +183,19 @@ class PlayerViewModel(
     private fun observeSleepTimer() {
         viewModelScope.launch(dispatcher + errorHandler) {
             sleepTimer.state.collect { showSleepTimer(it) }
+        }
+    }
+
+    private fun observeDefaultAudioDelay() {
+        val flow = defaultAudioDelayFlow ?: return
+        viewModelScope.launch(dispatcher + errorHandler) {
+            flow.distinctUntilChanged().collect { defaultDelay ->
+                defaultAudioDelayMs = defaultDelay
+                if (!_uiState.value.audioDelayOverridden) {
+                    _uiState.update { it.copy(audioDelayMs = defaultDelay) }
+                    playbackController.setAudioDelay(defaultDelay)
+                }
+            }
         }
     }
 
@@ -548,6 +568,8 @@ class PlayerViewModel(
         }
         val ownDecoder = item.decoderStrategy
         val effectiveDecoder = ownDecoder ?: defaultDecoderStrategy
+        val isAudioOverridden = item.audioDelayOverridden || item.audioDelayMs != 0L
+        val effectiveAudioDelay = if (isAudioOverridden) item.audioDelayMs else defaultAudioDelayMs
         // The offer belongs to the video that was playing when the timer fired.
         sleepTimer.dismissOffer()
         showSleepTimer()
@@ -557,7 +579,8 @@ class PlayerViewModel(
                 playbackSpeed = restoredSpeed,
                 decoderStrategy = effectiveDecoder,
                 decoderOverridden = ownDecoder != null,
-                audioDelayMs = item.audioDelayMs,
+                audioDelayMs = effectiveAudioDelay,
+                audioDelayOverridden = isAudioOverridden,
                 subtitleDelayMs = item.subtitleDelayMs,
                 abRepeat = AbRepeatState(),
                 isEnded = false
@@ -566,7 +589,7 @@ class PlayerViewModel(
         if (adoptOnly) return
         playbackController.setDecoderStrategy(effectiveDecoder)
         playbackController.setPlaybackSpeed(restoredSpeed)
-        playbackController.setAudioDelay(item.audioDelayMs)
+        playbackController.setAudioDelay(effectiveAudioDelay)
         playbackController.setSubtitleDelay(item.subtitleDelayMs)
         if (resume) {
             ResumeRules.resumeStartMs(item.playbackPositionMs, item.durationMs, item.isCompleted)?.let {
@@ -1264,11 +1287,39 @@ class PlayerViewModel(
     }
 
     fun setAudioDelay(delayMs: Long) {
-        _uiState.update { it.copy(audioDelayMs = delayMs) }
+        _uiState.update { it.copy(audioDelayMs = delayMs, audioDelayOverridden = true) }
         audioSyncJob?.cancel()
         audioSyncJob = viewModelScope.launch(dispatcher + errorHandler) {
             delay(SYNC_APPLY_DEBOUNCE_MS)
             playbackController.setAudioDelay(delayMs)
+            persistPlaybackPreferences()
+        }
+    }
+
+    /**
+     * Applies the current audio sync offset to all videos by saving it as the Settings default and clearing
+     * per-video audio sync overrides (ISSUE-012).
+     */
+    fun applyAudioDelayToAllVideos() {
+        val targetDelayMs = _uiState.value.audioDelayMs
+        audioSyncJob?.cancel()
+        defaultAudioDelayMs = targetDelayMs
+        _uiState.update { it.copy(audioDelayOverridden = false) }
+        viewModelScope.launch(dispatcher + errorHandler) {
+            playbackController.setAudioDelay(targetDelayMs)
+            saveDefaultAudioDelay?.invoke(targetDelayMs)
+            mediaRepository.clearAllAudioDelayOverrides()
+            persistPlaybackPreferences()
+        }
+    }
+
+    /** Clears this video's audio sync override and reverts to the global Settings default (ISSUE-012). */
+    fun resetAudioDelayToDefault() {
+        audioSyncJob?.cancel()
+        val targetDelayMs = defaultAudioDelayMs
+        _uiState.update { it.copy(audioDelayMs = targetDelayMs, audioDelayOverridden = false) }
+        viewModelScope.launch(dispatcher + errorHandler) {
+            playbackController.setAudioDelay(targetDelayMs)
             persistPlaybackPreferences()
         }
     }
@@ -1426,7 +1477,7 @@ class PlayerViewModel(
                 mediaRepository.resetPlaybackPreferences(uri)
                 playbackController.setPlaybackSpeed(defaultPlaybackSpeed)
                 playbackController.setDecoderStrategy(defaultDecoderStrategy)
-                playbackController.setAudioDelay(0L)
+                playbackController.setAudioDelay(defaultAudioDelayMs)
                 playbackController.setSubtitleDelay(0L)
                 _uiState.update {
                     it.copy(
@@ -1434,7 +1485,8 @@ class PlayerViewModel(
                         playbackSpeed = defaultPlaybackSpeed,
                         decoderStrategy = defaultDecoderStrategy,
                         decoderOverridden = false,
-                        audioDelayMs = 0L,
+                        audioDelayMs = defaultAudioDelayMs,
+                        audioDelayOverridden = false,
                         subtitleDelayMs = 0L
                     )
                 }
@@ -1457,8 +1509,9 @@ class PlayerViewModel(
             // Only a decoder the user chose is saved. The automatic software fallback and the Settings default
             // are not this video's choice, and must not be frozen into it.
             decoderStrategy = if (state.decoderOverridden) state.decoderStrategy else null,
-            audioDelayMs = state.audioDelayMs,
-            subtitleDelayMs = state.subtitleDelayMs
+            audioDelayMs = if (state.audioDelayOverridden) state.audioDelayMs else 0L,
+            subtitleDelayMs = state.subtitleDelayMs,
+            audioDelayOverridden = state.audioDelayOverridden
         )
     }
 

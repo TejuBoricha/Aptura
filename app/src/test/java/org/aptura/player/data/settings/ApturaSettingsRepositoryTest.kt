@@ -127,6 +127,10 @@ class ApturaSettingsRepositoryTest {
             repository.updateDefaultDecoderStrategy(1)
             assertEquals(1, awaitItem().defaultDecoderStrategy)
 
+            // Update default audio delay
+            repository.updateDefaultAudioDelayMs(-200L)
+            assertEquals(-200L, awaitItem().defaultAudioDelayMs)
+
             // Add and remove SAF folders
             val sampleFolder = "content://com.android.externalstorage.documents/tree/primary%3AMovies"
             repository.addSafFolder(sampleFolder)
@@ -152,6 +156,7 @@ class ApturaSettingsRepositoryTest {
         repository.updateBackgroundAudioEnabled(false)
         repository.updateAutoAdvanceCountdown(0)
         repository.updateDefaultDecoderStrategy(2)
+        repository.updateDefaultAudioDelayMs(150L)
 
         repository.resetPlaybackDefaults()
 
@@ -162,6 +167,7 @@ class ApturaSettingsRepositoryTest {
         assertTrue(reset.backgroundAudioEnabled)
         assertEquals(10, reset.autoAdvanceCountdownSeconds)
         assertEquals(0, reset.defaultDecoderStrategy)
+        assertEquals(0L, reset.defaultAudioDelayMs)
     }
 
     @Test

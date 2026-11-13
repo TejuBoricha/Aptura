@@ -238,8 +238,10 @@ class MediaRepositoryImpl(
         playbackSpeed: Float,
         decoderStrategy: Int?,
         audioDelayMs: Long,
-        subtitleDelayMs: Long
+        subtitleDelayMs: Long,
+        audioDelayOverridden: Boolean
     ): Unit = withContext(ioDispatcher) {
+        val effectiveAudioDelay = if (audioDelayOverridden) audioDelayMs else 0L
         val existing = mediaItemDao.getVideoByUri(uri)
         if (existing == null) {
             val title = extractTitleFromUri(uri)
@@ -258,7 +260,8 @@ class MediaRepositoryImpl(
                     playbackSpeed = playbackSpeed,
                     decoderStrategy = decoderStrategy ?: 0,
                     decoderOverridden = decoderStrategy != null,
-                    audioDelayMs = audioDelayMs,
+                    audioDelayMs = effectiveAudioDelay,
+                    audioDelayOverridden = audioDelayOverridden,
                     subtitleDelayMs = subtitleDelayMs
                 )
             )
@@ -269,7 +272,8 @@ class MediaRepositoryImpl(
                 playbackSpeed = playbackSpeed,
                 decoderStrategy = decoderStrategy ?: 0,
                 decoderOverridden = decoderStrategy != null,
-                audioDelayMs = audioDelayMs,
+                audioDelayMs = effectiveAudioDelay,
+                audioDelayOverridden = audioDelayOverridden,
                 subtitleDelayMs = subtitleDelayMs
             )
         }
@@ -277,6 +281,10 @@ class MediaRepositoryImpl(
 
     override suspend fun resetPlaybackPreferences(uri: String): Unit = withContext(ioDispatcher) {
         mediaItemDao.resetPlaybackPreferences(uri)
+    }
+
+    override suspend fun clearAllAudioDelayOverrides(): Unit = withContext(ioDispatcher) {
+        mediaItemDao.clearAllAudioDelayOverrides()
     }
 
     override suspend fun clearAllPlaybackHistory(): Unit = withContext(ioDispatcher) {

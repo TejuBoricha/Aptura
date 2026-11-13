@@ -36,7 +36,8 @@ class ApturaDatabaseMigrationTest {
             assertTrue(file.readText().contains("\"version\": $version"))
         }
         val latest = File("schemas/org.aptura.player.data.database.ApturaDatabase/$APTURA_DB_VERSION.json")
-        // The column added by migration 5->6 must be in the exported schema, not just in the migration SQL.
+        // Columns added by migrations 5->6 and 7->8 must be in the exported schema, not just in migration SQL.
         assertTrue(latest.readText().contains("\"decoderOverridden\""))
+        assertTrue(latest.readText().contains("\"audioDelayOverridden\""))
     }
 }

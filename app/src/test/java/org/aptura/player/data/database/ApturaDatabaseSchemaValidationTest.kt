@@ -103,6 +103,44 @@ class ApturaDatabaseSchemaValidationTest {
     }
 
     @Test
+    fun migrate7To8_validatesSchemaAndPreservesAudioDelayOverride() {
+        helper.createDatabase(TEST_DB, 7).apply {
+            execSQL(
+                """INSERT INTO media_items (mediaStoreId, uri, title, displayName, durationMs, sizeBytes, mimeType,
+                    width, height, frameRate, dateAddedSec, dateModifiedSec, folderPath, playbackPositionMs,
+                    isCompleted, lastPlayedTimestamp, isMissing, resizeMode, playbackSpeed, decoderStrategy,
+                    audioDelayMs, subtitleDelayMs, customTitle, isHidden, decoderOverridden)
+                   VALUES (21, 'content://media/21', 'Default Sync Movie', 'Default Sync.mp4', 90000, 4096, 'video/mp4',
+                    1280, 720, 30.0, 200, 200, 'DCIM', 0, 0, 0, 0, 'FIT', 1.0, 0, 0, 0, NULL, 0, 0)"""
+            )
+            execSQL(
+                """INSERT INTO media_items (mediaStoreId, uri, title, displayName, durationMs, sizeBytes, mimeType,
+                    width, height, frameRate, dateAddedSec, dateModifiedSec, folderPath, playbackPositionMs,
+                    isCompleted, lastPlayedTimestamp, isMissing, resizeMode, playbackSpeed, decoderStrategy,
+                    audioDelayMs, subtitleDelayMs, customTitle, isHidden, decoderOverridden)
+                   VALUES (22, 'content://media/22', 'Manual Sync Movie', 'Manual Sync.mp4', 90000, 4096, 'video/mp4',
+                    1280, 720, 30.0, 200, 200, 'DCIM', 0, 0, 0, 0, 'FIT', 1.0, 0, -150, 0, NULL, 0, 0)"""
+            )
+            close()
+        }
+
+        val migratedDb = helper.runMigrationsAndValidate(TEST_DB, 8, true, ApturaDatabase.MIGRATION_7_8)
+        migratedDb.query("SELECT mediaStoreId, audioDelayMs, audioDelayOverridden FROM media_items ORDER BY mediaStoreId").use { cursor ->
+            assertEquals(2, cursor.count)
+            assertTrue(cursor.moveToFirst())
+            assertEquals(21L, cursor.getLong(0))
+            assertEquals(0L, cursor.getLong(1))
+            assertEquals(0, cursor.getInt(2))
+
+            assertTrue(cursor.moveToNext())
+            assertEquals(22L, cursor.getLong(0))
+            assertEquals(-150L, cursor.getLong(1))
+            assertEquals(1, cursor.getInt(2))
+        }
+        migratedDb.close()
+    }
+
+    @Test
     fun migrate5ToLatest_runsFullChainAndPreservesEntitiesAndBookmarks() {
         helper.createDatabase(TEST_DB, 5).apply {
             execSQL(
@@ -144,6 +182,8 @@ class ApturaDatabaseSchemaValidationTest {
             assertEquals(1.5f, item.playbackSpeed)
             assertEquals(1, item.decoderStrategy)
             assertTrue(item.decoderOverridden)
+            assertEquals(20L, item.audioDelayMs)
+            assertTrue(item.audioDelayOverridden)
             assertFalse(item.isHidden)
 
             val bookmarks = runBlocking { roomDb.bookmarkDao().getBookmarksForMedia("content://media/30").first() }
@@ -223,6 +263,8 @@ class ApturaDatabaseSchemaValidationTest {
             assertEquals(1.0f, item.playbackSpeed)
             assertEquals(0, item.decoderStrategy)
             assertFalse(item.decoderOverridden)
+            assertEquals(0L, item.audioDelayMs)
+            assertFalse(item.audioDelayOverridden)
             assertFalse(item.isHidden)
         } finally {
             migrated.close()
