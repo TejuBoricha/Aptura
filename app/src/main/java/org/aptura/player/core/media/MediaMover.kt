@@ -54,8 +54,13 @@ class MediaMover(
      * True if every video can be moved in place to [destinationPath]: each is a MediaStore video, the destination is
      * not a SAF folder, and each video is already on the destination's storage volume. An in-place move only rewrites
      * `RELATIVE_PATH`, so it can never carry a file to an SD card or back (audit DATA-02). Those moves have to copy.
+     *
+     * In-place moving also requires Android 10+ (API 29+) where `RELATIVE_PATH` exists in MediaStore, and rejects
+     * `Download/` destinations where MediaStore refuses video placement (audit DATA-13).
      */
     fun canMoveAllInPlace(uris: List<String>, destinationPath: String): Boolean {
+        if (sdkInt < Build.VERSION_CODES.Q) return false
+        if (sdkInt == Build.VERSION_CODES.Q && isDownloadFolder(destinationPath)) return false
         if (uris.isEmpty()) return false
         if (destinationPath.startsWith("content://")) return false
         val mediaUris = uris.map { mediaStoreUriOrNull(it) ?: return false }
@@ -118,6 +123,12 @@ class MediaMover(
      * Moves a single MediaStore video in-place to [destinationPath] by updating its [MediaStore.MediaColumns.RELATIVE_PATH].
      */
     fun moveInPlace(uriString: String, destinationPath: String): MoveOutcome {
+        if (sdkInt < Build.VERSION_CODES.Q) {
+            return cannotModify()
+        }
+        if (sdkInt == Build.VERSION_CODES.Q && isDownloadFolder(destinationPath)) {
+            return MoveOutcome.Failed("Videos cannot be moved directly to the Download folder on Android 10. Choose 'Browse device storage...' to select a folder.")
+        }
         val uri = try {
             uriString.toUri()
         } catch (_: Throwable) {
@@ -191,8 +202,18 @@ class MediaMover(
         "This Android version does not allow moving this video directly. Choose 'Browse device storage...' to select a folder."
     )
 
-    private companion object {
+    companion object {
         /** Ids per volume query: well under SQLite's limit on bound arguments (999 on older versions). */
         const val VOLUME_QUERY_CHUNK = 500
+
+        /**
+         * Returns true if [destinationPath] resolves to the public Downloads folder, which MediaStore
+         * rejects for video collections (audit DATA-13).
+         */
+        fun isDownloadFolder(destinationPath: String): Boolean {
+            val rel = MediaFileTransfer.relativePathFor(destinationPath).trim('/')
+            val top = rel.split('/').firstOrNull()?.trim() ?: ""
+            return top.equals("Download", ignoreCase = true) || top.equals("Downloads", ignoreCase = true)
+        }
     }
 }
