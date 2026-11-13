@@ -289,6 +289,13 @@ android {
         isUniversalApk = true
       }
     }
+
+    sourceSets {
+      // Debug-only so Robolectric MigrationTestHelper unit tests can read exported Room schemas via AssetManager
+      // without bundling schema files into the release APK.
+      getByName("debug").assets.directories.add("$projectDir/schemas")
+      getByName("androidTest").assets.directories.add("$projectDir/schemas")
+    }
 }
 
 kotlin {
@@ -388,6 +395,7 @@ dependencies {
   testImplementation(libs.turbine)
   testImplementation(libs.robolectric)
   testImplementation(libs.androidx.work.testing) // in-memory WorkManager database for the cold-start scan test
+  testImplementation(libs.androidx.room.testing) // MigrationTestHelper schema validation (QA-06)
   testImplementation(libs.androidx.compose.ui.test.junit4)
 
   // Baseline Profile installer
