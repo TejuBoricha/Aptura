@@ -29,6 +29,8 @@ Or individually:
 ./gradlew compileDebugUnitTestKotlin
 ./gradlew testDebugUnitTest --fail-fast
 ./gradlew lintDebug
+./gradlew detekt
+./gradlew koverXmlReportDebug koverVerifyDebug
 ./gradlew assembleRelease
 python -m unittest discover -s tools/agents
 ```

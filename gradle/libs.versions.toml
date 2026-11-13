@@ -26,6 +26,9 @@ robolectric = "4.14.1"
 ksp = "2.3.12"
 androidxAdaptive = "1.3.0"
 androidxProfileinstaller = "1.4.1"
+kover = "0.9.11"
+detekt = "1.23.8"
+leakcanary = "2.14"
 
 
 [libraries]
@@ -87,6 +90,7 @@ coil-video = { module = "io.coil-kt.coil3:coil-video", version.ref = "coil" }
 turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 androidx-profileinstaller = { module = "androidx.profileinstaller:profileinstaller", version.ref = "androidxProfileinstaller" }
+leakcanary-android = { module = "com.squareup.leakcanary:leakcanary-android", version.ref = "leakcanary" }
 
 
 [plugins]
@@ -94,3 +98,5 @@ android-application = { id = "com.android.application", version.ref = "androidGr
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kover" }
+detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
