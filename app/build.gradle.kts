@@ -12,6 +12,8 @@ plugins {
   alias(libs.plugins.compose.compiler)
   alias(libs.plugins.kotlin.serialization)
   alias(libs.plugins.ksp)
+  alias(libs.plugins.kover)
+  alias(libs.plugins.detekt)
 }
 
 /** Short git hash of HEAD, or "unknown" when git (or a repository) is not available, e.g. building from a source archive. */
@@ -341,6 +343,50 @@ ksp {
   arg("room.schemaLocation", "$projectDir/schemas")
 }
 
+detekt {
+  buildUponDefaultConfig = true
+  allRules = false
+  source.setFrom(files("src/main/java"))
+  config.setFrom(files("$rootDir/config/detekt/detekt.yml"))
+  parallel = true
+}
+
+tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
+  notCompatibleWithConfigurationCache("Detekt 1.23 does not support Gradle 9 configuration cache")
+}
+
+tasks.matching { it.name == "lintDebug" }.configureEach {
+  dependsOn("detekt")
+}
+
+kover {
+  reports {
+    filters {
+      excludes {
+        classes(
+          "*.BuildConfig",
+          "*.R",
+          "*.R$*",
+          "*.Manifest",
+          "*.Manifest$*",
+          "*_Impl",
+          "*_Impl$*",
+          "*.ComposableSingletons$*"
+        )
+        annotatedBy(
+          "androidx.compose.runtime.Composable",
+          "androidx.compose.ui.tooling.preview.Preview"
+        )
+      }
+    }
+    verify {
+      rule {
+        minBound(70)
+      }
+    }
+  }
+}
+
 dependencies {
   val composeBom = platform(libs.androidx.compose.bom)
   implementation(composeBom)
@@ -404,6 +450,9 @@ dependencies {
 
   // Baseline Profile installer
   implementation(libs.androidx.profileinstaller)
+
+  // Debug-only memory leak detection (never ships in release builds)
+  debugImplementation(libs.leakcanary.android)
 
   // Instrumented tests: jUnit rules and runners
   androidTestImplementation(libs.androidx.test.core)

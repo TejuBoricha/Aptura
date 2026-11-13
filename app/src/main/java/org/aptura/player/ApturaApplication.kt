@@ -30,6 +30,7 @@ open class ApturaApplication : Application(), SingletonImageLoader.Factory, Conf
         super.onCreate()
         // Persistent local diagnostics + crash handler first, so a crash in anything below is captured.
         org.aptura.player.core.diagnostics.ApturaDiagnostics.initialize(this)
+        org.aptura.player.core.diagnostics.ApturaStrictMode.installIfDebug(applicationInfo.flags)
         try {
             val filter = org.aptura.player.core.platform.StorageVolumeReceiver.createIntentFilter()
             // Not exported: only the system (which sends these broadcasts) and this app may reach the receiver.
