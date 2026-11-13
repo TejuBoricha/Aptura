@@ -1,0 +1,16 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: "gradle"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    ignore:
+      # Jellyfin FFmpeg AAR > 1.5.0+1 switches or tracks upstream Media3 bumps separately under LEG-01/DEP-01.
+      - dependency-name: "org.jellyfin.media3:media3-ffmpeg-decoder"

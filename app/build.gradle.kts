@@ -276,10 +276,18 @@ android {
         // Without a declared input Gradle reports the task up to date and a local run stays green on edited text.
         testTask.inputs.file(rootProject.file("docs/PRIVACY.md")).withPathSensitivity(PathSensitivity.NONE).withPropertyName("privacyPolicy")
         testTask.inputs.dir(rootProject.file("distribution/play-store/metadata")).withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName("storeMetadata")
-        // Hang guard for the WHOLE unit-test task. It was 30 s when the suite took ~15 s; the suite now has ~680 tests
-        // (several against a real ExoPlayer / WorkManager / SQLite), and a cold CI runner needed more than the old
-        // 120 s. The guard stays, but sized to the suite: a real hang still fails long before the 45-minute job limit.
+        // Hang guard for the WHOLE unit-test task.
         testTask.timeout.set(Duration.ofSeconds(300))
+        // Parallelize Robolectric/unit test forks locally (up to 3) and in CI (up to 2) while giving each fork 1536m
+        // heap for Compose graphics and 20k-row SQLite scale suites.
+        val isCi = !providers.environmentVariable("CI").orNull.isNullOrBlank()
+        testTask.maxHeapSize = "1536m"
+        testTask.maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceIn(1, if (isCi) 2 else 3)
+        // Gallery suites skip every test via Assume.assumeTrue unless APTURA_GALLERY_DIR is set; skip loading their
+        // 180 Robolectric/Compose cases unless explicitly rendering the gallery.
+        if (providers.environmentVariable("APTURA_GALLERY_DIR").orNull.isNullOrBlank()) {
+          testTask.filter.excludeTestsMatching("org.aptura.player.ui.visual.*GalleryTest")
+        }
         testTask.testLogging {
           events("failed", "skipped")
           showStandardStreams = false
