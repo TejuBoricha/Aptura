@@ -58,7 +58,8 @@ What is still open after the work recorded in the Progress table, in one place. 
 | PROD-G12 | Subtitle character set encoding overrides on physical device across legacy non-UTF8 media files | A phone |
 | A11Y-02 | Hardware keyboard and D-pad remote pass on physical Android tablet / Chromebook | A tablet or Chromebook |
 | PROD-02 | Human visual review of refreshed Play Store phone/tablet screenshots before store submission | The owner |
-| QA-05 | Kover coverage artifact publishing in CI workflows (`.github/`) and physical device debug StrictMode/LeakCanary soak | Different-vendor `.github/` review; debug build on device |
+| QA-05 | Physical device debug StrictMode/LeakCanary soak | Debug build on physical phone |
+| QA-01 | Nightly release-variant connected matrix across API 26, 29, and 36 | Nightly `.github/` matrix / physical devices |
 | QA-07 | Nightly workflow (`.github/`) to generate the absent video fixtures from `tools/corpus/` and run them through `PlaybackSmokeTest` | Different-vendor `.github/` review |
 | QA-03 | Optional decision on whether to commit binary Roborazzi PNG goldens on top of unconditional `ComposePixels` pixel/bounds visual regression assertions | The owner |
 
