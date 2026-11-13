@@ -3,6 +3,7 @@ package org.aptura.player.core.media
 import android.content.ComponentCallbacks2
 import android.util.LruCache
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.ImageBitmapConfig
 
 /**
  * Decoded thumbnails, kept in memory so a grid that comes back on screen (closing the player, a rotation, scrolling
@@ -19,7 +20,10 @@ internal object ThumbnailBitmapCache {
     private const val MAX_BYTES = 48 * 1024 * 1024
 
     private val cache = object : LruCache<String, ImageBitmap>(budgetBytes()) {
-        override fun sizeOf(key: String, value: ImageBitmap): Int = value.width * value.height * BYTES_PER_PIXEL
+        override fun sizeOf(key: String, value: ImageBitmap): Int {
+            val bytesPerPixel = if (value.config == ImageBitmapConfig.Rgb565) 2 else BYTES_PER_PIXEL
+            return value.width * value.height * bytesPerPixel
+        }
     }
 
     operator fun get(key: String): ImageBitmap? = cache.get(key)

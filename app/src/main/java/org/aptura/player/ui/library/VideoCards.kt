@@ -96,6 +96,47 @@ class VideoCardCallbacks(
     val hasContextActions: Boolean
         get() = onPlayNext != null || onAddToQueue != null || onHide != null || onDelete != null ||
             onRemoveMissing != null || onMoreFileActions != null || onShare != null || onMove != null || onSelect != null
+
+    internal fun asActions(): VideoCardActions = VideoCardActions(
+        onClick = { onClick() },
+        onLongClick = onLongClick?.let { cb -> { cb() } },
+        onMore = onMore?.let { cb -> { cb() } },
+        onPlayNext = onPlayNext?.let { cb -> { cb() } },
+        onAddToQueue = onAddToQueue?.let { cb -> { cb() } },
+        onHide = onHide?.let { cb -> { cb() } },
+        onDelete = onDelete?.let { cb -> { cb() } },
+        onRemoveMissing = onRemoveMissing?.let { cb -> { cb() } },
+        onMoreFileActions = onMoreFileActions?.let { cb -> { cb() } },
+        onShare = onShare?.let { cb -> { cb() } },
+        onMove = onMove?.let { cb -> { cb() } },
+        onSelect = onSelect?.let { cb -> { cb() } }
+    )
+}
+
+/**
+ * Shared screen-level action handlers for video cards and list rows.
+ *
+ * Unlike [VideoCardCallbacks], a single [VideoCardActions] instance is allocated once at the screen root and reused
+ * across every card in a scrolling grid, eliminating per-item closure allocations and preserving Compose skippability.
+ */
+@Immutable
+class VideoCardActions(
+    val onClick: (VideoCardUiModel) -> Unit,
+    val onLongClick: ((VideoCardUiModel) -> Unit)? = null,
+    val onMore: ((VideoCardUiModel) -> Unit)? = null,
+    val onPlayNext: ((VideoCardUiModel) -> Unit)? = null,
+    val onAddToQueue: ((VideoCardUiModel) -> Unit)? = null,
+    val onHide: ((VideoCardUiModel) -> Unit)? = null,
+    val onDelete: ((VideoCardUiModel) -> Unit)? = null,
+    val onRemoveMissing: ((VideoCardUiModel) -> Unit)? = null,
+    val onMoreFileActions: ((VideoCardUiModel) -> Unit)? = null,
+    val onShare: ((VideoCardUiModel) -> Unit)? = null,
+    val onMove: ((VideoCardUiModel) -> Unit)? = null,
+    val onSelect: ((VideoCardUiModel) -> Unit)? = null
+) {
+    val hasContextActions: Boolean
+        get() = onPlayNext != null || onAddToQueue != null || onHide != null || onDelete != null ||
+            onRemoveMissing != null || onMoreFileActions != null || onShare != null || onMove != null || onSelect != null
 }
 
 /**
@@ -117,6 +158,32 @@ fun VideoGridCard(
     context: Context? = null,
     decodeContext: CoroutineContext? = null
 ) {
+    val actions = remember(callbacks) { callbacks.asActions() }
+    VideoGridCard(
+        card = card,
+        actions = actions,
+        modifier = modifier,
+        isSelected = isSelected,
+        detail = detail,
+        density = density,
+        thumbnail = thumbnail,
+        context = context,
+        decodeContext = decodeContext
+    )
+}
+
+@Composable
+fun VideoGridCard(
+    card: VideoCardUiModel,
+    actions: VideoCardActions,
+    modifier: Modifier = Modifier,
+    isSelected: Boolean = false,
+    detail: LibraryDetail = LibraryDetail.STANDARD,
+    density: LibraryDensity = LibraryDensity.COMFORTABLE,
+    thumbnail: (@Composable () -> Unit)? = null,
+    context: Context? = null,
+    decodeContext: CoroutineContext? = null
+) {
     val compact = density == LibraryDensity.COMPACT
     val metadata = remember(card.uri, card.fileSizeFormatted, card.folderName, card.rawItem.dateAddedSec, detail) {
         videoMetadataLines(card, detail)
@@ -125,7 +192,7 @@ fun VideoGridCard(
         modifier = modifier
             .fillMaxWidth()
             .clip(GridCardShape)
-            .clickableCard(callbacks)
+            .clickableCard(card, actions)
             .semantics { selected = isSelected }
     ) {
         VideoThumbnailFrame(
@@ -134,8 +201,8 @@ fun VideoGridCard(
             modifier = Modifier.fillMaxWidth(),
             shape = DefaultThumbnailShape,
             thumbnail = thumbnail,
-            overlayEnd = if (compact && callbacks.onMore != null) {
-                { VideoOverflowButton(card, callbacks, onScrim = true) }
+            overlayEnd = if (compact && actions.onMore != null) {
+                { VideoOverflowButton(card, actions, onScrim = true) }
             } else {
                 null
             },
@@ -163,11 +230,11 @@ fun VideoGridCard(
                 )
                 MetadataLines(metadata, compact = compact)
             }
-            if (!compact && callbacks.onMore != null) {
+            if (!compact && actions.onMore != null) {
                 // The touch target stays 48 dp; the offset lines the visible glyph up with the title's first line and
                 // the card's right edge instead of floating in the middle of the text block.
                 Box(modifier = Modifier.offset(x = 12.dp, y = (-12).dp)) {
-                    VideoOverflowButton(card, callbacks, onScrim = false)
+                    VideoOverflowButton(card, actions, onScrim = false)
                 }
             }
         }
@@ -190,6 +257,32 @@ fun VideoListRow(
     context: Context? = null,
     decodeContext: CoroutineContext? = null
 ) {
+    val actions = remember(callbacks) { callbacks.asActions() }
+    VideoListRow(
+        card = card,
+        actions = actions,
+        modifier = modifier,
+        isSelected = isSelected,
+        detail = detail,
+        density = density,
+        thumbnail = thumbnail,
+        context = context,
+        decodeContext = decodeContext
+    )
+}
+
+@Composable
+fun VideoListRow(
+    card: VideoCardUiModel,
+    actions: VideoCardActions,
+    modifier: Modifier = Modifier,
+    isSelected: Boolean = false,
+    detail: LibraryDetail = LibraryDetail.STANDARD,
+    density: LibraryDensity = LibraryDensity.COMFORTABLE,
+    thumbnail: (@Composable () -> Unit)? = null,
+    context: Context? = null,
+    decodeContext: CoroutineContext? = null
+) {
     val metadata = remember(card.uri, card.fileSizeFormatted, card.folderName, card.rawItem.dateAddedSec, detail) {
         videoMetadataLines(card, detail)
     }
@@ -203,7 +296,7 @@ fun VideoListRow(
             .fillMaxWidth()
             .clip(ListRowShape)
             .background(if (isSelected) ApturaColors.AccentSubtle else androidx.compose.ui.graphics.Color.Transparent)
-            .clickableCard(callbacks)
+            .clickableCard(card, actions)
             .semantics { selected = isSelected }
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -249,8 +342,8 @@ fun VideoListRow(
                 )
             }
         }
-        if (callbacks.onMore != null) {
-            VideoOverflowButton(card, callbacks, onScrim = false)
+        if (actions.onMore != null) {
+            VideoOverflowButton(card, actions, onScrim = false)
         }
     }
 }
@@ -270,16 +363,21 @@ private fun MetadataLines(lines: List<String>, compact: Boolean) {
     }
 }
 
-private fun Modifier.clickableCard(callbacks: VideoCardCallbacks): Modifier =
-    if (callbacks.onLongClick != null) {
+@Composable
+private fun Modifier.clickableCard(card: VideoCardUiModel, actions: VideoCardActions): Modifier {
+    val onClick = remember(card, actions) { { actions.onClick(card) } }
+    val longClickAction = actions.onLongClick
+    return if (longClickAction != null) {
+        val onLongClick = remember(card, actions) { { longClickAction(card) } }
         combinedClickable(
-            onClick = callbacks.onClick,
-            onLongClick = callbacks.onLongClick,
+            onClick = onClick,
+            onLongClick = onLongClick,
             onLongClickLabel = "Select video"
         )
     } else {
-        clickable(onClick = callbacks.onClick)
+        clickable(onClick = onClick)
     }
+}
 
 /**
  * The picture of a video with everything that sits on it: duration, "Watched", the selection mark, the missing badge
@@ -409,12 +507,15 @@ internal fun VideoThumbnailFrame(
  * A video with no extra actions just opens its details.
  */
 @Composable
-internal fun VideoOverflowButton(card: VideoCardUiModel, callbacks: VideoCardCallbacks, onScrim: Boolean) {
-    val onMore = callbacks.onMore ?: return
+internal fun VideoOverflowButton(card: VideoCardUiModel, actions: VideoCardActions, onScrim: Boolean) {
+    val onMore = actions.onMore ?: return
     var expanded by remember { mutableStateOf(false) }
+    val onIconClick = remember(card, actions) {
+        { if (actions.hasContextActions) expanded = true else onMore(card) }
+    }
     Box {
         IconButton(
-            onClick = { if (callbacks.hasContextActions) expanded = true else onMore() },
+            onClick = onIconClick,
             modifier = Modifier.size(48.dp)
         ) {
             if (onScrim) {
@@ -442,22 +543,22 @@ internal fun VideoOverflowButton(card: VideoCardUiModel, callbacks: VideoCardCal
                 )
             }
         }
-        if (expanded && callbacks.hasContextActions) {
+        if (expanded && actions.hasContextActions) {
             DropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
                 containerColor = ApturaColors.SurfaceElevated2,
                 shape = DropdownMenuShape
             ) {
-                fun pick(action: () -> Unit) {
+                fun pick(action: (VideoCardUiModel) -> Unit) {
                     expanded = false
-                    action()
+                    action(card)
                 }
                 ApturaMenuItem("Video details", Icons.Outlined.Info, onClick = { pick(onMore) })
                 if (card.isMissing) {
                     // A missing file cannot play, move, share or be deleted again. The only honest action is to
                     // remove its index row (and its saved progress).
-                    callbacks.onRemoveMissing?.let { remove ->
+                    actions.onRemoveMissing?.let { remove ->
                         MenuDivider()
                         ApturaMenuItem(
                             "Remove from library",
@@ -467,16 +568,16 @@ internal fun VideoOverflowButton(card: VideoCardUiModel, callbacks: VideoCardCal
                         )
                     }
                 } else {
-                    callbacks.onPlayNext?.let { ApturaMenuItem("Play next", Icons.AutoMirrored.Filled.PlaylistPlay, onClick = { pick(it) }) }
-                    callbacks.onAddToQueue?.let { ApturaMenuItem("Add to queue", Icons.AutoMirrored.Filled.PlaylistAdd, onClick = { pick(it) }) }
-                    callbacks.onSelect?.let { ApturaMenuItem("Select", Icons.Outlined.CheckCircle, onClick = { pick(it) }) }
-                    if (callbacks.onMove != null || callbacks.onShare != null || callbacks.onMoreFileActions != null) MenuDivider()
-                    callbacks.onMove?.let { ApturaMenuItem("Move to folder", Icons.AutoMirrored.Filled.DriveFileMove, onClick = { pick(it) }) }
-                    callbacks.onShare?.let { ApturaMenuItem("Share", Icons.Default.Share, onClick = { pick(it) }) }
-                    callbacks.onMoreFileActions?.let { ApturaMenuItem("More file actions", Icons.Default.DriveFileRenameOutline, onClick = { pick(it) }) }
-                    if (callbacks.onHide != null || callbacks.onDelete != null) MenuDivider()
-                    callbacks.onHide?.let { ApturaMenuItem("Hide from library", Icons.Default.VisibilityOff, onClick = { pick(it) }) }
-                    callbacks.onDelete?.let {
+                    actions.onPlayNext?.let { ApturaMenuItem("Play next", Icons.AutoMirrored.Filled.PlaylistPlay, onClick = { pick(it) }) }
+                    actions.onAddToQueue?.let { ApturaMenuItem("Add to queue", Icons.AutoMirrored.Filled.PlaylistAdd, onClick = { pick(it) }) }
+                    actions.onSelect?.let { ApturaMenuItem("Select", Icons.Outlined.CheckCircle, onClick = { pick(it) }) }
+                    if (actions.onMove != null || actions.onShare != null || actions.onMoreFileActions != null) MenuDivider()
+                    actions.onMove?.let { ApturaMenuItem("Move to folder", Icons.AutoMirrored.Filled.DriveFileMove, onClick = { pick(it) }) }
+                    actions.onShare?.let { ApturaMenuItem("Share", Icons.Default.Share, onClick = { pick(it) }) }
+                    actions.onMoreFileActions?.let { ApturaMenuItem("More file actions", Icons.Default.DriveFileRenameOutline, onClick = { pick(it) }) }
+                    if (actions.onHide != null || actions.onDelete != null) MenuDivider()
+                    actions.onHide?.let { ApturaMenuItem("Hide from library", Icons.Default.VisibilityOff, onClick = { pick(it) }) }
+                    actions.onDelete?.let {
                         ApturaMenuItem("Delete video", Icons.Default.DeleteOutline, onClick = { pick(it) }, tone = ApturaTone.Destructive)
                     }
                 }

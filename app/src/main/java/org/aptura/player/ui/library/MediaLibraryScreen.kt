@@ -142,6 +142,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -1155,6 +1156,63 @@ private fun MediaLibraryContentView(
             }
         }
 
+        val currentSelectedUris by rememberUpdatedState(selectedUris)
+        val currentAllRawVideos by rememberUpdatedState(allRawVideos)
+        val currentOnVideoClick by rememberUpdatedState(onVideoClick)
+        val currentOnShowDetails by rememberUpdatedState(onShowDetails)
+        val currentOnPlayNext by rememberUpdatedState(onPlayNext)
+        val currentOnAddToQueue by rememberUpdatedState(onAddToQueue)
+        val currentOnRemoveVideo by rememberUpdatedState(onRemoveVideo)
+        val currentOnUnhideVideo by rememberUpdatedState(onUnhideVideo)
+        val currentOnShowUndo by rememberUpdatedState(onShowUndo)
+
+        val cardActions = remember(context) {
+            VideoCardActions(
+                onClick = { card ->
+                    if (currentSelectedUris.isNotEmpty()) {
+                        selectedUris = if (card.uri in currentSelectedUris) {
+                            currentSelectedUris - card.uri
+                        } else {
+                            currentSelectedUris + card.uri
+                        }
+                    } else {
+                        currentOnVideoClick(card.rawItem, currentAllRawVideos)
+                    }
+                },
+                onLongClick = { card ->
+                    selectedUris = if (card.uri in currentSelectedUris) {
+                        currentSelectedUris
+                    } else {
+                        currentSelectedUris + card.uri
+                    }
+                },
+                onMore = { card ->
+                    val showDetails = currentOnShowDetails
+                    if (showDetails != null) {
+                        showDetails(card.rawItem)
+                    } else {
+                        activeModal = LibraryActiveModal.Details(card.rawItem)
+                    }
+                },
+                onPlayNext = { card -> currentOnPlayNext(card.rawItem) },
+                onAddToQueue = { card -> currentOnAddToQueue(card.rawItem) },
+                onHide = { card ->
+                    val targetUri = card.rawItem.uri
+                    val cleanTitle = MediaFormatters.cleanTitle(card.rawItem.title)
+                    currentOnRemoveVideo(targetUri)
+                    currentOnShowUndo("\"$cleanTitle\" hidden from library") {
+                        currentOnUnhideVideo(targetUri)
+                    }
+                },
+                onDelete = { card -> activeModal = LibraryActiveModal.Delete(card.rawItem) },
+                onRemoveMissing = { card -> activeModal = LibraryActiveModal.RemoveMissing(card.rawItem) },
+                onMoreFileActions = { card -> activeModal = LibraryActiveModal.MoreFileActions(card.rawItem) },
+                onShare = { card -> shareVideos(context, listOf(card.rawItem.uri)) },
+                onMove = { card -> activeModal = LibraryActiveModal.MoveToFolder(listOf(card.rawItem.uri)) },
+                onSelect = { card -> selectedUris = currentSelectedUris + card.uri }
+            )
+        }
+
         Box(modifier = Modifier.weight(1f)) {
             LibraryVideoPaneHost(
                 state = state,
@@ -1182,44 +1240,8 @@ private fun MediaLibraryContentView(
                             )
                         )
                     },
-                    isSelected = { card -> card.uri in selectedUris },
-                    callbacksFor = { card ->
-                        VideoCardCallbacks(
-                            onClick = {
-                                if (selectedUris.isNotEmpty()) {
-                                    selectedUris = if (card.uri in selectedUris) selectedUris - card.uri else selectedUris + card.uri
-                                } else {
-                                    onVideoClick(card.rawItem, allRawVideos)
-                                }
-                            },
-                            onLongClick = {
-                                selectedUris = if (card.uri in selectedUris) selectedUris else selectedUris + card.uri
-                            },
-                            onMore = {
-                                if (onShowDetails != null) {
-                                    onShowDetails(card.rawItem)
-                                } else {
-                                    activeModal = LibraryActiveModal.Details(card.rawItem)
-                                }
-                            },
-                            onPlayNext = { onPlayNext(card.rawItem) },
-                            onAddToQueue = { onAddToQueue(card.rawItem) },
-                            onHide = {
-                                val targetUri = card.rawItem.uri
-                                val cleanTitle = MediaFormatters.cleanTitle(card.rawItem.title)
-                                onRemoveVideo(targetUri)
-                                onShowUndo("\"$cleanTitle\" hidden from library") {
-                                    onUnhideVideo(targetUri)
-                                }
-                            },
-                            onDelete = { activeModal = LibraryActiveModal.Delete(card.rawItem) },
-                            onRemoveMissing = { activeModal = LibraryActiveModal.RemoveMissing(card.rawItem) },
-                            onMoreFileActions = { activeModal = LibraryActiveModal.MoreFileActions(card.rawItem) },
-                            onShare = { shareVideos(context, listOf(card.rawItem.uri)) },
-                            onMove = { activeModal = LibraryActiveModal.MoveToFolder(listOf(card.rawItem.uri)) },
-                            onSelect = { selectedUris = selectedUris + card.uri }
-                        )
-                    },
+                    selectedUris = selectedUris,
+                    cardActions = cardActions,
                     modifier = paneModifier,
                     shortWindow = shortWindow
                 )

@@ -6,16 +6,23 @@ import android.media.MediaMetadataRetriever
 import android.net.Uri
 import androidx.core.net.toUri
 import android.os.Build
+import android.os.CancellationSignal
+import android.util.LruCache
 import android.util.Size
 import androidx.annotation.VisibleForTesting
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.io.FileOutputStream
 import java.security.MessageDigest
+import java.util.concurrent.atomic.AtomicInteger
+import kotlin.coroutines.coroutineContext
 
 /**
  * Manages persistent, hardware-accelerated, disk-cached thumbnails for video media (audit P1-13, PERF-04).
@@ -37,6 +44,8 @@ object ThumbnailRepository {
     private const val JPEG_QUALITY = 85
     private const val FRAME_OFFSET_US = 2_000_000L // 2.0s offset avoids initial black title cards
     private const val MAX_FAILED_KEYS = 512
+    private const val URI_KEY_CACHE_SIZE = 4096
+    private const val TRIM_INTERVAL_SAVES = 16
 
     const val MAX_PARALLEL_EXTRACTIONS = 3
     const val DEFAULT_EXTRACTION_TIMEOUT_MS = 5_000L
@@ -45,6 +54,13 @@ object ThumbnailRepository {
     @OptIn(ExperimentalCoroutinesApi::class)
     val defaultExtractionDispatcher: CoroutineDispatcher =
         Dispatchers.IO.limitedParallelism(MAX_PARALLEL_EXTRACTIONS)
+
+    private val HEX_DIGITS = "0123456789abcdef".toCharArray()
+    private val sha256Digest: ThreadLocal<MessageDigest> = ThreadLocal.withInitial {
+        MessageDigest.getInstance("SHA-256")
+    }
+    private val uriKeyCache = LruCache<String, String>(URI_KEY_CACHE_SIZE)
+    private val saveCount = AtomicInteger(0)
 
     /** Session-scoped negative cache so un-decodable files do not re-trigger MediaMetadataRetriever on every scroll. */
     private val failedExtractionKeys = java.util.Collections.synchronizedSet( LinkedHashSet<String>() )
@@ -59,8 +75,17 @@ object ThumbnailRepository {
 
     @VisibleForTesting
     fun getCacheKey(uri: String): String {
-        val digest = MessageDigest.getInstance("SHA-256").digest(uri.toByteArray(Charsets.UTF_8))
-        return digest.joinToString("") { "%02x".format(it) }.take(16)
+        uriKeyCache.get(uri)?.let { return it }
+        val digest = sha256Digest.get()!!
+        digest.reset()
+        val hash = digest.digest(uri.toByteArray(Charsets.UTF_8))
+        val chars = CharArray(16)
+        for (i in 0 until 8) {
+            val b = hash[i].toInt() and 0xFF
+            chars[i * 2] = HEX_DIGITS[b ushr 4]
+            chars[i * 2 + 1] = HEX_DIGITS[b and 0x0F]
+        }
+        return String(chars).also { uriKeyCache.put(uri, it) }
     }
 
     @VisibleForTesting
@@ -131,7 +156,7 @@ object ThumbnailRepository {
     fun isMarkedFailed(uri: String, dateModifiedSec: Long): Boolean =
         failedExtractionKeys.contains(getThumbnailFileName(uri, dateModifiedSec))
 
-    private fun extractThumbnailBitmap(context: Context, uriString: String): Bitmap? {
+    private suspend fun extractThumbnailBitmap(context: Context, uriString: String): Bitmap? {
         val uri = try {
             uriString.toUri()
         } catch (_: Throwable) {
@@ -140,12 +165,20 @@ object ThumbnailRepository {
 
         // 1. Android 10+ (API 29+) platform hardware-accelerated MediaStore thumbnail generator
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && uriString.startsWith("content://")) {
+            val signal = CancellationSignal()
+            val handle = coroutineContext[Job]?.invokeOnCompletion { signal.cancel() }
             try {
-                return context.contentResolver.loadThumbnail(uri, Size(THUMB_WIDTH, THUMB_HEIGHT), null)
-            } catch (_: Throwable) {
-                // Fall back to MediaMetadataRetriever
+                return context.contentResolver.loadThumbnail(uri, Size(THUMB_WIDTH, THUMB_HEIGHT), signal)
+            } catch (t: Throwable) {
+                if (t is CancellationException) throw t
+                coroutineContext.ensureActive()
+                // Fall back to MediaMetadataRetriever when active and loadThumbnail did not return a frame
+            } finally {
+                handle?.dispose()
             }
         }
+
+        coroutineContext.ensureActive()
 
         // 2. MediaMetadataRetriever fallback (API < 29 or SAF / file / direct streams)
         val retriever = MediaMetadataRetriever()
@@ -208,7 +241,9 @@ object ThumbnailRepository {
             val renamed = tempFile.renameTo(targetFile)
             if (renamed || (tempFile.copyTo(targetFile, overwrite = true).also { tempFile.delete() }.exists())) {
                 purgeStaleThumbnails(context, uri, dateModifiedSec)
-                trimDiskCacheToLimit(parent, MAX_DISK_CACHE_BYTES, preserveFile = targetFile)
+                if (saveCount.incrementAndGet() % TRIM_INTERVAL_SAVES == 0) {
+                    trimDiskCacheToLimit(parent, MAX_DISK_CACHE_BYTES, preserveFile = targetFile)
+                }
                 return targetFile
             }
         } catch (_: Throwable) {
@@ -295,6 +330,7 @@ object ThumbnailRepository {
      * Clears all cached thumbnails and temporary subtitle files from disk and purges memory/disk caches from Coil.
      */
     fun clearCache(context: Context) {
+        saveCount.set(0)
         failedExtractionKeys.clear()
         ThumbnailBitmapCache.clear()
         val dirs = listOf(

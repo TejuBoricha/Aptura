@@ -378,8 +378,8 @@ internal fun LibraryVideoPane(
     bottomPadding: Dp,
     onResumeContinueWatching: (VideoCardUiModel) -> Unit,
     onToggleLayout: () -> Unit,
-    isSelected: (VideoCardUiModel) -> Boolean,
-    callbacksFor: (VideoCardUiModel) -> VideoCardCallbacks,
+    selectedUris: Set<String>,
+    cardActions: VideoCardActions,
     modifier: Modifier = Modifier,
     shortWindow: Boolean = false
 ) {
@@ -448,11 +448,12 @@ internal fun LibraryVideoPane(
             key = { item -> item.uri },
             contentType = { if (isList) "video_row" else "video_card" }
         ) { card ->
+            val cardSelected = card.uri in selectedUris
             if (isList) {
                 VideoListRow(
                     card = card,
-                    callbacks = callbacksFor(card),
-                    isSelected = isSelected(card),
+                    actions = cardActions,
+                    isSelected = cardSelected,
                     detail = prefs.detail,
                     density = prefs.density,
                     context = context,
@@ -461,8 +462,8 @@ internal fun LibraryVideoPane(
             } else {
                 VideoGridCard(
                     card = card,
-                    callbacks = callbacksFor(card),
-                    isSelected = isSelected(card),
+                    actions = cardActions,
+                    isSelected = cardSelected,
                     detail = prefs.detail,
                     density = prefs.density,
                     context = context,
