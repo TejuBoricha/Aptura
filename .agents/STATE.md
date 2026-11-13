@@ -32,11 +32,9 @@ copy found elsewhere, such as an old branch or `.agents/MEMORY.md`, as current. 
 ## Open work (highest first)
 
 1. **Hardware verification:** physical-device playback, TalkBack, Bluetooth latency and detection, HDR, thermal,
-   process-kill during a SAF copy (and a running sleep timer, FR-CTRL-009). Run
-   [DEVICE_CHECKLIST.md](../docs/DEVICE_CHECKLIST.md) before tagging 1.0.
-2. **Release:** signed 1.0 tag when a signing key exists.
-3. **Undecided:** one audio sync value for every video needs a storage decision first (per-video storage cannot tell 0
-   from "never set").
+   Android 14+ selected-photos dialog (`UX-01`), process-kill during a SAF copy (and a running sleep timer,
+   `FR-CTRL-009`). Run [DEVICE_CHECKLIST.md](../docs/DEVICE_CHECKLIST.md) before tagging 1.0.
+2. **Release:** signed 1.0 tag when a signing key exists (`SEC-01`) and `LEG-02` legal/decoder gate (`DEC-014`) clears.
 
 ## Facts that older notes get wrong
 
@@ -46,6 +44,9 @@ copy found elsewhere, such as an old branch or `.agents/MEMORY.md`, as current. 
 - **Audio sync sign:** a positive offset **delays** the sound. Bluetooth audio is already late, so its fix is
   negative ("Sound earlier"). The old "+150 ms / +250 ms Bluetooth presets" were wrong and were removed in `95231ca`.
   The player offers "Try −200 ms" only when Bluetooth output is connected and sync is at 0.
+- **Audio sync storage (`DEC-015`):** the default lives in DataStore (`defaultAudioDelayMs`); each video keeps its own
+  value in Room only when `audioDelayOverridden` is true (schema v8). A chosen 0 ms is an override, not "unset". "Apply
+  to all videos" saves the default and clears every override; "Use default" clears one.
 - **Player sheets** are built from the shared controls in `ui/player/PlayerControls.kt` and
   `PlayerSheetChrome.kt` (DESIGN.md §5.6), not from per-sheet pills and steppers.
 - **Theme and navigation:** the palette is a `CompositionLocal` (`LocalApturaPalette`), never a global; the always-dark

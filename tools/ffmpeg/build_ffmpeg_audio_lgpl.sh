@@ -28,9 +28,9 @@ ANDROID_API_LEVEL=26
 
 echo "=== Building Aptura LGPL Audio Extension ($FFMPEG_VERSION) ==="
 
-# Approved royalty-safe LGPL audio decoders and parsers
-AUDIO_DECODERS="flac,vorbis,opus,mp3,aac"
-AUDIO_PARSERS="flac,vorbis,opus,mpegaudio,aac"
+# Approved royalty-safe LGPL audio decoders and parsers (DEC-014; matches verify_lgpl_symbols.py)
+AUDIO_DECODERS="flac,vorbis,opus,mp3"
+AUDIO_PARSERS="flac,vorbis,opus,mpegaudio"
 
 COMMON_FLAGS=(
     --enable-lgpl
