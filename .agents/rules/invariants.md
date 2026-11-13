@@ -22,7 +22,7 @@ These invariants are frozen and binding across all development phases. Any pull 
 These are checked against what actually ships — the **release** variant — not against our own source files:
 - **Merged manifest** (`MergedManifestInvariantsTest`): the merged release manifest (ours plus every library's) must request exactly the approved permission set and expose exactly the approved components, each gated by its system permission. A permission or exported component added by a library fails the build until a person reviews it and adds it to `ManifestInvariants` with the reason.
 - **Resolved dependency graph** (`DependencyInvariantsTest`): the release runtime classpath, including transitive libraries, must contain no telemetry/crash-reporting/advertising SDK and no HTTP client stack. `DependencyInvariants.approvedExceptions` is empty; an exception needs a reason and a bounded `onlyRequiredBy`.
-- **Shipped code** (`verifyReleaseApk`, run automatically by `assembleRelease` and therefore by CI): R8's mapping file is read for classes that survived under forbidden packages (R8 renames classes, so searching the dex for library names is not enough), and the dex text is searched as a second net.
+- **Shipped code** (`verifyReleaseApk` run by `assembleRelease`, and `verifyReleaseBundle` run by `bundleRelease`, both enforced in CI): R8's mapping file is read for classes that survived under forbidden packages (R8 renames classes, so searching the dex for library names is not enough), and every shipped dex file inside the APKs and `.aab` bundle is searched as a second net.
 - Source-level guards (`PlatformInvariantsTest`) remain as fast checks on `AndroidManifest.xml`, but they are not the authority.
 
 ## 2. Storage & Permissions Invariants

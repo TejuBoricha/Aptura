@@ -44,7 +44,7 @@ sdk.dir=C\:\\Users\\you\\AppData\\Local\\Android\\Sdk
 | Lint | `./gradlew lintDebug` |
 | Full local gate | `./tools/gate.ps1` (Windows) |
 
-`tools/gate.ps1` compiles the test sources, runs the JVM suite fail-fast, runs lint, then builds the R8 release. The release build is finalized by `verifyReleaseApk`, which fails if a network stack or telemetry SDK survived R8 or appears in the dex.
+`tools/gate.ps1` compiles the test sources, runs the JVM suite fail-fast, runs lint (including Detekt), then builds both the R8 release APKs and the release App Bundle (`.aab`). Those builds are finalized by `verifyReleaseApk` and `verifyReleaseBundle`, which fail if a network stack or telemetry SDK survived R8 or appears in any shipped dex.
 
 ## Release signing
 

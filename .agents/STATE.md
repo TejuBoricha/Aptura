@@ -34,8 +34,7 @@ bugs in the audit waited. To undo it, delete this section and restore the schedu
 
 ## Quality gate
 
-- `tools/gate.ps1` and CI (`.github/workflows/ci.yml`: `verify` = agent coordination checks, unit tests, lint, R8
-  release + `verifyReleaseApk`; `connected` = instrumented tests on an API 35 tablet emulator).
+- `tools/gate.ps1` and CI (`.github/workflows/ci.yml`: `verify` = agent coordination checks, unit tests + Kover 70% floor verification, lint + Detekt, R8 release APK + `.aab` bundle with `verifyReleaseApk` / `verifyReleaseBundle`; `connected` = instrumented tests on an API 35 tablet emulator).
 - The gate also runs the checker's Python tests (`python -m unittest discover -s tools/agents`) when Python 3 is
   installed; CI always runs them.
 - `gradle/actions/setup-gradle` is pinned to **v5 on purpose** (v6 pulls a proprietary build-cache component).
