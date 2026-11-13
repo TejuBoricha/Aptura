@@ -64,23 +64,15 @@ Details and examples live in [`docs/AGENT_WORKFLOW.md`](docs/AGENT_WORKFLOW.md).
   human commit ends with `Human-authored: yes` instead. CI rejects commits with neither.
 - Keep branches current by rebasing on `origin/main` and using `git push --force-with-lease` on your own branch only.
 - Fill in the PR template, explicitly listing what was **not** verified on physical hardware.
-- **Agents merge without asking the owner** (standing instruction) when:
-  1. `verify` and `connected` CI checks are green on the PR's head commit and the branch is up to date with `main`;
-  2. if an independent review is required (see Review), a different model has posted an approving verdict on the fixed head;
-  3. no reviewer or owner has asked to hold.
+- **Agents merge without asking the owner** (standing instruction) when `verify` and `connected` CI checks are green on the PR's head commit, the branch is up to date with `main`, `.\tools\gate.ps1` passed locally, and no hold was requested.
 
   Merge with **rebase** and pass `--match-head-commit` so an intervening push cannot merge unchecked code.
 
-## Review
+## Verification & invariants
 
-- Every change passes `.\tools\gate.ps1` and follows `.agents/rules/qa-and-code-review.md`.
-- Only three areas require **one independent review by a different model** than the author:
-  1. security (`.github/`, tokens/permissions, `tools/agents/`, `tools/security/`),
-  2. privacy invariants (`core/invariants/`, `AndroidManifest.xml`, `docs/PRIVACY.md`, shipped APK/AAB checks), and
-  3. Room schema or migrations (`app/schemas/`, `data/database/`).
-  Record the reviewer prompt/model, commit SHA and unedited verdict on the PR. Keep reviews focused on real bugs,
-  security/invariant risks and broken CI/build behavior. Everything else merges cleanly on `gate.ps1` + green CI alone.
-- A review never overrides a failing test. A defect that escaped gets a regression test in the fix.
+- Every change passes `.\tools\gate.ps1`, CI (`verify` + `connected`), and `.agents/rules/qa-and-code-review.md`.
+- Security, privacy invariants, and Room migrations are enforced by automated deterministic checks (`MergedManifestInvariantsTest`, `DependencyInvariantsTest`, `PlatformInvariantsTest`, `verifyReleaseApk`, `verifyReleaseBundle`, `ApturaDatabaseSchemaValidationTest`, `check_no_secret_files.py`, `pr_checks.py`) rather than mandatory cross-model review loops (obtain a second review only if the owner explicitly requests one).
+- A check or test never overrides a failing assertion. A defect that escaped gets a regression test in the fix.
 - **Prove it fails when it should.** For any check, gate, script or error handling, test the failure path as well as the
   happy path so checks fail loudly instead of passing silently.
 
