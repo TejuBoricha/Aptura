@@ -15,10 +15,7 @@ PR's Verification section and in CI, not here, so most pull requests never need 
 - **Team:** one owner (Tejas) and AI coding agents coordinated through [`AGENTS.md`](../AGENTS.md) and
   [`docs/AGENT_WORKFLOW.md`](../docs/AGENT_WORKFLOW.md).
 - **Owner's machine:** Windows, PowerShell. Use `;` not `&&` in commands meant for it. Python is `py -3` there.
-- **Process cleanup (`DEV-03` completed):** legacy multi-agent stall bot, inbox polling, and debate tooling have been
-  removed. Remaining coordination gates: `tools/agents/pr_checks.py` (hot files, one PR per issue, commit attribution),
-  `## Handoff` on open/draft PRs, `tools/gate.ps1`, and independent different-vendor review for security, privacy
-  invariants, and Room schema/migration changes.
+- **Process cleanup (`DEV-03` completed):** legacy multi-agent stall bot, inbox polling, debate ceremony, and mandatory cross-model review loops have been removed. Remaining coordination gates: `tools/agents/pr_checks.py` (hot files, one PR per issue, commit attribution), `## Handoff` on open/draft PRs, `tools/gate.ps1`, and CI (`verify` + `connected`) with automated invariant and schema suites.
 
 ## Quality gate
 

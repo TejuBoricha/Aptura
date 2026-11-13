@@ -47,12 +47,12 @@ body:
       required: false
 
   - type: dropdown
-    id: review
+    id: risk_area
     attributes:
-      label: Independent review needed?
-      description: Required for security (.github/, tools/agents/, tools/security/), privacy invariants, or Room schema/migrations.
+      label: High-risk area?
+      description: Security (.github/, tools/), privacy invariants, or Room migrations require explicit failure-path verification.
       options:
         - "No"
-        - "Yes, by a different model than the author"
+        - "Yes (security, privacy invariants, or Room migration)"
     validations:
       required: true
