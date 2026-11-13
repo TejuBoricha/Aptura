@@ -32,6 +32,7 @@ Or individually:
 ./gradlew detekt
 ./gradlew koverXmlReportDebug koverVerifyDebug
 ./gradlew assembleRelease
+./gradlew bundleRelease
 python -m unittest discover -s tools/agents
 ```
 
