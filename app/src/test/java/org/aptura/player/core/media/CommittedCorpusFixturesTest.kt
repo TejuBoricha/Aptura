@@ -183,16 +183,19 @@ class CommittedCorpusFixturesTest {
             val file = fixtureFile(rel)
             assertTrue("Committed fixture missing on disk: $rel", file.exists())
             val rawBytes = file.readBytes()
-            val actualHash = if (rawBytes.size.toLong() == entry!!.first) {
-                sha256Hex(rawBytes)
-            } else {
-                // Allow Windows CRLF checkout of text fixtures when Git stores LF in index.
-                val lfNormalized = String(rawBytes, StandardCharsets.UTF_8)
-                    .replace("\r\n", "\n")
-                    .toByteArray(StandardCharsets.UTF_8)
-                sha256Hex(lfNormalized)
+            val candidateHashes = buildSet {
+                add(sha256Hex(rawBytes))
+                if (rawBytes.size.toLong() != entry!!.first) {
+                    // manifest.csv was compiled on Windows (CRLF for UTF-8 text files) while Git stores LF in the index.
+                    val text = String(rawBytes, StandardCharsets.UTF_8).replace("\r\n", "\n")
+                    add(sha256Hex(text.toByteArray(StandardCharsets.UTF_8)))
+                    add(sha256Hex(text.replace("\n", "\r\n").toByteArray(StandardCharsets.UTF_8)))
+                }
             }
-            assertEquals("SHA-256 mismatch for committed fixture $rel", entry.second, actualHash)
+            assertTrue(
+                "SHA-256 mismatch for committed fixture $rel: expected ${entry!!.second}, got $candidateHashes",
+                entry.second in candidateHashes
+            )
         }
     }
 
