@@ -30,12 +30,13 @@ class ApturaDatabaseMigrationTest {
 
     @Test
     fun theCurrentSchemaIsExportedAndCommitted() {
-        val file = File("schemas/org.aptura.player.data.database.ApturaDatabase/$APTURA_DB_VERSION.json")
-
-        assertTrue("schema $APTURA_DB_VERSION was not exported to ${file.path} (build the app and commit it)", file.exists())
-        val json = file.readText()
-        assertTrue(json.contains("\"version\": $APTURA_DB_VERSION"))
-        // The column added by the latest migration must be in the exported schema, not just in the migration SQL.
-        assertTrue(json.contains("\"decoderOverridden\""))
+        for (version in 5..APTURA_DB_VERSION) {
+            val file = File("schemas/org.aptura.player.data.database.ApturaDatabase/$version.json")
+            assertTrue("schema $version was not exported to ${file.path} (build the app and commit it)", file.exists())
+            assertTrue(file.readText().contains("\"version\": $version"))
+        }
+        val latest = File("schemas/org.aptura.player.data.database.ApturaDatabase/$APTURA_DB_VERSION.json")
+        // The column added by migration 5->6 must be in the exported schema, not just in the migration SQL.
+        assertTrue(latest.readText().contains("\"decoderOverridden\""))
     }
 }
