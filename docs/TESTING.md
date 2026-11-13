@@ -92,7 +92,7 @@ Some properties are too important to leave to a code review:
 
 - **Manifest:** no `INTERNET`, no `MANAGE_EXTERNAL_STORAGE`, no `POST_NOTIFICATIONS`, scoped media permissions only.
 - **Dependencies:** the resolved release graph contains no network stack or telemetry SDK (`DependencyInvariantsTest`).
-- **Shipped code:** `verifyReleaseApk` reads the R8 mapping and the dex, because the classpath is not what ships.
+- **Shipped code:** `verifyReleaseApk` and `verifyReleaseBundle` read the R8 mapping and every shipped dex file inside the release APKs and `.aab` bundle, because the classpath is not what ships.
 - **Domain purity:** no Android imports under `domain/`.
 - **Schema:** committed Room schemas and migration tests.
 - **Licensing:** no software video decoder is bundled. `tools/ffmpeg/verify_lgpl_symbols.py` describes the LGPL audio build the project wants, but nothing runs it on the prebuilt decoder that ships today (DEC-014 in spec/17).
