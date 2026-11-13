@@ -1,11 +1,16 @@
 package org.aptura.player.ui.player
 
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.unit.Density
 import org.aptura.player.domain.model.PlaybackStatsInfo
 import org.aptura.player.theme.ApturaTheme
 import org.junit.Assert.assertEquals
@@ -75,6 +80,87 @@ class StatsOverlayUiTest {
         // Close action
         composeTestRule.onNodeWithContentDescription("Close stats").performClick()
         assertTrue(closed)
+    }
+
+    @Test
+    fun statsOverlay_atStandardFontScale_placesLabelsLeftOfValuesWithoutCollision() {
+        val sampleStats = PlaybackStatsInfo(
+            decoderPath = "Auto (Hardware)",
+            isHardwareAccelerated = true,
+            videoDecoderName = "c2.qti.media.hw.hevc.decoder",
+            videoCodec = "video/hevc",
+            videoResolution = "3840x2160",
+            frameRate = 60.0f,
+            videoBitrateKbps = 24500,
+            hdrFormat = "HDR10"
+        )
+
+        composeTestRule.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale = 1.0f)) {
+                ApturaTheme {
+                    StatsOverlay(stats = sampleStats, onCloseClick = {})
+                }
+            }
+        }
+
+        val labelBounds = composeTestRule.onNodeWithText("Resolution / FPS").getUnclippedBoundsInRoot()
+        val valueBounds = composeTestRule.onNodeWithText("3840x2160 @ 60.0 fps").getUnclippedBoundsInRoot()
+        assertTrue(
+            "expected label ($labelBounds) cleanly left of value ($valueBounds)",
+            labelBounds.right.value + 8f <= valueBounds.left.value
+        )
+    }
+
+    @Test
+    fun statsOverlay_at200PercentFontScale_stacksRowsAndKeepsButtonsInsideBounds() {
+        val sampleStats = PlaybackStatsInfo(
+            decoderPath = "Auto (Hardware)",
+            isHardwareAccelerated = true,
+            videoDecoderName = "c2.qti.media.hw.hevc.decoder",
+            videoCodec = "video/hevc",
+            videoResolution = "3840x2160",
+            frameRate = 60.0f,
+            videoBitrateKbps = 24500,
+            hdrFormat = "HDR10 / HLG"
+        )
+
+        composeTestRule.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale = 2.0f)) {
+                ApturaTheme {
+                    StatsOverlay(stats = sampleStats, onCloseClick = {})
+                }
+            }
+        }
+
+        val panelBounds = composeTestRule.onNodeWithTag(STATS_TAG).getUnclippedBoundsInRoot()
+        val titleBounds = composeTestRule.onNodeWithText("Diagnostics & Stats").getUnclippedBoundsInRoot()
+        val copyBounds = composeTestRule.onNodeWithContentDescription("Copy stats").getUnclippedBoundsInRoot()
+        val closeBounds = composeTestRule.onNodeWithContentDescription("Close stats").getUnclippedBoundsInRoot()
+
+        assertTrue("title ($titleBounds) must not collide with copy button ($copyBounds)", titleBounds.right <= copyBounds.left)
+        assertTrue("close button ($closeBounds) must fit inside panel ($panelBounds)", closeBounds.right <= panelBounds.right)
+
+        val chipBounds = composeTestRule.onNodeWithText("Hardware Accelerated").getUnclippedBoundsInRoot()
+        val hdrBounds = composeTestRule.onNodeWithText("HDR10 / HLG").getUnclippedBoundsInRoot()
+        assertTrue(
+            "HDR badge ($hdrBounds) must not horizontally collide with chip ($chipBounds)",
+            hdrBounds.top >= chipBounds.bottom || hdrBounds.left >= chipBounds.right
+        )
+
+        val labelNode = composeTestRule.onNodeWithText("Resolution / FPS").performScrollTo()
+        val valueNode = composeTestRule.onNodeWithText("3840x2160 @ 60.0 fps").performScrollTo()
+        val labelBounds = labelNode.getUnclippedBoundsInRoot()
+        val valueBounds = valueNode.getUnclippedBoundsInRoot()
+        assertTrue(
+            "expected value ($valueBounds) stacked cleanly below label ($labelBounds) at 200% font scale",
+            valueBounds.top >= labelBounds.bottom
+        )
+        assertTrue(
+            "expected value ($valueBounds) within panel ($panelBounds)",
+            valueBounds.right <= panelBounds.right
+        )
     }
 
     @Test

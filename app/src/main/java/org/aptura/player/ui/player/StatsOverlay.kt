@@ -6,6 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -32,10 +34,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import org.aptura.player.domain.model.PlaybackStatsInfo
 import org.aptura.player.theme.ApturaColors
@@ -60,6 +64,7 @@ fun StatsOverlay(
 ) {
     @Suppress("DEPRECATION")
     val clipboardManager = LocalClipboardManager.current
+    val largeFont = LocalDensity.current.fontScale >= 1.4f
 
     Surface(
         color = ApturaColors.SurfaceElevated2.copy(alpha = 0.94f),
@@ -78,9 +83,10 @@ fun StatsOverlay(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Row(
+                    modifier = Modifier.weight(1f),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -94,7 +100,8 @@ fun StatsOverlay(
                         text = "Diagnostics & Stats",
                         style = ApturaTypography.titleSmall,
                         fontWeight = FontWeight.Bold,
-                        color = ApturaColors.TextHighEmphasis
+                        color = ApturaColors.TextHighEmphasis,
+                        maxLines = 2
                     )
                 }
 
@@ -133,13 +140,15 @@ fun StatsOverlay(
                 }
             }
 
-            // Path & Acceleration Chip
-            Row(
+            // Path & Acceleration Chip — wraps cleanly onto a second line at large accessibility font scales (ISSUE-005).
+            @OptIn(ExperimentalLayoutApi::class)
+            FlowRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 6.dp, bottom = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = if (largeFont) Arrangement.spacedBy(8.dp) else Arrangement.SpaceBetween,
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                itemVerticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(
                     shape = RoundedCornerShape(6.dp),
@@ -170,7 +179,8 @@ fun StatsOverlay(
                             text = if (stats.isHardwareAccelerated) "Hardware Accelerated" else "Compatibility Fallback",
                             style = ApturaTypography.labelSmall,
                             fontWeight = FontWeight.SemiBold,
-                            color = if (stats.isHardwareAccelerated) ApturaColors.AccentPrimary else ApturaColors.StatusWarning
+                            color = if (stats.isHardwareAccelerated) ApturaColors.AccentPrimary else ApturaColors.StatusWarning,
+                            maxLines = 2
                         )
                     }
                 }
@@ -189,11 +199,11 @@ fun StatsOverlay(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Two-column selectable diagnostics readout (FR-DIAG-001)
+            // Two-column selectable diagnostics readout (stacked vertically at large font scales, FR-DIAG-001)
             SelectionContainer {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    verticalArrangement = Arrangement.spacedBy(if (largeFont) 8.dp else 6.dp)
                 ) {
                     // Decoder Section
                     StatsRow(label = "Decode Path", value = stats.decoderPath)
@@ -280,25 +290,50 @@ private fun StatsRow(
     isTabular: Boolean = false,
     isWarning: Boolean = false
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = label,
-            style = ApturaTypography.labelSmall,
-            color = ApturaColors.TextMediumEmphasis
-        )
-        Text(
-            text = value,
-            style = ApturaTypography.labelSmall.copy(
-                fontFamily = FontFamily.Monospace,
-                fontFeatureSettings = if (isTabular) "tnum" else null
-            ),
-            fontWeight = FontWeight.Medium,
-            color = if (isWarning) ApturaColors.StatusWarning else ApturaColors.TextHighEmphasis
-        )
+    val stackVertically = LocalDensity.current.fontScale >= 1.4f
+    val valueStyle = ApturaTypography.labelSmall.copy(
+        fontFamily = FontFamily.Monospace,
+        fontFeatureSettings = if (isTabular) "tnum" else null
+    )
+    val valueColor = if (isWarning) ApturaColors.StatusWarning else ApturaColors.TextHighEmphasis
+
+    if (stackVertically) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                text = label,
+                style = ApturaTypography.labelSmall,
+                color = ApturaColors.TextMediumEmphasis
+            )
+            Text(
+                text = value,
+                style = valueStyle,
+                fontWeight = FontWeight.Medium,
+                color = valueColor
+            )
+        }
+    } else {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                style = ApturaTypography.labelSmall,
+                color = ApturaColors.TextMediumEmphasis
+            )
+            Text(
+                text = value,
+                modifier = Modifier.weight(1f),
+                textAlign = TextAlign.End,
+                style = valueStyle,
+                fontWeight = FontWeight.Medium,
+                color = valueColor
+            )
+        }
     }
 }
 
