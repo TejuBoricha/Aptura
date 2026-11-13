@@ -1,10 +1,9 @@
 ## Task
 
-<!-- Closes #N. AI agents: name the tool and model that wrote this, and the reviewer model if a second review was required (see AGENTS.md). -->
+<!-- Closes #N. AI agents: name the tool and model that wrote this in commits (AGENTS.md). -->
 
 - Issue:
 - Written by: <!-- human, or Tool (model) -->
-- Independent review: <!-- not required / Tool (model), link -->
 
 ## What changed
 
