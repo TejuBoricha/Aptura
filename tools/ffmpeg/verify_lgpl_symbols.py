@@ -8,7 +8,8 @@ Enforces:
 2. Zero GPL / non-free flags (--enable-gpl, --enable-nonfree, --enable-version3)
 3. Zero network sockets / protocols (--disable-network, DEC-012)
 4. Zero bundled software video decoders (ADR-010)
-5. Audio decoders strictly confined to approved LGPL set (FLAC, Vorbis, Opus, MP3, AAC)
+5. Audio decoders strictly confined to approved LGPL set (FLAC, Vorbis, Opus, MP3). No bundled AAC: platform
+   decoders handle it and Via LA licensing is unresolved (ADR-010, spec 07, DEC-014).
 """
 
 import sys
@@ -36,7 +37,7 @@ MANDATORY_FLAGS = [
     "--disable-everything"
 ]
 
-APPROVED_AUDIO_DECODERS = {"flac", "vorbis", "opus", "mp3", "aac"}
+APPROVED_AUDIO_DECODERS = {"flac", "vorbis", "opus", "mp3"}
 
 def audit_ffmpeg_flags(flags: list[str]) -> tuple[bool, list[str]]:
     violations = []
@@ -76,8 +77,8 @@ def main():
         "--disable-doc",
         "--disable-network",
         "--disable-everything",
-        "--enable-decoder=flac,vorbis,opus,mp3,aac",
-        "--enable-parser=flac,vorbis,opus,mpegaudio,aac"
+        "--enable-decoder=flac,vorbis,opus,mp3",
+        "--enable-parser=flac,vorbis,opus,mpegaudio"
     ]
 
     print("Auditing Aptura FFmpeg Audio Extension configuration...")
