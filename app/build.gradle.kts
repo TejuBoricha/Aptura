@@ -79,21 +79,30 @@ abstract class WriteDependencyReport : DefaultTask() {
 }
 
 /**
- * Fails the build when the release APK still contains a network stack or a telemetry SDK. Dependency graphs say what is
- * *on the classpath*; R8 decides what is *shipped*, so the shipped code is checked as well.
+ * Fails the build when shipped release artifacts (APKs or App Bundles) contain a network stack or a telemetry SDK.
+ * Dependency graphs say what is *on the classpath*; R8 decides what is *shipped*, so the shipped code is checked as well.
  *
  * R8 renames classes (`okhttp3.internal.http.HttpHeaders` becomes `xb.e`), so searching the dex for library names finds
  * almost nothing. The primary check therefore reads R8's mapping file, which lists every class that survived under its
  * original name; the dex text search is kept as a second net for names R8 left in place.
  */
-abstract class VerifyApkContents : DefaultTask() {
+abstract class VerifyShippedContents : DefaultTask() {
+    @get:Optional
     @get:InputDirectory
     @get:PathSensitive(PathSensitivity.RELATIVE)
     abstract val apkDirectory: DirectoryProperty
 
+    @get:Optional
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val bundleFile: RegularFileProperty
+
     @get:InputFile
     @get:PathSensitive(PathSensitivity.NONE)
     abstract val mappingFile: RegularFileProperty
+
+    @get:Input
+    abstract val artifactLabel: Property<String>
 
     @get:Input
     abstract val forbiddenPackages: ListProperty<String>
@@ -103,6 +112,20 @@ abstract class VerifyApkContents : DefaultTask() {
 
     @TaskAction
     fun verify() {
+        val label = artifactLabel.get()
+        val archives = buildList {
+            apkDirectory.orNull?.asFile?.let { dir ->
+                val apks = dir.walkTopDown().filter { it.isFile && it.extension == "apk" }.toList()
+                check(apks.isNotEmpty()) { "No release APK found in $dir to verify" }
+                addAll(apks)
+            }
+            bundleFile.orNull?.asFile?.let { bundle ->
+                check(bundle.isFile) { "No release App Bundle found at $bundle to verify" }
+                add(bundle)
+            }
+        }
+        check(archives.isNotEmpty()) { "No release $label archive configured to verify" }
+
         val forbidden = forbiddenPackages.get()
         val findings = mutableListOf<String>()
 
@@ -122,30 +145,28 @@ abstract class VerifyApkContents : DefaultTask() {
         check(keptClasses > 1000) { "The R8 mapping lists only $keptClasses classes; refusing to report a pass" }
         keptByPackage.forEach { (pkg, count) -> findings += "R8 kept $count class(es) from $pkg" }
 
-        val apks = apkDirectory.get().asFile.walkTopDown().filter { it.isFile && it.extension == "apk" }.toList()
-        check(apks.isNotEmpty()) { "No release APK found in ${apkDirectory.get().asFile} to verify" }
         var dexFiles = 0
-        for (apk in apks) {
-            ZipFile(apk).use { zip ->
+        for (archive in archives) {
+            ZipFile(archive).use { zip ->
                 for (entry in zip.entries()) {
                     if (!entry.name.endsWith(".dex")) continue
                     dexFiles++
                     // ISO-8859-1 maps bytes 1:1, so class descriptors in the dex string table are searchable as text.
                     val text = String(zip.getInputStream(entry).use { it.readBytes() }, Charsets.ISO_8859_1)
-                    forbidden.filter { text.contains(it) }.forEach { findings += "${apk.name}!${entry.name} still names $it" }
+                    forbidden.filter { text.contains(it) }.forEach { findings += "${archive.name}!${entry.name} still names $it" }
                 }
             }
         }
-        check(dexFiles > 0) { "The release APKs contain no dex files; refusing to report a pass" }
+        check(dexFiles > 0) { "The release ${label}(s) contain no dex files; refusing to report a pass" }
         report.get().asFile.apply {
             parentFile.mkdirs()
             writeText(
-                "Checked $keptClasses kept classes and $dexFiles dex file(s) in ${apks.size} APK(s) against ${forbidden.size} forbidden packages.\n" +
+                "Checked $keptClasses kept classes and $dexFiles dex file(s) in ${archives.size} ${label}(s) against ${forbidden.size} forbidden packages.\n" +
                     findings.joinToString("\n")
             )
         }
         if (findings.isNotEmpty()) {
-            throw GradleException("The release APK contains forbidden code (zero-network / zero-telemetry invariants):\n" + findings.joinToString("\n"))
+            throw GradleException("The release $label contains forbidden code (zero-network / zero-telemetry invariants):\n" + findings.joinToString("\n"))
         }
     }
 }
@@ -163,6 +184,7 @@ class InvariantInputs(
 
 val releaseMergedManifest: RegularFileProperty = objects.fileProperty()
 val releaseApkDirectory: DirectoryProperty = objects.directoryProperty()
+val releaseBundleFile: RegularFileProperty = objects.fileProperty()
 val releaseMappingFile: RegularFileProperty = objects.fileProperty()
 
 val writeReleaseDependencies = tasks.register<WriteDependencyReport>("writeReleaseRuntimeDependencies") {
@@ -309,34 +331,47 @@ kotlin {
 }
 
 androidComponents {
-    // The merged manifest and APKs of the RELEASE variant are what ships, so those are what the invariants examine.
+    // The merged manifest, APKs, and App Bundle of the RELEASE variant are what ship, so those are what the invariants examine.
     onVariants(selector().withBuildType("release")) { variant ->
         releaseMergedManifest.set(variant.artifacts.get(SingleArtifact.MERGED_MANIFEST))
         releaseApkDirectory.set(variant.artifacts.get(SingleArtifact.APK))
+        releaseBundleFile.set(variant.artifacts.get(SingleArtifact.BUNDLE))
         releaseMappingFile.set(variant.artifacts.get(SingleArtifact.OBFUSCATION_MAPPING_FILE))
     }
 }
 
-val verifyReleaseApk = tasks.register<VerifyApkContents>("verifyReleaseApk") {
+val forbiddenShippedPackages = listOf(
+    // network stacks
+    "okhttp3/", "retrofit2/", "com/squareup/okhttp/", "com/android/volley/", "io/ktor/client/", "org/apache/http/",
+    // telemetry, crash-reporting and ad SDKs
+    "com/google/firebase/", "com/google/android/gms/", "io/sentry/", "com/mixpanel/", "com/datadog/", "com/newrelic/",
+    "com/appsflyer/", "com/adjust/sdk/", "com/amplitude/", "com/segment/", "com/bugsnag/", "ch/acra/", "org/acra/",
+    "com/flurry/", "com/microsoft/appcenter/"
+)
+
+val verifyReleaseApk = tasks.register<VerifyShippedContents>("verifyReleaseApk") {
     group = "verification"
     description = "Fails if a release APK contains a network stack or telemetry SDK."
     apkDirectory.set(releaseApkDirectory)
     mappingFile.set(releaseMappingFile)
-    forbiddenPackages.set(
-        listOf(
-            // network stacks
-            "okhttp3/", "retrofit2/", "com/squareup/okhttp/", "com/android/volley/", "io/ktor/client/", "org/apache/http/",
-            // telemetry, crash-reporting and ad SDKs
-            "com/google/firebase/", "com/google/android/gms/", "io/sentry/", "com/mixpanel/", "com/datadog/", "com/newrelic/",
-            "com/appsflyer/", "com/adjust/sdk/", "com/amplitude/", "com/segment/", "com/bugsnag/", "ch/acra/", "org/acra/",
-            "com/flurry/", "com/microsoft/appcenter/"
-        )
-    )
+    artifactLabel.set("APK")
+    forbiddenPackages.set(forbiddenShippedPackages)
     report.set(layout.buildDirectory.file("invariants/release-apk-check.txt"))
 }
 
-// Building a release APK now also proves what is inside it.
+val verifyReleaseBundle = tasks.register<VerifyShippedContents>("verifyReleaseBundle") {
+    group = "verification"
+    description = "Fails if the release App Bundle (.aab) contains a network stack or telemetry SDK."
+    bundleFile.set(releaseBundleFile)
+    mappingFile.set(releaseMappingFile)
+    artifactLabel.set("AAB")
+    forbiddenPackages.set(forbiddenShippedPackages)
+    report.set(layout.buildDirectory.file("invariants/release-bundle-check.txt"))
+}
+
+// Building a release APK or App Bundle (.aab) proves what is shipped inside it.
 tasks.matching { it.name == "assembleRelease" }.configureEach { finalizedBy(verifyReleaseApk) }
+tasks.matching { it.name == "bundleRelease" }.configureEach { finalizedBy(verifyReleaseBundle) }
 
 // Room writes each schema version here (committed) so migrations can be verified against real history.
 ksp {

@@ -4,7 +4,7 @@
 #   1. Unit Test Compilation (Catches syntax & visibility errors)
 #   2. Unit Test Suite (Enforces 30s timeout & fail-fast execution)
 #   3. Android Lint (Validates opt-in annotations, licenses & offline invariants)
-#   4. Release build, which also runs verifyReleaseApk (no network stack / telemetry SDK in the shipped code)
+#   4. Release APK + App Bundle builds, which also run verifyReleaseApk & verifyReleaseBundle (no network stack / telemetry SDK in the shipped code)
 #   5. Agent coordination checker tests (tools/agents), when Python 3 is installed; CI always runs them
 #   6. Secret file guard (tools/security): fails if a signing key or .env file is tracked; same condition as step 5
 # ==============================================================================
@@ -44,8 +44,10 @@ Run-Step "Execute Android Lint (Debug)" {
     .\gradlew.bat lintDebug --daemon
 }
 
-Run-Step "Release build + shipped-code invariants (R8, no network/telemetry code)" {
+Run-Step "Release APK + App Bundle (.aab) + shipped-code invariants (R8, no network/telemetry code)" {
     .\gradlew.bat assembleRelease --daemon
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    .\gradlew.bat bundleRelease --daemon
 }
 
 # Windows installs Python as `py`, `python` or `python3`; any of them will do. Skipped, not failed, without one,
