@@ -1,5 +1,7 @@
 # 11A — Legal Briefs (L1–L8) — prepared for counsel
 
+> **2026-11-14 update:** the owner decided there will be no lawyer. L1–L4 are answered, as far as primary sources allow, in [11B_LEGAL_RESEARCH_FINDINGS.md](11B_LEGAL_RESEARCH_FINDINGS.md). L5–L8 are not yet researched there. The questions below stay as the record of what was asked.
+
 **Version:** 0.5 (draft — **not legal advice**, and no position below has been reviewed by a lawyer); v0.5 records the **candidate brand names decided under OD-6 (Part 41)**: primary finalist **Aptura** (pinned `applicationId`: `org.aptura.player`) + finalists **Caelis** and **Pellucis** for L6 knockout clearance; v0.4 updated Brief L5 to reflect **global launch targeting** per owner decision OD-5 (Part 39); v0.3 added the paste-ready cover note (§0.1) and folded in Part 38 decisions; v0.2 added batch-B briefs L3–L8 (§4); v0.1 contained L1–L2 only.
 **Date:** 2026-10-20
 **Status:** Draft, docs-only. These are **briefs to send to counsel**, written so that answering them is cheap: the facts first, our reading second (stated so it can be corrected), then numbered questions each with the decision it changes. Companion to doc 11, numbered `11A` following the `02A`/`08A` precedent (the §22 deliverable set 00–18 is unchanged).
