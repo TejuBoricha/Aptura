@@ -322,6 +322,30 @@ class ElfRuleTests(unittest.TestCase):
     def test_a_truncated_elf_does_not_crash_the_audit(self):
         self.assertEqual(v.audit_elf("x/lib.so", make_elf()[:90]), [])
 
+    def test_a_dependency_an_apk_does_not_carry_is_rejected(self):
+        # The first real bundle linked libffmpegJNI.so against libc++_shared.so, which Android does not provide: it would fail to load.
+        data = make_elf(needed=("libavcodec.so", "libc++_shared.so", "libc.so"))
+        problems = v.audit_elf("arm64-v8a/libffmpegJNI.so", data, frozenset({"libavcodec.so", "libffmpegJNI.so"}))
+        self.assertEqual(len(problems), 1, problems)
+        self.assertIn("libc++_shared.so", problems[0])
+
+    def test_system_libraries_and_siblings_are_accepted(self):
+        data = make_elf(needed=("libavcodec.so", "libavutil.so", "liblog.so", "libandroid.so", "libm.so", "libdl.so", "libc.so"))
+        self.assertEqual(v.audit_elf("x/libffmpegJNI.so", data, frozenset({"libavcodec.so", "libavutil.so"})), [])
+
+    def test_without_siblings_the_dependency_check_is_skipped(self):
+        self.assertEqual(v.audit_elf("x/lib.so", make_elf(needed=("libsomething.so",))), [])
+
+    def test_the_library_audit_uses_the_libraries_in_the_same_folder_as_siblings(self):
+        with tempfile.TemporaryDirectory() as folder:
+            abi = Path(folder, "arm64-v8a")
+            abi.mkdir()
+            (abi / "libffmpegJNI.so").write_bytes(make_elf(soname="libffmpegJNI.so", needed=("libavcodec.so",)))
+            self.assertTrue(any("libavcodec.so" in p for p in v.audit_libraries([abi / "libffmpegJNI.so"], APPROVED)))
+            (abi / "libavcodec.so").write_bytes(make_elf(soname="libavcodec.so", needed=()) + b"ff_alac_decoder")
+            problems = v.audit_libraries([abi / "libffmpegJNI.so", abi / "libavcodec.so"], APPROVED)
+            self.assertEqual([p for p in problems if "depends on" in p], [])
+
     def test_the_elf_rules_run_inside_the_library_audit(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder, "libavcodec.so")
