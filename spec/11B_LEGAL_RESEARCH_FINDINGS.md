@@ -154,6 +154,7 @@ F-Droid (L7) and store-claims policy (L8) are separate pieces of work.
 | **D7** | Every FFmpeg we ship follows the LGPL package: dynamic libraries; the exact FFmpeg source, our build script and the configure line published beside the binary; the licence text and notice inside the app; an in-app open-source licences screen; no reverse-engineering prohibition. A test compares the licence list with the release dependency list. | 3.1–3.2, 3.6 |
 | **D8** | Wording rules in §6 become standing rules for UI and store copy. | §6 |
 | **D9** | Re-verify the patent rows at every release gate and on these dates: **2027-02-07** (DTS). | 4.3 |
+| **D10** | Build FFmpeg **n9.0.2** (pinned by commit) for the first self-built release; 7.1.5 and 8.0.3 stay as CI canaries. Recorded as DEC-023. | CI run 43605271370: all nine builds passed the guard and compiled Media3's JNI |
 
 ## 9. Not established, and what would change the answer
 
