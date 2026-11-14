@@ -1,0 +1,8 @@
+# Security advisories the project has looked at and accepted, for tools/security/osv_check.py.
+#
+# One per line:  ADVISORY-ID  YYYY-MM-DD  why it does not apply here
+# The date is when the acceptance runs out. After it the nightly job fails again, so the decision gets reviewed instead of
+# being forgotten. Prefer fixing the version (a constraint in app/build.gradle.kts raises a transitive library) to listing
+# an advisory here; list one only after judging that the vulnerable code cannot be reached.
+#
+# Currently empty: no advisory applies to the shipped libraries.
