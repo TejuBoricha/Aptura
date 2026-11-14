@@ -106,7 +106,7 @@ Some properties are too important to leave to a code review:
 - **Shipped code:** `verifyReleaseApk` and `verifyReleaseBundle` read the R8 mapping and every shipped dex file inside the release APKs and `.aab` bundle, because the classpath is not what ships.
 - **Domain purity:** no Android imports under `domain/`.
 - **Schema:** committed Room schemas and migration tests.
-- **Licensing:** no software video decoder is bundled. `tools/ffmpeg/verify_lgpl_symbols.py` describes the LGPL audio build the project wants, but nothing runs it on the prebuilt decoder that ships today (DEC-014 in spec/17).
+- **Licensing:** no software video decoder is bundled. `tools/ffmpeg/verify_lgpl_symbols.py` audits an FFmpeg build record (`config.h`) and built libraries against the approved decoder list `tools/ffmpeg/approved_decoders.txt`; its tests (`python -m unittest discover -s tools/ffmpeg`, run by the gate and CI) prove it fails on a GPL or nonfree licence, an unapproved decoder, a stripped `libavcodec` and on no input at all. Run on the prebuilt decoder that ships today it fails (7 unapproved decoders in each ABI: aac, aac_latm, ac3, dca, eac3, mlp, truehd), which is DEC-014's open problem, so it is not yet a check on the shipped APK. The self-built replacement that it will guard is LEG-02.
 
 If you add a dependency, run the gate. If it is a network or telemetry library, the build will fail for a reason.
 
