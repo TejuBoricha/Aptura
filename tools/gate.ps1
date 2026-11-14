@@ -9,6 +9,7 @@
 #   4. Agent coordination checker tests (tools/agents), when Python 3 is installed; CI always runs them
 #   5. Secret & workflow pin guards (tools/security): fails on tracked secrets or unpinned workflow actions
 #   6. Release-scope tests (tools/gate) and release smoke script tests (tools/smoke)
+#   7. A warning (never a failure) for commits that no remote has, from tools/gate/unpushed_commits.py
 # ==============================================================================
 
 param(
@@ -117,7 +118,19 @@ if ($python) {
     Write-Host "`n>>> [SKIPPED] Agent coordination checker and secret file guard: Python 3 not found (CI runs them)" -ForegroundColor Yellow
 }
 
+# Commits that exist only on this machine are lost with it. This is a warning, not a failure: a branch being worked on is
+# expected to be ahead of its remote. It is deliberately not a Run-Step, which would stop the gate on a non-zero exit.
+$unpushedWarning = $false
+if ($python) {
+    Write-Host "`n>>> [CHECK] Commits that no remote has (warning only)..." -ForegroundColor Cyan
+    & $python tools/gate/unpushed_commits.py
+    if ($LASTEXITCODE -ne 0) { $unpushedWarning = $true }
+}
+
 Write-Host "`n==========================================================" -ForegroundColor Green
 Write-Host " ALL QUALITY GATES PASSED (0 Errors, 0 Regressions)" -ForegroundColor Green
 Write-Host "==========================================================" -ForegroundColor Green
+if ($unpushedWarning) {
+    Write-Host " NOTE: some commits exist only on this machine (see the warning above). The gate passed; they are not backed up." -ForegroundColor Yellow
+}
 exit 0
