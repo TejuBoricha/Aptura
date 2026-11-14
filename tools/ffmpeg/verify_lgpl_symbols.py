@@ -29,8 +29,32 @@ from pathlib import Path
 
 DEFAULT_APPROVED = Path(__file__).resolve().with_name("approved_decoders.txt")
 
-# Parsers the approved decoders may bring along. Anything else switched on is a violation.
-APPROVED_PARSERS = {"flac", "vorbis", "opus", "mpegaudio"}
+# Parsers the approved decoders may bring along. Anything else switched on is a violation. FFmpeg's configure makes the AC-3 decoder
+# depend on the AC-3 frame-header parser (`ac3_decoder_select="ac3_parser ac3dsp bswapdsp fmtconvert"`, checked in n9.0.2), and no
+# other approved decoder needs a parser.
+APPROVED_PARSERS = {"ac3"}
+
+# Codecs that policy holds back (spec/11B Appendix C.1, DEC-021) although a sibling decoder is approved. FFmpeg's E-AC-3 code, with the
+# adaptive hybrid transform, is compiled only together with the `eac3` decoder: `ac3dec_float.c` includes `eac3dec.c` under
+# CONFIG_EAC3_DECODER, `eac3_decoder_select="ac3_decoder"`, and `eac3_data.c` (the transform's vector-quantisation table and the other
+# E-AC-3 only tables) is linked only for the E-AC-3 decoder or encoder (checked in n9.0.2). The AC-3 decoder itself does carry some
+# `ff_eac3_*` tables (for example `ff_eac3_hebap_tab`), so a library built without `eac3` is NOT free of that prefix. These exact,
+# non-static names are the ones only the E-AC-3 build defines, and unlike a static function they cannot be inlined away. Finding one
+# in a library built without `eac3` means the E-AC-3 code was linked in after all, which a build record alone would not show; an
+# FFmpeg upgrade that moved the code would fail here instead of shipping it silently.
+HELD_BACK_CODE = {
+    "eac3": frozenset(
+        {
+            "ff_eac3_mantissa_vq",
+            "ff_eac3_gaq_remap_1",
+            "ff_eac3_gaq_remap_2_4_a",
+            "ff_eac3_gaq_remap_2_4_b",
+            "ff_eac3_frm_expstr",
+            "ff_eac3_bits_vs_hebap",
+            "ff_eac3_spx_atten_tab",
+        }
+    )
+}
 
 FORBIDDEN_FLAGS = {
     "--enable-gpl",
@@ -271,12 +295,13 @@ def audit_elf(label: str, data: bytes, siblings: frozenset[str] | None = None) -
 DECODER_OBJECT = re.compile(rb"^ff_([a-z0-9_]+)_decoder$")
 
 
-def elf_decoder_objects(data: bytes) -> set[str] | None:
-    """Decoder names from the ELF symbol table, counting only data objects.
+STT_OBJECT = 1
 
-    A real decoder is a `const FFCodec ff_<name>_decoder` object. FFmpeg 8 also has a helper function called `ff_codec_is_decoder`,
-    which a plain text search reads as a decoder named "codec_is"; its symbol type (function, not object) tells them apart.
-    Returns None when there is no symbol table to read (not an ELF, or stripped), so the caller can fall back to a text search.
+
+def elf_symbols(data: bytes) -> list[tuple[str, int]] | None:
+    """(name, symbol type) of every named symbol in the ELF symbol tables, or None when there is no symbol table to read.
+
+    None means "not an ELF, or stripped", so the callers can fall back to a text search or report that nothing can be proven.
     """
     if len(data) < 64 or data[:4] != b"\x7fELF" or data[5] != 1:
         return None
@@ -298,7 +323,7 @@ def elf_decoder_objects(data: bytes) -> set[str] | None:
             else:
                 _name, kind, _flags, _addr, offset, size, link, _info, _align, _entsize = struct.unpack_from("<IIIIIIIIII", data, base)
             sections.append((kind, offset, size, link))
-        names: set[str] = set()
+        symbols: list[tuple[str, int]] = []
         found_table = False
         for kind, offset, size, link in sections:
             if kind not in (2, 11):  # SHT_SYMTAB, SHT_DYNSYM
@@ -311,15 +336,42 @@ def elf_decoder_objects(data: bytes) -> set[str] | None:
                     st_name, st_info, _other, _shndx, _value, _size = struct.unpack_from("<IBBHQQ", data, position)
                 else:
                     st_name, _value, _size, st_info, _other, _shndx = struct.unpack_from("<IIIBBH", data, position)
-                if not st_name or (st_info & 0xF) != 1:  # STT_OBJECT only
+                if not st_name:
                     continue
                 start = strings_at + st_name
-                match = DECODER_OBJECT.match(data[start:data.index(b"\0", start)])
-                if match:
-                    names.add(match.group(1).decode())
-        return names if found_table else None
+                symbols.append((data[start:data.index(b"\0", start)].decode("latin-1"), st_info & 0xF))
+        return symbols if found_table else None
     except (struct.error, ValueError, IndexError):
         return None
+
+
+def elf_decoder_objects(data: bytes) -> set[str] | None:
+    """Decoder names from the ELF symbol table, counting only data objects.
+
+    A real decoder is a `const FFCodec ff_<name>_decoder` object. FFmpeg 8 also has a helper function called `ff_codec_is_decoder`,
+    which a plain text search reads as a decoder named "codec_is"; its symbol type (function, not object) tells them apart.
+    Returns None when there is no symbol table to read (not an ELF, or stripped), so the caller can fall back to a text search.
+    """
+    symbols = elf_symbols(data)
+    if symbols is None:
+        return None
+    matches = (DECODER_OBJECT.match(name.encode("latin-1")) for name, kind in symbols if kind == STT_OBJECT)
+    return {match.group(1).decode() for match in matches if match}
+
+
+def held_back_code(data: bytes, approved: set[str]) -> list[str]:
+    """Symbols of a held-back codec's code in a library built without that codec's decoder.
+
+    Only meaningful for libavcodec with a readable symbol table; returns nothing when the table cannot be read (the caller already
+    fails a stripped libavcodec) or when the held-back decoder is approved after all.
+    """
+    symbols = elf_symbols(data) or []
+    found: list[str] = []
+    for decoder, names in sorted(HELD_BACK_CODE.items()):
+        if decoder in approved:
+            continue
+        found += [f"{name} ({decoder} code)" for name, _kind in symbols if name in names]
+    return sorted(set(found))
 
 
 def audit_libraries(libraries: list[Path], approved: set[str]) -> list[str]:
@@ -335,6 +387,9 @@ def audit_libraries(libraries: list[Path], approved: set[str]) -> list[str]:
         decoders = in_symbol_table if in_symbol_table is not None else {m.group(1).decode() for m in DECODER_SYMBOL.finditer(data)}
         for decoder in sorted(decoders - approved):
             violations.append(f"{label}: contains a decoder that is not approved: {decoder}")
+        if library.name.startswith("libavcodec"):
+            for symbol in held_back_code(data, approved)[:5]:
+                violations.append(f"{label}: contains code of a codec that policy holds back: {symbol}")
         if GPL_LICENCE.search(data):
             violations.append(f"{label}: carries a GPL or nonfree licence string")
         violations += audit_elf(label, data, frozenset(sibling.name for sibling in libraries if sibling.parent == library.parent))

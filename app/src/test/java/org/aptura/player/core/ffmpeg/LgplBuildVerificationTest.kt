@@ -5,6 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import java.util.Properties
 
 /**
  * The build records of one ABI of the FFmpeg bundle, parsed from the files the bundle ships next to the libraries
@@ -28,7 +29,12 @@ internal class FfmpegBuildRecord(val abi: String, config: String, components: St
     /** Everything else that was switched on besides decoders, such as encoders, muxers, protocols or hardware acceleration. */
     val otherComponents: List<String> = enabledComponents.filterNot { it.endsWith("_DECODER") || it.endsWith("_PARSER") }
 
-    fun violations(approvedDecoders: Set<String>): List<String> = buildList {
+    /**
+     * [allowedDecoders] is what policy allows (tools/ffmpeg/approved_decoders.txt); [declaredDecoders] is what the pin
+     * (gradle/ffmpeg-bundle.properties) says this bundle contains. Policy may be ahead of the pin while a new bundle is being
+     * built, so a decoder that is allowed but not yet declared is only a problem when the bundle actually has it.
+     */
+    fun violations(allowedDecoders: Set<String>, declaredDecoders: Set<String> = allowedDecoders): List<String> = buildList {
         if (license != "LGPL version 2.1 or later") add("$abi: FFmpeg recorded its licence as '$license'")
         for (flag in listOf("CONFIG_GPL", "CONFIG_NONFREE", "CONFIG_VERSION3")) {
             if (configValues[flag] != "0") add("$abi: $flag is ${configValues[flag]}, expected 0")
@@ -45,14 +51,22 @@ internal class FfmpegBuildRecord(val abi: String, config: String, components: St
             if (!configuration.contains(required)) add("$abi: the configure line lacks $required")
         }
         if (configValues["CONFIG_SHARED"] != "1" || configValues["CONFIG_STATIC"] != "0") add("$abi: not built as shared libraries")
-        (decoders - approvedDecoders).sorted().forEach { add("$abi: decoder '$it' is built but not in approved_decoders.txt") }
-        (approvedDecoders - decoders).sorted().forEach { add("$abi: approved decoder '$it' is missing from the build") }
+        val notAllowed = decoders - allowedDecoders
+        notAllowed.sorted().forEach { add("$abi: decoder '$it' is built but not in approved_decoders.txt") }
+        (decoders - declaredDecoders - notAllowed).sorted().forEach { add("$abi: decoder '$it' is built but the pin does not declare it") }
+        (declaredDecoders - decoders).sorted().forEach { add("$abi: declared decoder '$it' is missing from the build") }
         otherComponents.forEach { add("$abi: $it is switched on; the extension is for decoding only") }
         if (commit == null) add("$abi: BUILD-INFO.txt names no 40-digit source commit")
     }
 }
 
-/** Automated check that the FFmpeg the app links is the LGPL, shared-library, approved-decoder build (ADR-010, DEC-014, DEC-020). */
+/** The pin must name at least one decoder, and none that policy does not allow. */
+internal fun pinViolations(declared: Set<String>, allowed: Set<String>): List<String> = buildList {
+    if (declared.isEmpty()) add("gradle/ffmpeg-bundle.properties declares no decoders")
+    (declared - allowed).sorted().forEach { add("the pin declares decoder '$it', which approved_decoders.txt does not allow") }
+}
+
+/** Automated check that the FFmpeg the app links is the LGPL, shared-library, approved-decoder build (ADR-010, DEC-014, DEC-020, DEC-021). */
 class LgplBuildVerificationTest {
 
     private val shippedAbis = listOf("arm64-v8a", "armeabi-v7a", "x86_64")
@@ -61,6 +75,14 @@ class LgplBuildVerificationTest {
         val file = listOf("tools/ffmpeg/approved_decoders.txt", "../tools/ffmpeg/approved_decoders.txt").map(::File).firstOrNull { it.isFile }
         assertTrue("tools/ffmpeg/approved_decoders.txt was not found from ${File(".").absolutePath}", file != null)
         return file!!.readLines().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") }.toSet()
+    }
+
+    /** The decoders the pin (gradle/ffmpeg-bundle.properties) says the pinned bundle contains. */
+    private fun pinDecoders(): Set<String> {
+        val file = listOf("gradle/ffmpeg-bundle.properties", "../gradle/ffmpeg-bundle.properties").map(::File).firstOrNull { it.isFile }
+        assertTrue("gradle/ffmpeg-bundle.properties was not found from ${File(".").absolutePath}", file != null)
+        val properties = Properties().apply { file!!.inputStream().use { load(it) } }
+        return properties.getProperty("decoders").orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }.toSet()
     }
 
     private fun records(): List<FfmpegBuildRecord> = shippedAbis.map { abi ->
@@ -77,17 +99,29 @@ class LgplBuildVerificationTest {
 
     @Test
     fun theLinkedFfmpeg_isLgplSharedAndDecodesOnlyTheApprovedFormats_onEveryShippedAbi() {
-        val problems = records().flatMap { it.violations(approvedDecoders()) }
+        val problems = records().flatMap { it.violations(approvedDecoders(), pinDecoders()) } + pinViolations(pinDecoders(), approvedDecoders())
 
         assertTrue("The FFmpeg bundle breaks the LGPL / approved-decoder policy:\n" + problems.joinToString("\n") { " - $it" }, problems.isEmpty())
     }
 
     @Test
-    fun theApprovedList_isTheSmallOneThePolicyDecided() {
-        // Guards the guard: an emptied or widened approved list would make the test above agree with anything.
-        // spec/11B D2 and DEC-020. Widening it (the AC-3 / E-AC-3 add-back, DEC-021) is a decision, so this line changes with it.
-        assertEquals(setOf("alac", "pcm_alaw", "pcm_mulaw"), approvedDecoders())
-        assertEquals(setOf("alac", "pcm_alaw", "pcm_mulaw"), records().first().decoders)
+    fun thePolicy_andThePin_areTheListsTheOwnerDecided() {
+        // Guards the guard: an emptied or widened list would make the test above agree with anything.
+        // spec/11B D2 and D3, DEC-020 and DEC-021 (AC-3 added by the owner's decision of 2026-11-15; E-AC-3 held). Widening the list
+        // is a decision, so this line changes with it.
+        assertEquals(setOf("ac3", "alac", "pcm_alaw", "pcm_mulaw"), approvedDecoders())
+        assertTrue("the pin declares no decoders", pinDecoders().isNotEmpty())
+        for (held in listOf("eac3", "dca", "truehd", "aac")) {
+            assertTrue("$held must not be approved", held !in approvedDecoders())
+            assertTrue("$held must not be in the pinned bundle", held !in pinDecoders())
+        }
+    }
+
+    @Test
+    fun everyShippedAbi_containsExactlyWhatThePinDeclares() {
+        for (record in records()) {
+            assertEquals("${record.abi}: the bundle's decoders differ from the pin", pinDecoders(), record.decoders)
+        }
     }
 
     @Test
@@ -174,6 +208,32 @@ class LgplBuildVerificationTest {
         val problems = record().violations(setOf("alac", "pcm_alaw"))
 
         assertTrue(problems.toString(), problems.any { it.contains("'pcm_alaw'") && it.contains("missing") })
+    }
+
+    @Test
+    fun fixture_policyAheadOfThePin_isFine_untilTheBundleActuallyHasTheNewDecoder() {
+        // A new decoder is allowed first, then built and published, then declared by the pin. In between nothing is wrong.
+        assertEquals(emptyList<String>(), record().violations(allowedDecoders = setOf("alac", "ac3"), declaredDecoders = setOf("alac")))
+
+        val problems = record(components = goodComponents + "#define CONFIG_AC3_DECODER 1\n")
+            .violations(allowedDecoders = setOf("alac", "ac3"), declaredDecoders = setOf("alac"))
+        assertEquals(problems.toString(), 1, problems.size)
+        assertTrue(problems.toString(), problems.single().contains("'ac3'") && problems.single().contains("pin does not declare"))
+    }
+
+    @Test
+    fun fixture_aDecoderThePolicyDoesNotAllow_isCaughtEvenIfThePinDeclaresIt() {
+        val problems = record(components = goodComponents + "#define CONFIG_EAC3_DECODER 1\n")
+            .violations(allowedDecoders = setOf("alac", "ac3"), declaredDecoders = setOf("alac", "eac3"))
+
+        assertTrue(problems.toString(), problems.any { it.contains("'eac3'") && it.contains("not in approved_decoders.txt") })
+    }
+
+    @Test
+    fun fixture_aPinThatNamesWhatPolicyForbids_orNothing_isCaught() {
+        assertEquals(emptyList<String>(), pinViolations(setOf("alac", "ac3"), setOf("alac", "ac3", "pcm_alaw")))
+        assertTrue(pinViolations(setOf("alac", "eac3"), setOf("alac", "ac3")).single().contains("'eac3'"))
+        assertTrue(pinViolations(emptySet(), setOf("alac")).single().contains("declares no decoders"))
     }
 
     @Test

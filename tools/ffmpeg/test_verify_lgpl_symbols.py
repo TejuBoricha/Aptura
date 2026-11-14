@@ -14,6 +14,8 @@ from pathlib import Path
 import verify_lgpl_symbols as v
 
 APPROVED = {"alac", "pcm_alaw", "pcm_mulaw"}
+# What policy allows today (tools/ffmpeg/approved_decoders.txt). The fixtures above are the three-decoder bundle that shipped first.
+POLICY = APPROVED | {"ac3"}
 GOOD_CONFIGURE = (
     "--enable-shared --disable-static --disable-gpl --disable-nonfree --disable-version3 --disable-programs "
     "--disable-doc --disable-network --disable-autodetect --disable-everything "
@@ -67,7 +69,10 @@ class BuildRecordTests(unittest.TestCase):
 
     def test_an_unapproved_parser_is_caught_and_an_approved_one_is_not(self):
         self.assertIn("parser built but not approved: h264", self.audit(extra_components="#define CONFIG_H264_PARSER 1\n"))
-        self.assertEqual(self.audit(extra_components="#define CONFIG_FLAC_PARSER 1\n"), [])
+        # FLAC was approved once; it is not now, so neither is its parser.
+        self.assertIn("parser built but not approved: flac", self.audit(extra_components="#define CONFIG_FLAC_PARSER 1\n"))
+        # The AC-3 decoder brings the AC-3 frame-header parser with it (FFmpeg's configure selects it, checked in n9.0.2).
+        self.assertEqual(self.audit(extra_components="#define CONFIG_AC3_PARSER 1\n"), [])
 
     def test_gpl_nonfree_version3_and_network_switches_are_caught(self):
         for name in ("GPL", "NONFREE", "VERSION3", "NETWORK"):
@@ -286,6 +291,56 @@ class SymbolTableTests(unittest.TestCase):
         self.assertIsNone(v.elf_decoder_objects(make_elf_with_symbols([("ff_alac_decoder", STT_OBJECT)])[:80]))
 
 
+class HeldBackCodeTests(unittest.TestCase):
+    """A library built without `eac3` must not carry the code only the E-AC-3 build links (DEC-021)."""
+
+    def audit(self, symbols, approved=POLICY, name="libavcodec.so"):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder, name)
+            path.write_bytes(make_elf_with_symbols(symbols))
+            return v.audit_libraries([path], approved)
+
+    def held(self, problems):
+        return [p for p in problems if "policy holds back" in p]
+
+    def test_the_tables_only_the_eac3_build_links_are_caught(self):
+        for table in ("ff_eac3_mantissa_vq", "ff_eac3_gaq_remap_1", "ff_eac3_frm_expstr", "ff_eac3_spx_atten_tab"):
+            with self.subTest(table=table):
+                problems = self.held(self.audit([("ff_ac3_decoder", STT_OBJECT), (table, STT_OBJECT)]))
+                self.assertEqual(1, len(problems), problems)
+                self.assertIn(table, problems[0])
+
+    def test_the_eac3_decoder_itself_is_still_caught_as_an_unapproved_decoder(self):
+        problems = self.audit([("ff_ac3_decoder", STT_OBJECT), ("ff_eac3_decoder", STT_OBJECT)])
+        self.assertIn("contains a decoder that is not approved: eac3", " ".join(problems))
+
+    def test_the_eac3_tables_the_ac3_decoder_carries_anyway_are_not_a_violation(self):
+        # ac3dec_data.c and ac3tab.c define these for the AC-3 decoder (checked in the n9.0.2 source); a blanket "eac3" match would
+        # have failed a correct build.
+        carried = [
+            ("ff_eac3_hebap_tab", STT_OBJECT), ("ff_eac3_gain_levels_lfe", STT_OBJECT),
+            ("ff_eac3_custom_channel_map_locations", STT_OBJECT), ("ff_eac3_default_cpl_band_struct", STT_OBJECT),
+        ]
+        self.assertEqual(self.audit([("ff_ac3_decoder", STT_OBJECT)] + carried), [])
+
+    def test_a_clean_ac3_only_library_passes(self):
+        self.assertEqual(self.audit([("ff_ac3_decoder", STT_OBJECT), ("ff_alac_decoder", STT_OBJECT)]), [])
+
+    def test_nothing_is_flagged_once_eac3_is_approved(self):
+        problems = self.audit([("ff_ac3_decoder", STT_OBJECT), ("ff_eac3_mantissa_vq", STT_OBJECT)], approved=POLICY | {"eac3"})
+        self.assertEqual(self.held(problems), [])
+
+    def test_other_libraries_are_not_audited_for_it(self):
+        self.assertEqual(self.held(self.audit([("ff_eac3_mantissa_vq", STT_OBJECT)], name="libswresample.so")), [])
+
+    def test_a_stripped_library_is_left_to_the_other_checks(self):
+        # No symbol table, so the symbols cannot be read; the existing rule already fails a libavcodec with nothing to read.
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder, "libavcodec.so")
+            path.write_bytes(b"\0ff_ac3_decoder\0")
+            self.assertEqual(self.held(v.audit_libraries([path], POLICY)), [])
+
+
 class ElfRuleTests(unittest.TestCase):
     """The rules a shipped native library must meet: 16 KB pages on 64-bit, and names an APK can carry."""
 
@@ -379,10 +434,12 @@ class CommandLineTests(unittest.TestCase):
 
 class PolicyFileTests(unittest.TestCase):
     def test_the_approved_list_is_what_the_platform_does_not_guarantee_and_is_free(self):
-        self.assertEqual(v.load_approved(v.DEFAULT_APPROVED), APPROVED)
+        # spec/11B D2 and D3, DEC-020 and DEC-021 (AC-3 added by the owner's decision of 2026-11-15). Widening it is a decision.
+        self.assertEqual(v.load_approved(v.DEFAULT_APPROVED), POLICY)
 
     def test_nothing_with_a_licence_question_is_approved(self):
-        for name in ("aac", "aac_latm", "ac3", "eac3", "dca", "truehd", "mlp", "h264", "hevc", "av1", "vp9"):
+        # E-AC-3 ("eac3") is held back on purpose: Dolby decoder patents that name it run to about 2030 (DEC-021).
+        for name in ("aac", "aac_latm", "eac3", "dca", "truehd", "mlp", "h264", "hevc", "av1", "vp9"):
             self.assertNotIn(name, v.load_approved(v.DEFAULT_APPROVED), name)
 
     def test_nothing_the_android_cdd_already_guarantees_is_bundled(self):

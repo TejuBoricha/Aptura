@@ -58,6 +58,13 @@ cp "$SRC/LICENSE.md" "$BUNDLE/licenses/FFmpeg-LICENSE.md"
 curl -fsSL -o "$BUNDLE/source/ffmpeg_jni.cc" "https://raw.githubusercontent.com/androidx/media/1.5.1/libraries/decoder_ffmpeg/src/main/jni/ffmpeg_jni.cc"
 curl -fsSL -o "$BUNDLE/licenses/AndroidX-Media-LICENSE-Apache-2.0.txt" "https://raw.githubusercontent.com/androidx/media/1.5.1/LICENSE"
 
+# The decoders, as the build itself recorded them (the same line for every ABI), so this text can never disagree with the libraries.
+DECODERS="$(sed -n 's/^Decoders: *//p' "$BUNDLE/build-records/arm64-v8a/BUILD-INFO.txt" | head -n 1)"
+if [ -z "$DECODERS" ]; then
+    echo "ERROR: build-records/arm64-v8a/BUILD-INFO.txt has no Decoders line." >&2
+    exit 1
+fi
+
 cat > "$BUNDLE/README.txt" <<EOF
 Aptura FFmpeg audio libraries, $TAG, revision $REVISION
 ========================================================
@@ -65,7 +72,7 @@ Aptura FFmpeg audio libraries, $TAG, revision $REVISION
 What this is
   Shared libraries (libavcodec.so, libavutil.so, libswresample.so) built from unmodified upstream FFmpeg $TAG, commit
   $COMMIT, plus libffmpegJNI.so, AndroidX Media 1.5.1's JNI glue (Apache-2.0) linked against them. They decode only the audio
-  formats listed in the build records (ALAC and G.711 A-law and mu-law). Layout: jniLibs/<abi>/ for arm64-v8a, armeabi-v7a, x86_64.
+  formats listed in the build records (FFmpeg decoders: $DECODERS). Layout: jniLibs/<abi>/ for arm64-v8a, armeabi-v7a, x86_64.
 
 Licences
   FFmpeg is licensed under the GNU Lesser General Public License version 2.1 or later (licenses/FFmpeg-COPYING.LGPLv2.1.txt). It was
