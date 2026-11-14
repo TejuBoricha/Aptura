@@ -1,5 +1,6 @@
 package org.aptura.player.ui.settings
 
+import android.content.Context
 import android.os.Looper
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -15,6 +16,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.printToString
 import androidx.compose.ui.test.performScrollToNode
+import org.aptura.player.core.legal.LicenseDocument
 import org.aptura.player.core.legal.LicenseDocuments
 import org.aptura.player.theme.ApturaTheme
 import org.junit.Assert.assertEquals
@@ -25,6 +27,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import kotlin.math.abs
 
 /**
  * Settings > Open-source licences. The notice that FFmpeg is used (LGPL-2.1 section 6) must be where nobody has to look for it,
@@ -38,9 +41,29 @@ class LicensesScreenUiTest {
     @get:Rule
     val composeRule = createComposeRule()
 
-    private fun show(onBack: () -> Unit = {}) {
-        composeRule.setContent { ApturaTheme { LicensesScreen(onBackClick = onBack) } }
+    private fun show(
+        onBack: () -> Unit = {},
+        readText: (Context, LicenseDocument) -> String = LicenseDocuments::read
+    ) {
+        composeRule.setContent { ApturaTheme { LicensesScreen(onBackClick = onBack, readText = readText) } }
         composeRule.waitForIdle()
+    }
+
+    /**
+     * An opened row is brought as high as the list allows: right under the back button, whose row's top edge sits one content
+     * padding (8 dp) below the top bar (the window here is 1 px per dp and has no status bar inset), or, when what is left
+     * below it is too short to fill the screen (a short text in the last row), with the list scrolled to its very end.
+     */
+    private fun assertRowIsAsHighAsTheListAllows(id: String) {
+        val top = composeRule.onNodeWithTag(licenseDocumentTag(id)).fetchSemanticsNode().boundsInRoot.top
+        val atTheTop = (SETTINGS_TOP_BAR_HEIGHT_DP + 8) * composeRule.density.density
+        val range = composeRule.onNode(hasScrollAction()).fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange]
+        val atTheEnd = range.value() >= range.maxValue() - 1f
+        assertTrue(
+            "the '$id' row should be at the top ($atTheTop px) or the list at its end, but the row's top edge is at $top px " +
+                "and the list is scrolled ${range.value()} of ${range.maxValue()}",
+            abs(top - atTheTop) <= 2f || atTheEnd
+        )
     }
 
     private fun scrollTo(tag: String) {
@@ -139,11 +162,52 @@ class LicensesScreenUiTest {
         scrollTo(licenseDocumentTag("protobuf"))
         composeRule.onNodeWithTag(licenseDocumentTag("protobuf")).performClick()
         waitForText("Redistributions in binary form must reproduce the above")
+        assertRowIsAsHighAsTheListAllows("protobuf")
 
         assertTrue(
             "the Apache text should have closed when the Protocol Buffers row opened",
             composeRule.onAllNodesWithText("TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION", substring = true)
                 .fetchSemanticsNodes().isEmpty()
         )
+    }
+
+    /**
+     * Regression: the row was scrolled to the top while its text was still being read, when only a "Reading…" line sat below it,
+     * so the list could not scroll far enough; once the text arrived nothing moved it, and the first lines opened below the
+     * fold. It passed when the read was fast and failed on a slow CI runner. A deliberately slow read must give the same result.
+     */
+    @Test
+    fun aSlowRead_stillBringsTheOpenedRowToTheTop_withItsTextInView() {
+        show(readText = { context, document ->
+            Thread.sleep(600)
+            LicenseDocuments.read(context, document)
+        })
+        scrollTo(licenseDocumentTag("aptura"))
+        composeRule.onNodeWithTag(licenseDocumentTag("aptura")).performClick()
+        waitForText("TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION")
+        assertRowIsAsHighAsTheListAllows("aptura")
+
+        scrollTo(licenseDocumentTag("protobuf"))
+        composeRule.onNodeWithTag(licenseDocumentTag("protobuf")).performClick()
+        waitForText("Redistributions in binary form must reproduce the above")
+        assertRowIsAsHighAsTheListAllows("protobuf")
+    }
+
+    @Test
+    fun reopeningAnAlreadyReadText_bringsItsRowToTheTopAgain() {
+        show()
+        scrollTo(licenseDocumentTag("aptura"))
+        composeRule.onNodeWithTag(licenseDocumentTag("aptura")).performClick()
+        waitForText("TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION")
+        scrollTo(licenseDocumentTag("protobuf"))
+        composeRule.onNodeWithTag(licenseDocumentTag("protobuf")).performClick()
+        waitForText("Redistributions in binary form must reproduce the above")
+
+        // Apache's text was read before, so this time it is shown at once and nothing is read.
+        scrollTo(licenseDocumentTag("aptura"))
+        composeRule.onNodeWithTag(licenseDocumentTag("aptura")).performClick()
+        waitForText("TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION")
+        composeRule.waitForIdle()
+        assertRowIsAsHighAsTheListAllows("aptura")
     }
 }
