@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import shlex
 import struct
 import sys
 from pathlib import Path
@@ -123,7 +124,14 @@ def audit_build_dir(build_dir: Path, approved: set[str]) -> list[str]:
     if configuration is None:
         violations.append("config.h does not record FFMPEG_CONFIGURATION")
     else:
-        violations += audit_flags(configuration.split(), approved)
+        # FFmpeg records the arguments shell-quoted, for example --enable-decoder='alac,pcm_alaw' (seen in a real CI build),
+        # inside a C string literal whose own quotes and backslashes are escaped. Undo both before looking at the flags.
+        try:
+            arguments = shlex.split(configuration.replace('\\"', '"').replace("\\\\", "\\"))
+        except ValueError as error:
+            violations.append(f"FFMPEG_CONFIGURATION cannot be parsed ({error}), so the flags cannot be audited")
+        else:
+            violations += audit_flags(arguments, approved)
 
     enabled: dict[str, set[str]] = {}
     for name, value in CONFIG_FLAG.findall(components_h):

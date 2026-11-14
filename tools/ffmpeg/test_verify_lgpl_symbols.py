@@ -89,6 +89,31 @@ class BuildRecordTests(unittest.TestCase):
         self.assertIn("missing mandatory configure flag: --disable-everything", self.audit(configure=GOOD_CONFIGURE.replace("--disable-everything", "")))
         self.assertIn("configure enables a decoder that is not approved: ac3", self.audit(configure=GOOD_CONFIGURE + " --enable-decoder=ac3"))
 
+    # FFmpeg records its arguments shell-quoted. This is the shape a real CI build produced (n7.1.5, arm64-v8a); the first version of the
+    # verifier split on whitespace and reported the decoders `'alac` and `pcm_mulaw'` as unapproved.
+    REAL_SHAPE = (
+        "--prefix=/home/runner/work/_temp/stage --target-os=android --arch=aarch64 --enable-cross-compile --extra-cflags='' "
+        "--extra-ldflags='-Wl,-z,max-page-size=16384' --disable-gpl --disable-nonfree --disable-version3 --enable-shared "
+        "--disable-static --disable-stripping --disable-programs --disable-doc --disable-avdevice --disable-avformat "
+        "--disable-avfilter --disable-swscale --disable-network --disable-autodetect --disable-everything --enable-swresample "
+        "--enable-decoder='alac,pcm_alaw,pcm_mulaw' --cpu=armv8-a"
+    )
+
+    def test_the_shell_quoted_record_ffmpeg_really_writes_passes(self):
+        self.assertEqual(self.audit(configure=self.REAL_SHAPE), [])
+
+    def test_a_quoted_decoder_list_is_still_checked_decoder_by_decoder(self):
+        quoted = self.REAL_SHAPE.replace("'alac,pcm_alaw,pcm_mulaw'", "'alac,ac3,pcm_alaw,pcm_mulaw'")
+        self.assertIn("configure enables a decoder that is not approved: ac3", self.audit(configure=quoted))
+
+    def test_a_quoted_forbidden_flag_is_still_found(self):
+        self.assertIn("forbidden configure flag: --enable-gpl", self.audit(configure=self.REAL_SHAPE + " '--enable-gpl'"))
+
+    def test_escaped_quotes_in_the_c_string_are_undone_and_a_broken_record_is_reported(self):
+        self.assertEqual(self.audit(configure=self.REAL_SHAPE.replace("'", "\\\"")), [])
+        problems = self.audit(configure=self.REAL_SHAPE + " --extra-cflags='unterminated")
+        self.assertTrue(any("cannot be parsed" in p for p in problems), problems)
+
     def test_a_record_that_is_not_ffmpegs_fails_loudly(self):
         with tempfile.TemporaryDirectory() as folder:
             write_build_dir(Path(folder), switches="")
