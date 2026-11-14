@@ -21,13 +21,49 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 1
+    # Three groups instead of one "*" group, so a failing library cannot block the toolchain (and the other way round).
+    # A dependency that matches none of them gets its own pull request. The limit of 1 above makes the groups queue,
+    # which the one-open-PR-per-hot-file rule needs (gradle/libs.versions.toml).
     groups:
-      gradle-dependencies:
+      # These must move together: AGP 9.5 needs Gradle 9.6.0 or newer, and KSP must match the Kotlin compiler.
+      build-toolchain:
         patterns:
-          - "*"
+          - "gradle-wrapper"
+          - "com.android.application"
+          - "com.google.devtools.ksp"
+          - "org.jetbrains.kotlin.*"
+          - "org.jetbrains.kotlinx.kover"
+          - "io.gitlab.arturbosch.detekt"
+          - "org.gradle.toolchains.*"
+      androidx-and-libs:
+        patterns:
+          - "androidx.*"
+          - "io.coil-kt.*"
+          - "org.jetbrains.kotlinx:kotlinx-serialization-json"
+          - "com.squareup.leakcanary:*"
+        exclude-patterns:
+          - "androidx.test*"
+      testing:
+        patterns:
+          - "org.robolectric:*"
+          - "junit:*"
+          - "app.cash.turbine:*"
+          - "org.jetbrains.kotlinx:kotlinx-coroutines-test"
+          - "androidx.test*"
     ignore:
       # Jellyfin FFmpeg AAR > 1.5.0+1 switches or tracks upstream Media3 bumps separately under LEG-01/DEP-01.
       - dependency-name: "org.jellyfin.media3:media3-ffmpeg-decoder"
+      # The decoder above is built for Media3 1.5.x (1.5.0+1 runs on 1.5.1), so Media3 moves with it. Patch updates stay
+      # allowed. Dependabot would skip Media3 silently anyway (it only sees a release date for pre-releases), so this
+      # records the decision instead of leaving it to that accident.
+      - dependency-name: "androidx.media3:*"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
       # Room 2.8+ MigrationTestHelper enforces SupportSQLiteDriver filename equality against Robolectric temp paths.
       - dependency-name: "androidx.room:*"
         versions: [">=2.8.0"]
+      # DataStore 1.3.0 fails SettingsCorruptionTest on Windows (where tools/gate.ps1 runs): the corruption handler
+      # replaces the damaged file by renaming a .tmp file over it, "Unable to rename ...preferences_pb.tmp". Linux and
+      # Android allow that, so CI was green. Only 1.3.0 was tested; 1.2.x is held too, untested. To lift: bump it locally
+      # and run SettingsCorruptionTest on Windows (#181).
+      - dependency-name: "androidx.datastore:*"
+        versions: [">=1.2.0"]
