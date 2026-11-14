@@ -21,6 +21,32 @@ object InvariantFiles {
         return file
     }
 
+    private fun resolveDirectory(property: String, fallback: String, producedBy: String): File {
+        val directory = System.getProperty(property)?.let(::File) ?: File(fallback)
+        assertTrue(
+            "Invariant input ${directory.path} is missing. Run `./gradlew testDebugUnitTest` (it runs $producedBy first) instead of " +
+                "executing this test class on its own.",
+            directory.isDirectory
+        )
+        return directory
+    }
+
+    /** The build records of the FFmpeg bundle the app links: `<abi>/config.h`, `config_components.h`, `BUILD-INFO.txt`. */
+    val ffmpegBuildRecords: File
+        get() = resolveDirectory(
+            "aptura.invariants.ffmpegBuildRecords",
+            "build/generated/ffmpeg-bundle/build-records",
+            "fetchFfmpegBundle"
+        )
+
+    /** The licence texts packaged into the app's assets (`open-source-licenses/`), as the Open-source licences screen reads them. */
+    val licenseAssets: File
+        get() = resolveDirectory(
+            "aptura.invariants.licenseAssets",
+            "build/generated/license-assets",
+            "collectLicenseAssets"
+        )
+
     val releaseManifest: File
         get() = resolve(
             "aptura.invariants.releaseManifest",

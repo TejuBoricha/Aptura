@@ -160,7 +160,7 @@ The domain layer has no Android imports. The UI talks to view models; view model
 
 - **Hardware verification:** on one Samsung Galaxy S24 (2026-10-29, over adb, nothing judged by ear) a 30-minute 4K HEVC run on USB power showed no throttling and no dropped frames, and a 2.5 GB SAF copy killed at 42% recovered. HDR10 decoding was a partial pass (tone mapping not judged). The sleep timer was lost when the task was removed; a fix was merged but not retested on a device. Bluetooth, TalkBack and the fixes made after the audit still need a physical-device pass ([checklist](docs/DEVICE_CHECKLIST.md)).
 - **No network features, by design.** No SMB, NAS, DLNA, casting, cloud sync or online metadata. Opening a subtitle search leaves the app for your browser.
-- **No bundled software video decoder.** Files whose codecs the device cannot decode fail with a clear message rather than shipping a patent-encumbered decoder. The bundled FFmpeg extension is audio-only.
+- **No bundled software video decoder.** Files whose codecs the device cannot decode fail with a clear message rather than shipping a patent-encumbered decoder. The bundled FFmpeg extension is audio-only and decodes just ALAC and G.711 A-law and mu-law; every other format is left to the device's own decoders.
 - **Android-first.** There is no iOS build.
 - **Pre-release.** The Room schema and public APIs may change before 1.0 is tagged.
 
@@ -181,10 +181,10 @@ Security reports should follow [SECURITY.md](SECURITY.md), not a public issue.
 
 ## License
 
-Aptura is licensed under the [Apache License 2.0](LICENSE). Third-party components and their licenses are listed in [NOTICE](NOTICE). The FFmpeg audio extension is a prebuilt third-party library, and its publisher labels it GPL-3.0. Its licence terms are under review (DEC-014 in [spec/17](spec/17_RISKS_ASSUMPTIONS_AND_DECISIONS.md)), so treat it as not yet cleared for a store release.
+Aptura is licensed under the [Apache License 2.0](LICENSE). Third-party components and their licenses are listed in [NOTICE](NOTICE) and shown inside the app (Settings, Open-source licences). The FFmpeg audio extension is FFmpeg n9.0.2, built by this project from unmodified upstream source as separate LGPL-2.1 shared libraries that contain only the ALAC and G.711 decoders. The exact source, the build records and the licence texts are published beside the binaries in the [`ffmpeg-audio-n9.0.2-r1` release](https://github.com/TejuBoricha/Aptura/releases/tag/ffmpeg-audio-n9.0.2-r1), and `gradle/ffmpeg-bundle.properties` pins the checksum the build accepts. The research behind that choice is in [spec/11B](spec/11B_LEGAL_RESEARCH_FINDINGS.md); it was done without a lawyer and is not legal advice or a clearance.
 
 The name, logo and banner are original works for this project.
 
 ## Acknowledgements
 
-Built on the work of the Android Open Source Project, Kotlin, Jetpack Compose, Media3, Room, WorkManager, DataStore, Coil, Jellyfin's Media3 FFmpeg decoder, and FFmpeg. Thanks to everyone who keeps local-first software possible.
+Built on the work of the Android Open Source Project, Kotlin, Jetpack Compose, Media3, Room, WorkManager, DataStore, Coil, and FFmpeg. Thanks to everyone who keeps local-first software possible.

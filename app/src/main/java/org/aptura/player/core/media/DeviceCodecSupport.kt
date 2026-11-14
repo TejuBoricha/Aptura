@@ -1,8 +1,11 @@
+@file:androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+
 package org.aptura.player.core.media
 
 import android.media.MediaCodecInfo
 import android.media.MediaCodecList
 import android.os.Build
+import androidx.media3.decoder.ffmpeg.FfmpegLibrary
 
 /** One MIME type the platform can decode, with the best decoder the device exposes for it. */
 data class CodecSupportEntry(
@@ -22,8 +25,17 @@ data class CodecSupportEntry(
 data class CodecSupportReport(
     val deviceLabel: String,
     val video: List<CodecSupportEntry>,
-    val audio: List<CodecSupportEntry>
+    val audio: List<CodecSupportEntry>,
+    /** libavcodec's identification string (for example `Lavc63.1.102`) when the bundled audio extension loaded, or null when it did not. */
+    val ffmpegVersion: String? = null
 ) {
+    /**
+     * Whether the bundled audio extension is really there. A release build can lose it without any crash (the native
+     * library is found by name), so the report says so instead of leaving a support conversation to guess.
+     */
+    fun ffmpegStatusLine(): String =
+        if (ffmpegVersion != null) "FFmpeg audio extension: loaded (libavcodec ${ffmpegVersion.removePrefix("Lavc")})" else "FFmpeg audio extension: not loaded"
+
     fun toPlainText(): String = buildString {
         appendLine("Aptura device codec report")
         appendLine(deviceLabel)
@@ -46,14 +58,21 @@ data class CodecSupportReport(
             }
         }
         appendLine()
+        appendLine(ffmpegStatusLine())
         appendLine(FFMPEG_NOTE)
     }
 
     companion object {
+        /**
+         * What the bundled extension decodes (spec/11B D2, DEC-020): only the audio formats that are free to ship and that
+         * Android does not guarantee on every device. Everything else is the device's own decoder, and the wording names
+         * formats factually without claiming a capability or a licence (spec/11B section 6).
+         */
         const val FFMPEG_NOTE =
-            "Bundled FFmpeg extension: audio only (AAC, AC-3, E-AC-3, DTS, TrueHD, MLP, FLAC, ALAC, MP3, " +
-                "A-law, mu-law, AAC-LATM). No software video decoders are bundled; video codecs the device " +
-                "cannot decode here can be opened in an external player."
+            "Bundled FFmpeg extension: audio only, and only ALAC and G.711 A-law and mu-law. Every other format, " +
+                "including AAC, AC-3, E-AC-3, DTS, TrueHD, FLAC and MP3, is decoded by this device itself. " +
+                "No software video decoders are bundled; video codecs the device cannot decode here can be " +
+                "opened in an external player."
     }
 }
 
@@ -117,15 +136,22 @@ object DeviceCodecSupport {
         CodecSupportReport(
             deviceLabel = "${Build.MANUFACTURER} ${Build.MODEL} - Android ${Build.VERSION.SDK_INT}",
             video = video,
-            audio = audio
+            audio = audio,
+            ffmpegVersion = ffmpegVersion()
         )
     }.getOrElse {
         CodecSupportReport(
             deviceLabel = "${Build.MANUFACTURER} ${Build.MODEL} - Android ${Build.VERSION.SDK_INT}",
             video = emptyList(),
-            audio = emptyList()
+            audio = emptyList(),
+            ffmpegVersion = ffmpegVersion()
         )
     }
+
+    /** FFmpeg's version when its native libraries loaded in this process, otherwise null. Never throws. */
+    private fun ffmpegVersion(): String? = runCatching {
+        if (FfmpegLibrary.isAvailable()) FfmpegLibrary.getVersion() ?: "unknown version" else null
+    }.getOrNull()
 
     private fun decodeEntries(infos: List<MediaCodecInfo>, prefix: String): List<CodecSupportEntry> {
         val byMime = linkedMapOf<String, CodecSupportEntry>()

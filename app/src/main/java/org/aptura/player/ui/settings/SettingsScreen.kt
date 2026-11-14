@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
@@ -153,6 +154,7 @@ fun SettingsScreen(
     onResetPlaybackDefaults: () -> Unit = {},
     onRescanClick: () -> Unit,
     onReplayOnboardingClick: () -> Unit,
+    onOpenLicensesClick: () -> Unit = {},
     hasVideoAccess: Boolean = true,
     isPartialVideoAccess: Boolean = false,
     onVideoAccessClick: () -> Unit = {},
@@ -696,6 +698,15 @@ fun SettingsScreen(
                             trailing = { NavigationChevron() }
                         )
                         PanelDivider()
+                        // LGPL-2.1 section 6: the notice that FFmpeg is used and its licence text, inside the app.
+                        ActionRow(
+                            icon = Icons.Default.Description,
+                            title = "Open-source licences",
+                            subtitle = "FFmpeg (LGPL), AndroidX Media and the libraries Aptura is built on",
+                            onClick = onOpenLicensesClick,
+                            trailing = { NavigationChevron() }
+                        )
+                        PanelDivider()
                         ActionRow(
                             icon = Icons.Default.Code,
                             title = "Source code",
@@ -953,6 +964,12 @@ private fun CodecSupportDialog(report: CodecSupportReport?, onDismiss: () -> Uni
             Spacer(modifier = Modifier.height(16.dp))
             CodecSection(title = "Audio", entries = report.audio)
             Spacer(modifier = Modifier.height(14.dp))
+            Text(
+                text = report.ffmpegStatusLine(),
+                style = ApturaTypography.labelMedium.copy(fontWeight = FontWeight.Medium),
+                color = ApturaColors.TextMediumEmphasis
+            )
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = CodecSupportReport.FFMPEG_NOTE,
                 style = ApturaTypography.bodySmall,

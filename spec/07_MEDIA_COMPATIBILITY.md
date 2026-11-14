@@ -110,7 +110,7 @@ Container-level features: chapters — MKV **B**, MP4 **C**; embedded cover art 
 | E-AC-3 (Dolby Digital Plus) | **B/C passthrough** + **C candidate bundled decode ⚖️** | Last US patent reported expired 2026-01-30 `[R]`; legal recheck gate |
 | DTS / DTS-HD | **C passthrough only**; **X bundled decode** | No license found for app-side decode (LIC); message honestly when neither path exists |
 | TrueHD | **C passthrough only**; **X bundled decode** | Dolby-branded; passthrough-only policy |
-| ALAC | **C** | Via FFmpeg audio extension only if build enables it; rare on Android libraries |
+| ALAC | **B** | Decoded by the bundled self-built FFmpeg extension (DEC-020, DEC-025), since Android does not guarantee it; rare on Android libraries. Also bundled: G.711 A-law and mu-law. Not yet played on a physical device |
 | ATRAC, DSD, MQA, etc. | **D** | Honest unsupported |
 | Channel handling | — | Output follows platform routing/downmix (FR-AUD-002); **no controllable-fidelity claims**; passthrough only where device+route supports it |
 

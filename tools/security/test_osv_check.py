@@ -66,8 +66,8 @@ class ParseTests(unittest.TestCase):
         )
 
     def test_a_version_with_a_plus_is_kept_whole(self):
-        found = osv_check.parse_report("org.jellyfin.media3:media3-ffmpeg-decoder:1.5.0+1 <- (app)\n")
-        self.assertEqual(found, [("org.jellyfin.media3", "media3-ffmpeg-decoder", "1.5.0+1")])
+        found = osv_check.parse_report("com.example.media:codec-pack:1.5.0+1 <- (app)\n")
+        self.assertEqual(found, [("com.example.media", "codec-pack", "1.5.0+1")])
 
 
 class VerdictTests(unittest.TestCase):

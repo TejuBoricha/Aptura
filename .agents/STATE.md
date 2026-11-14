@@ -20,7 +20,7 @@ PR's Verification section and in CI, not here, so most pull requests never need 
 ## Quality gate
 
 - `tools/gate.ps1` (runs the Release R8 APK/AAB passes only when the branch changes a release-affecting file, decided by `tools/gate/release_scope.py` and run whenever unsure; `-Full` forces them, `-Quick` skips them) and CI (`.github/workflows/ci.yml`: `verify` = agent checks, security/SHA-pin guards, parallel unit tests + Kover 70% floor verification, lint + Detekt, R8 release APK + `.aab` bundle with `verifyReleaseApk` / `verifyReleaseBundle`; `connected` = instrumented tests on an API 35 tablet emulator).
-- `.github/workflows/codeql.yml` runs static analysis (`java-kotlin` + `python`); `.github/workflows/nightly.yml` synthesizes the `tools/corpus/` suite (`ffmpeg`) and runs every instrumented test on API 26 and API 36, and its `release-smoke` job installs the signed R8 release APK on an API 35 emulator and exercises it with `tools/smoke/release_smoke.py` (instrumented tests cannot run against the minified build, see `docs/BUILDING.md`), and its `dependency-advisories` job checks every library of the release build against the OSV database with `tools/security/osv_check.py`; `.github/workflows/ffmpeg-audio.yml` builds the self-built LGPL FFmpeg audio libraries and the linked JNI on pull requests that touch `tools/ffmpeg/**`, holds them to `tools/ffmpeg/verify_lgpl_symbols.py`, and packages the pinned version as a bundle that can be published as a release (nothing from it ships yet, LEG-02); `.github/workflows/release.yml` produces verified release APK/AAB + `SHA256SUMS.txt` on `v*` tags.
+- `.github/workflows/codeql.yml` runs static analysis (`java-kotlin` + `python`); `.github/workflows/nightly.yml` synthesizes the `tools/corpus/` suite (`ffmpeg`) and runs every instrumented test on API 26 and API 36, and its `release-smoke` job installs the signed R8 release APK on an API 35 emulator and exercises it with `tools/smoke/release_smoke.py` (instrumented tests cannot run against the minified build, see `docs/BUILDING.md`), and its `dependency-advisories` job checks every library of the release build against the OSV database with `tools/security/osv_check.py`; `.github/workflows/ffmpeg-audio.yml` builds the self-built LGPL FFmpeg audio libraries and the linked JNI on pull requests that touch `tools/ffmpeg/**`, holds them to `tools/ffmpeg/verify_lgpl_symbols.py`, and packages the pinned version as a bundle that is published as a release, which the app build downloads and links (`gradle/ffmpeg-bundle.properties`, DEC-024, DEC-025); `.github/workflows/release.yml` produces verified release APK/AAB + `SHA256SUMS.txt` on `v*` tags.
 - `gradle/actions/setup-gradle` is pinned to the **v5** commit SHA on purpose (v6 pulls a proprietary build-cache component). All GitHub Actions are SHA-pinned and checked by `tools/security/test_workflow_pins.py`.
 
 ## Current audit
@@ -34,7 +34,7 @@ copy found elsewhere, such as an old branch or `.agents/MEMORY.md`, as current. 
 1. **Hardware verification:** physical-device playback, TalkBack, Bluetooth latency and detection, HDR, thermal,
    Android 14+ selected-photos dialog (`UX-01`), process-kill during a SAF copy (and a running sleep timer,
    `FR-CTRL-009`). Run [DEVICE_CHECKLIST.md](../docs/DEVICE_CHECKLIST.md) before tagging 1.0.
-2. **Release:** signed 1.0 tag when a signing key exists (`SEC-01`) and `LEG-02` legal/decoder gate (`DEC-014`) clears.
+2. **Release:** signed 1.0 tag when a signing key exists (`SEC-01`). The decoder swap (`LEG-02`, `DEC-025`) is done; adding AC-3 and E-AC-3 stays open (`DEC-021`). The legal research behind the decoder set (`spec/11B`) is the project's own, not counsel's.
 
 ## Facts that older notes get wrong
 
@@ -65,6 +65,7 @@ copy found elsewhere, such as an old branch or `.agents/MEMORY.md`, as current. 
 - **Transitions never fade a screen** (`NavigationTransitions.kt`, DESIGN.md §4.3): Navigation 3's default is a 700 ms
   cross-fade and a shrink-then-vanish for the Back gesture, which is the flicker. Pages slide, solid, and a route must paint
   its own opaque background. `ScreenTransitionTest` fails on any blended pixel.
+- **Audio decoders (`DEC-020`, `DEC-025`):** Android's own decoders do almost everything; the app adds only ALAC and G.711 A-law and mu-law through a self-built LGPL FFmpeg (libraries from the pinned release bundle, Java classes vendored verbatim from AndroidX Media 1.5.1 and checked by `VendoredMedia3Test`). AAC, AC-3, E-AC-3, DTS, TrueHD, FLAC and MP3 are the device's. Settings has an Open-source licences screen and `NOTICE` is held to the release classpath. Media3 moves only together with the vendored classes and the bundle's JNI. Not run on a physical device yet.
 - **Playback is tested on a real codec in CI:** `PlaybackSmokeTest` (`connected` job) plays H.264, HEVC and a 558-item queue and
   taps a video in the library. The player never stays silently stuck: 8 s without starting tries the software decoder once,
   then shows "Playback Did Not Start" (DESIGN.md §5.5b). Not checked on a Samsung S24 yet.

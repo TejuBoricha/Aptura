@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <!--
+      The FFmpeg audio extension's Java classes are vendored byte for byte from AndroidX Media (see VENDORED.md; VendoredMedia3Test
+      fails on any edit). They call Media3 APIs marked @UnstableApi, which this check wants an opt-in marker for, and the files cannot
+      be edited to add one. Only this one check is excused, only in this folder: every other check still runs on them.
+    -->
+    <issue id="UnsafeOptInUsageError">
+        <ignore path="src/main/java/androidx/media3/decoder/ffmpeg/**" />
+    </issue>
+</lint>

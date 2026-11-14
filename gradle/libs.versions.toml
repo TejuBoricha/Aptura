@@ -16,7 +16,7 @@ nav3Core = "1.2.1"
 lifecycleViewmodelNav3 = "2.11.0"
 media3 = "1.5.1"
 guava = "33.7.2-android"
-jellyfinMedia3Ffmpeg = "1.5.0+1"
+checkerQual = "3.43.0"
 room = "2.7.2"
 turbine = "1.2.1"
 kotlinxSerialization = "1.13.0"
@@ -67,7 +67,12 @@ androidx-media3-session = { module = "androidx.media3:media3-session", version.r
 androidx-media3-ui = { module = "androidx.media3:media3-ui", version.ref = "media3" }
 androidx-media3-common = { module = "androidx.media3:media3-common", version.ref = "media3" }
 androidx-media3-extractor = { module = "androidx.media3:media3-extractor", version.ref = "media3" }
-jellyfin-media3-ffmpeg-decoder = { module = "org.jellyfin.media3:media3-ffmpeg-decoder", version.ref = "jellyfinMedia3Ffmpeg" }
+# The vendored FFmpeg audio classes (app/src/main/java/androidx/media3/decoder/ffmpeg) extend this module's SimpleDecoder.
+androidx-media3-decoder = { module = "androidx.media3:media3-decoder", version.ref = "media3" }
+
+# Nullness annotations that the vendored FfmpegLibrary.java names (Media3 declares them compileOnly too). Annotations only: nothing
+# of it is needed at run time, and Guava brings the same library into the app at the same version.
+checker-qual = { module = "org.checkerframework:checker-qual", version.ref = "checkerQual" }
 
 # Guava is not used directly: Media3 pulls it in. It is declared here so it can be constrained (see app/build.gradle.kts)
 # and so Dependabot tracks it, which it cannot do for a transitive dependency.
