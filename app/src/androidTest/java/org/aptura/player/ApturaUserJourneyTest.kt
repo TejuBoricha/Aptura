@@ -1,6 +1,5 @@
 package org.aptura.player
 
-import android.Manifest
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollAction
@@ -50,10 +49,7 @@ class ApturaUserJourneyTest {
         override fun apply(base: Statement, description: Description) = object : Statement() {
             override fun evaluate() {
                 val instrumentation = InstrumentationRegistry.getInstrumentation()
-                instrumentation.uiAutomation.grantRuntimePermission(
-                    instrumentation.targetContext.packageName,
-                    Manifest.permission.READ_MEDIA_VIDEO
-                )
+                grantMediaAccess()
                 runBlocking {
                     ApturaSettingsRepository(instrumentation.targetContext)
                         .setOnboardingCompleted(true)

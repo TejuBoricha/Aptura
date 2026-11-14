@@ -1,6 +1,5 @@
 package org.aptura.player
 
-import android.Manifest
 import android.content.ContentValues
 import android.content.Context
 import android.net.Uri
@@ -54,10 +53,7 @@ class PlaybackSmokeTest {
         override fun apply(base: Statement, description: Description) = object : Statement() {
             override fun evaluate() {
                 val instrumentation = InstrumentationRegistry.getInstrumentation()
-                instrumentation.uiAutomation.grantRuntimePermission(
-                    instrumentation.targetContext.packageName,
-                    Manifest.permission.READ_MEDIA_VIDEO
-                )
+                grantMediaAccess()
                 runBlocking { ApturaSettingsRepository(instrumentation.targetContext).setOnboardingCompleted(true) }
                 base.evaluate()
             }
