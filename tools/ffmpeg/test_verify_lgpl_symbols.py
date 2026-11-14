@@ -12,11 +12,11 @@ from pathlib import Path
 
 import verify_lgpl_symbols as v
 
-APPROVED = {"flac", "alac", "mp3", "mp3float", "vorbis", "opus", "pcm_alaw", "pcm_mulaw"}
+APPROVED = {"alac", "pcm_alaw", "pcm_mulaw"}
 GOOD_CONFIGURE = (
     "--enable-shared --disable-static --disable-gpl --disable-nonfree --disable-version3 --disable-programs "
     "--disable-doc --disable-network --disable-autodetect --disable-everything "
-    "--enable-decoder=flac,alac,mp3,mp3float,vorbis,opus,pcm_alaw,pcm_mulaw --enable-parser=flac,vorbis,opus,mpegaudio"
+    "--enable-decoder=alac,pcm_alaw,pcm_mulaw"
 )
 
 
@@ -116,7 +116,7 @@ class LibraryTests(unittest.TestCase):
             return v.audit_libraries(paths, APPROVED)
 
     def test_approved_decoders_only_passes(self):
-        self.assertEqual(self.audit({"libavcodec.so": b"\0ff_flac_decoder\0ff_opus_decoder\0"}), [])
+        self.assertEqual(self.audit({"libavcodec.so": b"\0ff_alac_decoder\0ff_pcm_alaw_decoder\0"}), [])
 
     def test_the_decoder_list_of_the_library_that_ships_today_is_rejected(self):
         # What `libffmpegJNI.so` of the prebuilt Jellyfin 1.5.0+1 decoder contains, dumped on 2026-11-14 (LEG-01, LEG-02).
@@ -124,7 +124,7 @@ class LibraryTests(unittest.TestCase):
         data = b"\0".join(f"ff_{name}_decoder".encode() for name in shipped)
         problems = self.audit({"libffmpegJNI.so": data})
         rejected = sorted(p.rsplit(": ", 1)[1] for p in problems if "not approved" in p)
-        self.assertEqual(rejected, ["aac", "aac_latm", "ac3", "dca", "eac3", "mlp", "truehd"])
+        self.assertEqual(rejected, ["aac", "aac_latm", "ac3", "dca", "eac3", "flac", "mlp", "mp3", "truehd"])
 
     def test_a_gpl_licence_string_is_caught(self):
         self.assertTrue(self.audit({"libavutil.so": b"\0GPL version 2 or later\0"}))
@@ -141,13 +141,13 @@ class LibraryTests(unittest.TestCase):
         self.assertEqual(self.audit({"libffmpegJNI.so": b"\0jni glue\0"}), [])
 
     def test_a_name_that_merely_contains_an_approved_one_is_not_approved(self):
-        self.assertTrue(self.audit({"libavcodec.so": b"\0ff_flacx_decoder\0"}))
+        self.assertTrue(self.audit({"libavcodec.so": b"\0ff_alacx_decoder\0"}))
 
     def test_directories_are_searched_and_missing_paths_fail(self):
         with tempfile.TemporaryDirectory() as folder:
             sub = Path(folder, "arm64-v8a")
             sub.mkdir()
-            (sub / "libavcodec.so").write_bytes(b"ff_flac_decoder")
+            (sub / "libavcodec.so").write_bytes(b"ff_alac_decoder")
             self.assertEqual([p.name for p in v.find_libraries([Path(folder)])], ["libavcodec.so"])
             with self.assertRaises(v.InputError):
                 v.find_libraries([Path(folder, "missing")])
@@ -179,11 +179,16 @@ class CommandLineTests(unittest.TestCase):
 
 
 class PolicyFileTests(unittest.TestCase):
-    def test_the_approved_list_is_the_free_set_and_nothing_else(self):
+    def test_the_approved_list_is_what_the_platform_does_not_guarantee_and_is_free(self):
         self.assertEqual(v.load_approved(v.DEFAULT_APPROVED), APPROVED)
 
     def test_nothing_with_a_licence_question_is_approved(self):
         for name in ("aac", "aac_latm", "ac3", "eac3", "dca", "truehd", "mlp", "h264", "hevc", "av1", "vp9"):
+            self.assertNotIn(name, v.load_approved(v.DEFAULT_APPROVED), name)
+
+    def test_nothing_the_android_cdd_already_guarantees_is_bundled(self):
+        # CDD 5.1.3 requires FLAC, MP3, Vorbis and Opus decoding on every compatible device (spec/11B, D2).
+        for name in ("flac", "mp3", "mp3float", "vorbis", "opus"):
             self.assertNotIn(name, v.load_approved(v.DEFAULT_APPROVED), name)
 
 

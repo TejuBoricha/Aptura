@@ -3,19 +3,18 @@
 # This file is the single source of truth: build_ffmpeg_audio_lgpl.sh enables exactly these, and verify_lgpl_symbols.py
 # fails the build when the configured or built FFmpeg contains any other decoder.
 #
-# Source: LEG-02 layer 2 in docs/audits/CURRENT_AUDIT.md (owner direction, 2026-11-06): free formats only, no licence cost
-# found. This is engineering planning, not legal advice; the lawyer review of spec/11A briefs L1 and L2 is still open.
+# Decided in spec/11B_LEGAL_RESEARCH_FINDINGS.md (D2): bundle only what is free AND not already guaranteed by every
+# Android device. The Compatibility Definition requires FLAC, MP3, Vorbis and Opus decoding, so bundling them would add
+# patent, security and maintenance surface and no capability. What is left is below. This is research, not legal advice.
 #
-# NOT here on purpose, and each needs its own decision before it can be added:
-#   aac, aac_latm   Via LA's AAC pool charges fees; the platform decoders already handle AAC.
-#   ac3, eac3       candidates (patents reported expired), only after counsel confirms.
-#   dca, truehd, mlp   no application-side licence found; pass-through to a receiver instead.
+# NOT here on purpose:
+#   flac, mp3, mp3float, vorbis, opus   guaranteed by the platform (CDD 5.1.3), so no gain from bundling.
+#   aac, aac_latm   the Via LA AAC pool is active; device makers hold the licence; the platform decodes AAC.
+#   dca             DTS: US 7,548,853 is live until 2027-02-06 and its reach on a decoder is unproven; re-check on 2027-02-07.
+#   truehd, mlp     no expiry evidence found.
+#   ac3, eac3       the first add-back (11B D3), only once the extension exists and the ETSI-declared patent families are
+#                   confirmed expired. Add the two names here at that point, and not before.
 
-flac
 alac
-mp3
-mp3float
-vorbis
-opus
 pcm_alaw
 pcm_mulaw
