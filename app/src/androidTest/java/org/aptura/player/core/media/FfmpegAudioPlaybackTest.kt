@@ -38,7 +38,8 @@ import java.util.concurrent.CopyOnWriteArrayList
  *
  * The fixtures in assets/ffmpeg are one second of a 440 Hz sine at 8 kHz, mono, made with
  * `ffmpeg -f lavfi -i sine=frequency=440:sample_rate=8000:duration=1 -ac 1 -map_metadata -1 -fflags +bitexact
- * -flags:a +bitexact -c:a <alac|pcm_alaw|pcm_mulaw>`.
+ * -flags:a +bitexact -c:a <alac|pcm_alaw|pcm_mulaw>`. The AC-3 one is a raw stream (AC-3 allows only 32, 44.1 and 48 kHz): the same
+ * sine at 48 kHz, stereo, `-c:a ac3 -b:a 96k` -> tone_ac3.ac3.
  *
  * This runs in `connected` (API 35) and in the nightly (API 26 and API 36, the 32-bit and 64-bit libraries among them).
  */
@@ -67,13 +68,14 @@ class FfmpegAudioPlaybackTest {
 
     @Test
     fun theBundle_decodesExactlyTheApprovedFormats() {
-        // The three decoders in tools/ffmpeg/approved_decoders.txt (spec/11B D2)...
-        for (mime in listOf(MimeTypes.AUDIO_ALAC, MimeTypes.AUDIO_ALAW, MimeTypes.AUDIO_MLAW)) {
+        // The decoders in tools/ffmpeg/approved_decoders.txt (spec/11B D2, and AC-3 by DEC-021)...
+        for (mime in listOf(MimeTypes.AUDIO_ALAC, MimeTypes.AUDIO_AC3, MimeTypes.AUDIO_ALAW, MimeTypes.AUDIO_MLAW)) {
             assertTrue("$mime should be decoded by the bundle", FfmpegLibrary.supportsFormat(mime))
         }
         // ...and nothing the policy left to the device or excluded: this is what the shipped libraries really contain, not a list.
+        // E-AC-3 is held back on purpose (DEC-021): FFmpeg's E-AC-3 decoder, with the adaptive hybrid transform, must not be in there.
         val excluded = listOf(
-            MimeTypes.AUDIO_AAC, MimeTypes.AUDIO_AC3, MimeTypes.AUDIO_E_AC3, MimeTypes.AUDIO_E_AC3_JOC, MimeTypes.AUDIO_DTS,
+            MimeTypes.AUDIO_AAC, MimeTypes.AUDIO_E_AC3, MimeTypes.AUDIO_E_AC3_JOC, MimeTypes.AUDIO_DTS,
             MimeTypes.AUDIO_DTS_HD, MimeTypes.AUDIO_TRUEHD, MimeTypes.AUDIO_MPEG, MimeTypes.AUDIO_FLAC, MimeTypes.AUDIO_VORBIS,
             MimeTypes.AUDIO_OPUS, MimeTypes.AUDIO_AMR_NB, MimeTypes.AUDIO_AMR_WB,
             // Never a video decoder (ADR-010): FfmpegLibrary maps these two to FFmpeg's h264 and hevc decoders.
@@ -114,6 +116,9 @@ class FfmpegAudioPlaybackTest {
 
     @Test
     fun anAlacFile_isDecodedByFfmpeg_andPlaysToTheEnd() = assertDecodedByFfmpeg("tone_alac.m4a", "alac", MimeTypes.AUDIO_ALAC)
+
+    @Test
+    fun anAc3File_isDecodedByFfmpeg_andPlaysToTheEnd() = assertDecodedByFfmpeg("tone_ac3.ac3", "ac3", MimeTypes.AUDIO_AC3)
 
     private fun assertDecodedByFfmpeg(asset: String, codec: String, mime: String) {
         val evidence = playWithOnlyTheFfmpegRenderer(asset)
