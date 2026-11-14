@@ -3,18 +3,26 @@
 # This file is the single source of truth: build_ffmpeg_audio_lgpl.sh enables exactly these, and verify_lgpl_symbols.py
 # fails the build when the configured or built FFmpeg contains any other decoder.
 #
-# Decided in spec/11B_LEGAL_RESEARCH_FINDINGS.md (D2): bundle only what is free AND not already guaranteed by every
+# "Approved" is what policy ALLOWS. What a given bundle really contains is declared by the pin in gradle/ffmpeg-bundle.properties
+# (`decoders=`), and the app's tests hold the bundle to that and the pin to this list, so this list may lead the pin by one step
+# while a new bundle is built and published.
+#
+# Decided in spec/11B_LEGAL_RESEARCH_FINDINGS.md (D2, D3, Appendix C): bundle only what is free AND not already guaranteed by every
 # Android device. The Compatibility Definition requires FLAC, MP3, Vorbis and Opus decoding, so bundling them would add
-# patent, security and maintenance surface and no capability. What is left is below. This is research, not legal advice.
+# patent, security and maintenance surface and no capability. AC-3 was added on 2026-11-15 (DEC-021). This is research, not legal advice.
 #
 # NOT here on purpose:
 #   flac, mp3, mp3float, vorbis, opus   guaranteed by the platform (CDD 5.1.3), so no gain from bundling.
 #   aac, aac_latm   the Via LA AAC pool is active; device makers hold the licence; the platform decodes AAC.
 #   dca             DTS: US 7,548,853 is live until 2027-02-06 and its reach on a decoder is unproven; re-check on 2027-02-07.
 #   truehd, mlp     no expiry evidence found.
-#   ac3, eac3       the first add-back (11B D3), only once the extension exists and the ETSI-declared patent families are
-#                   confirmed expired. Add the two names here at that point, and not before.
+#   eac3            E-AC-3 is HELD (DEC-021, owner's decision 2026-11-15). Dolby decoder patents that name it, for example US 8,891,776
+#                   (the adaptive hybrid transform, in force to about 2030), are not on ETSI's declaration list. FFmpeg compiles the
+#                   E-AC-3 code, including that transform, only together with this decoder, so leaving it out leaves the code out of
+#                   the library; verify_lgpl_symbols.py checks the built library for it. Re-open only with counsel's reading of those
+#                   claims, or when they expire. Do not add the name here before then.
 
+ac3
 alac
 pcm_alaw
 pcm_mulaw
