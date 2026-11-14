@@ -1,13 +1,23 @@
-name: FFmpeg audio extension (build and verify)
+name: FFmpeg audio extension (build, verify, package)
 
-# Builds the self-built, LGPL-only, shared-library FFmpeg audio extension (LEG-02, DEC-014, DEC-020) for each shipped ABI and
-# runs it through tools/ffmpeg/verify_lgpl_symbols.py: the licence recorded in FFmpeg's own config.h, the decoders actually
-# built, no GPL or nonfree flag, 16 KB page alignment, and library names an APK can carry. It also compiles AndroidX Media's
-# JNI source against each version's headers, so an FFmpeg API break shows up here and not during the swap-in. Nothing here ships
-# yet; the artifacts are evidence. It runs on demand, and on any pull request that touches the recipe, the verifier or this file.
+# Builds the self-built, LGPL-only, shared-library FFmpeg audio extension (LEG-02, DEC-014, DEC-020, DEC-023) for each shipped ABI,
+# links AndroidX Media's JNI against it, and runs everything through tools/ffmpeg/verify_lgpl_symbols.py: the licence recorded in
+# FFmpeg's own config.h, the decoders actually built, no GPL or nonfree flag, 16 KB page alignment, and library names an APK can
+# carry. The pinned version is then packaged with its exact source, build records and licence texts as one zip the app downloads
+# by checksum (so the app's own build needs no NDK). It runs on demand, and on any pull request that touches the recipe, the
+# verifier or this file. Publishing a release only happens when asked, and only from main.
 
 on:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish the packaged bundle as a GitHub release (only honoured on main)'
+        type: boolean
+        default: false
+      revision:
+        description: 'Bundle revision, for example 1 (a new number for every published bundle of the same FFmpeg version)'
+        type: string
+        default: '1'
   pull_request:
     paths:
       - 'tools/ffmpeg/**'
@@ -52,23 +62,17 @@ jobs:
           OUT="$RUNNER_TEMP/ffmpeg-$FFMPEG_TAG-$ABI"
           bash tools/ffmpeg/build_ffmpeg_audio_lgpl.sh "$ABI" "$FFMPEG_TAG" "$FFMPEG_COMMIT" "$OUT"
 
+      - name: Link Media3's JNI against these libraries
+        run: |
+          OUT="$RUNNER_TEMP/ffmpeg-$FFMPEG_TAG-$ABI"
+          curl -fsSL -o "$RUNNER_TEMP/ffmpeg_jni.cc" "$JNI_URL"
+          echo "$JNI_SHA256  $RUNNER_TEMP/ffmpeg_jni.cc" | sha256sum -c -
+          bash tools/ffmpeg/build_ffmpeg_jni.sh "$ABI" "$OUT/stage" "$RUNNER_TEMP/ffmpeg_jni.cc"
+
       - name: Verify the build record and the libraries
         run: |
           OUT="$RUNNER_TEMP/ffmpeg-$FFMPEG_TAG-$ABI"
           python3 tools/ffmpeg/verify_lgpl_symbols.py --build-dir "$OUT/build" --libs "$OUT/stage/lib"
-
-      - name: Compile Media3's JNI source against these headers
-        run: |
-          OUT="$RUNNER_TEMP/ffmpeg-$FFMPEG_TAG-$ABI"
-          case "$ABI" in
-            arm64-v8a)   TRIPLE=aarch64-linux-android ;;
-            armeabi-v7a) TRIPLE=armv7a-linux-androideabi ;;
-            x86_64)      TRIPLE=x86_64-linux-android ;;
-          esac
-          curl -fsSL -o "$RUNNER_TEMP/ffmpeg_jni.cc" "$JNI_URL"
-          echo "$JNI_SHA256  $RUNNER_TEMP/ffmpeg_jni.cc" | sha256sum -c -
-          "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/${TRIPLE}26-clang++" \
-            -c -fPIC -std=c++11 -I "$OUT/stage/include" "$RUNNER_TEMP/ffmpeg_jni.cc" -o "$RUNNER_TEMP/ffmpeg_jni.o"
 
       - name: Gather the evidence
         if: always()
@@ -86,3 +90,73 @@ jobs:
           name: ffmpeg-audio-${{ matrix.ffmpeg.tag }}-${{ matrix.abi }}
           path: ${{ runner.temp }}/ffmpeg-${{ matrix.ffmpeg.tag }}-${{ matrix.abi }}/evidence
           if-no-files-found: warn
+
+  package:
+    name: Package the pinned bundle
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write      # only used to create the release when publishing
+      id-token: write      # signs the provenance attestation
+      attestations: write
+    env:
+      # DEC-023: the version the app ships. The other versions in the build matrix are canaries.
+      BUNDLE_TAG: n9.0.2
+      BUNDLE_COMMIT: 946fcce07b6dcd0331c8cc609192aeff5e1924f8
+      REVISION: ${{ inputs.revision || '1' }}
+      PUBLISH: ${{ inputs.publish && github.ref == 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Download the pinned version's builds
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          pattern: ffmpeg-audio-n9.0.2-*
+          path: ${{ runner.temp }}/artifacts
+
+      - name: Hold each ABI's libraries to the guard once more
+        run: |
+          for ABI in arm64-v8a armeabi-v7a x86_64; do
+            DIR="$RUNNER_TEMP/artifacts/ffmpeg-audio-$BUNDLE_TAG-$ABI"
+            python3 tools/ffmpeg/verify_lgpl_symbols.py --build-dir "$DIR" --libs "$DIR"
+          done
+
+      - name: Assemble the bundle
+        run: bash tools/ffmpeg/package_bundle.sh "$BUNDLE_TAG" "$BUNDLE_COMMIT" "$REVISION" "$RUNNER_TEMP/artifacts" "$RUNNER_TEMP/bundle"
+
+      - name: Verify the libraries inside the zip
+        run: |
+          mkdir -p "$RUNNER_TEMP/unzipped"
+          unzip -q "$RUNNER_TEMP/bundle/aptura-ffmpeg-audio-$BUNDLE_TAG-r$REVISION.zip" -d "$RUNNER_TEMP/unzipped"
+          python3 tools/ffmpeg/verify_lgpl_symbols.py --libs "$RUNNER_TEMP/unzipped/aptura-ffmpeg-audio-$BUNDLE_TAG-r$REVISION/jniLibs"
+
+      - name: Upload the bundle
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: aptura-ffmpeg-audio-bundle
+          path: |
+            ${{ runner.temp }}/bundle/*.zip
+            ${{ runner.temp }}/bundle/*.tar.xz
+            ${{ runner.temp }}/bundle/*.sha256
+            ${{ runner.temp }}/bundle/README.txt
+            ${{ runner.temp }}/bundle/SHA256SUMS.txt
+          if-no-files-found: error
+
+      - name: Attest the build provenance
+        if: env.PUBLISH == 'true'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: ${{ runner.temp }}/bundle/aptura-ffmpeg-audio-n9.0.2-r*.zip
+
+      - name: Publish the bundle as a release
+        if: env.PUBLISH == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          B="$RUNNER_TEMP/bundle"
+          gh release create "ffmpeg-audio-$BUNDLE_TAG-r$REVISION" \
+            --target "$GITHUB_SHA" --latest=false \
+            --title "FFmpeg audio libraries $BUNDLE_TAG (r$REVISION)" \
+            --notes-file "$B/README.txt" \
+            "$B/aptura-ffmpeg-audio-$BUNDLE_TAG-r$REVISION.zip" "$B/ffmpeg-$BUNDLE_TAG-source.tar.xz" "$B/SHA256SUMS.txt"
