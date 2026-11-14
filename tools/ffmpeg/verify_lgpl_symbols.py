@@ -250,6 +250,60 @@ def audit_elf(label: str, data: bytes) -> list[str]:
     return violations
 
 
+DECODER_OBJECT = re.compile(rb"^ff_([a-z0-9_]+)_decoder$")
+
+
+def elf_decoder_objects(data: bytes) -> set[str] | None:
+    """Decoder names from the ELF symbol table, counting only data objects.
+
+    A real decoder is a `const FFCodec ff_<name>_decoder` object. FFmpeg 8 also has a helper function called `ff_codec_is_decoder`,
+    which a plain text search reads as a decoder named "codec_is"; its symbol type (function, not object) tells them apart.
+    Returns None when there is no symbol table to read (not an ELF, or stripped), so the caller can fall back to a text search.
+    """
+    if len(data) < 64 or data[:4] != b"\x7fELF" or data[5] != 1:
+        return None
+    is64 = data[4] == 2
+    try:
+        if is64:
+            shoff, = struct.unpack_from("<Q", data, 0x28)
+            shentsize, shnum = struct.unpack_from("<HH", data, 0x3A)
+        else:
+            shoff, = struct.unpack_from("<I", data, 0x20)
+            shentsize, shnum = struct.unpack_from("<HH", data, 0x2E)
+        if not shoff or not shnum:
+            return None
+        sections: list[tuple[int, int, int, int]] = []  # type, file offset, size, linked section
+        for i in range(shnum):
+            base = shoff + i * shentsize
+            if is64:
+                _name, kind, _flags, _addr, offset, size, link, _info, _align, _entsize = struct.unpack_from("<IIQQQQIIQQ", data, base)
+            else:
+                _name, kind, _flags, _addr, offset, size, link, _info, _align, _entsize = struct.unpack_from("<IIIIIIIIII", data, base)
+            sections.append((kind, offset, size, link))
+        names: set[str] = set()
+        found_table = False
+        for kind, offset, size, link in sections:
+            if kind not in (2, 11):  # SHT_SYMTAB, SHT_DYNSYM
+                continue
+            found_table = True
+            strings_at = sections[link][1]
+            step = 24 if is64 else 16
+            for position in range(offset, offset + size, step):
+                if is64:
+                    st_name, st_info, _other, _shndx, _value, _size = struct.unpack_from("<IBBHQQ", data, position)
+                else:
+                    st_name, _value, _size, st_info, _other, _shndx = struct.unpack_from("<IIIBBH", data, position)
+                if not st_name or (st_info & 0xF) != 1:  # STT_OBJECT only
+                    continue
+                start = strings_at + st_name
+                match = DECODER_OBJECT.match(data[start:data.index(b"\0", start)])
+                if match:
+                    names.add(match.group(1).decode())
+        return names if found_table else None
+    except (struct.error, ValueError, IndexError):
+        return None
+
+
 def audit_libraries(libraries: list[Path], approved: set[str]) -> list[str]:
     """Read the binaries: decoder names, the licence string and the ELF rules. Stripped libavcodec is a failure, not a pass."""
     violations: list[str] = []
@@ -259,7 +313,8 @@ def audit_libraries(libraries: list[Path], approved: set[str]) -> list[str]:
         except OSError as error:
             raise InputError(f"cannot read {library}: {error}") from error
         label = f"{library.parent.name}/{library.name}"  # the parent is the ABI folder in a jniLibs or lib tree
-        decoders = {m.group(1).decode() for m in DECODER_SYMBOL.finditer(data)}
+        in_symbol_table = elf_decoder_objects(data)
+        decoders = in_symbol_table if in_symbol_table is not None else {m.group(1).decode() for m in DECODER_SYMBOL.finditer(data)}
         for decoder in sorted(decoders - approved):
             violations.append(f"{label}: contains a decoder that is not approved: {decoder}")
         if GPL_LICENCE.search(data):
