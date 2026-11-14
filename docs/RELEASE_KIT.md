@@ -84,6 +84,6 @@ Download the APK suited for your device architecture, or grab the universal APK:
 |---|---|---|
 | **Headless UI User Journeys** | `.\tools\test-flow.ps1` | Validates Compose UI flows on device without screenshots |
 | **All Connected Tests** | `.\tools\test-flow.ps1 -All` | Runs all connected tests (flows, playback, E2E) |
-| **Quality Gate** | `.\tools\gate.ps1` | Full compilation, unit tests, Lint, release R8 assembly |
+| **Quality Gate** | `.\tools\gate.ps1 -Full` | Full compilation, unit tests, Lint, release R8 assembly (`-Full` forces the R8 builds, which the plain gate skips for changes that cannot affect them) |
 | **Build Play Store Bundle** | `.\gradlew bundleRelease` | Generates `app/build/outputs/bundle/release/app-release.aab` |
 | **Build GitHub APKs** | `.\gradlew assembleRelease` | Generates ABI-split APKs under `app/build/outputs/apk/release/` |

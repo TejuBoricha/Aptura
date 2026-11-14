@@ -31,7 +31,7 @@ decision.
 
 | Purpose | Command (Windows: `.\gradlew.bat`, and chain with `;`, never `&&`) |
 |---|---|
-| Full gate, before every push | `./tools/gate.ps1` |
+| Gate, before every push | `./tools/gate.ps1` (runs the R8 release builds only when the branch changes a release-affecting file, and says why; `-Full` forces them, `-Quick` skips them; CI always runs them) |
 | Unit and Robolectric tests | `./gradlew testDebugUnitTest` |
 | Lint | `./gradlew lintDebug` |
 | Release APK & AAB builds + privacy invariants | `./gradlew assembleRelease` / `./gradlew bundleRelease` |

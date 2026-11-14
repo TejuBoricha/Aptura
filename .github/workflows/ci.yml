@@ -1,7 +1,9 @@
 name: CI
 
-# The same checks as tools/gate.ps1 (compile tests, run unit tests, lint), plus an R8 release build so a shrinker
-# problem shows up before a release does. No secrets are needed: the release build is left unsigned.
+# The checks tools/gate.ps1 runs (compile tests, run unit tests, lint), plus an R8 release build on every pull request
+# so a shrinker problem shows up before a release does. The local gate runs that release build only for changes that
+# can affect it (tools/gate/release_scope.py), so CI is the authority for it. No secrets are needed: the release build
+# is left unsigned.
 #
 # Parallelized verification pipeline: unit tests, lint, and release build run concurrently across separate runners,
 # fanning into a final 'verify' status check required by branch rulesets.
@@ -50,6 +52,11 @@ jobs:
         run: |
           python3 -m unittest discover -s tools/security
           python3 tools/security/check_no_secret_files.py
+
+      # tools/gate/release_scope.py lets the local gate skip the R8 release builds for changes that cannot affect them.
+      # A wrong list would let a release-affecting change skip them locally, so its tests run on every push and PR.
+      - name: Gate scoping tests
+        run: python3 -m unittest discover -s tools/gate
 
       - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:

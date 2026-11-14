@@ -54,9 +54,9 @@ Tests run on the JVM by default. Use a fake at the platform seam, not a mocked i
 ./tools/gate.ps1
 ```
 
-Every commit should pass it. The gate compiles test sources, runs the JVM suite fail-fast, runs lint, then builds the R8 release and checks the shipped code for network and telemetry packages.
+Every commit should pass it. The gate compiles test sources, runs the JVM suite fail-fast and runs lint. It then builds the R8 release and checks the shipped code for network and telemetry packages, but only when your branch changes something that can alter the release build (build scripts, the version catalog, the Gradle wrapper, ProGuard rules, manifests, `res/xml` or `res/raw`). It prints which file triggered the builds, or why it skipped them, and it runs them whenever it cannot tell. CI runs the release builds on every pull request either way. Use `./tools/gate.ps1 -Full` to force them and `-Quick` to skip them while iterating.
 
-If the gate is too slow on your machine, run the same steps individually while iterating, but run the full gate before you push.
+If the gate is too slow on your machine, run the same steps individually while iterating, but run `./tools/gate.ps1` before you push.
 
 ## Design changes
 

@@ -42,9 +42,9 @@ sdk.dir=C\:\\Users\\you\\AppData\\Local\\Android\\Sdk
 | JVM unit tests | `./gradlew testDebugUnitTest` |
 | Instrumented tests (device/emulator) | `./gradlew connectedDebugAndroidTest` |
 | Lint | `./gradlew lintDebug` |
-| Full local gate | `./tools/gate.ps1` (Windows) |
+| Local gate | `./tools/gate.ps1` (Windows; `-Full` always runs the R8 builds, `-Quick` never does) |
 
-`tools/gate.ps1` compiles the test sources, runs the JVM suite fail-fast, runs lint (including Detekt), then builds both the R8 release APKs and the release App Bundle (`.aab`). Those builds are finalized by `verifyReleaseApk` and `verifyReleaseBundle`, which fail if a network stack or telemetry SDK survived R8 or appears in any shipped dex.
+`tools/gate.ps1` compiles the test sources, runs the JVM suite fail-fast and runs lint (including Detekt). It then builds both the R8 release APKs and the release App Bundle (`.aab`) when the branch changes a release-affecting file (build scripts, `gradle/`, ProGuard rules, manifests, `res/xml`, `res/raw`, packaged native libraries), or when it cannot tell. Those builds are finalized by `verifyReleaseApk` and `verifyReleaseBundle`, which fail if a network stack or telemetry SDK survived R8 or appears in any shipped dex. CI runs them on every pull request regardless.
 
 ## Release signing
 

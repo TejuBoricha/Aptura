@@ -13,18 +13,22 @@ The numbers change with every pull request, so they are not kept in this file. R
 | Release invariants | The **Release APK build and shipped-code invariants** (`verifyReleaseApk`) and **Release App Bundle (.aab) build and shipped-code invariants** (`verifyReleaseBundle`) steps of the `release` job (fanned into `verify`); uploads `release-invariant-reports`. |
 | Instrumented suite | The `connected` job: an API 35 tablet emulator |
 | Agent coordination checks | `python -m unittest discover -s tools/agents`, run by `tools/gate.ps1` when Python 3 is installed and by the **Agent coordination checks** step in CI `unit-tests`. |
+| Gate scoping | `python -m unittest discover -s tools/gate` tests `release_scope.py`, which lets the local gate skip the R8 release builds for changes that cannot affect them. Run by `tools/gate.ps1` and by CI `unit-tests`. |
 | Supply-chain & workflow pins | `python -m unittest discover -s tools/security` verifies secret file exclusions (`check_no_secret_files.py`) and 40-char commit SHA pinning on all `.github/workflows/*.yml` files (`test_workflow_pins.py`). |
 | Nightly corpus & API matrix | `.github/workflows/nightly.yml` (daily + `workflow_dispatch`): generates the `tools/corpus/` synthetic suite via `ffmpeg`, verifies `fixtures/manifest.csv`, runs `CommittedCorpusFixturesTest`, and runs `PlaybackSmokeTest` on API 26 and API 36 emulators. |
 
-`tools/gate.ps1` runs the same checks on your machine (pass `-Quick` during rapid coding to skip the Release APK/AAB R8 passes, and run full `.\tools\gate.ps1` before pushing).
+`tools/gate.ps1` runs the same checks on your machine. CI runs the Release APK/AAB R8 builds on every pull request; locally the gate runs them only when the branch changes a release-affecting file (decided by `tools/gate/release_scope.py`, which runs them whenever it cannot tell). Run `.\tools\gate.ps1` before pushing.
 
 ## Run it
 
 ```powershell
-# Everything the local gate runs (pre-push)
+# The pre-push gate. Runs the R8 APK/AAB builds only for release-affecting changes and prints why or why not.
 ./tools/gate.ps1
 
-# Rapid iteration (unit tests + lint + python guards, skips R8 APK/AAB)
+# Always run the R8 APK/AAB builds (for example before cutting a release)
+./tools/gate.ps1 -Full
+
+# Rapid iteration (unit tests + lint + python guards, never the R8 APK/AAB)
 ./tools/gate.ps1 -Quick
 ```
 
