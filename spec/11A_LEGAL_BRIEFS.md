@@ -227,6 +227,8 @@ Sent when the moment is right rather than urgently: **none of these gates a capa
 
 **Posture if the answer is "silence".** Brand names leave *our* strings (never the user's metadata): stats say "dynamic HDR (device path)"; help text describes capability without formats. The honesty stance survives in substance — the user still learns what happened — at some cost in clarity and searchability. No capability is affected.
 
+> **Status 2026-11-15:** briefs L5 to L8 were researched by the project itself from primary sources, without counsel; the findings, their grades and what could not be established are in [11B](11B_LEGAL_RESEARCH_FINDINGS.md) Appendix C. They remain open questions for counsel if the owner ever engages one.
+
 ### 4.3 Brief L5 — statute applicability notes
 
 **Priority: medium** (doc 11 §5). **Gates:** the privacy page, store forms (data safety, rating), doc 10 §6.2's status column. **Dependency:** global launch scope confirmed under OD-5 (Part 39); major global regimes (GDPR, CCPA/CPRA, India DPDP, LGPD, EAA) apply concurrently to R1 legal review.
