@@ -15,6 +15,7 @@ kotlin = "2.4.21"
 nav3Core = "1.2.1"
 lifecycleViewmodelNav3 = "2.11.0"
 media3 = "1.5.1"
+guava = "33.7.2-android"
 jellyfinMedia3Ffmpeg = "1.5.0+1"
 room = "2.7.2"
 turbine = "1.2.1"
@@ -67,6 +68,10 @@ androidx-media3-ui = { module = "androidx.media3:media3-ui", version.ref = "medi
 androidx-media3-common = { module = "androidx.media3:media3-common", version.ref = "media3" }
 androidx-media3-extractor = { module = "androidx.media3:media3-extractor", version.ref = "media3" }
 jellyfin-media3-ffmpeg-decoder = { module = "org.jellyfin.media3:media3-ffmpeg-decoder", version.ref = "jellyfinMedia3Ffmpeg" }
+
+# Guava is not used directly: Media3 pulls it in. It is declared here so it can be constrained (see app/build.gradle.kts)
+# and so Dependabot tracks it, which it cannot do for a transitive dependency.
+guava = { module = "com.google.guava:guava", version.ref = "guava" }
 
 # Room local database
 androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
