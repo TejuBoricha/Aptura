@@ -1,7 +1,7 @@
 # 11B — Legal research findings: codecs, FFmpeg and licences (self-conducted)
 
 **Date:** 2026-11-14 · **Scope:** the decoder decision (DEC-014, LEG-02) and what follows from it · **Answers:** briefs L1–L4 of
-[11A](11A_LEGAL_BRIEFS.md) as far as primary sources allow; L5–L8 are not covered here (see §9).
+[11A](11A_LEGAL_BRIEFS.md) as far as primary sources allow; L5–L8 are covered in Appendix C (added 2026-11-15, with what could not be established).
 
 > **What this is, and is not.** This is research and a reasoned position, done without a lawyer because the owner decided there would
 > be none. It was written by an AI coding agent. **It is not legal advice and not a clearance.** Every claim carries an evidence
@@ -28,8 +28,7 @@ page. **B** = derived: reasoned from A sources, or a reputable secondary source.
    the five binaries were deleted from the release and its notes replaced (appendix A). The tag and the source stay.
 4. **The platform already guarantees the common free codecs.** Android's CDD requires FLAC, MP3, Vorbis and Opus decoding on every
    compatible device `[A]`. Bundling them adds legal and security surface and no capability on our minSdk 26.
-5. **Decisions** (§8): bundle only **ALAC and G.711 A-law/µ-law** (free, and not guaranteed by the platform); make **AC-3 and E-AC-3**
-   the first add-back, under conditions that can be checked; **exclude DTS, TrueHD/MLP and AAC** and leave them to the platform and
+5. **Decisions** (§8): bundle only **ALAC and G.711 A-law/µ-law** (free, and not guaranteed by the platform); make **AC-3** the first add-back (decided 2026-11-15; **E-AC-3 stays out**: Dolby decoder patents run to about 2030, Appendix C); **exclude DTS, TrueHD/MLP and AAC** and leave them to the platform and
    pass-through; re-check DTS on 2027-02-07.
 
 ## 2. Facts established (verified)
@@ -110,7 +109,7 @@ a redistributed LGPL FFmpeg**. Buying a pool licence is not an option for the bu
 | **ALAC** | **none** | Apple's reference code is Apache-2.0 (repo archived 2026-08-27) `[S20 A]`. Apache-2.0 §3 grants a patent licence for the contributor's own contribution `[S21 A]`; FFmpeg's decoder is an independent implementation, so the grant does not strictly cover it `[B]`. No assertion by Apple known `[U]` | B | **bundle** |
 | **G.711 A-law / µ-law** | not in the CDD tables read | ITU-T 1972; any patent would have lapsed by age `[B, inferred from the date]` | B | **bundle** |
 | **AC-3** | none | Dolby's 10-K (FY2011): remaining Dolby Digital patents "expire between now and 2017" `[S7 A]`; the last two named as US 6,449,368 (2017-03-14) and US 5,890,106 (2017-03-19) `[S12 C]`. **But** the FY2019/FY2021 10-Ks say "some of our relevant patents have expired, but others continue to apply" to DD "as it has been updated over time" `[S8 A]`, undefined | A/B | **first add-back**, conditions in D3 |
-| **E-AC-3** | none | US 7,516,064 (Dolby, priority 2004-02-19), adjusted expiry **2026-01-30**, status "Expired - Lifetime"; EP/CN/JP/KR/CA counterparts expired; **BR and IL show only "IP Right Grant"** `[S10 A]`. Community calls it the last E-AC-3 patent `[S13 C]`. The standard (ETSI TS 102 366) was first published Feb 2005 `[S30 B]`, so any patent *essential* to it needed a priority before then and has run out by about 2025-26 `[B, inference]` | A for the record, B for "last" | **first add-back**, conditions in D3 |
+| **E-AC-3** | none | US 7,516,064 (Dolby, priority 2004-02-19), adjusted expiry **2026-01-30**, status "Expired - Lifetime"; EP/CN/JP/KR/CA counterparts expired; **BR and IL show only "IP Right Grant"** `[S10 A]`. Community calls it the last E-AC-3 patent `[S13 C]`. The standard (ETSI TS 102 366) was first published Feb 2005 `[S30 B]`, so any patent *essential* to it needed a priority before then and has run out by about 2025-26 `[B, inference]` | A for the record, B for "last" | **held** (decided 2026-11-15): later Dolby decoder patents to about 2030, Appendix C.1 |
 | **DTS core / DTS-HD (`dca`)** | none | core patents reported expired (US 5,956,674 etc.; last EU 2025-03-21) `[S14 C]`. **US 7,548,853 (DTS, priority 2006-06-12) is active to 2027-02-06**; its first independent claim is a method of compressing audio (encoder side), and whether it reads on a decoder is **not established** `[S11 A / relevance U]`. Xperi publishes hundreds of patents that "may be applicable" with no expiry data `[S15 A]`; FFmpeg's `dca` also decodes the DTS-HD extensions | A/C | **exclude**; re-check 2027-02-07 |
 | **TrueHD / MLP** | none | no primary expiry data found; Dolby-branded; Wikipedia gave nothing `[U]` | U | **exclude** |
 | **AAC (LC/HE, LATM)** | CDD requires AAC | the Via LA pool is active and covers decoders; **Android OEMs must take their own licence** `[S18 A]`; Dolby (a licensor) states some AAC patents "have expired and others will expire over the next several years", Extended HE-AAC later `[S9 A]`; the ISO code notice warns open-source implementations "may require patent licenses" `[S18]` | A | **exclude** (platform) |
@@ -149,7 +148,7 @@ F-Droid (L7) and store-claims policy (L8) are separate pieces of work.
 |---|---|---|
 | **D1** | Route (a), the self-built LGPL-only extension, stays the plan. | DEC-014; 3.1–3.3 |
 | **D2** | The 1.0 bundle contains **only `alac`, `pcm_alaw`, `pcm_mulaw`** (`tools/ffmpeg/approved_decoders.txt`). | §5: the platform guarantees the rest; fewer decoders means less patent, security and maintenance surface |
-| **D3** | **AC-3 and E-AC-3 are the first add-back** (`ac3`, `eac3`), added only when all hold: C1 the self-built extension exists and passes `verify_lgpl_symbols.py`; C2 the ETSI IPR declarations for TS 102 366 (ETSI SR 000 314) are checked and every declared patent family is confirmed expired, including the BR and IL members of US 7,516,064; C3 the check is written into this file with the date. | 4.2 |
+| **D3** | **AC-3 is the first add-back** (`ac3` only), added when: C1 the self-built extension exists and passes `verify_lgpl_symbols.py` (met); C2 the ETSI IPR declarations for TS 102 366 are checked and every declared family is confirmed expired (met for AC-3 on 2026-11-15: Appendix C.1); C3 the check is written into this file with the date (Appendix C). **E-AC-3 (`eac3`) is held**: later Dolby decoder patents (for example US 8,891,776, in force to about 2030) are not on ETSI's list and cover decoding E-AC-3 features FFmpeg implements. Decided by the owner 2026-11-15. | 4.2, Appendix C |
 | **D4** | **DTS, TrueHD, MLP are excluded.** Re-check DTS on or after **2027-02-07** (US 7,548,853 expiry) together with a fresh Xperi list; pass-through only until then. | 4.2 |
 | **D5** | **AAC is excluded**; the platform decoders handle it. | 4.2, §5 |
 | **D6** | **Withdraw the `v1.0.0` binaries and correct its notes.** **Done 2026-11-14** (appendix A). | 3.6, §2 |
@@ -160,7 +159,7 @@ F-Droid (L7) and store-claims policy (L8) are separate pieces of work.
 
 ## 9. Not established, and what would change the answer
 
-- Patent status in **Brazil and Israel** for the E-AC-3 family, and the ETSI-declared patents for AC-3/E-AC-3 (D3 C2).
+- Whether FFmpeg's E-AC-3 decoder falls within the claims of the later Dolby decoder patents (Appendix C.1), and any patent outside the US-claims search that found them. (The ETSI-declared AC-3 families are checked; Brazil and Israel no longer decide E-AC-3.)
 - Whether US 7,548,853, or any other DTS patent, reads on a decoder-only distribution.
 - Any patent or licence terms for **TrueHD/MLP**.
 - Whether Apple would assert anything on ALAC (no sign of it; the grant does not strictly reach an independent implementation).
@@ -169,7 +168,7 @@ F-Droid (L7) and store-claims policy (L8) are separate pieces of work.
 - **Dolby's third-party trademark rules** (page not found).
 - A lawyer would change the answer on: the AC-3/E-AC-3 add-back if a family member is unexpired; DTS-HD; whether platform delegation fully
   shelters us; and anything in a jurisdiction we did not research. None of those blocks D1, D2, D4, D5 or D6.
-- Not covered at all: briefs L5 (privacy statutes), L6 (name clearance for "Aptura"), L7 (app licence, F-Droid), L8 (store-claims policy).
+- Briefs L5 to L8 are researched in Appendix C; its own limits apply (India's data law, Brazil's LGPD and the EU Accessibility Act were not read; the name search could not see India after 2026-03-27).
 
 ## 10. Sources (all opened 2026-11-14)
 
@@ -268,3 +267,70 @@ prebuilt library used to decode them in software. The player marks such tracks a
 
 **Not established:** playback on any physical device; the Play-delivered split-APK path; relinking with a modified FFmpeg (the mechanism, changing the pin, exists but
 was not exercised with a modified library); everything listed in section 9, which this change does not touch.
+
+
+---
+
+## Appendix C: briefs L5 to L8 and DEC-021 C2, researched 2026-11-14 and 2026-11-15
+
+Same rules as the rest of this file: self-conducted, **not legal advice and not a clearance**, evidence graded A/B/C/U, and what could not be established is listed. Raw notes and the downloaded ETSI file are not in the repository (the file is 149 MB); the figures below can be regenerated from the sources named.
+
+### C.1 DEC-021 C2: the ETSI declarations for TS 102 366 (AC-3, E-AC-3)
+
+**Source `[A]`:** ETSI's open IPR export `https://docbox.etsi.org/IPR/Open/ISLD-export.zip` (information statements and licensing declarations; 4,999,898 rows; file dated 2026-11-14), downloaded by the owner in a browser because the server refused scripted requests. ETSI states it checks none of the declarations.
+
+| Fact | Result |
+|---|---|
+| Declarations naming TS 102 366 | **One:** `ISLD-200412-001`, Dolby Laboratories Inc., signed 2004-11-08 (before the standard's first publication) |
+| Patents and family members listed | 2,927 (96 basis patents, 2,831 family members) in 29 jurisdictions: DE 430, US 335, JP 282, EP 227, AT 207, AU 201, DK 197, CA 192, ES 189, SG 155, WO 137, KR 119, BR 88, CN 21 and a tail |
+| Application dates (2,738 rows have one) | 1985-11-14 to 2002-10-03; latest in the US 1999-07-08 (US 6,246,345 B1); latest in EP, DE, CA, AU, BR 2000-04-11 |
+| Nominal term end (20 years from filing) | Latest **2022-10-03**; no dated row ends after 2026-11-15 |
+| Rows without a date | 189, European national validations of EP families whose dates are 2000 or earlier |
+
+**Reading `[B]`.** For AC-3 itself (the body of TS 102 366), every family Dolby declared to ETSI ended by 2022 at the latest, which agrees with Dolby's FY2011 10-K (remaining Dolby Digital patents expire by 2017, S7). **Two limits.** (1) Only 27 of the 335 US rows carry a patent number; US applications filed before 1995-06-08 get the longer of 20 years from filing or 17 years from grant, so a late-issued old US patent among the other ~308 is theoretically possible and is not shown by this data. (2) **E-AC-3 is not covered by ETSI's list.** The declaration (2004) predates E-AC-3's inclusion in TS 102 366, and no other declaration names the standard.
+
+**Later Dolby decoder patents `[A]` for the records, `[B]` for the reading.** The USPTO's Patent Public Search (2026-11-15), Dolby patents whose *claims* name "enhanced AC-3", "E-AC-3" or "Dolby Digital Plus", found 16 families (23 documents), filed 2010 to 2019. Two bear on a software decoder:
+- **US 8,891,776** (and continuation 9,620,132), "Decoding of multichannel audio encoded bit streams using adaptive hybrid transformation", PCT filed **2010-10-28**, so nominally in force until **2030-10-28** or later with term adjustment. Claim 1 is a method of decoding a frame block by block in a single pass, in which, for a channel that used the adaptive hybrid transform (AHT), the first block of the frame yields all the channel's hybrid coefficients and an inverse secondary transform is applied once; dependent claim 2 says the frame "complies with enhanced AC-3 bit stream syntax". That is the way the E-AC-3 standard has to be decoded, and FFmpeg n9.0.2 implements AHT (`channel_uses_aht`, `pre_mantissa`, `idct6` in `eac3dec.c`).
+- **US 8,214,223** (and 8,868,433, 9,311,921), "Audio decoder and decoding method using efficient downmixing", PCT filed 2011-02-03, in force to about 2031. Claim 1 requires time-domain downmixing **with cross-fading when the downmix settings change**. FFmpeg n9.0.2's `ac3dec.c`, `ac3dec.h`, `ac3dec_float.c`, `ac3dsp.c` and `eac3dec.c` contain no cross-fading (no hit for "crossfade", "cross-fade" or "fade").
+The base E-AC-3 patent US 7,516,064 (adjusted expiry 2026-01-30) is not the end of the story: these later patents are why **E-AC-3 is not treated as free**, and why the Brazilian and Israeli counterparts of US 7,516,064 (D3's C2) stopped being the deciding question. Whether FFmpeg's decoder falls within any claim is a claim-construction judgement for counsel; this appendix does not make it.
+
+**Source check `[A]` (code), exact tarball in the bundle.** In FFmpeg n9.0.2 the AHT and the rest of the E-AC-3 decoder are in `eac3dec.c`, which `ac3dec_float.c` includes only `#if CONFIG_EAC3_DECODER`; the calls into it from `ac3dec.c` are behind `CONFIG_EAC3_DECODER` as well (`else if (CONFIG_EAC3_DECODER)`, `if (CONFIG_EAC3_DECODER && !blk)`), and the Makefile links `eac3_data.o` only for that decoder. A build with `--enable-decoder=ac3` and without `eac3` therefore compiles the E-AC-3 tools out. The built libraries are checked for this again when the new bundle is made (recorded in DEC-026).
+
+**Owner's decision, 2026-11-15:** add **AC-3 only**. E-AC-3, DTS (US 7,548,853 to 2027-02-06) and TrueHD/MLP stay out. DTS is re-checked on or after 2027-02-07. TrueHD/MLP: a USPTO claim-text search for "TrueHD" and "Meridian Lossless Packing" found no patent claiming them (4 unrelated hits), which proves nothing about patents that do not use those words `[U]`.
+
+**Consequence for DEC-021.** C2 is met for AC-3 on the evidence above (still research, still not a clearance); E-AC-3 stays closed because of live decoder patents to about 2030, not because of Brazil or Israel.
+
+### C.2 L6: the name "Aptura"
+
+**Method `[A]` for the data, `[B]` for the reading.** WIPO Global Brand Database (`branddb.wipo.int`), 2026-11-14: an exact-phrase search for "Aptura", phonetic searches limited to Nice classes 9 and 42, and full reading of the nearest records. The earlier choice of the name (spec/08B OD-6) rested on "0 Play Store collisions" only; no register had been searched.
+
+- **Identical word, 14 records.** Live: Direct Supply, Inc. (US 3,854,534 and Canada; classes 35, 37, 39, 42: freight logistics, building construction, warehousing, architectural and interior design); Kulicke and Soffa Industries (US 8,296,095, registered 2026-06-09, and SG, JP, KR; class 7: die-attach and flip-chip bonding machines); ONE CWJ LTD (GB, registered 2026-09-18; class 36: private equity). Ended or expired: DataCard (class 9, 2001), Mine Safety Appliances (class 9, 2003), Philips (classes 9 and 11, 2005), a Japanese filing (2005), Atlantic Fish Co (class 42, ended 2026-07-27). **No live identical mark in class 9, 38 or 41.**
+- **One letter away, in software classes.** EPTURA (Eptura, Inc., Atlanta): registered US 7,531,296 (classes 9 and 42, 2024-10-08) and in the EU, UK, Australia, Canada (9, 42, 45), with many EPTURA-formative filings pending; the goods are facility, workplace and asset-management software and SaaS for enterprises. APTURE (1888104 Alberta Ltd., Calgary): pending US 99794537 (filed 2026-04-29; non-final office action 2026-09-04) and Canada 2447254, classes 9 and 42: business-management, AI-assistant and optimisation software and SaaS for project management; and APTURE LIMITED (New Zealand, registered 2025-07-01, class 9): camera and intercom interfaces and "computer software for controlling the operation of audio and video devices". Others: OPTURA (US pending, 9/35/42), Aptora (EU pending, filed 2026-10-08, 9/35/42), AVTURA (GB, 9/42/45).
+- **Unregistered use.** A web search found APTURA Group, Inc. (Indianapolis, security systems); its US application APTURA TECHNOLOGIES (97608636, classes 35 and 37) was expressly abandoned on 2022-12-09 (an aggregator site, `[B]`). No app called Aptura was found on Google Play or the App Store by web search `[B/U]`.
+- **The other finalists, same search.** Pellucis: 0 exact records (a phonetic search was not run). Caelis: 10 live or pending records, including a French registration of "Caelis" covering classes 9, 11, 37, 41 and 42: worse than Aptura's position.
+- **Reading `[B]`.** No identical live right in the field a free offline video player occupies; the exposure is in **likelihood of confusion with near names** (EPTURA most, APTURE next) if the owner files a trademark or if a rights holder complains to Google, and that turns on a comparison of goods and customers that only a court, an examiner or counsel can make. The goods differ sharply (enterprise facility software; business and AI software; camera control hardware) from a consumer media player. The risk is real but modest.
+- **Limits.** The database is incomplete: a US record found elsewhere (97608636) was not returned by the exact-phrase search. Freshness per office: US to 2026-10-28, EU 2026-11-13, CA 2026-11-11, GB 2026-11-12, AU 2026-05-07, **India only to 2026-03-27**. Not searched: common-law use, domains, social handles, logos, the primary USPTO, EUIPO and IP India search tools.
+- **Options for the owner.** (a) Keep Aptura and accept the residual risk, filing no trademark yet. (b) Keep it and buy a professional clearance search before the first Play upload, because changing the `applicationId` after publishing means a new listing. (c) Move to another finalist, after a phonetic search on it (Pellucis is the cleanest on the exact search).
+
+### C.3 L5: privacy statutes
+
+Texts `[A]`: GDPR from EUR-Lex (Cellar), the consolidated ePrivacy Directive, 16 CFR 312.2 (eCFR), Cal. Civ. Code 1798.140, Google Play's Data safety page.
+
+- **GDPR applies to "the processing of personal data" (Art. 2(1)) by a controller or processor with an EU establishment or targeting EU data subjects (Art. 3).** A controller is whoever "determines the purposes and means of the processing" (Art. 4(7)). Processing by a person "in the course of a purely personal or household activity" is outside it (Art. 2(2)(c)), but Recital 18 adds: "this Regulation applies to controllers or processors which provide the means for processing personal data for such personal or household activities". The EDPB's Guidelines 07/2020 test control by what an entity "actually exerts influence on" about purposes and means, not by access to data. **Unresolved `[U]`:** whether an app developer who designs on-device processing, and never sees the data, is a controller. The sources neither say yes nor no. The practical cost of being wrong is small: no data leaves the device and a privacy policy already exists.
+- **ePrivacy Art. 5(3)** requires consent for "storing of information, or the gaining of access to information already stored, in the terminal equipment" unless "strictly necessary in order for the provider of an information society service explicitly requested by the subscriber or user to provide the service". Its wording is not limited to personal data; the library database and settings Aptura keeps on the device are within the wording, and are what the person asked the app to do. The EDPB's Guidelines 2/2023 (second version 2024-10-07) were not read beyond their summary `[U]`.
+- **Google Play `[A]`:** "All developers that have an app published on Google Play must complete the Data safety form", "even developers with apps that do not collect any user data", and a privacy policy link is required; "'Collect' means transmitting data from your app off a user's device", and data "only processed locally" need not be disclosed. Aptura's `docs/PRIVACY.md` is that policy.
+- **COPPA `[A]`:** "Collects or collection means the gathering of any personal information from a child by any means"; an "operator" is one who "collects or maintains personal information from or about the users". An app that gathers nothing from anyone has nothing for the rule to act on `[B]`.
+- **CCPA/CPRA `[A]`:** a "business" needs annual gross revenue over $25 million, or buys, sells or shares the personal information of 100,000 or more consumers or households, or earns 50 percent of revenue from selling or sharing it. Aptura meets none `[B]`.
+- **Not researched:** India's Digital Personal Data Protection Act 2023 and Rules, Brazil's LGPD, the EU Accessibility Act, other US state laws, and any non-English law.
+
+### C.4 L7: the app's licence and F-Droid
+
+Aptura is Apache-2.0 and public. Apache-2.0 allows modification and does not forbid reverse engineering, which is what LGPL-2.1 section 6 needs (section 3.3). **F-Droid `[A]`:** its Inclusion Policy requires FLOSS and building "from publicly accessible source code"; "all binary dependencies including JAR files must originate either from source compilation or Debian repository downloads", and "applications can download prebuilt FLOSS binaries with specific conditions from trusted Maven repositories". The way the app now gets its FFmpeg libraries (a SHA-256-pinned zip from a GitHub release, DEC-024) is none of those, so **an F-Droid build would have to build FFmpeg from the published source** (the scripts in `tools/ffmpeg/` and the source tarball exist for that); F-Droid's build documentation says nothing should be built in the prebuild step, so the mechanism is `[U]`. This does not affect Google Play. Contributor hygiene (a DCO or licence headers before outside contributions) was not researched.
+
+### C.5 L8: store-copy claims
+
+Google Play's Metadata policy `[A]` bars metadata that is "misleading ... or inappropriate", requires the title and description to "accurately describe your app's functionality" and screenshots to "reflect your app's actual experience", and forbids ranking claims ("#1", "App of the year"), "best game ever"-style claims, "data comparison of apps or brands", brand logos without permission and "unattributed or anonymous user testimonials". The project's own discipline (doc 07 section 13, doc 15 S3) already forbids the same families. **Reading `[B]`:** nothing new is needed; the store text must not claim codec support the device decides (the swap makes this sharper: AC-3, E-AC-3, DTS and TrueHD are the device's), and the Data safety answer "no data collected" is consistent with Google's own definition only while the build stays free of `INTERNET` and SDKs, which tests already enforce. Whether a lawyer should bless the policy once (the brief's Q1) is a choice; no source found makes it a requirement `[U]`.
+
+### C.6 What this appendix changes
+
+D3 is narrowed from "AC-3 and E-AC-3" to **AC-3 only** (C.1); its condition C2 is met for AC-3. Nothing in D1, D2, D4 or D5 changes. New open items: the name decision (C.2), the controller question (C.3), the F-Droid path (C.4), and the E-AC-3 patents to about 2030 (C.1).
