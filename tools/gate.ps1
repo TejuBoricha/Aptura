@@ -8,7 +8,7 @@
 #      runs them whenever it is unsure). -Full always runs them, -Quick never does. CI runs them on every pull request.
 #   4. Agent coordination checker tests (tools/agents), when Python 3 is installed; CI always runs them
 #   5. Secret & workflow pin guards (tools/security): fails on tracked secrets or unpinned workflow actions
-#   6. Release-scope tests (tools/gate)
+#   6. Release-scope tests (tools/gate) and release smoke script tests (tools/smoke)
 # ==============================================================================
 
 param(
@@ -106,6 +106,9 @@ if ($python) {
     }
     Run-Step "Release-scope tests (tools/gate)" {
         & $python -m unittest discover -s tools/gate
+    }
+    Run-Step "Release smoke script tests (tools/smoke)" {
+        & $python -m unittest discover -s tools/smoke
     }
 } else {
     Write-Host "`n>>> [SKIPPED] Agent coordination checker and secret file guard: Python 3 not found (CI runs them)" -ForegroundColor Yellow

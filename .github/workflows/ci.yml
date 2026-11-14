@@ -58,6 +58,11 @@ jobs:
       - name: Gate scoping tests
         run: python3 -m unittest discover -s tools/gate
 
+      # tools/smoke/release_smoke.py is what the nightly release-smoke job runs; its tests drive a fake adb, so they
+      # need no device and fail here, on the pull request, instead of at 03:17 the next night.
+      - name: Release smoke script tests
+        run: python3 -m unittest discover -s tools/smoke
+
       - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
           distribution: temurin
