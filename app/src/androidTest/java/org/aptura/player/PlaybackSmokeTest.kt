@@ -1,10 +1,8 @@
 package org.aptura.player
 
-import android.content.ContentValues
 import android.content.Context
 import android.net.Uri
-import android.os.Environment
-import android.provider.MediaStore
+import android.os.Build
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -67,31 +65,14 @@ class PlaybackSmokeTest {
 
     @Before
     fun putClipsInMediaStore() {
-        clipUri = insertClip(CLIP_NAME, "smoke_clip.mp4")
-        hevcUri = insertClip(HEVC_NAME, "smoke_hevc.mp4")
-    }
-
-    private fun insertClip(displayName: String, asset: String): Uri {
-        val resolver = context.contentResolver
-        val values = ContentValues().apply {
-            put(MediaStore.Video.Media.DISPLAY_NAME, displayName)
-            put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
-            put(MediaStore.Video.Media.RELATIVE_PATH, "${Environment.DIRECTORY_MOVIES}/Checks")
-            put(MediaStore.Video.Media.IS_PENDING, 1)
-        }
-        val uri = resolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)
-            ?: error("MediaStore refused to create $displayName")
-        resolver.openOutputStream(uri)!!.use { out ->
-            InstrumentationRegistry.getInstrumentation().context.assets.open(asset).use { it.copyTo(out) }
-        }
-        resolver.update(uri, ContentValues().apply { put(MediaStore.Video.Media.IS_PENDING, 0) }, null, null)
-        return uri
+        clipUri = seedVideo(CLIP_NAME, "smoke_clip.mp4")
+        hevcUri = seedVideo(HEVC_NAME, "smoke_hevc.mp4")
     }
 
     @After
     fun removeClips() {
         runCatching { PlayerManager.activeController?.player?.let { p -> onMain { p.stop() } } }
-        listOfNotNull(clipUri, hevcUri).forEach { runCatching { context.contentResolver.delete(it, null, null) } }
+        listOfNotNull(clipUri, hevcUri).forEach { unseedVideo(it) }
     }
 
     private fun item(uri: Uri?, title: String) = DomainMediaItem(
@@ -149,8 +130,11 @@ class PlaybackSmokeTest {
         val uiAutomation = InstrumentationRegistry.getInstrumentation().uiAutomation
         val currentUiMode = context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
         val targetNight = if (currentUiMode == android.content.res.Configuration.UI_MODE_NIGHT_YES) "no" else "yes"
+        // `cmd uimode` exists from API 29. Below that the night mode cannot be flipped from a test, so the activity is
+        // only recreated; the queue must survive that as well, which is the part of FUNC-03 a lower API level can check.
+        val canFlipNightMode = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
         try {
-            uiAutomation.executeShellCommand("cmd uimode night $targetNight")
+            if (canFlipNightMode) uiAutomation.executeShellCommand("cmd uimode night $targetNight")
             composeRule.waitForIdle()
             composeRule.activityRule.scenario.recreate()
             composeRule.waitForIdle()
@@ -161,7 +145,7 @@ class PlaybackSmokeTest {
             assertEquals("Playback reverted instead of staying on queue item 2", 1, index)
         } finally {
             val restoreNight = if (currentUiMode == android.content.res.Configuration.UI_MODE_NIGHT_YES) "yes" else "no"
-            uiAutomation.executeShellCommand("cmd uimode night $restoreNight")
+            if (canFlipNightMode) uiAutomation.executeShellCommand("cmd uimode night $restoreNight")
         }
     }
 
