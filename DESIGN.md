@@ -18,7 +18,7 @@ Aptura is a **precision optical instrument for personal media**.
 
 ## 2. Color Tokens & Semantic Roles
 
-Appearance is a user setting (`ThemeMode` = `System` / `Light` / `Dark`, plus one of five accents: Cyan, Blue, Violet, Amber, Rose). `ApturaTheme` swaps one complete palette at a time, so a token always means the same thing. The dark palette below is unchanged from the original specification; the light palette is its daylight counterpart. The player and its menus always resolve to the dark palette, and the player is always laid out left to right: a video's position runs left to right in every language and its gestures are named for the side of the screen they sit on.
+Appearance is a user setting (`ThemeMode` = `System` / `Light` / `Dark`, plus one of six accents: Cyan, Blue, Violet, Amber, Rose, Gold; every accent is open to everyone, none is locked behind a star, a purchase or a toggle). `ApturaTheme` swaps one complete palette at a time, so a token always means the same thing. The dark palette below is unchanged from the original specification; the light palette is its daylight counterpart. The player and its menus always resolve to the dark palette, and the player is always laid out left to right: a video's position runs left to right in every language and its gestures are named for the side of the screen they sit on.
 
 ### 2.1 Surfaces & Backgrounds (Dark Mode Baseline)
 | Token | Hex Value | Semantic Role / Usage |
@@ -31,7 +31,7 @@ Appearance is a user setting (`ThemeMode` = `System` / `Light` / `Dark`, plus on
 | `SurfaceRecessed` | `#00000080` | Recessed tracks: selector switches, folder chips |
 | `SurfaceScrim` | `#000000CC` | 80% opacity overlay behind HUD controls during playback |
 | `SurfaceGlass` | `#16181DB3` | 70% opacity blurred backdrop for quick-setting flyouts |
-| `ControlTrack` | `#5E6674` | Unfilled part of the seek bar. 3.6:1 on `SurfacePureBlack`, 3.3:1 on `SurfaceBase`, 3.1:1 on `SurfaceElevated1` (WCAG 1.4.11 asks 3:1; `SurfaceElevated3` was 1.6:1) |
+| `ControlTrack` | `#687282` | Unfilled part of the seek bar and sliders. 4.3:1 on `SurfacePureBlack`, 4.0:1 on `SurfaceBase`, 3.6:1 on `SurfaceElevated1`, 3.2:1 on `SurfaceElevated2` sheets (WCAG 1.4.11 asks 3:1, enforced by `ApturaContrastTest`). Never drawn on `SurfaceElevated3`, a pressed fill, where it is 2.8:1 |
 
 ### 2.1b Light Palette (same token names)
 | Token | Hex Value | Notes |
@@ -64,8 +64,9 @@ Each accent has a dark and a light primary/secondary variant; the active pair is
 | Cyan (default) | `#00E5FF` | `#00707F` | **Aptura Electric Cyan** — active states, scrubber fill, selection |
 | Blue | `#6EA8FF` | `#1D4ED8` | Cool secondary identity |
 | Violet | `#B388FF` | `#6D28D9` | Expressive secondary identity |
-| Amber | `#FFC857` | `#8A5300` | Warm secondary identity |
+| Amber | `#FFA000` | `#995200` | Warm secondary identity |
 | Rose | `#FF6E9C` | `#B3124B` | Warm secondary identity |
+| Gold | `#F5D77F` | `#745700` | Champagne gold. Open to everyone: it is not locked behind a star, a purchase or a toggle |
 
 `AccentSubtle` is the active primary at 15% alpha (dark) or 12% alpha (light). `BorderSubtle` is `#FFFFFF26` in dark and `#0F172A1F` in light.
 
@@ -230,7 +231,7 @@ On a fresh install the library is empty until the first scan ends (the scan save
 - **Colors:** 
   - Played track: `AccentPrimary` (`#00E5FF`).
   - Buffered track: `TextMediumEmphasis` at 60% over the remaining track.
-  - Remaining track: `ControlTrack` (`#5E6674`, 3:1 or more on black).
+  - Remaining track: `ControlTrack` (`#687282`, 3:1 or more on every surface a slider sits on).
 - **Timecode Display:** Floating chip above thumb showing current position (`00:14:22 / 01:45:00`) in tabular figures.
 
 ### 5.2 HUD Visibility & Transitions

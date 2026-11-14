@@ -275,6 +275,7 @@ android {
         // Without a declared input Gradle reports the task up to date and a local run stays green on edited text.
         testTask.inputs.file(rootProject.file("docs/PRIVACY.md")).withPathSensitivity(PathSensitivity.NONE).withPropertyName("privacyPolicy")
         testTask.inputs.dir(rootProject.file("distribution/play-store/metadata")).withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName("storeMetadata")
+        testTask.inputs.file(rootProject.file("DESIGN.md")).withPathSensitivity(PathSensitivity.NONE).withPropertyName("designSpec")
         // Hang guard for the WHOLE unit-test task.
         testTask.timeout.set(Duration.ofSeconds(300))
         // Parallelize Robolectric/unit test forks locally (up to 3) and in CI (up to 2) while giving each fork 1536m
