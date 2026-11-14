@@ -46,7 +46,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.aptura.player.core.legal.LicenseDocument
 import org.aptura.player.core.legal.LicenseDocuments
@@ -72,7 +71,9 @@ private const val UNREADABLE = "This text could not be read from the app. The sa
 @Composable
 fun LicensesScreen(
     onBackClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    // Only a test replaces this, to make a read slow: how quickly a text arrives must never decide where the list ends up.
+    readText: (android.content.Context, LicenseDocument) -> String = LicenseDocuments::read
 ) {
     val context = LocalContext.current
     var expandedId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -82,17 +83,23 @@ fun LicensesScreen(
     // A text is read from the assets the first time it is opened, off the main thread, and split into paragraphs so a long
     // licence is laid out piece by piece instead of as one enormous block.
     LaunchedEffect(expandedId) {
-        val position = LicenseDocuments.all.indexOfFirst { it.id == expandedId }
-        if (position < 0) return@LaunchedEffect
-        val document = LicenseDocuments.all[position]
-        // An opened text starts right under its row, so a row tapped near the bottom would open its text below the fold.
-        // Bring the row to the top: only one text is open at a time, so its place in the list is its place in the order.
-        launch { listState.animateScrollToItem(LEADING_ITEMS + position) }
+        val document = LicenseDocuments.all.firstOrNull { it.id == expandedId } ?: return@LaunchedEffect
         if (document.id in loaded) return@LaunchedEffect
         val paragraphs = withContext(Dispatchers.IO) {
-            runCatching { LicenseText.paragraphs(LicenseDocuments.read(context, document)) }.getOrElse { listOf(UNREADABLE) }
+            runCatching { LicenseText.paragraphs(readText(context, document)) }.getOrElse { listOf(UNREADABLE) }
         }
         loaded = loaded + (document.id to paragraphs)
+    }
+
+    // An opened text starts right under its row, so a row tapped near the bottom would open its text below the fold: bring the
+    // row to the top. This waits until the text is in the list. Scrolling while it was still being read left only a "Reading…"
+    // line below the row, so the list could not scroll far enough, and nothing moved it again once the text arrived. Only one
+    // text is open at a time, so a row's place in the list is its place in the order.
+    val expandedTextIsShown = expandedId != null && expandedId in loaded
+    LaunchedEffect(expandedId, expandedTextIsShown) {
+        if (!expandedTextIsShown) return@LaunchedEffect
+        val position = LicenseDocuments.all.indexOfFirst { it.id == expandedId }
+        if (position >= 0) listState.animateScrollToItem(LEADING_ITEMS + position)
     }
 
     val statusTop = StableStatusBars.asPaddingValues().calculateTopPadding()
