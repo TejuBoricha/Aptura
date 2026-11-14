@@ -24,9 +24,8 @@ page. **B** = derived: reasoned from A sources, or a reputable secondary source.
    obligation is LGPL-2.1 §6, which is satisfiable** (§3).
 3. **What we ship today is not defensible and has already been published.** The public pre-release `v1.0.0` (4 downloads) bundles
    12 decoders, including AAC, AC-3, E-AC-3, DTS, TrueHD and MLP, FFmpeg linked *statically*, with no LGPL notice or licence text in
-   the APKs, and its release notes say the opposite ("LGPL-clean via dynamically linked FFmpeg (FLAC, Opus, Vorbis)"). **Decided:**
-   withdraw the binaries and correct the notes (§8, D6). **Not yet done**: the agent's permission layer blocked every change to the public
-   release, so the owner needs to run the commands in appendix A.
+   the APKs, and its release notes say the opposite ("LGPL-clean via dynamically linked FFmpeg (FLAC, Opus, Vorbis)"). **Done 2026-11-14:**
+   the five binaries were deleted from the release and its notes replaced (appendix A). The tag and the source stay.
 4. **The platform already guarantees the common free codecs.** Android's CDD requires FLAC, MP3, Vorbis and Opus decoding on every
    compatible device `[A]`. Bundling them adds legal and security surface and no capability on our minSdk 26.
 5. **Decisions** (§8): bundle only **ALAC and G.711 A-law/µ-law** (free, and not guaranteed by the platform); make **AC-3 and E-AC-3**
@@ -150,7 +149,7 @@ F-Droid (L7) and store-claims policy (L8) are separate pieces of work.
 | **D3** | **AC-3 and E-AC-3 are the first add-back** (`ac3`, `eac3`), added only when all hold: C1 the self-built extension exists and passes `verify_lgpl_symbols.py`; C2 the ETSI IPR declarations for TS 102 366 (ETSI SR 000 314) are checked and every declared patent family is confirmed expired, including the BR and IL members of US 7,516,064; C3 the check is written into this file with the date. | 4.2 |
 | **D4** | **DTS, TrueHD, MLP are excluded.** Re-check DTS on or after **2027-02-07** (US 7,548,853 expiry) together with a fresh Xperi list; pass-through only until then. | 4.2 |
 | **D5** | **AAC is excluded**; the platform decoders handle it. | 4.2, §5 |
-| **D6** | **Withdraw the `v1.0.0` binaries and correct its notes.** *Not yet executed* (blocked, see appendix A). | 3.6, §2 |
+| **D6** | **Withdraw the `v1.0.0` binaries and correct its notes.** **Done 2026-11-14** (appendix A). | 3.6, §2 |
 | **D7** | Every FFmpeg we ship follows the LGPL package: dynamic libraries; the exact FFmpeg source, our build script and the configure line published beside the binary; the licence text and notice inside the app; an in-app open-source licences screen; no reverse-engineering prohibition. A test compares the licence list with the release dependency list. | 3.1–3.2, 3.6 |
 | **D8** | Wording rules in §6 become standing rules for UI and store copy. | §6 |
 | **D9** | Re-verify the patent rows at every release gate and on these dates: **2027-02-07** (DTS). | 4.3 |
@@ -205,9 +204,13 @@ F-Droid (L7) and store-claims policy (L8) are separate pieces of work.
 
 ---
 
-## Appendix A: withdrawing the `v1.0.0` binaries (D6), to be run by the owner
+## Appendix A: withdrawing the `v1.0.0` binaries (D6), done 2026-11-14
 
-Why: §2 and 3.6. The files were downloaded 4 times. This is reversible: the tag and the source stay, and the same files can be rebuilt from the tag.
+Why: §2 and 3.6. The files had been downloaded 4 times, so copies exist that cannot be recalled. The withdrawal is reversible: the tag and the source stay, and files can be rebuilt from the tag (not byte for byte).
+
+**What happened:** the agent's permission layer first blocked every change to the public release, including a text-only edit. When the owner asked directly for the notes to be changed and the files removed, both went through. The release now has the corrected notes and 0 assets; it is still flagged as a pre-release.
+
+The commands that were run, for the record:
 
 ```
 gh release delete-asset v1.0.0 app-arm64-v8a-release.apk --yes
@@ -215,10 +218,10 @@ gh release delete-asset v1.0.0 app-armeabi-v7a-release.apk --yes
 gh release delete-asset v1.0.0 app-release.aab --yes
 gh release delete-asset v1.0.0 app-universal-release.apk --yes
 gh release delete-asset v1.0.0 app-x86_64-release.apk --yes
-gh release edit v1.0.0 --notes-file <the text below saved to a file>
+gh release edit v1.0.0 --notes-file <the text below saved to a file>   # the first line of the page now reads "Aptura v1.0.0 (pre-release): corrected notes"
 ```
 
-Replacement release notes:
+The replacement release notes (the page carries a close variant that cites DEC-014 and DEC-020 to DEC-024):
 
 > **Aptura v1.0.0 (pre-release): corrected notes.** This is a pre-release and is not suitable for general use. The original release notes made
 > statements that were not accurate, and are replaced by this text.
