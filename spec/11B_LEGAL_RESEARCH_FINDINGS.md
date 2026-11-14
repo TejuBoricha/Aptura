@@ -252,7 +252,7 @@ did, not a clearance.
 | A copy of the licence | The LGPL-2.1 text, FFmpeg's licensing overview, Apache-2.0 and the BSD-3-Clause text are packaged into the app from the bundle, `LICENSE`, `NOTICE` and `licenses/` | `LicenseDocumentsTest` (every listed text exists, every packaged text is listed) |
 | Exact corresponding source on the same server as the binary | The release holds the zip, the FFmpeg source tarball and the build records; `NOTICE` and the screen link to it | `LicenseDocumentsTest` compares the link with the URL the build downloads |
 | Dynamic linking; no `--enable-gpl`, `--enable-nonfree` or `--enable-version3`; configure line recorded | Three shared libraries plus the JNI glue; `config.h` and `BUILD-INFO.txt` per ABI inside the bundle | `verify_lgpl_symbols.py` in CI when the bundle is built; `LgplBuildVerificationTest` on the records the app links |
-| Only the approved decoders (D2) | `alac`, `pcm_alaw`, `pcm_mulaw` | the same two, plus `FfmpegAudioPlaybackTest.theBundle_decodesExactlyTheApprovedFormats` on a device |
+| Only the approved decoders (D2; AC-3 added by D3 on 2026-11-15) | `alac`, `pcm_alaw`, `pcm_mulaw` in the first bundle (r1), plus `ac3` from r2 | the same two (the pin's `decoders=` and `approved_decoders.txt`), plus `FfmpegAudioPlaybackTest.theBundle_decodesExactlyTheApprovedFormats` on a device |
 | No restriction on modification or reverse engineering of Aptura (section 6) | Aptura is public under Apache-2.0; a build links whatever bundle `gradle/ffmpeg-bundle.properties` pins | stated in `NOTICE`; not enforced by a test |
 | Java half under its own licence | Five AndroidX Media 1.5.1 classes copied byte for byte; the software video renderer left out (ADR-010) | `VendoredMedia3Test` |
 
@@ -262,8 +262,8 @@ of the eleven library families on the classpath. The BSD text is now in the app 
 current. Grade: **A** for the licence of the artifact (its POM) and for the text (the protobuf repository); that BSD-3-Clause requires reproduction in binary form
 is the licence's own wording.
 
-**Behaviour change to be aware of (D2, D4, D5):** a device that cannot decode AC-3, E-AC-3, DTS or TrueHD itself no longer plays those audio tracks, where the
-prebuilt library used to decode them in software. The player marks such tracks as unsupported and moves to another track when there is one.
+**Behaviour change to be aware of (D2, D4, D5):** a device that cannot decode E-AC-3, DTS or TrueHD itself no longer plays those audio tracks (AC-3 is restored from bundle r2, D3), where the
+prebuilt library used to decode them all in software. The player marks such tracks as unsupported and moves to another track when there is one.
 
 **Not established:** playback on any physical device; the Play-delivered split-APK path; relinking with a modified FFmpeg (the mechanism, changing the pin, exists but
 was not exercised with a modified library); everything listed in section 9, which this change does not touch.

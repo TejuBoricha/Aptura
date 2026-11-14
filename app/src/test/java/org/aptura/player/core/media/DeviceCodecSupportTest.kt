@@ -50,11 +50,12 @@ class DeviceCodecSupportTest {
     fun ffmpegNote_namesOnlyWhatTheBundleDecodes() {
         val note = CodecSupportReport.FFMPEG_NOTE
         assertTrue(note.contains("ALAC"))
+        assertTrue("AC-3 is in the bundle since DEC-021", note.substringBefore("Every other format").contains("AC-3"))
         assertTrue(note.contains("A-law"))
         assertTrue(note.contains("mu-law"))
         // Formats that are left to the device's own decoders are named only as such, in the sentence that says so.
         val leftToTheDevice = note.substringAfter("Every other format")
-        for (format in listOf("AAC", "AC-3", "E-AC-3", "DTS", "TrueHD", "FLAC", "MP3")) {
+        for (format in listOf("AAC", "E-AC-3", "DTS", "TrueHD", "FLAC", "MP3")) {
             assertFalse("$format must only appear as decoded by the device", note.substringBefore("Every other format").contains(format))
             assertTrue("$format should be named as the device's own", leftToTheDevice.contains(format))
         }

@@ -106,8 +106,8 @@ Container-level features: chapters — MKV **B**, MP4 **C**; embedded cover art 
 | FLAC (in MKV/OGG/FLAC files) | **A** (platform path since API 21-class devices; verify per fleet) | Lossless audience expectation |
 | PCM / WAV | **B** | Simple containers; AV sync handling |
 | AMR-NB/WB | **B** | 3GP/pocket-capture files |
-| AC-3 (Dolby Digital) | **B/C device passthrough** + **C candidate bundled decode ⚖️** | Patents expired; add-back pending doc 11 sign-off (FR-AUD-007) |
-| E-AC-3 (Dolby Digital Plus) | **B/C passthrough** + **C candidate bundled decode ⚖️** | Last US patent reported expired 2026-01-30 `[R]`; legal recheck gate |
+| AC-3 (Dolby Digital) | **B/C device passthrough** + **B bundled decode** (DEC-021, owner's decision 2026-11-15) | The AC-3 families Dolby declared to ETSI have all run out (11B Appendix C.1); decoded by the bundled FFmpeg only when the device has no decoder of its own; not yet played on a physical device |
+| E-AC-3 (Dolby Digital Plus) | **B/C passthrough** + **X bundled decode (held)** | The base patent ended 2026-01-30, but later Dolby decoder patents that name E-AC-3 (for example US 8,891,776) run to about 2030 and are not on ETSI's list (DEC-021, 11B Appendix C.1); the device's own decoder only |
 | DTS / DTS-HD | **C passthrough only**; **X bundled decode** | No license found for app-side decode (LIC); message honestly when neither path exists |
 | TrueHD | **C passthrough only**; **X bundled decode** | Dolby-branded; passthrough-only policy |
 | ALAC | **B** | Decoded by the bundled self-built FFmpeg extension (DEC-020, DEC-025), since Android does not guarantee it; rare on Android libraries. Also bundled: G.711 A-law and mu-law. Not yet played on a physical device |

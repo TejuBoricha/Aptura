@@ -175,13 +175,13 @@ Use one video with several audio tracks, one sidecar `.srt`, and Bluetooth headp
 
 ## The bundled audio decoder and the licence notice (`LEG-02`, `DEC-025`)
 
-- [ ] **ALAC and G.711 play through the bundled FFmpeg:** put an ALAC `.m4a` and an A-law `.wav` (or mu-law) on the phone and
-      play each: sound comes out, the position moves and the file reaches its end. Then Settings > Codec support >
+- [ ] **ALAC, AC-3 and G.711 play through the bundled FFmpeg:** put an ALAC `.m4a`, an AC-3 file (a video with an AC-3 audio
+      track is the real test), and an A-law `.wav` (or mu-law) on the phone and play each: sound comes out, the position moves and the file reaches its end. Then Settings > Codec support >
       "Copy report": it must say "FFmpeg audio extension: loaded (libavcodec 63.1.102)". Run it on the signed **release** build,
       because R8 can drop the extension without any crash and only the release build shows that. *(Not run on a phone. The
       same files are played through FFmpeg alone on an API 35 emulator by `FfmpegAudioPlaybackTest`; the release
       build's R8 mapping is checked by `verifyReleaseApk`.)*
-- [ ] **Formats the bundle no longer decodes:** open a video whose audio is AC-3, E-AC-3, DTS or TrueHD on a phone that has
+- [ ] **Formats the bundle does not decode:** open a video whose audio is E-AC-3, DTS or TrueHD on a phone that has
       no decoder for it (many do not). The audio track shows as "Not supported on this device" and the video keeps
       its sound or is silent with a clear message; nothing crashes or hangs. On a phone that does decode it, the
       track plays with the device's own decoder. *(Not run on a phone. This is the behaviour change of the swap.)*

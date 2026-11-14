@@ -23,7 +23,7 @@ object LicenseDocuments {
             "the licence text are published at the link below."
 
     /** Where the FFmpeg source, build records and licence texts are published (the release the build links). */
-    const val FFMPEG_SOURCE_URL = "https://github.com/TejuBoricha/Aptura/releases/tag/ffmpeg-audio-n9.0.2-r1"
+    const val FFMPEG_SOURCE_URL = "https://github.com/TejuBoricha/Aptura/releases/tag/ffmpeg-audio-n9.0.2-r2"
 
     val all: List<LicenseDocument> = listOf(
         LicenseDocument(

@@ -64,13 +64,15 @@ data class CodecSupportReport(
 
     companion object {
         /**
-         * What the bundled extension decodes (spec/11B D2, DEC-020): only the audio formats that are free to ship and that
-         * Android does not guarantee on every device. Everything else is the device's own decoder, and the wording names
-         * formats factually without claiming a capability or a licence (spec/11B section 6).
+         * What the bundled extension decodes (spec/11B D2, DEC-020, DEC-021): only the audio formats that are free to ship and
+         * that Android does not guarantee on every device. Everything else is the device's own decoder (E-AC-3 is held back on
+         * purpose), and the wording names formats factually without claiming a capability or a licence (spec/11B section 6).
+         * ExoPlayer prefers the platform decoder when there is one, hence "used when the device has no decoder of its own".
          */
         const val FFMPEG_NOTE =
-            "Bundled FFmpeg extension: audio only, and only ALAC and G.711 A-law and mu-law. Every other format, " +
-                "including AAC, AC-3, E-AC-3, DTS, TrueHD, FLAC and MP3, is decoded by this device itself. " +
+            "Bundled FFmpeg extension: audio only, and only ALAC, AC-3 and G.711 A-law and mu-law, used when the device " +
+                "has no decoder of its own for them. Every other format, " +
+                "including AAC, E-AC-3, DTS, TrueHD, FLAC and MP3, is decoded by this device itself. " +
                 "No software video decoders are bundled; video codecs the device cannot decode here can be " +
                 "opened in an external player."
     }
