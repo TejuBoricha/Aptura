@@ -85,6 +85,7 @@ import org.aptura.player.ui.library.rememberMediaTrashFlow
 import org.aptura.player.ui.onboarding.OnboardingScreen
 import org.aptura.player.ui.player.PlayerScreen
 import org.aptura.player.ui.player.PlayerViewModel
+import org.aptura.player.ui.settings.LicensesScreen
 import org.aptura.player.ui.settings.SettingsScreen
 import org.aptura.player.theme.AccentColor
 import org.aptura.player.theme.ApturaTheme
@@ -844,6 +845,9 @@ private fun AppNavHost(
                     onReplayOnboardingClick = {
                         backStack.add(Onboarding)
                     },
+                    onOpenLicensesClick = {
+                        backStack.add(OpenSourceLicenses)
+                    },
                     hasVideoAccess = hasVideoAccess,
                     isPartialVideoAccess = videoAccessLevel == MediaAccessLevel.LIMITED,
                     onVideoAccessClick = {
@@ -902,6 +906,10 @@ private fun AppNavHost(
                         }
                     }
                 )
+            }
+
+            entry<OpenSourceLicenses> {
+                LicensesScreen(onBackClick = { backStack.removeLastOrNull() })
             }
 
             entry<PlayerKey>(metadata = PlayerRouteMetadata) { playerKey ->

@@ -3,39 +3,89 @@ Copyright 2026 Teju Boricha
 
 This product is licensed under the Apache License, Version 2.0. See LICENSE.
 
-Aptura is built on open-source libraries. The release runtime classpath is
-checked by the build (see app/build.gradle.kts and DependencyInvariantsTest);
-the significant components are listed below. Test-only libraries are marked.
+Aptura is built on open-source libraries. Every library on the release runtime
+classpath is covered below: the build reads the resolved dependency graph and
+NoticeCoverageTest fails when a library group is not named in a "Maven groups"
+line (or an entry names one that is no longer there). Test-only libraries are
+marked.
 
 AndroidX / Jetpack (Core, Activity, Lifecycle, Compose, Material 3,
 Navigation 3, Adaptive, Media3, Room, WorkManager, DataStore)
   Copyright The Android Open Source Project
   Licensed under the Apache License, Version 2.0.
+  Maven groups: androidx
 
-Kotlin, kotlinx.coroutines, kotlinx.serialization
-  Copyright JetBrains s.r.o. and Kotlin Programming Language contributors
+JetBrains: Kotlin, kotlinx.coroutines, kotlinx.serialization, Compose
+Multiplatform, the JetBrains builds of AndroidX libraries and the JetBrains
+annotations
+  Copyright JetBrains s.r.o. and contributors
   Licensed under the Apache License, Version 2.0.
+  Maven groups: org.jetbrains
 
 Coil 3 (image and video thumbnail loading)
   Copyright Coil Contributors
   Licensed under the Apache License, Version 2.0.
   Aptura uses Coil without any coil-network artifact.
+  Maven groups: io.coil-kt.coil3
 
-Jellyfin Media3 FFmpeg decoder (FFmpeg audio extension), version 1.5.0+1
-  Copyright Jellyfin contributors, The Android Open Source Project and FFmpeg
-  developers.
-  Published by Jellyfin under the GNU General Public License, version 3
-  (its Maven metadata and repository LICENSE say so).
-  Source: https://github.com/jellyfin/jellyfin-androidx-media
-  FFmpeg 6.0 (libavcodec 60.3.100), licensed under the GNU Lesser General
-  Public License, version 2.1 or later when built without GPL options.
-  FFmpeg: https://ffmpeg.org
-  The binary does not record its build configuration, and Aptura has not
-  verified it. The licence terms of this component are under review
-  (decision DEC-014 in spec/17).
+Guava (Google core libraries for Java), pulled in by Media3
+  Copyright The Guava Authors
+  Licensed under the Apache License, Version 2.0.
+  Maven groups: com.google.guava
+
+Okio, pulled in by Coil
+  Copyright Square, Inc.
+  Licensed under the Apache License, Version 2.0.
+  Maven groups: com.squareup.okio
+
+Accompanist
+  Copyright The Android Open Source Project
+  Licensed under the Apache License, Version 2.0.
+  Maven groups: com.google.accompanist
+
+JSpecify (nullness annotations)
+  Copyright The JSpecify Authors
+  Licensed under the Apache License, Version 2.0.
+  Maven groups: org.jspecify
+
+Protocol Buffers, repackaged inside Jetpack DataStore
+  Copyright 2008 Google Inc. All rights reserved.
+  Licensed under the BSD 3-Clause License. The full text is in the app
+  (Settings, Open-source licences) and in licenses/ of the repository.
+  Maven artifacts: androidx.datastore:datastore-preferences-external-protobuf
+
+FFmpeg audio libraries, FFmpeg n9.0.2 (libavcodec, libavutil, libswresample)
+  Copyright the FFmpeg developers.
+  Licensed under the GNU Lesser General Public License, version 2.1 or later.
+  This software uses libraries from the FFmpeg project (https://ffmpeg.org)
+  under the LGPLv2.1. FFmpeg is a trademark of Fabrice Bellard, originator of
+  the FFmpeg project.
+  The libraries are built from the unmodified upstream source (commit
+  946fcce07b6dcd0331c8cc609192aeff5e1924f8), configured without
+  --enable-gpl, --enable-version3 and --enable-nonfree, and contain only the
+  ALAC and G.711 A-law and mu-law audio decoders. They are linked dynamically:
+  they are separate files (lib*.so) inside the app package, not part of
+  Aptura's own code.
+  The exact source, the build records and the licence texts are published
+  beside the binaries:
+  https://github.com/TejuBoricha/Aptura/releases/tag/ffmpeg-audio-n9.0.2-r1
+  The scripts that build them are in tools/ffmpeg/ of the Aptura repository.
+  You may modify these libraries and use your modified copies with Aptura:
+  Aptura's own source is public under the Apache License 2.0, which does not
+  restrict modification or reverse engineering, and gradle/ffmpeg-bundle.properties
+  names the bundle that a build links. The full licence text is in the app
+  (Settings, Open-source licences) and in the release above.
+
+AndroidX Media (Media3) FFmpeg audio extension, version 1.5.1
+  Copyright The Android Open Source Project
+  Licensed under the Apache License, Version 2.0.
+  Five Java classes (FfmpegAudioRenderer, FfmpegAudioDecoder,
+  FfmpegDecoderException, FfmpegLibrary and its package-info) are copied
+  unmodified into app/src/main/java/androidx/media3/decoder/ffmpeg, and the
+  JNI glue ffmpeg_jni.cc from the same tag joins them to the FFmpeg libraries.
+  Source: https://github.com/androidx/media
   The extension decodes audio only. Aptura ships no software video decoder
-  (ADR-010). The FFmpeg code is linked into one native library,
-  libffmpegJNI.so, that is loaded at runtime.
+  (ADR-010).
 
 Robolectric (unit tests only)
   Copyright Robolectric Contributors

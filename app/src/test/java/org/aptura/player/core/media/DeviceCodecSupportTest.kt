@@ -1,6 +1,7 @@
 package org.aptura.player.core.media
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -39,5 +40,35 @@ class DeviceCodecSupportTest {
         assertTrue(text.contains("audio only"))
         assertTrue(text.contains("No software video decoders are bundled"))
         assertTrue(CodecSupportReport.FFMPEG_NOTE.contains("external player"))
+    }
+
+    /**
+     * The bundle holds exactly the decoders in tools/ffmpeg/approved_decoders.txt (spec/11B D2, DEC-020). The note is what a
+     * person reads about it, so it must name those and must not say the bundle decodes anything else.
+     */
+    @Test
+    fun ffmpegNote_namesOnlyWhatTheBundleDecodes() {
+        val note = CodecSupportReport.FFMPEG_NOTE
+        assertTrue(note.contains("ALAC"))
+        assertTrue(note.contains("A-law"))
+        assertTrue(note.contains("mu-law"))
+        // Formats that are left to the device's own decoders are named only as such, in the sentence that says so.
+        val leftToTheDevice = note.substringAfter("Every other format")
+        for (format in listOf("AAC", "AC-3", "E-AC-3", "DTS", "TrueHD", "FLAC", "MP3")) {
+            assertFalse("$format must only appear as decoded by the device", note.substringBefore("Every other format").contains(format))
+            assertTrue("$format should be named as the device's own", leftToTheDevice.contains(format))
+        }
+        assertTrue(note.contains("decoded by this device itself"))
+    }
+
+    @Test
+    fun ffmpegStatus_saysWhetherTheExtensionLoaded() {
+        val empty = CodecSupportReport("device", emptyList(), emptyList())
+        assertEquals("FFmpeg audio extension: not loaded", empty.ffmpegStatusLine())
+        assertTrue(empty.toPlainText().contains("FFmpeg audio extension: not loaded"))
+
+        val loaded = CodecSupportReport("device", emptyList(), emptyList(), ffmpegVersion = "Lavc63.1.102")
+        assertEquals("FFmpeg audio extension: loaded (libavcodec 63.1.102)", loaded.ffmpegStatusLine())
+        assertTrue(loaded.toPlainText().contains("loaded (libavcodec 63.1.102)"))
     }
 }

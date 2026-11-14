@@ -86,6 +86,9 @@ dispute, and does not transfer to an LGPL library used under §6.
 and configure line corresponding to the binary; the in-app/Settings text names codecs but not licences; the release notes misdescribe
 the linking and the decoder list.
 
+**Status 2026-11-14 (DEC-025, appendix B):** the first three gaps are closed in the repository by the swap PR; the release-notes gap was closed
+by appendix A. Nothing here has been run on a physical device.
+
 ## 4. Patents (briefs L2, L3)
 
 **4.1 Framework.** `[S22 A]` A US patent runs 20 years from its US filing date (35 U.S.C. §154(a)(2)); whoever "makes, uses, offers
@@ -235,3 +238,33 @@ The replacement release notes (the page carries a close variant that cites DEC-0
 > A replacement build that fixes the library and the notices is in progress (DEC-014 and DEC-020 to DEC-022 in
 > `spec/17_RISKS_ASSUMPTIONS_AND_DECISIONS.md`; research in `spec/11B_LEGAL_RESEARCH_FINDINGS.md`). Until then, please do not
 > redistribute the attached files.
+
+---
+
+## Appendix B: the swap (LEG-02, DEC-025), done 2026-11-14
+
+The prebuilt decoder is replaced by the self-built bundle (`ffmpeg-audio-n9.0.2-r1`, zip SHA-256 `64c49649c419d7e46dff94038e5e8ddd80cdc790ef23c60d18eefff3dfb6a22d`).
+Each obligation of section 3 and decision D7 now has a part of the build and a check that holds it. This is the project's own account of what it
+did, not a clearance.
+
+| Obligation | What was done | What fails if it stops being true |
+|---|---|---|
+| Prominent notice that the library is used (LGPL-2.1 section 6; FFmpeg checklist: mention LGPLv2.1 in the about box) | Settings > Open-source licences opens with the FFmpeg/LGPLv2.1 notice and the trademark line | `LicenseDocumentsTest` (the notice text, the link to the pinned release) |
+| A copy of the licence | The LGPL-2.1 text, FFmpeg's licensing overview, Apache-2.0 and the BSD-3-Clause text are packaged into the app from the bundle, `LICENSE`, `NOTICE` and `licenses/` | `LicenseDocumentsTest` (every listed text exists, every packaged text is listed) |
+| Exact corresponding source on the same server as the binary | The release holds the zip, the FFmpeg source tarball and the build records; `NOTICE` and the screen link to it | `LicenseDocumentsTest` compares the link with the URL the build downloads |
+| Dynamic linking; no `--enable-gpl`, `--enable-nonfree` or `--enable-version3`; configure line recorded | Three shared libraries plus the JNI glue; `config.h` and `BUILD-INFO.txt` per ABI inside the bundle | `verify_lgpl_symbols.py` in CI when the bundle is built; `LgplBuildVerificationTest` on the records the app links |
+| Only the approved decoders (D2) | `alac`, `pcm_alaw`, `pcm_mulaw` | the same two, plus `FfmpegAudioPlaybackTest.theBundle_decodesExactlyTheApprovedFormats` on a device |
+| No restriction on modification or reverse engineering of Aptura (section 6) | Aptura is public under Apache-2.0; a build links whatever bundle `gradle/ffmpeg-bundle.properties` pins | stated in `NOTICE`; not enforced by a test |
+| Java half under its own licence | Five AndroidX Media 1.5.1 classes copied byte for byte; the software video renderer left out (ADR-010) | `VendoredMedia3Test` |
+
+**A finding that was not in the research:** reading the licences of the whole release dependency graph showed that `androidx.datastore:datastore-preferences-external-protobuf`
+repackages Protocol Buffers under **BSD-3-Clause**, which asks for its copyright notice and disclaimer to be reproduced with a binary, and that `NOTICE` named only three
+of the eleven library families on the classpath. The BSD text is now in the app (`licenses/`), `NOTICE` names every family, and `NoticeCoverageTest` keeps it
+current. Grade: **A** for the licence of the artifact (its POM) and for the text (the protobuf repository); that BSD-3-Clause requires reproduction in binary form
+is the licence's own wording.
+
+**Behaviour change to be aware of (D2, D4, D5):** a device that cannot decode AC-3, E-AC-3, DTS or TrueHD itself no longer plays those audio tracks, where the
+prebuilt library used to decode them in software. The player marks such tracks as unsupported and moves to another track when there is one.
+
+**Not established:** playback on any physical device; the Play-delivered split-APK path; relinking with a modified FFmpeg (the mechanism, changing the pin, exists but
+was not exercised with a modified library); everything listed in section 9, which this change does not touch.

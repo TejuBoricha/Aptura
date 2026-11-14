@@ -3,9 +3,16 @@ import org.gradle.api.artifacts.component.ProjectComponentIdentifier
 import org.gradle.api.artifacts.result.ResolvedComponentResult
 import org.gradle.api.artifacts.result.ResolvedDependencyResult
 import org.gradle.process.CommandLineArgumentProvider
+import java.io.File
+import java.net.HttpURLConnection
+import java.net.URI
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.security.MessageDigest
 import java.time.Duration
 import java.util.Properties
 import java.util.zip.ZipFile
+import javax.inject.Inject
 
 plugins {
   alias(libs.plugins.android.application)
@@ -79,6 +86,196 @@ abstract class WriteDependencyReport : DefaultTask() {
 }
 
 /**
+ * Fetches the self-built, LGPL-only FFmpeg audio libraries (LEG-02, DEC-024) and unpacks what the app needs.
+ *
+ * CI builds the libraries, packs them with the exact FFmpeg source, the build records and the licence texts, and publishes
+ * the zip as a GitHub release. This task downloads that zip, REFUSES it unless its SHA-256 equals the one pinned in
+ * `gradle/ffmpeg-bundle.properties`, and unpacks three folders: the native libraries (packaged by AGP), the licence texts
+ * (shown in the app) and the build records (read by the unit tests). A download is kept in the Gradle user home, named by
+ * its checksum, so later builds, other checkouts and offline builds reuse it; a cached file is checked again every time.
+ */
+abstract class FetchFfmpegBundle : DefaultTask() {
+    @get:Input
+    abstract val url: Property<String>
+
+    @get:Input
+    abstract val sha256: Property<String>
+
+    /** The ABIs the app ships. Only these are unpacked, and every one of them must be complete. */
+    @get:Input
+    abstract val abis: ListProperty<String>
+
+    /** The libraries each ABI folder must hold. Media3's `FfmpegLibrary` loads exactly these four, in this order. */
+    @get:Input
+    abstract val libraries: ListProperty<String>
+
+    /** Not an input: the checksum, not this folder, decides what is accepted. */
+    @get:Internal
+    abstract val downloadDirectory: DirectoryProperty
+
+    @get:OutputDirectory
+    abstract val jniLibs: DirectoryProperty
+
+    @get:OutputDirectory
+    abstract val licenses: DirectoryProperty
+
+    @get:OutputDirectory
+    abstract val buildRecords: DirectoryProperty
+
+    @TaskAction
+    fun fetch() {
+        val expected = sha256.get().lowercase()
+        require(Regex("[0-9a-f]{64}").matches(expected)) { "sha256 in gradle/ffmpeg-bundle.properties is not 64 hexadecimal digits: '$expected'" }
+        val from = url.get()
+        require(from.startsWith("https://")) { "url in gradle/ffmpeg-bundle.properties must be https: '$from'" }
+
+        val zip = downloadDirectory.get().asFile.resolve("$expected.zip")
+        if (zip.isFile && sha256Of(zip) == expected) {
+            logger.lifecycle("FFmpeg bundle: using the checked copy in ${zip.parentFile}")
+        } else {
+            download(from, zip, expected)
+        }
+        unpack(zip)
+    }
+
+    private fun sha256Of(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(64 * 1024)
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    private fun download(from: String, to: File, expected: String) {
+        to.parentFile.mkdirs()
+        // A name of its own, so two builds fetching at once (two checkouts, an IDE sync) never write into the same file.
+        val partial = Files.createTempFile(to.parentFile.toPath(), to.name, ".part").toFile()
+        logger.lifecycle("FFmpeg bundle: downloading $from")
+        val connection = URI(from).toURL().openConnection() as HttpURLConnection
+        connection.connectTimeout = 30_000
+        connection.readTimeout = 60_000
+        connection.instanceFollowRedirects = true
+        connection.setRequestProperty("User-Agent", "aptura-build")
+        try {
+            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                throw GradleException("Could not download the FFmpeg bundle from $from: HTTP ${connection.responseCode}")
+            }
+            val digest = MessageDigest.getInstance("SHA-256")
+            connection.inputStream.use { input ->
+                partial.outputStream().use { output ->
+                    val buffer = ByteArray(64 * 1024)
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read < 0) break
+                        digest.update(buffer, 0, read)
+                        output.write(buffer, 0, read)
+                    }
+                }
+            }
+            val actual = digest.digest().joinToString("") { "%02x".format(it) }
+            if (actual != expected) {
+                throw GradleException(
+                    "The FFmpeg bundle at $from does not match the pinned checksum, so it was discarded.\n" +
+                        "  pinned in gradle/ffmpeg-bundle.properties: $expected\n" +
+                        "  downloaded:                                $actual"
+                )
+            }
+            Files.move(partial.toPath(), to.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        } finally {
+            connection.disconnect()
+            partial.delete()
+        }
+    }
+
+    private fun unpack(zip: File) {
+        val shipped = abis.get().toSet()
+        val libs = jniLibs.get().asFile
+        val texts = licenses.get().asFile
+        val records = buildRecords.get().asFile
+        listOf(libs, texts, records).forEach { it.deleteRecursively(); it.mkdirs() }
+
+        ZipFile(zip).use { archive ->
+            for (entry in archive.entries()) {
+                if (entry.isDirectory) continue
+                // <bundle name>/<folder>/<rest of the path>
+                val parts = entry.name.split('/')
+                check(parts.none { it == ".." || it == "." || it.isEmpty() }) { "The FFmpeg bundle holds an unsafe path: '${entry.name}'" }
+                if (parts.size < 3) continue
+                val destination = when (parts[1]) {
+                    // An ABI folder the app does not ship is left in the zip, never unpacked into the app.
+                    "jniLibs" -> if (parts[2] in shipped) libs else continue
+                    "licenses" -> texts
+                    "build-records" -> if (parts[2] in shipped) records else continue
+                    else -> continue
+                }
+                val target = File(destination, parts.drop(2).joinToString("/"))
+                check(target.canonicalFile.toPath().startsWith(destination.canonicalFile.toPath())) {
+                    "The FFmpeg bundle entry '${entry.name}' would be written outside ${destination.name}"
+                }
+                target.parentFile.mkdirs()
+                archive.getInputStream(entry).use { input -> target.outputStream().use { input.copyTo(it) } }
+            }
+        }
+
+        for (abi in shipped) {
+            for (library in libraries.get()) {
+                val file = File(libs, "$abi/$library")
+                check(file.isFile && file.length() > 0) { "The FFmpeg bundle has no usable $abi/$library" }
+            }
+            check(File(records, "$abi/config.h").isFile) { "The FFmpeg bundle has no build record for $abi" }
+        }
+        check(texts.listFiles().orEmpty().any { it.name.contains("LGPL") }) { "The FFmpeg bundle carries no LGPL licence text" }
+    }
+}
+
+/**
+ * Gathers the licence texts the app shows (Settings, Open-source licences) into one assets folder: the repository's own
+ * licence and NOTICE, and the texts that travel with the FFmpeg libraries. LGPL-2.1 section 6 asks for the licence text and
+ * a notice with each copy, so they are packaged from the same bundle as the libraries and cannot drift from them.
+ */
+abstract class CollectLicenseAssets : DefaultTask() {
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val notice: RegularFileProperty
+
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val appLicense: RegularFileProperty
+
+    @get:InputDirectory
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val bundleLicenses: DirectoryProperty
+
+    /** `licenses/` in the repository: texts a third-party licence asks to be reproduced (its README says which and why). */
+    @get:InputDirectory
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val repositoryLicenses: DirectoryProperty
+
+    /** The root of the generated assets; the texts land in `open-source-licenses/` below it. */
+    @get:OutputDirectory
+    abstract val assets: DirectoryProperty
+
+    @get:Inject
+    abstract val files: FileSystemOperations
+
+    @TaskAction
+    fun collect() {
+        files.sync {
+            into(assets.dir("open-source-licenses"))
+            from(notice) { rename { "NOTICE.txt" } }
+            from(appLicense) { rename { "LICENSE-Aptura-Apache-2.0.txt" } }
+            from(bundleLicenses)
+            from(repositoryLicenses) { exclude("README.md") }
+        }
+    }
+}
+
+/**
  * Fails the build when shipped release artifacts (APKs or App Bundles) contain a network stack or a telemetry SDK.
  * Dependency graphs say what is *on the classpath*; R8 decides what is *shipped*, so the shipped code is checked as well.
  *
@@ -107,8 +304,81 @@ abstract class VerifyShippedContents : DefaultTask() {
     @get:Input
     abstract val forbiddenPackages: ListProperty<String>
 
+    /**
+     * The FFmpeg JNI library the app packages. It finds its Java side by NAME, so R8 must have kept those names: a release
+     * build that renames them still builds, still starts, and has quietly lost the extension (`isAvailable()` is false).
+     */
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val ffmpegJniLibrary: RegularFileProperty
+
     @get:OutputFile
     abstract val report: RegularFileProperty
+
+    /**
+     * Returns the problems with the FFmpeg extension in R8's mapping file: every `Java_androidx_media3_decoder_ffmpeg_<Class>_<method>`
+     * the library exports needs that class and method kept under their own names, as does `growOutputBuffer` (looked up in
+     * JNI_OnLoad), and ExoPlayer needs the renderer class and its constructor, which it reaches by reflection.
+     *
+     * R8's mapping file lists a member only when it renamed it or when it carries line numbers, so a native method that was kept
+     * under its own name (it has no line numbers) is absent from the mapping. Absence is therefore not removal: such a member counts
+     * as kept when its name is in the dex string table ([dexTexts]), which a removed or renamed method's original name is not.
+     */
+    private fun ffmpegExtensionFindings(jni: File, mapping: File, dexTexts: List<String>): List<String> {
+        val pkg = "androidx.media3.decoder.ffmpeg."
+        val exported = Regex("Java_androidx_media3_decoder_ffmpeg_(Ffmpeg[A-Za-z]+)_([A-Za-z0-9]+)")
+            .findAll(String(jni.readBytes(), Charsets.ISO_8859_1))
+            .map { it.groupValues[1] to it.groupValues[2] }
+            .toSortedSet(compareBy({ it.first }, { it.second }))
+        check(exported.isNotEmpty()) { "${jni.name} exports no Java_androidx_media3_decoder_ffmpeg_* symbols; refusing to report a pass" }
+
+        // original class name -> (its mapped name, original member -> mapped member names)
+        val mappedClass = mutableMapOf<String, String>()
+        val mappedMembers = mutableMapOf<String, MutableSet<Pair<String, String>>>()
+        val classLine = Regex("^([A-Za-z0-9_.$]+) -> ([A-Za-z0-9_.$]+):$")
+        val memberLine = Regex("^\\s+(?:\\d+:\\d+:)?\\S+ ([A-Za-z0-9_<>$]+)\\(.*?\\)(?::\\d+(?::\\d+)?)? -> (\\S+)$")
+        var current: String? = null
+        mapping.useLines { lines ->
+            for (line in lines) {
+                val klass = classLine.find(line)
+                if (klass != null) {
+                    current = klass.groupValues[1].takeIf { it.startsWith(pkg) }
+                    current?.let { mappedClass[it.removePrefix(pkg)] = klass.groupValues[2].removePrefix(pkg) }
+                    continue
+                }
+                val member = memberLine.find(line)
+                val owner = current
+                if (member != null && owner != null) {
+                    mappedMembers.getOrPut(owner.removePrefix(pkg)) { mutableSetOf() }.add(member.groupValues[1] to member.groupValues[2])
+                }
+            }
+        }
+
+        val findings = mutableListOf<String>()
+        fun requireKept(klass: String) {
+            val mapped = mappedClass[klass]
+            if (mapped == null) findings += "R8 removed ${pkg}$klass, which the FFmpeg extension needs"
+            else if (mapped != klass) findings += "R8 renamed ${pkg}$klass to $mapped, but the FFmpeg library finds it by name"
+        }
+        fun requireMember(klass: String, name: String) {
+            if (mappedClass[klass] == null) return // already reported as a class finding
+            val listed = mappedMembers[klass].orEmpty().filter { it.first == name }
+            when {
+                listed.any { it.second == name } -> Unit
+                listed.isNotEmpty() -> findings += "R8 renamed ${pkg}$klass.$name to ${listed.first().second}, but the FFmpeg library finds it by name"
+                // Not in the mapping: kept without being renamed (natives) or removed. The constructor is the exception: every
+                // dex holds the string "<init>", so only the mapping can vouch for it.
+                name != "<init>" && dexTexts.any { it.contains(name) } -> Unit
+                else -> findings += "R8 removed ${pkg}$klass.$name"
+            }
+        }
+
+        setOf("FfmpegAudioRenderer", "FfmpegAudioDecoder", "FfmpegLibrary").forEach(::requireKept)
+        exported.forEach { (klass, method) -> requireKept(klass); requireMember(klass, method) }
+        requireMember("FfmpegAudioDecoder", "growOutputBuffer")
+        requireMember("FfmpegAudioRenderer", "<init>")
+        return findings
+    }
 
     @TaskAction
     fun verify() {
@@ -146,6 +416,7 @@ abstract class VerifyShippedContents : DefaultTask() {
         keptByPackage.forEach { (pkg, count) -> findings += "R8 kept $count class(es) from $pkg" }
 
         var dexFiles = 0
+        val dexTexts = mutableListOf<String>()
         for (archive in archives) {
             ZipFile(archive).use { zip ->
                 for (entry in zip.entries()) {
@@ -154,10 +425,12 @@ abstract class VerifyShippedContents : DefaultTask() {
                     // ISO-8859-1 maps bytes 1:1, so class descriptors in the dex string table are searchable as text.
                     val text = String(zip.getInputStream(entry).use { it.readBytes() }, Charsets.ISO_8859_1)
                     forbidden.filter { text.contains(it) }.forEach { findings += "${archive.name}!${entry.name} still names $it" }
+                    dexTexts += text
                 }
             }
         }
         check(dexFiles > 0) { "The release ${label}(s) contain no dex files; refusing to report a pass" }
+        findings += ffmpegExtensionFindings(ffmpegJniLibrary.get().asFile, mappingFile.get().asFile, dexTexts)
         report.get().asFile.apply {
             parentFile.mkdirs()
             writeText(
@@ -174,11 +447,15 @@ abstract class VerifyShippedContents : DefaultTask() {
 /** Hands the unit tests the files they verify, as system properties; the files are declared inputs of the test task. */
 class InvariantInputs(
     @get:InputFile @get:PathSensitive(PathSensitivity.NONE) val releaseManifest: Provider<RegularFile>,
-    @get:InputFile @get:PathSensitive(PathSensitivity.NONE) val releaseDependencies: Provider<RegularFile>
+    @get:InputFile @get:PathSensitive(PathSensitivity.NONE) val releaseDependencies: Provider<RegularFile>,
+    @get:InputDirectory @get:PathSensitive(PathSensitivity.RELATIVE) val ffmpegBuildRecords: Provider<Directory>,
+    @get:InputDirectory @get:PathSensitive(PathSensitivity.RELATIVE) val licenseAssets: Provider<Directory>
 ) : CommandLineArgumentProvider {
     override fun asArguments(): Iterable<String> = listOf(
         "-Daptura.invariants.releaseManifest=${releaseManifest.get().asFile.absolutePath}",
-        "-Daptura.invariants.releaseDependencies=${releaseDependencies.get().asFile.absolutePath}"
+        "-Daptura.invariants.releaseDependencies=${releaseDependencies.get().asFile.absolutePath}",
+        "-Daptura.invariants.ffmpegBuildRecords=${ffmpegBuildRecords.get().asFile.absolutePath}",
+        "-Daptura.invariants.licenseAssets=${licenseAssets.get().asFile.absolutePath}"
     )
 }
 
@@ -186,6 +463,38 @@ val releaseMergedManifest: RegularFileProperty = objects.fileProperty()
 val releaseApkDirectory: DirectoryProperty = objects.directoryProperty()
 val releaseBundleFile: RegularFileProperty = objects.fileProperty()
 val releaseMappingFile: RegularFileProperty = objects.fileProperty()
+
+// The ABIs the app ships. The APK splits below and the check of the FFmpeg bundle both read this one list.
+val shippedAbis = listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+
+// The pinned FFmpeg audio bundle (LEG-02, DEC-024). `url` and `sha256` live in gradle/ffmpeg-bundle.properties so a new bundle
+// is a two-line change that the gate's release-scope rule (^gradle/) always sends through the R8 release builds.
+val ffmpegBundlePin = Properties().apply {
+    rootProject.file("gradle/ffmpeg-bundle.properties").inputStream().use { load(it) }
+}
+
+val fetchFfmpegBundle = tasks.register<FetchFfmpegBundle>("fetchFfmpegBundle") {
+    group = "build setup"
+    description = "Downloads the self-built LGPL FFmpeg audio libraries, checks the pinned SHA-256 and unpacks them."
+    url.set(ffmpegBundlePin.getProperty("url"))
+    sha256.set(ffmpegBundlePin.getProperty("sha256"))
+    abis.set(shippedAbis)
+    libraries.set(listOf("libavutil.so", "libswresample.so", "libavcodec.so", "libffmpegJNI.so"))
+    downloadDirectory.set(layout.dir(provider { File(gradle.gradleUserHomeDir, "aptura/ffmpeg-bundles") }))
+    jniLibs.set(layout.buildDirectory.dir("generated/ffmpeg-bundle/jniLibs"))
+    licenses.set(layout.buildDirectory.dir("generated/ffmpeg-bundle/licenses"))
+    buildRecords.set(layout.buildDirectory.dir("generated/ffmpeg-bundle/build-records"))
+}
+
+val collectLicenseAssets = tasks.register<CollectLicenseAssets>("collectLicenseAssets") {
+    group = "build setup"
+    description = "Gathers the licence texts the in-app Open-source licences screen shows."
+    notice.set(rootProject.layout.projectDirectory.file("NOTICE"))
+    appLicense.set(rootProject.layout.projectDirectory.file("LICENSE"))
+    bundleLicenses.set(fetchFfmpegBundle.flatMap { it.licenses })
+    repositoryLicenses.set(rootProject.layout.projectDirectory.dir("licenses"))
+    assets.set(layout.buildDirectory.dir("generated/license-assets"))
+}
 
 val writeReleaseDependencies = tasks.register<WriteDependencyReport>("writeReleaseRuntimeDependencies") {
     group = "verification"
@@ -270,12 +579,26 @@ android {
       unitTests.isReturnDefaultValues = true
       unitTests.isIncludeAndroidResources = true
       unitTests.all { testTask ->
-        testTask.jvmArgumentProviders.add(InvariantInputs(releaseMergedManifest, writeReleaseDependencies.flatMap { it.report }))
+        testTask.jvmArgumentProviders.add(
+            InvariantInputs(
+                releaseMergedManifest,
+                writeReleaseDependencies.flatMap { it.report },
+                fetchFfmpegBundle.flatMap { it.buildRecords },
+                collectLicenseAssets.flatMap { it.assets }
+            )
+        )
         // Tests that read the written promises (the privacy policy, the store text) must re-run when those files change.
         // Without a declared input Gradle reports the task up to date and a local run stays green on edited text.
         testTask.inputs.file(rootProject.file("docs/PRIVACY.md")).withPathSensitivity(PathSensitivity.NONE).withPropertyName("privacyPolicy")
         testTask.inputs.dir(rootProject.file("distribution/play-store/metadata")).withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName("storeMetadata")
         testTask.inputs.file(rootProject.file("DESIGN.md")).withPathSensitivity(PathSensitivity.NONE).withPropertyName("designSpec")
+        // The FFmpeg tests read these from disk (LgplBuildVerificationTest, VendoredMedia3Test, LicenseDocumentsTest).
+        testTask.inputs.file(rootProject.file("NOTICE")).withPathSensitivity(PathSensitivity.NONE).withPropertyName("notice")
+        testTask.inputs.file(rootProject.file("tools/ffmpeg/approved_decoders.txt")).withPathSensitivity(PathSensitivity.NONE).withPropertyName("approvedDecoders")
+        testTask.inputs.file(rootProject.file("gradle/ffmpeg-bundle.properties")).withPathSensitivity(PathSensitivity.NONE).withPropertyName("ffmpegBundlePin")
+        testTask.inputs.file(rootProject.file("gradle/libs.versions.toml")).withPathSensitivity(PathSensitivity.NONE).withPropertyName("versionCatalog")
+        testTask.inputs.file(rootProject.file(".github/workflows/ffmpeg-audio.yml")).withPathSensitivity(PathSensitivity.NONE).withPropertyName("ffmpegWorkflow")
+        testTask.inputs.dir(rootProject.file("app/src/main/java/androidx/media3/decoder/ffmpeg")).withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName("vendoredMedia3")
         // Hang guard for the WHOLE unit-test task.
         testTask.timeout.set(Duration.ofSeconds(300))
         // Parallelize Robolectric/unit test forks locally (up to 3) and in CI (up to 2) while giving each fork 1536m
@@ -321,7 +644,7 @@ android {
       abi {
         isEnable = !isBuildingBundle
         reset()
-        include("arm64-v8a", "armeabi-v7a", "x86_64")
+        include(*shippedAbis.toTypedArray())
         isUniversalApk = true
       }
     }
@@ -339,6 +662,13 @@ kotlin {
 }
 
 androidComponents {
+    // Every variant (the debug build runs the instrumented tests) carries the FFmpeg libraries and the licence texts.
+    // Registering the task as a generated source directory also makes the native-library and asset merge tasks depend on it.
+    onVariants { variant ->
+        variant.sources.jniLibs?.addGeneratedSourceDirectory(fetchFfmpegBundle, FetchFfmpegBundle::jniLibs)
+        variant.sources.assets?.addGeneratedSourceDirectory(collectLicenseAssets, CollectLicenseAssets::assets)
+    }
+
     // The merged manifest, APKs, and App Bundle of the RELEASE variant are what ship, so those are what the invariants examine.
     onVariants(selector().withBuildType("release")) { variant ->
         releaseMergedManifest.set(variant.artifacts.get(SingleArtifact.MERGED_MANIFEST))
@@ -364,6 +694,7 @@ val verifyReleaseApk = tasks.register<VerifyShippedContents>("verifyReleaseApk")
     mappingFile.set(releaseMappingFile)
     artifactLabel.set("APK")
     forbiddenPackages.set(forbiddenShippedPackages)
+    ffmpegJniLibrary.set(fetchFfmpegBundle.flatMap { it.jniLibs.file("arm64-v8a/libffmpegJNI.so") })
     report.set(layout.buildDirectory.file("invariants/release-apk-check.txt"))
 }
 
@@ -374,6 +705,7 @@ val verifyReleaseBundle = tasks.register<VerifyShippedContents>("verifyReleaseBu
     mappingFile.set(releaseMappingFile)
     artifactLabel.set("AAB")
     forbiddenPackages.set(forbiddenShippedPackages)
+    ffmpegJniLibrary.set(fetchFfmpegBundle.flatMap { it.jniLibs.file("arm64-v8a/libffmpegJNI.so") })
     report.set(layout.buildDirectory.file("invariants/release-bundle-check.txt"))
 }
 
@@ -414,7 +746,10 @@ kover {
           "*.Manifest$*",
           "*_Impl",
           "*_Impl$*",
-          "*.ComposableSingletons$*"
+          "*.ComposableSingletons$*",
+          // Vendored from AndroidX Media and verbatim (VendoredMedia3Test). They call into native code that cannot load on the
+          // JVM, so unit tests cannot execute them; FfmpegAudioPlaybackTest does, on a device.
+          "androidx.media3.decoder.ffmpeg.*"
         )
         annotatedBy(
           "androidx.compose.runtime.Composable",
@@ -455,13 +790,16 @@ dependencies {
   androidTestImplementation(libs.androidx.compose.ui.test.junit4)
   debugImplementation(libs.androidx.compose.ui.test.manifest)
 
-  // Media3 Playback Engine (Media3 core + ExoPlayer + UI + LGPL FFmpeg Audio Decoder)
+  // Media3 Playback Engine (Media3 core + ExoPlayer + UI). The FFmpeg audio extension is not a dependency: its five Java
+  // classes are vendored from AndroidX Media 1.5.1 (app/src/main/java/androidx/media3/decoder/ffmpeg) and the native
+  // libraries come from the pinned bundle (fetchFfmpegBundle, gradle/ffmpeg-bundle.properties).
   implementation(libs.androidx.media3.exoplayer)
   implementation(libs.androidx.media3.session)
   implementation(libs.androidx.media3.ui)
   implementation(libs.androidx.media3.common)
   implementation(libs.androidx.media3.extractor)
-  implementation(libs.jellyfin.media3.ffmpeg.decoder)
+  implementation(libs.androidx.media3.decoder)
+  compileOnly(libs.checker.qual) // annotations named by the vendored FfmpegLibrary.java; not shipped from here
 
   // Guava comes only through Media3, which is held at 1.5.x (see .github/dependabot.yml), so nothing would ever lift it.
   // A constraint raises the resolved version without making Guava a direct dependency. GHSA-xxph-c9ww-hj94

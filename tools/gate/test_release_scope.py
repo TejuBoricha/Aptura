@@ -44,6 +44,8 @@ class ClassifyTest(unittest.TestCase):
             "app/src/main/res/raw/keep.xml",
             "app/src/main/jniLibs/arm64-v8a/libx.so",
             "app/src/main/baseline-prof.txt",
+            "app/src/main/java/androidx/media3/decoder/ffmpeg/FfmpegLibrary.java",
+            "gradle/ffmpeg-bundle.properties",
             "gradle/wrapper/gradle-wrapper.jar",
             "gradlew.bat",
             "app/consumer-rules.pro",

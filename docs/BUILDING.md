@@ -27,6 +27,12 @@ Windows PowerShell:
 
 The APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
 
+### The FFmpeg audio libraries
+
+The app's audio extension (ALAC and G.711, LGPL-2.1) is not built by Gradle and needs no NDK. The `fetchFfmpegBundle` task downloads the pinned bundle from this repository's `ffmpeg-audio-<version>-r<n>` GitHub release, **refuses it unless its SHA-256 equals the one in `gradle/ffmpeg-bundle.properties`**, and unpacks the libraries (packaged by AGP), the licence texts (shown in the app) and the build records (read by the unit tests). The first build therefore needs network access to `github.com`; the zip is then kept in `~/.gradle/aptura/ffmpeg-bundles/<sha256>.zip` and re-checked on every run, so later builds work offline. A checksum failure means the download is not the bundle the repository pins: do not edit the checksum to make it pass.
+
+To move to a new bundle, publish it with `.github/workflows/ffmpeg-audio.yml` (`workflow_dispatch`, which also needs the vendored Media3 classes to match: see `app/src/main/java/androidx/media3/decoder/ffmpeg/VENDORED.md`), then change `url` and `sha256` together in `gradle/ffmpeg-bundle.properties`.
+
 If `local.properties` is missing, Android Studio creates it with `sdk.dir`. From the command line, set `ANDROID_HOME` or create `local.properties`:
 
 ```properties

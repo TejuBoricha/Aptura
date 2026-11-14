@@ -97,7 +97,7 @@ Context: doc 01 §7/W2 coverage data (29+ ≈91%, 28+ ≈94% `[V2]`); PiP native
 Context: NFR-PERF-009 size vs D1 fleets. Decision: splits; decide 32-bit after size/perf measurement (RQ-14). **Revisit:** RQ-14.
 
 **ADR-010 — Self-built LGPL-2.1 FFmpeg audio extension; no bundled video/AAC software decode.**
-Context: W3 (FFmpegKit retired; ext is audio-only; royalty posture). Decision: pin FFmpeg version at build start; maintain source offer + relinkable objects process ⚖️; decoder list limited to license-cleared codecs (AC-3/E-AC-3 add-back gated). **Revisit:** doc 11 legal outcomes; codec needs from RQ-01.
+Context: W3 (FFmpegKit retired; ext is audio-only; royalty posture). Decision: pin FFmpeg version at build start; maintain source offer + relinkable objects process ⚖️; decoder list limited to license-cleared codecs (AC-3/E-AC-3 add-back gated). **Status 2026-11-14 (DEC-020, DEC-023 to DEC-025):** implemented. FFmpeg n9.0.2 as shared libraries from a SHA-256-pinned release bundle, decoders `alac`, `pcm_alaw`, `pcm_mulaw` only; the Java classes are vendored unchanged from AndroidX Media 1.5.1; the source offer is the release that holds the exact source, and the app shows the LGPL notice and texts. **Revisit:** doc 11 legal outcomes; codec needs from RQ-01.
 
 **ADR-011 — R1 contains no network stack at all.**
 Context: FR-NET-001 boundary; privacy proofs (NFR-PRIV-002). Decision: no HTTP/SMB dependencies shipped; store/Play infrastructure excluded from the definition; proof tests per doc 10. **Revisit:** R2 gate only.

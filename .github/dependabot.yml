@@ -51,10 +51,11 @@ updates:
           - "org.jetbrains.kotlinx:kotlinx-coroutines-test"
           - "androidx.test*"
     ignore:
-      # Jellyfin FFmpeg AAR > 1.5.0+1 switches or tracks upstream Media3 bumps separately under LEG-01/DEP-01.
-      - dependency-name: "org.jellyfin.media3:media3-ffmpeg-decoder"
-      # The decoder above is built for Media3 1.5.x (1.5.0+1 runs on 1.5.1), so Media3 moves with it. Patch updates stay
-      # allowed. Dependabot would skip Media3 silently anyway (it only sees a release date for pre-releases), so this
+      # Media3 moves together with the FFmpeg audio extension: its five Java classes are vendored from AndroidX Media 1.5.1
+      # (app/src/main/java/androidx/media3/decoder/ffmpeg) and the native JNI in the FFmpeg bundle is built from the same
+      # tag. A new Media3 version needs those re-vendored and the bundle rebuilt first; VendoredMedia3Test fails until
+      # that is done. Patch updates stay allowed, so they arrive as a red pull request that says exactly what to redo.
+      # Dependabot would skip Media3 silently anyway (it only sees a release date for pre-releases), so this
       # records the decision instead of leaving it to that accident.
       - dependency-name: "androidx.media3:*"
         update-types: ["version-update:semver-major", "version-update:semver-minor"]

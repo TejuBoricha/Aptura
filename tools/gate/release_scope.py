@@ -40,6 +40,7 @@ RULES: tuple[tuple[re.Pattern[str], str], ...] = tuple(
         (r"^app/src/[^/]+/res/(xml|raw)/", "xml/raw resources (backup rules, resource shrinker keep file)"),
         (r"^app/src/[^/]+/(jniLibs|cpp|assets)/", "native libraries or assets packaged in the APK"),
         (r"^app/src/main/baseline-prof\.txt$", "baseline profile packaged in the APK"),
+        (r"^app/src/main/java/androidx/media3/decoder/ffmpeg/", "vendored FFmpeg classes (R8 must still keep what the native library finds by name)"),
     )
 )
 
