@@ -21,9 +21,19 @@ internal fun grantMediaAccess() {
         Manifest.permission.READ_EXTERNAL_STORAGE
     }
     val command = "pm grant ${instrumentation.targetContext.packageName} $permission"
-    // Reading to the end of the stream is what waits for the shell command to finish.
-    val output = ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand(command))
-        .use { it.readBytes().decodeToString() }
+    val output = runShell(command)
     // `pm grant` prints nothing on success. Anything else is an error that must not be ignored.
     check(output.isBlank()) { "`$command` failed: ${output.trim()}" }
+}
+
+/**
+ * Runs [command] as the shell user and returns what it printed to stdout, after it has finished. Keep the command plain:
+ * on API 26 it was split on spaces and run without a shell, so quotes, redirects and `;` did not work, and the command's
+ * error output did not come back. A command that must have worked needs its effect checked, not only its output.
+ */
+internal fun runShell(command: String): String {
+    // Reading to the end of the stream is what waits for the shell command to finish.
+    return ParcelFileDescriptor.AutoCloseInputStream(
+        InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command)
+    ).use { it.readBytes().decodeToString() }
 }
