@@ -63,12 +63,12 @@ FFmpeg audio libraries, FFmpeg n9.0.2 (libavcodec, libavutil, libswresample)
   The libraries are built from the unmodified upstream source (commit
   946fcce07b6dcd0331c8cc609192aeff5e1924f8), configured without
   --enable-gpl, --enable-version3 and --enable-nonfree, and contain only the
-  ALAC and G.711 A-law and mu-law audio decoders. They are linked dynamically:
+  ALAC, AC-3 and G.711 A-law and mu-law audio decoders. They are linked dynamically:
   they are separate files (lib*.so) inside the app package, not part of
   Aptura's own code.
   The exact source, the build records and the licence texts are published
   beside the binaries:
-  https://github.com/TejuBoricha/Aptura/releases/tag/ffmpeg-audio-n9.0.2-r1
+  https://github.com/TejuBoricha/Aptura/releases/tag/ffmpeg-audio-n9.0.2-r2
   The scripts that build them are in tools/ffmpeg/ of the Aptura repository.
   You may modify these libraries and use your modified copies with Aptura:
   Aptura's own source is public under the Apache License 2.0, which does not
