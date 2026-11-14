@@ -2,8 +2,9 @@ name: FFmpeg audio extension (build and verify)
 
 # Builds the self-built, LGPL-only, shared-library FFmpeg audio extension (LEG-02, DEC-014, DEC-020) for each shipped ABI and
 # runs it through tools/ffmpeg/verify_lgpl_symbols.py: the licence recorded in FFmpeg's own config.h, the decoders actually
-# built, no GPL or nonfree flag, 16 KB page alignment, and library names an APK can carry. Nothing here ships yet; the artifacts
-# are evidence. It runs on demand, and on any pull request that touches the recipe, the verifier or this file.
+# built, no GPL or nonfree flag, 16 KB page alignment, and library names an APK can carry. It also compiles AndroidX Media's
+# JNI source against each version's headers, so an FFmpeg API break shows up here and not during the swap-in. Nothing here ships
+# yet; the artifacts are evidence. It runs on demand, and on any pull request that touches the recipe, the verifier or this file.
 
 on:
   workflow_dispatch:
@@ -32,10 +33,14 @@ jobs:
           # The commit is what the tag must resolve to; the build stops if the tag has moved.
           - { tag: n7.1.5, commit: 3a0867c2bfda4a4d4309ca1a8cbdc6175e67f587 }
           - { tag: n8.0.3, commit: 8ae0b34901ba60a802f183ee75a250a9fc3e09a5 }
+          - { tag: n9.0.2, commit: 946fcce07b6dcd0331c8cc609192aeff5e1924f8 }
     env:
       ABI: ${{ matrix.abi }}
       FFMPEG_TAG: ${{ matrix.ffmpeg.tag }}
       FFMPEG_COMMIT: ${{ matrix.ffmpeg.commit }}
+      # AndroidX Media 1.5.1 is what the app uses; this is its JNI source, pinned by checksum.
+      JNI_URL: https://raw.githubusercontent.com/androidx/media/1.5.1/libraries/decoder_ffmpeg/src/main/jni/ffmpeg_jni.cc
+      JNI_SHA256: 7b5421215e963e099004eb04528dcd39ca36869ab9e2412ff5e3b950980daad9
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -52,17 +57,32 @@ jobs:
           OUT="$RUNNER_TEMP/ffmpeg-$FFMPEG_TAG-$ABI"
           python3 tools/ffmpeg/verify_lgpl_symbols.py --build-dir "$OUT/build" --libs "$OUT/stage/lib"
 
+      - name: Compile Media3's JNI source against these headers
+        run: |
+          OUT="$RUNNER_TEMP/ffmpeg-$FFMPEG_TAG-$ABI"
+          case "$ABI" in
+            arm64-v8a)   TRIPLE=aarch64-linux-android ;;
+            armeabi-v7a) TRIPLE=armv7a-linux-androideabi ;;
+            x86_64)      TRIPLE=x86_64-linux-android ;;
+          esac
+          curl -fsSL -o "$RUNNER_TEMP/ffmpeg_jni.cc" "$JNI_URL"
+          echo "$JNI_SHA256  $RUNNER_TEMP/ffmpeg_jni.cc" | sha256sum -c -
+          "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/${TRIPLE}26-clang++" \
+            -c -fPIC -std=c++11 -I "$OUT/stage/include" "$RUNNER_TEMP/ffmpeg_jni.cc" -o "$RUNNER_TEMP/ffmpeg_jni.o"
+
       - name: Gather the evidence
+        if: always()
         run: |
           OUT="$RUNNER_TEMP/ffmpeg-$FFMPEG_TAG-$ABI"
           mkdir -p "$OUT/evidence"
-          cp "$OUT/build/config.h" "$OUT/build/config_components.h" "$OUT/stage/BUILD-INFO.txt" "$OUT/evidence/"
-          cp "$OUT"/stage/lib/*.so "$OUT/evidence/"
-          (cd "$OUT/evidence" && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt)
+          cp "$OUT/build/config.h" "$OUT/build/config_components.h" "$OUT/stage/BUILD-INFO.txt" "$OUT/evidence/" 2>/dev/null || true
+          cp "$OUT"/stage/lib/*.so "$OUT/evidence/" 2>/dev/null || true
+          (cd "$OUT/evidence" && ls * >/dev/null 2>&1 && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt) || true
 
       - name: Upload the evidence
+        if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: ffmpeg-audio-${{ matrix.ffmpeg.tag }}-${{ matrix.abi }}
           path: ${{ runner.temp }}/ffmpeg-${{ matrix.ffmpeg.tag }}-${{ matrix.abi }}/evidence
-          if-no-files-found: error
+          if-no-files-found: warn

@@ -210,6 +210,82 @@ def make_elf(is64: bool = True, align: int = 0x4000, soname: str | None = "libav
     return body
 
 
+STT_OBJECT, STT_FUNC = 1, 2
+
+
+def make_elf_with_symbols(symbols: list[tuple[str, int]], is64: bool = True) -> bytes:
+    """A minimal ELF with a real symbol table: (name, symbol type) pairs, a .strtab and three section headers."""
+    strtab = b"\0"
+    entries = []
+    for name, kind in symbols:
+        entries.append((len(strtab), kind))
+        strtab += name.encode() + b"\0"
+    sym_size = 24 if is64 else 16
+    header_size = 64 if is64 else 52
+    section_size = 64 if is64 else 40
+    strtab_off = header_size
+    symtab_off = (strtab_off + len(strtab) + 7) // 8 * 8
+    symtab = b"\0" * sym_size  # the mandatory null symbol
+    for name_offset, kind in entries:
+        info = kind  # binding 0 (local), type kind
+        symtab += struct.pack("<IBBHQQ", name_offset, info, 0, 1, 0x1000, 192) if is64 else struct.pack("<IIIBBH", name_offset, 0x1000, 192, info, 0, 1)
+    shoff = symtab_off + len(symtab)
+    if is64:
+        header = b"\x7fELF" + bytes([2, 1, 1]) + bytes(9) + struct.pack("<HHIQQQIHHHHHH", 3, 183, 1, 0, 0, shoff, 0, header_size, 0, 0, section_size, 3, 0)
+        null = bytes(section_size)
+        symtab_hdr = struct.pack("<IIQQQQIIQQ", 0, 2, 0, 0, symtab_off, len(symtab), 2, 0, 8, sym_size)
+        strtab_hdr = struct.pack("<IIQQQQIIQQ", 0, 3, 0, 0, strtab_off, len(strtab), 0, 0, 1, 0)
+    else:
+        header = b"\x7fELF" + bytes([1, 1, 1]) + bytes(9) + struct.pack("<HHIIIIIHHHHHH", 3, 40, 1, 0, 0, shoff, 0, header_size, 0, 0, section_size, 3, 0)
+        null = bytes(section_size)
+        symtab_hdr = struct.pack("<IIIIIIIIII", 0, 2, 0, 0, symtab_off, len(symtab), 2, 0, 4, sym_size)
+        strtab_hdr = struct.pack("<IIIIIIIIII", 0, 3, 0, 0, strtab_off, len(strtab), 0, 0, 1, 0)
+    body = header + strtab
+    body += bytes(symtab_off - len(body)) + symtab
+    return body + null + symtab_hdr + strtab_hdr
+
+
+class SymbolTableTests(unittest.TestCase):
+    """Decoders are `ff_<name>_decoder` data objects; a function with a similar name is not a decoder."""
+
+    def test_object_symbols_are_read_as_decoders_in_both_elf_classes(self):
+        for is64 in (True, False):
+            with self.subTest(is64=is64):
+                data = make_elf_with_symbols([("ff_alac_decoder", STT_OBJECT), ("ff_pcm_alaw_decoder", STT_OBJECT)], is64=is64)
+                self.assertEqual(v.elf_decoder_objects(data), {"alac", "pcm_alaw"})
+
+    def test_a_helper_function_named_like_a_decoder_is_not_a_decoder(self):
+        # FFmpeg 8 has the function ff_codec_is_decoder. A text search read it as a decoder called "codec_is" and failed a real CI build.
+        for is64 in (True, False):
+            with self.subTest(is64=is64):
+                data = make_elf_with_symbols([("ff_alac_decoder", STT_OBJECT), ("ff_codec_is_decoder", STT_FUNC)], is64=is64)
+                self.assertEqual(v.elf_decoder_objects(data), {"alac"})
+
+    def test_an_unapproved_decoder_object_is_still_caught_through_the_symbol_table(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder, "libavcodec.so")
+            path.write_bytes(make_elf_with_symbols([("ff_alac_decoder", STT_OBJECT), ("ff_ac3_decoder", STT_OBJECT)]))
+            problems = v.audit_libraries([path], APPROVED)
+            self.assertIn("contains a decoder that is not approved: ac3", " ".join(problems))
+
+    def test_the_helper_function_alone_does_not_fail_a_library_that_has_only_approved_decoders(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder, "libavcodec.so")
+            path.write_bytes(make_elf_with_symbols([("ff_alac_decoder", STT_OBJECT), ("ff_codec_is_decoder", STT_FUNC)]))
+            self.assertEqual([p for p in v.audit_libraries([path], APPROVED) if "decoder" in p], [])
+
+    def test_an_elf_without_a_symbol_table_falls_back_to_the_text_search_and_a_stripped_libavcodec_still_fails(self):
+        self.assertIsNone(v.elf_decoder_objects(make_elf()))  # has program headers and a dynamic section, but no symbol table
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder, "libavcodec.so")
+            path.write_bytes(make_elf())
+            self.assertTrue(any("nothing can be proven" in p for p in v.audit_libraries([path], APPROVED)))
+
+    def test_garbage_and_truncated_files_do_not_crash_the_reader(self):
+        self.assertIsNone(v.elf_decoder_objects(b"not an elf at all" * 10))
+        self.assertIsNone(v.elf_decoder_objects(make_elf_with_symbols([("ff_alac_decoder", STT_OBJECT)])[:80]))
+
+
 class ElfRuleTests(unittest.TestCase):
     """The rules a shipped native library must meet: 16 KB pages on 64-bit, and names an APK can carry."""
 
