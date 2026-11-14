@@ -10,6 +10,10 @@
 # This is what Media3's own CMakeLists.txt does (target ffmpegJNI, linking swresample, avcodec, avutil, log and android, with
 # 16 KB pages, and -Bsymbolic on arm64), except that FFmpeg is linked as shared libraries, so the user can swap them
 # (LGPL-2.1 section 6, ADR-010). Doing it here, in CI, keeps the NDK out of the app's own Gradle build.
+#
+# -static-libstdc++ matters: a plain clang++ link makes the library need libc++_shared.so, which an APK does not carry, so the
+# extension would fail to load on a device and ExoPlayer would silently lose it. Media3's CMake links the C++ runtime statically
+# too. tools/ffmpeg/verify_lgpl_symbols.py now rejects any dependency that is not a system library or a sibling.
 # ==============================================================================
 
 set -euo pipefail
@@ -43,7 +47,7 @@ for need in "$CXX" "$JNI_SOURCE" "$STAGE/include/libavcodec/avcodec.h" "$STAGE/l
 done
 
 # shellcheck disable=SC2086  # EXTRA_LDFLAGS is deliberately a word list (or empty)
-"$CXX" -shared -fPIC -std=c++11 -O2 \
+"$CXX" -shared -fPIC -std=c++11 -O2 -static-libstdc++ \
     -I "$STAGE/include" \
     "$JNI_SOURCE" \
     -L "$STAGE/lib" -lswresample -lavcodec -lavutil -llog -landroid \

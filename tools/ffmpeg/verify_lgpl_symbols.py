@@ -233,8 +233,21 @@ def elf_info(data: bytes) -> dict | None:
         return None
 
 
-def audit_elf(label: str, data: bytes) -> list[str]:
-    """Rules a shipped native library must meet: 16 KB pages on 64-bit (Play), and names Android can load from an APK."""
+# Libraries every Android device provides to a native library. Anything else a library asks for has to travel with it.
+# libc++_shared.so is deliberately absent: the NDK's C++ runtime is not part of the system, so a library that needs it
+# fails to load on a device unless the APK carries it (Media3's own build links the runtime statically).
+SYSTEM_LIBRARIES = frozenset({
+    "libc.so", "libm.so", "libdl.so", "liblog.so", "libandroid.so", "libz.so", "libjnigraphics.so",
+    "libstdc++.so", "libOpenSLES.so", "libEGL.so", "libGLESv2.so", "libGLESv3.so",
+})
+
+
+def audit_elf(label: str, data: bytes, siblings: frozenset[str] | None = None) -> list[str]:
+    """Rules a shipped native library must meet: 16 KB pages on 64-bit (Play), and names Android can load from an APK.
+
+    `siblings` are the other libraries shipped beside this one. When given, every dependency must be one of them or a system
+    library; without it that check is skipped.
+    """
     info = elf_info(data)
     if info is None:
         return []
@@ -247,6 +260,11 @@ def audit_elf(label: str, data: bytes) -> list[str]:
     for name in info["needed"]:
         if VERSIONED_SO.search(name):
             violations.append(f"{label}: depends on {name!r}, a versioned name an APK cannot carry")
+        elif siblings is not None and name not in SYSTEM_LIBRARIES and name not in siblings:
+            violations.append(
+                f"{label}: depends on {name!r}, which is neither an Android system library nor shipped beside it, "
+                "so it fails to load on a device"
+            )
     return violations
 
 
@@ -319,7 +337,7 @@ def audit_libraries(libraries: list[Path], approved: set[str]) -> list[str]:
             violations.append(f"{label}: contains a decoder that is not approved: {decoder}")
         if GPL_LICENCE.search(data):
             violations.append(f"{label}: carries a GPL or nonfree licence string")
-        violations += audit_elf(label, data)
+        violations += audit_elf(label, data, frozenset(sibling.name for sibling in libraries if sibling.parent == library.parent))
         if library.name.startswith("libavcodec") and not decoders:
             violations.append(
                 f"{label}: no decoder names found, so nothing can be proven (stripped? audit the build dir instead)"
