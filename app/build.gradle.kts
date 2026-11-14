@@ -463,6 +463,16 @@ dependencies {
   implementation(libs.androidx.media3.extractor)
   implementation(libs.jellyfin.media3.ffmpeg.decoder)
 
+  // Guava comes only through Media3, which is held at 1.5.x (see .github/dependabot.yml), so nothing would ever lift it.
+  // A constraint raises the resolved version without making Guava a direct dependency. GHSA-xxph-c9ww-hj94
+  // (unbounded resource use when deserializing some Guava collections) is fixed from 33.7.2. The app deserializes no Java
+  // objects, so it was not reachable, but the shipped graph should not carry a known advisory.
+  constraints {
+    implementation(libs.guava) {
+      because("GHSA-xxph-c9ww-hj94 is fixed from 33.7.2, and Media3 1.5.1 still asks for 33.3.1")
+    }
+  }
+
   // Local Media Indexing & Metadata (Room)
   implementation(libs.androidx.room.runtime)
   implementation(libs.androidx.room.ktx)
