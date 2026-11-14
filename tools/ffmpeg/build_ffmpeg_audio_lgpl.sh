@@ -103,7 +103,6 @@ FLAGS=(
     --disable-avformat
     --disable-avfilter
     --disable-swscale
-    --disable-postproc
     --disable-network
     --disable-autodetect
     --disable-everything
@@ -112,6 +111,11 @@ FLAGS=(
 )
 if [ -n "$CPU" ]; then
     FLAGS+=(--cpu="$CPU")
+fi
+# libpostproc is GPL-only, so an LGPL build never has it, and FFmpeg 8 removed it (and the option with it). Turn it off
+# explicitly where the option still exists, so a future change of defaults cannot slip a GPL library in.
+if "$SRC/configure" --help | grep -q -- '--disable-postproc'; then
+    FLAGS+=(--disable-postproc)
 fi
 
 cd "$BUILD"
