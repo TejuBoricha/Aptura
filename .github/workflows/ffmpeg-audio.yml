@@ -1,0 +1,68 @@
+name: FFmpeg audio extension (build and verify)
+
+# Builds the self-built, LGPL-only, shared-library FFmpeg audio extension (LEG-02, DEC-014, DEC-020) for each shipped ABI and
+# runs it through tools/ffmpeg/verify_lgpl_symbols.py: the licence recorded in FFmpeg's own config.h, the decoders actually
+# built, no GPL or nonfree flag, 16 KB page alignment, and library names an APK can carry. Nothing here ships yet; the artifacts
+# are evidence. It runs on demand, and on any pull request that touches the recipe, the verifier or this file.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'tools/ffmpeg/**'
+      - '.github/workflows/ffmpeg-audio.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ffmpeg-audio-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: FFmpeg ${{ matrix.ffmpeg.tag }} for ${{ matrix.abi }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: [arm64-v8a, armeabi-v7a, x86_64]
+        ffmpeg:
+          # The commit is what the tag must resolve to; the build stops if the tag has moved.
+          - { tag: n7.1.5, commit: 3a0867c2bfda4a4d4309ca1a8cbdc6175e67f587 }
+          - { tag: n8.0.3, commit: 8ae0b34901ba60a802f183ee75a250a9fc3e09a5 }
+    env:
+      ABI: ${{ matrix.abi }}
+      FFMPEG_TAG: ${{ matrix.ffmpeg.tag }}
+      FFMPEG_COMMIT: ${{ matrix.ffmpeg.commit }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install the x86 assembler
+        run: sudo apt-get update && sudo apt-get install -y nasm
+
+      - name: Build FFmpeg (shared, approved decoders only)
+        run: |
+          OUT="$RUNNER_TEMP/ffmpeg-$FFMPEG_TAG-$ABI"
+          bash tools/ffmpeg/build_ffmpeg_audio_lgpl.sh "$ABI" "$FFMPEG_TAG" "$FFMPEG_COMMIT" "$OUT"
+
+      - name: Verify the build record and the libraries
+        run: |
+          OUT="$RUNNER_TEMP/ffmpeg-$FFMPEG_TAG-$ABI"
+          python3 tools/ffmpeg/verify_lgpl_symbols.py --build-dir "$OUT/build" --libs "$OUT/stage/lib"
+
+      - name: Gather the evidence
+        run: |
+          OUT="$RUNNER_TEMP/ffmpeg-$FFMPEG_TAG-$ABI"
+          mkdir -p "$OUT/evidence"
+          cp "$OUT/build/config.h" "$OUT/build/config_components.h" "$OUT/stage/BUILD-INFO.txt" "$OUT/evidence/"
+          cp "$OUT"/stage/lib/*.so "$OUT/evidence/"
+          (cd "$OUT/evidence" && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt)
+
+      - name: Upload the evidence
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: ffmpeg-audio-${{ matrix.ffmpeg.tag }}-${{ matrix.abi }}
+          path: ${{ runner.temp }}/ffmpeg-${{ matrix.ffmpeg.tag }}-${{ matrix.abi }}/evidence
+          if-no-files-found: error

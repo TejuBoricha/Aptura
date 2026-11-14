@@ -6,6 +6,7 @@ Fixtures use the formats FFmpeg's `configure` really writes (`config.h`: FFMPEG_
 switches; `config_components.h`: one CONFIG_<NAME>_<KIND> switch per component), checked against the n6.1.1 script.
 """
 
+import struct
 import tempfile
 import unittest
 from pathlib import Path
@@ -153,6 +154,79 @@ class LibraryTests(unittest.TestCase):
                 v.find_libraries([Path(folder, "missing")])
         with tempfile.TemporaryDirectory() as empty, self.assertRaises(v.InputError):
             v.find_libraries([Path(empty)])
+
+
+def make_elf(is64: bool = True, align: int = 0x4000, soname: str | None = "libavcodec.so", needed: tuple[str, ...] = ("libavutil.so",)) -> bytes:
+    """A minimal little-endian ELF shared object: one PT_LOAD, one PT_DYNAMIC, a string table and a dynamic section."""
+    strtab = b"\0"
+    offsets: dict[str, int] = {}
+    for name in [*needed, *([soname] if soname else [])]:
+        offsets[name] = len(strtab)
+        strtab += name.encode() + b"\0"
+    ehdr_size, phdr_size, entry = (64, 56, 16) if is64 else (52, 32, 8)
+    strtab_off = ehdr_size + 2 * phdr_size
+    dyn_off = (strtab_off + len(strtab) + 7) // 8 * 8
+    entries = [(1, offsets[n]) for n in needed] + ([(14, offsets[soname])] if soname else []) + [(5, strtab_off), (0, 0)]
+    dyn_size = len(entries) * entry
+    total = dyn_off + dyn_size
+    efmt, pack = ("<qQ", struct.pack) if is64 else ("<iI", struct.pack)
+    if is64:
+        header = b"\x7fELF" + bytes([2, 1, 1]) + bytes(9) + struct.pack("<HHIQQQIHHHHHH", 3, 183, 1, 0, ehdr_size, 0, 0, ehdr_size, phdr_size, 2, 0, 0, 0)
+        load = struct.pack("<IIQQQQQQ", 1, 5, 0, 0, 0, total, total, align)
+        dynamic = struct.pack("<IIQQQQQQ", 2, 6, dyn_off, dyn_off, dyn_off, dyn_size, dyn_size, 8)
+    else:
+        header = b"\x7fELF" + bytes([1, 1, 1]) + bytes(9) + struct.pack("<HHIIIIIHHHHHH", 3, 40, 1, 0, ehdr_size, 0, 0, ehdr_size, phdr_size, 2, 0, 0, 0)
+        load = struct.pack("<IIIIIIII", 1, 0, 0, 0, total, total, 5, align)
+        dynamic = struct.pack("<IIIIIIII", 2, dyn_off, dyn_off, dyn_off, dyn_size, dyn_size, 6, 4)
+    body = header + load + dynamic + strtab
+    body += bytes(dyn_off - len(body))
+    for tag, value in entries:
+        body += pack(efmt, tag, value)
+    return body
+
+
+class ElfRuleTests(unittest.TestCase):
+    """The rules a shipped native library must meet: 16 KB pages on 64-bit, and names an APK can carry."""
+
+    def test_the_reader_finds_what_the_builder_put_in(self):
+        info = v.elf_info(make_elf(soname="libavcodec.so", needed=("libavutil.so", "libswresample.so")))
+        self.assertEqual((info["is64"], info["aligns"], info["soname"], info["needed"]), (True, [0x4000], "libavcodec.so", ["libavutil.so", "libswresample.so"]))
+
+    def test_a_good_64_bit_library_has_no_findings(self):
+        self.assertEqual(v.audit_elf("arm64-v8a/libavcodec.so", make_elf()), [])
+
+    def test_a_4k_aligned_64_bit_library_is_rejected_for_play(self):
+        problems = v.audit_elf("arm64-v8a/libavcodec.so", make_elf(align=0x1000))
+        self.assertTrue(any("16 KB" in p for p in problems), problems)
+
+    def test_a_4k_aligned_32_bit_library_is_not_rejected(self):
+        self.assertEqual(v.audit_elf("armeabi-v7a/libavcodec.so", make_elf(is64=False, align=0x1000)), [])
+
+    def test_a_16k_aligned_32_bit_library_is_read_correctly(self):
+        info = v.elf_info(make_elf(is64=False, align=0x4000))
+        self.assertEqual((info["is64"], info["aligns"], info["soname"]), (False, [0x4000], "libavcodec.so"))
+
+    def test_a_versioned_soname_is_rejected(self):
+        problems = v.audit_elf("x86_64/libavcodec.so", make_elf(soname="libavcodec.so.61"))
+        self.assertTrue(any("SONAME" in p for p in problems), problems)
+
+    def test_a_versioned_dependency_is_rejected(self):
+        problems = v.audit_elf("x86_64/libavcodec.so", make_elf(needed=("libavutil.so.59",)))
+        self.assertTrue(any("depends on 'libavutil.so.59'" in p for p in problems), problems)
+
+    def test_something_that_is_not_an_elf_is_left_to_the_other_checks(self):
+        self.assertEqual(v.audit_elf("x/libavcodec.so", b"ff_alac_decoder"), [])
+        self.assertIsNone(v.elf_info(b"\x7fELF"))
+
+    def test_a_truncated_elf_does_not_crash_the_audit(self):
+        self.assertEqual(v.audit_elf("x/lib.so", make_elf()[:90]), [])
+
+    def test_the_elf_rules_run_inside_the_library_audit(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder, "libavcodec.so")
+            path.write_bytes(make_elf(align=0x1000) + b"ff_alac_decoder")
+            problems = v.audit_libraries([path], APPROVED)
+            self.assertTrue(any("16 KB" in p for p in problems), problems)
 
 
 class CommandLineTests(unittest.TestCase):

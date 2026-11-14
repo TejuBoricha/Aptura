@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import struct
 import sys
 from pathlib import Path
 
@@ -158,8 +159,91 @@ def find_libraries(paths: list[Path]) -> list[Path]:
     return found
 
 
+PAGE_16K = 16384
+VERSIONED_SO = re.compile(r"\.so\.\d")
+
+
+def elf_info(data: bytes) -> dict | None:
+    """Just enough of an ELF reader for the Play and APK rules: LOAD alignment, SONAME and NEEDED. None if not little-endian ELF."""
+    if len(data) < 64 or data[:4] != b"\x7fELF" or data[5] != 1:
+        return None
+    is64 = data[4] == 2
+    try:
+        if is64:
+            phoff, = struct.unpack_from("<Q", data, 0x20)
+            phentsize, phnum = struct.unpack_from("<HH", data, 0x36)
+        else:
+            phoff, = struct.unpack_from("<I", data, 0x1C)
+            phentsize, phnum = struct.unpack_from("<HH", data, 0x2A)
+        loads: list[tuple[int, int, int, int]] = []  # vaddr, offset, filesz, align
+        dynamic: tuple[int, int] | None = None
+        for i in range(phnum):
+            base = phoff + i * phentsize
+            ptype, = struct.unpack_from("<I", data, base)
+            if is64:
+                offset, vaddr, _paddr, filesz, _memsz, align = struct.unpack_from("<QQQQQQ", data, base + 8)
+            else:
+                offset, vaddr, _paddr, filesz, _memsz, _flags, align = struct.unpack_from("<IIIIIII", data, base + 4)
+            if ptype == 1:
+                loads.append((vaddr, offset, filesz, align))
+            elif ptype == 2:
+                dynamic = (offset, filesz)
+        needed_offsets: list[int] = []
+        soname_offset: int | None = None
+        strtab_vaddr: int | None = None
+        if dynamic:
+            entry = 16 if is64 else 8
+            fmt = "<qQ" if is64 else "<iI"
+            for pos in range(dynamic[0], dynamic[0] + dynamic[1], entry):
+                tag, value = struct.unpack_from(fmt, data, pos)
+                if tag == 0:
+                    break
+                if tag == 1:
+                    needed_offsets.append(value)
+                elif tag == 14:
+                    soname_offset = value
+                elif tag == 5:
+                    strtab_vaddr = value
+
+        def string_at(string_offset: int) -> str | None:
+            if strtab_vaddr is None:
+                return None
+            for vaddr, offset, filesz, _align in loads:
+                if vaddr <= strtab_vaddr < vaddr + filesz:
+                    start = offset + (strtab_vaddr - vaddr) + string_offset
+                    end = data.index(b"\0", start)
+                    return data[start:end].decode("ascii", "replace")
+            return None
+
+        return {
+            "is64": is64,
+            "aligns": [load[3] for load in loads],
+            "soname": string_at(soname_offset) if soname_offset is not None else None,
+            "needed": [name for name in (string_at(o) for o in needed_offsets) if name],
+        }
+    except (struct.error, ValueError):
+        return None
+
+
+def audit_elf(label: str, data: bytes) -> list[str]:
+    """Rules a shipped native library must meet: 16 KB pages on 64-bit (Play), and names Android can load from an APK."""
+    info = elf_info(data)
+    if info is None:
+        return []
+    violations: list[str] = []
+    if info["is64"] and any(align < PAGE_16K for align in info["aligns"]):
+        violations.append(f"{label}: a LOAD segment is aligned to less than 16 KB (Play requires 16 KB pages for 64-bit)")
+    soname = info["soname"]
+    if soname and not soname.endswith(".so"):
+        violations.append(f"{label}: SONAME {soname!r} does not end in .so, so an APK cannot carry it")
+    for name in info["needed"]:
+        if VERSIONED_SO.search(name):
+            violations.append(f"{label}: depends on {name!r}, a versioned name an APK cannot carry")
+    return violations
+
+
 def audit_libraries(libraries: list[Path], approved: set[str]) -> list[str]:
-    """Read the binaries: decoder names and the licence string. Stripped libavcodec is a failure, not a pass."""
+    """Read the binaries: decoder names, the licence string and the ELF rules. Stripped libavcodec is a failure, not a pass."""
     violations: list[str] = []
     for library in libraries:
         try:
@@ -172,6 +256,7 @@ def audit_libraries(libraries: list[Path], approved: set[str]) -> list[str]:
             violations.append(f"{label}: contains a decoder that is not approved: {decoder}")
         if GPL_LICENCE.search(data):
             violations.append(f"{label}: carries a GPL or nonfree licence string")
+        violations += audit_elf(label, data)
         if library.name.startswith("libavcodec") and not decoders:
             violations.append(
                 f"{label}: no decoder names found, so nothing can be proven (stripped? audit the build dir instead)"
