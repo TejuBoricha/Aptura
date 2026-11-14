@@ -63,6 +63,11 @@ jobs:
       - name: Release smoke script tests
         run: python3 -m unittest discover -s tools/smoke
 
+      # tools/ffmpeg/verify_lgpl_symbols.py is the guard behind ADR-010 and DEC-014 (LGPL, audio-only, approved decoders
+      # only). Its tests prove it fails when it must, so a guard that always says PASS cannot come back unnoticed.
+      - name: FFmpeg LGPL guard tests
+        run: python3 -m unittest discover -s tools/ffmpeg
+
       - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
           distribution: temurin

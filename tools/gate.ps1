@@ -110,6 +110,9 @@ if ($python) {
     Run-Step "Release smoke script tests (tools/smoke)" {
         & $python -m unittest discover -s tools/smoke
     }
+    Run-Step "FFmpeg LGPL guard tests (tools/ffmpeg)" {
+        & $python -m unittest discover -s tools/ffmpeg
+    }
 } else {
     Write-Host "`n>>> [SKIPPED] Agent coordination checker and secret file guard: Python 3 not found (CI runs them)" -ForegroundColor Yellow
 }

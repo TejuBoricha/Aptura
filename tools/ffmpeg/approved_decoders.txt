@@ -1,0 +1,21 @@
+# FFmpeg decoders the bundled audio extension may contain. One FFmpeg decoder name per line.
+#
+# This file is the single source of truth: build_ffmpeg_audio_lgpl.sh enables exactly these, and verify_lgpl_symbols.py
+# fails the build when the configured or built FFmpeg contains any other decoder.
+#
+# Source: LEG-02 layer 2 in docs/audits/CURRENT_AUDIT.md (owner direction, 2026-11-06): free formats only, no licence cost
+# found. This is engineering planning, not legal advice; the lawyer review of spec/11A briefs L1 and L2 is still open.
+#
+# NOT here on purpose, and each needs its own decision before it can be added:
+#   aac, aac_latm   Via LA's AAC pool charges fees; the platform decoders already handle AAC.
+#   ac3, eac3       candidates (patents reported expired), only after counsel confirms.
+#   dca, truehd, mlp   no application-side licence found; pass-through to a receiver instead.
+
+flac
+alac
+mp3
+mp3float
+vorbis
+opus
+pcm_alaw
+pcm_mulaw
