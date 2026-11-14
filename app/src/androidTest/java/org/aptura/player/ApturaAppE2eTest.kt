@@ -1,6 +1,5 @@
 package org.aptura.player
 
-import android.Manifest
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -31,10 +30,7 @@ private class SeedAppEnvironmentRule : TestRule {
         override fun evaluate() {
             val instrumentation = InstrumentationRegistry.getInstrumentation()
             // Allow the library to proceed past the media access gate
-            instrumentation.uiAutomation.grantRuntimePermission(
-                instrumentation.targetContext.packageName,
-                Manifest.permission.READ_MEDIA_VIDEO
-            )
+            grantMediaAccess()
             // Mark the (first-run) onboarding guide as already seen, so MainActivity
             // opens straight on the library (start destination is gated on this flag)
             runBlocking {
