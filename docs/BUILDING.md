@@ -72,13 +72,16 @@ Never commit a keystore or its passwords. `local.properties`, key and certificat
 
 ## Testing the release build
 
-Instrumented tests target the debug build by default. To run the E2E suite against the R8 release build:
+Instrumented tests (`connectedDebugAndroidTest`) run against the debug build, in CI on an API 35 tablet emulator. They cannot run against the R8 release build: the test runner expects classes R8 removed from the minified app (`NoClassDefFoundError: androidx.tracing.Trace` in `AndroidJUnitRunner.onCreate`), and the keep rules that would fix that change what R8 produces, so the thing tested would no longer be the thing that ships.
+
+To test the shipped build, install the signed release APK on a running emulator and drive it from outside:
 
 ```bash
-./gradlew connectedReleaseAndroidTest -Paptura.testBuildType=release
+./gradlew assembleRelease   # needs signing values (see above): an unsigned APK cannot be installed
+python3 tools/smoke/release_smoke.py app/build/outputs/apk/release/app-x86_64-release.apk   # Windows: py -3
 ```
 
-This is a local/manual check. CI runs the debug instrumentation on an API 35 tablet emulator.
+The script refuses an APK that is debuggable, cold-starts the app, runs a fixed-seed UI exerciser, opens a sample clip for playback and fails on a fatal exception, an ANR or a native crash of the app. Exit code 0 means nothing wrong was found, 1 means the app misbehaved, 2 means the check could not run (no device, install failed, wrong APK). CI runs it every night as the `release-smoke` job in `.github/workflows/nightly.yml`, with a throwaway signing key made inside the job.
 
 ## Design gallery
 

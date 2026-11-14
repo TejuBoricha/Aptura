@@ -212,10 +212,9 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    // Instrumented tests can target exactly one build type (AGP default: debug). Run the E2E
-    // suite against the R8 release build with: gradlew connectedReleaseAndroidTest
-    // -Paptura.testBuildType=release
-    testBuildType = (findProperty("aptura.testBuildType") as String?) ?: "debug"
+    // Instrumented tests run against the debug build (the AGP default). They cannot run against the R8 release
+    // build: the test runner needs classes R8 removes. The shipped build is smoke-tested with
+    // tools/smoke/release_smoke.py instead; see docs/BUILDING.md.
 
     // B-01: Release signing is opt-in and secret-free in the repo. Provide the upload keystore via
     // local.properties or environment variables (CI secrets); without them the release artifact
