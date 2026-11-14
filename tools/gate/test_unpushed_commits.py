@@ -59,6 +59,12 @@ class UnpushedCommitsTest(unittest.TestCase):
         commit(self.work, "first")
         run(self.work, "push", "-q", "-u", "origin", "main")
 
+    def main_moves_on(self) -> None:
+        """Another change lands on main (in a different file), so a later cherry-pick gets a new parent and so a new hash."""
+        (self.work / "elsewhere.txt").write_text("someone else's change\n", encoding="utf-8")
+        run(self.work, "add", "elsewhere.txt")
+        run(self.work, "-c", "commit.gpgsign=false", "commit", "-q", "-m", "someone else's change")
+
     def test_everything_pushed_is_clean(self):
         code, text = check(self.work)
         self.assertEqual(tool.CLEAN, code, text)
@@ -111,6 +117,42 @@ class UnpushedCommitsTest(unittest.TestCase):
         self.assertEqual(tool.UNPUSHED, code)
         self.assertIn(f"main: {tool.SHOWN_PER_BRANCH + 3} commit(s)", text)
         self.assertIn("... and 3 more", text)
+
+    def test_a_rebase_merged_branch_is_safe_not_a_warning(self):
+        # The project merges by rebase: the commit gets a new hash on main and the remote branch is deleted, so the old local
+        # commit is on no remote by hash while its change is on one. That must not be reported as unpushed.
+        run(self.work, "switch", "-q", "-c", "feature")
+        commit(self.work, "feature change")
+        run(self.work, "switch", "-q", "main")
+        self.main_moves_on()  # a rebase merge happens after main moved, which is what gives the commit a new hash
+        run(self.work, "cherry-pick", "feature")  # same change, new hash, as a rebase merge makes
+        run(self.work, "push", "-q", "origin", "main")
+        code, text = check(self.work)
+        self.assertEqual(tool.CLEAN, code, text)
+        self.assertNotIn("WARNING", text)
+        self.assertIn("rebase merge", text)
+        self.assertIn("feature: 1 commit(s)", text)
+
+    def test_a_branch_with_different_content_is_still_a_warning_next_to_a_merged_one(self):
+        run(self.work, "switch", "-q", "-c", "merged")
+        commit(self.work, "merged change")
+        run(self.work, "switch", "-q", "main")
+        self.main_moves_on()
+        run(self.work, "cherry-pick", "merged")
+        run(self.work, "push", "-q", "origin", "main")
+        run(self.work, "switch", "-q", "-c", "unmerged")
+        (self.work / "other.txt").write_text("different work\n", encoding="utf-8")
+        run(self.work, "add", "other.txt")
+        run(self.work, "-c", "commit.gpgsign=false", "commit", "-q", "-m", "different work")
+        code, text = check(self.work)
+        self.assertEqual(tool.UNPUSHED, code)
+        warning, _, safe = text.partition("Already on a remote")
+        self.assertIn("  unmerged: 1 commit(s)", warning)
+        self.assertIn("different work", warning)
+        # The merged branch is not part of the warning, only of the "safe to delete" list below it. (Two leading spaces: the
+        # plain substring "merged: 1 commit(s)" is also inside "unmerged: 1 commit(s)".)
+        self.assertNotIn("  merged: 1 commit(s)", warning)
+        self.assertIn("  merged: 1 commit(s)", safe)
 
     def test_a_repository_with_no_remote_says_so(self):
         alone = Path(self._tmp.name) / "alone"
