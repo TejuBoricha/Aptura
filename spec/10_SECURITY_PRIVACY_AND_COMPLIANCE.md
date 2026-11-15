@@ -130,7 +130,7 @@ Filenames/paths excluded by default; opt-in attach of one specific filename requ
 |---|---|---|---|
 | GDPR (EU) | On-device processing only; no personal-data transfer to us; no tracking | Privacy page mirroring §4.1; no DPIA expected (no systematic monitoring/special categories) `[I]` — legal check | ⚖️ review |
 | CCPA/CPRA (California) | No sale/share; no collection by us | Inventory statements; no "Do Not Sell" flows needed if claims hold `[I]` | ⚖️ review |
-| India DPDP Act (Rules notified 2025-11-13; duties phasing to 2027-05-13) `[V1/W4]` | Local processing; permission UX; children's provisions (no targeted processing) | Consent clarity for permissions; no children targeting | ⚖️ review |
+| India DPDP Act (Rules notified 2025-11-13; duties phasing to 2027-05-13) `[V1/W4]` | Local processing; permission UX; children's provisions (no targeted processing) | Consent clarity for permissions; no children targeting | Researched 2026-11-15, no duty found as built; the duties start 2027-05-13 ([11B](11B_LEGAL_RESEARCH_FINDINGS.md) C.7, self-conducted; check the Gazette for any shortening); ⚖️ review |
 | LGPD (Brazil) | Similar local-only posture | Portuguese privacy text at launch locale set | ⚖️ review |
 | COPPA (US, 2025 amendments) | Not directed to children; no collection | Store family policy + rating truthful | ⚖️ review |
 | EAA (EU accessibility, consumer products) | Applicability to free/FOSS apps has carve-outs (microenterprise caveat noted in W4) | Accessibility commitments already core (NFR-A11Y-*) regardless of applicability | Researched 2026-11-15, no obligation found as built ([11B](11B_LEGAL_RESEARCH_FINDINGS.md) C.6, self-conducted); ⚖️ review |
