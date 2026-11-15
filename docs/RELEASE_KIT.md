@@ -76,7 +76,7 @@ Google's page "Understanding foreground service and full-screen intent requireme
 
 - [x] **App Icon:** `distribution/play-store/icon-512x512.png`, 512 × 512 px 32-bit PNG with an opaque square background. Editable source: `icon.svg` in the same directory.
 - [x] **Feature Graphic:** `distribution/play-store/feature-graphic-1024x500.png`, 1024 × 500 px 24-bit PNG. Editable source: `feature-graphic.svg` in the same directory.
-- [x] **Upload screenshots:** six 1080 × 2400 phone captures under `distribution/play-store/phone-screenshots/` and two 2560 × 1600 tablet captures under `distribution/play-store/tablet-screenshots/`.
+- [x] **Approved upload artwork:** eight 1080 × 1920 phone panels under `distribution/play-store/phone-screenshots/` and four 1920 × 1080 tablet panels under `distribution/play-store/tablet-screenshots/`. The owner approved Preview 02 on 15 November 2026. Upload order, alt text, self-contained editable sources and review evidence are documented in [`distribution/play-store/README.md`](../distribution/play-store/README.md). Console upload remains a separate action.
 - [x] **Documentation screenshots:** 11 Compose gallery captures under `docs/assets/screenshots/`, including `onboarding-privacy.png`, phone portrait/landscape and tall-sheet renders, and `settings-tablet.png` / `library-tablet.png`. These retain their gallery dimensions and are not all store-sized portrait images.
 
 - [x] **Privacy Policy URL:** `https://github.com/TejuBoricha/Aptura/blob/main/docs/PRIVACY.md`

@@ -15,6 +15,8 @@ The owner approved the **Fold** mark on 15 November 2026 after reviewing it insi
 
 SVGs are the editable sources. The mark, plated logo and store-icon vectors use paths, gradients and a vector clip; they contain no fonts or bitmap payloads. The banner and feature graphic use system text and embed the vector mark. Their PNG exports are the fixed-layout distribution artifacts; use the PNGs where exact typography is needed. They were rasterized with Sharp; inspect all new exports before replacing distribution files.
 
+The owner approved the “Every frame. All yours.” listing campaign on 15 November 2026. The canonical set now includes eight phone panels, four tablet panels and a separate wide feature graphic. The campaign's SVGs embed generated scenery and real app captures alongside vector text and branding. They are self-contained; the approved PNGs fix the exact layout. See [`distribution/play-store/README.md`](../distribution/play-store/README.md) for upload order, source locations and provenance. This approval does not change the Fold silhouette or app UI.
+
 ## Shape and placement
 
 Fold has one circular body and one enclosed angular opening. Ice/cyan planes suggest a continuous folded strip; the flat version preserves the same silhouette and opening. Do not add outlines or decorative seams, stretch the circle, fill the opening, or use the logo in place of play/pause and other functional controls.
