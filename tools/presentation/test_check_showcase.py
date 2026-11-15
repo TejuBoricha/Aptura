@@ -41,6 +41,15 @@ class ShowcaseChecks(unittest.TestCase):
         parser.feed('<img src="x.webp" alt=""><script>alert(1)</script>')
         self.assertEqual(len(parser.errors), 2)
 
+    def test_active_url_schemes_are_rejected(self):
+        for url in ['javascript:alert(1)', 'JaVaScRiPt:alert(1)', 'data:text/html,bad', 'file:///tmp/private', 'vbscript:msgbox(1)']:
+            with self.subTest(url=url):
+                parser = check.Markup()
+                parser.feed(f'<a href="{url}">Unsafe link</a>')
+                self.assertTrue(any('unsafe URL' in x for x in parser.errors))
+                self.assertIn('unsafe URL', check.local_link_error(check.ROOT, check.ROOT / 'README.md', url))
+        self.assertIsNone(check.uri_error('https://github.com/TejuBoricha/Aptura'))
+
     def test_text_input_hashes_ignore_windows_line_endings(self):
         with tempfile.TemporaryDirectory() as tmp:
             file = Path(tmp) / 'source.svg'
