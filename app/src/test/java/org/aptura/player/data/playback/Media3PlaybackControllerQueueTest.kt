@@ -440,6 +440,65 @@ class Media3PlaybackControllerQueueTest {
         assertNotNull(next.localConfiguration?.subtitleConfigurations?.singleOrNull())
     }
 
+    /**
+     * The lookup is capped so a slow folder cannot hold the picture back. The real scan is blocking file I/O that
+     * does not react to cancellation, so this test blocks a real thread on a latch: if the start waited on it, the
+     * test would hang until its timeout instead of finishing.
+     */
+    @Test(timeout = 20_000)
+    fun aLookupThatNeverReturns_cannotHoldBackTheStart() {
+        val release = java.util.concurrent.CountDownLatch(1)
+        val blocked = DomainExternalSubtitle(uri = "content://subs/late.srt", label = "Late", isDefault = true)
+        val controller = Media3PlaybackController(
+            player = player,
+            scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + testDispatcher),
+            mainDispatcher = testDispatcher,
+            enablePositionTicker = false,
+            sidecarResolver = object : SidecarSubtitleResolver {
+                override suspend fun resolve(mediaUri: String): List<DomainExternalSubtitle> {
+                    release.await() // blocks the thread, like a directory listing on a slow card
+                    return listOf(blocked)
+                }
+            },
+            ioDispatcher = Dispatchers.IO
+        )
+        val startedAt = System.nanoTime()
+
+        try {
+            kotlinx.coroutines.runBlocking { controller.playQueue(items.take(1), startIndex = 0) }
+            val waitedMs = (System.nanoTime() - startedAt) / 1_000_000L
+
+            assertEquals("the video is handed to the player anyway", 1, player.mediaItemCount)
+            assertTrue("playback must be requested", player.playWhenReady)
+            assertTrue(
+                "no subtitle is baked into the item when the lookup overran",
+                player.getMediaItemAt(0).localConfiguration?.subtitleConfigurations.orEmpty().isEmpty()
+            )
+            assertTrue("it waited the budget, not forever (${waitedMs}ms)", waitedMs >= START_LOOKUP_BUDGET_MS - 50)
+            val requested = org.aptura.player.core.diagnostics.ApturaDiagnostics.ringBuffer.getAllEvents()
+                .last { it.payload["stage"] == "requested" }
+            assertEquals("overran", requested.payload["lookup"])
+        } finally {
+            release.countDown()
+        }
+    }
+
+    @Test
+    fun aQuickLookup_isStillWaitedFor_andReportsHowLongItTook() = runTest(testDispatcher) {
+        val sidecar = DomainExternalSubtitle(uri = "content://subs/a.srt", label = "A", isDefault = true)
+        val controller = controller(object : SidecarSubtitleResolver {
+            override suspend fun resolve(mediaUri: String) = listOf(sidecar)
+        })
+
+        controller.playQueue(items.take(1), startIndex = 0)
+
+        assertEquals(1, player.getMediaItemAt(0).localConfiguration?.subtitleConfigurations?.size)
+        val requested = org.aptura.player.core.diagnostics.ApturaDiagnostics.ringBuffer.getAllEvents()
+            .last { it.payload["stage"] == "requested" }
+        assertNotNull("the report says how long the lookup held the start back", requested.payload["prepMs"]?.toLongOrNull())
+        assertEquals("a lookup that finished in time is not marked as overrun", null, requested.payload["lookup"])
+    }
+
     private companion object {
         const val Player_REPEAT_ALL = androidx.media3.common.Player.REPEAT_MODE_ALL
     }

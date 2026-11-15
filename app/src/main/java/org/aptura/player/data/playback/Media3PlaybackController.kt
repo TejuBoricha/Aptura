@@ -23,7 +23,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,6 +33,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.aptura.player.core.diagnostics.ApturaDiagnostics
 import org.aptura.player.core.diagnostics.ErrorTaxonomy
 import org.aptura.player.core.diagnostics.EventCode
@@ -60,6 +60,13 @@ import kotlin.math.roundToLong
  * that a person is not left looking at a black, paused player (the owner's Samsung S24, where nothing said why).
  */
 internal const val PLAYBACK_START_TIMEOUT_MS = 8_000L
+
+/**
+ * The most a new start waits for the subtitle and artwork lookup before playing without them. The lookup normally
+ * takes a tenth of this; the cap only matters on a slow card or a folder with a huge number of files, where waiting
+ * would break the first-frame budget (NFR-PERF-003) for the sake of an optional extra.
+ */
+internal const val START_LOOKUP_BUDGET_MS = 400L
 
 /**
  * Concrete implementation of domain PlaybackController backed by Media3 Player.
@@ -876,16 +883,26 @@ class Media3PlaybackController(
 
     override suspend fun playQueue(items: List<DomainMediaItem>, startIndex: Int) {
         if (items.isEmpty()) return
+        // The clock for "how long did the start take" begins here, the moment playback is asked for, so the time
+        // spent looking for subtitles below is counted. It used to begin only after that wait, which hid it.
+        val requestedAt = System.nanoTime()
         val clampedIndex = startIndex.coerceIn(0, items.size - 1)
         val target = items[clampedIndex]
 
         // Resolve everything that has to be baked into the first MediaItem BEFORE touching the player, off the main
-        // thread, so playback never starts and then restarts when subtitles are found (audit P0-10).
-        val (subtitles, artwork) = coroutineScope {
-            val subs = async { resolveSidecars(target) }
-            val art = async { resolveArtwork(target) }
-            subs.await() to art.await()
+        // thread, so playback never starts and then restarts when subtitles are found (audit P0-10). The wait is
+        // capped: a slow or huge folder must not hold the picture back, so a lookup that overruns is dropped for this
+        // start (the person can still add the subtitle by hand) and the overrun is logged.
+        val subsLookup = scope.async(ioDispatcher) { resolveSidecars(target) }
+        val artLookup = scope.async(ioDispatcher) { resolveArtwork(target) }
+        withTimeoutOrNull(START_LOOKUP_BUDGET_MS) {
+            subsLookup.join()
+            artLookup.join()
         }
+        val subtitles = if (subsLookup.isCompleted && !subsLookup.isCancelled) subsLookup.await() else emptyList()
+        val artwork = if (artLookup.isCompleted && !artLookup.isCancelled) artLookup.await() else null
+        val lookupOverran = !subsLookup.isCompleted || !artLookup.isCompleted
+        val prepMs = (System.nanoTime() - requestedAt) / 1_000_000L
 
         pausedAtItemEnd = false
         consecutiveSkips = 0
@@ -909,10 +926,18 @@ class Media3PlaybackController(
         if (playMode == PlayMode.SHUFFLE) shuffleRemainingAfterCurrent()
         player.prepare()
         player.play()
-        playRequestedAtNanos = System.nanoTime()
+        playRequestedAtNanos = requestedAt
         ApturaDiagnostics.logEvent(
             code = EventCode.EV_009,
-            payload = mapOf("stage" to "requested", "items" to items.size.toString(), "start" to clampedIndex.toString(), "decoder" to currentDecoderStrategy.toString())
+            payload = buildMap {
+                put("stage", "requested")
+                put("items", items.size.toString())
+                put("start", clampedIndex.toString())
+                put("decoder", currentDecoderStrategy.toString())
+                // How long the subtitle/artwork lookup held the start back, so a slow start can be told apart in the report.
+                put("prepMs", prepMs.toString())
+                if (lookupOverran) put("lookup", "overran")
+            }
         )
         // A new request starts its own wait; the one for the video it replaced no longer counts.
         startWatchdog?.cancel()
