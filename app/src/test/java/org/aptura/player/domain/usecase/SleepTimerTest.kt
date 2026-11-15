@@ -43,7 +43,7 @@ class SleepTimerTest {
         timer.start(1) // 60,000 ms
         runCurrent()
 
-        assertEquals(SleepTimerState.Counting(60_000L), timer.state.value)
+        assertEquals(SleepTimerState.Counting(endsAtElapsedRealtime = 60_000L, totalMs = 60_000L), timer.state.value)
         assertEquals(1f, volume, 0f)
         assertFalse(paused)
 
@@ -76,7 +76,8 @@ class SleepTimerTest {
 
         timer.extend(5) // + 300s = 360s
         runCurrent()
-        assertEquals(SleepTimerState.Counting(360_000L), timer.state.value)
+        // The deadline moved and the whole countdown grew by the same five minutes: 1 + 5.
+        assertEquals(SleepTimerState.Counting(endsAtElapsedRealtime = 360_000L, totalMs = 360_000L), timer.state.value)
         assertEquals("Volume restored to 1.0f on extend", 1f, volume, 0f)
         assertFalse(paused)
 
@@ -100,11 +101,35 @@ class SleepTimerTest {
 
         timer.extend(5) // from currentTime (60_000) + 300_000 = 360_000
         runCurrent()
-        assertEquals(SleepTimerState.Counting(360_000L), timer.state.value)
+        // A fresh five minutes, not the old minute plus five: the ring starts full again.
+        assertEquals(SleepTimerState.Counting(endsAtElapsedRealtime = 360_000L, totalMs = 300_000L), timer.state.value)
 
         advanceTimeBy(300_000L)
         runCurrent()
         assertEquals(SleepTimerState.Expired, timer.state.value)
+    }
+
+    @Test
+    fun totalMs_isTheLengthTheyChose_andOnlyGrowsByWhatTheyAdd() = runTest(testDispatcher) {
+        val timer = createTimer()
+        timer.start(30)
+        runCurrent()
+        val chosen = timer.state.value as SleepTimerState.Counting
+        assertEquals("a 30 minute choice is a 30 minute total", 30 * 60_000L, chosen.totalMs)
+
+        // Time passing never changes the total: it is what was set, not what is left.
+        advanceTimeBy(10 * 60_000L)
+        runCurrent()
+        assertEquals(30 * 60_000L, (timer.state.value as SleepTimerState.Counting).totalMs)
+
+        timer.extend(5)
+        runCurrent()
+        assertEquals(35 * 60_000L, (timer.state.value as SleepTimerState.Counting).totalMs)
+
+        // Choosing a new time replaces the whole countdown, extensions included.
+        timer.start(10)
+        runCurrent()
+        assertEquals(10 * 60_000L, (timer.state.value as SleepTimerState.Counting).totalMs)
     }
 
     @Test

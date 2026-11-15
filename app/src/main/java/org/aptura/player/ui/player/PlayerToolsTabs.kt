@@ -4,8 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,13 +11,10 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Edit
@@ -32,15 +27,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
@@ -48,7 +40,6 @@ import org.aptura.player.core.playback.PlaybackSpeedOptions
 import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
 import org.aptura.player.ui.components.ApturaButton
-import org.aptura.player.ui.components.ApturaDialog
 import org.aptura.player.ui.components.ApturaOutlinedButton
 import org.aptura.player.ui.components.ApturaTextButton
 import org.aptura.player.ui.components.ApturaTone
@@ -61,13 +52,6 @@ import org.aptura.player.ui.settings.SegmentedPicker
  * panel; every on/off is a switch; every one-of-N is the selector switch Settings uses; every slider is ApturaSlider.
  */
 
-/** FR-CTRL-009's documented ladder, pinned by `SleepTimerOptionsTest` so a layout change cannot drop an option. */
-internal val SLEEP_TIMER_PRESET_MINUTES = listOf(10, 15, 20, 30, 45, 60)
-
-/** The custom-duration field: digits only, 1 to 720 minutes. Null until the text is a usable duration. */
-internal fun customSleepMinutes(text: String): Int? = text.toIntOrNull()?.takeIf { it in 1..720 }
-
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun PlaybackToolsTab(
     uiState: PlayerUiState,
@@ -109,126 +93,17 @@ internal fun PlaybackToolsTab(
             )
         }
 
-        val remaining = rememberSleepTimerRemainingMs(uiState.sleepTimerEndsAtElapsedRealtime)
-        val atEnd = uiState.sleepAtEndOfVideo
-        val expired = uiState.sleepTimerExpired
-        var customTimerOpen by remember { mutableStateOf(false) }
-        var customMinutesText by remember { mutableStateOf("") }
-        var activePresetMinutes by rememberSaveable { mutableStateOf<Int?>(null) }
-        SheetSection(
-            "Sleep timer",
-            trailing = if (remaining != null || expired) {
-                { ApturaTextButton(text = "+5 min", onClick = { onExtendSleepTimer(5) }, tone = ApturaTone.Accent) }
-            } else null
-        ) {
-            SheetRowText(
-                title = when {
-                    remaining != null -> "Stops in ${MediaFormatters.formatDuration(remaining)}"
-                    expired -> "Sleep timer ended"
-                    atEnd -> "Stops when this video ends"
-                    else -> "Off"
-                },
-                subtitle = when {
-                    remaining != null -> "The sound fades out over the last 10 seconds"
-                    expired -> "Playback is paused. Add five more minutes, or pick a new time."
-                    atEnd -> "Up next won't start"
-                    else -> "Pause playback after a while"
-                }
-            )
-            // FR-CTRL-009's documented ladder, plus a custom duration. Eight options do not fit one segmented
-            // track at phone width, so these wrap and keep their 48 dp targets.
-            FlowRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .selectableGroup(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                SheetChip(
-                    label = "Off",
-                    selected = remaining == null && !expired && !atEnd,
-                    onClick = {
-                        activePresetMinutes = null
-                        onCancelSleepTimer()
-                    }
-                )
-                SLEEP_TIMER_PRESET_MINUTES.forEach { minutes ->
-                    val isSelected = remaining != null && activePresetMinutes == minutes
-                    SheetChip(
-                        label = "$minutes min",
-                        selected = isSelected,
-                        onClick = {
-                            activePresetMinutes = minutes
-                            onStartSleepTimer(minutes)
-                        }
-                    )
-                }
-                val isCustomSelected = remaining != null && activePresetMinutes != null && activePresetMinutes !in SLEEP_TIMER_PRESET_MINUTES
-                SheetChip(
-                    label = if (isCustomSelected) "Custom ($activePresetMinutes m)" else "Custom…",
-                    selected = isCustomSelected,
-                    onClick = {
-                        customMinutesText = ""
-                        customTimerOpen = true
-                    }
-                )
-            }
-            SheetSwitchRow(
-                title = "At the end of this video",
-                subtitle = "Instead of a set time",
-                checked = atEnd,
-                onCheckedChange = { on ->
-                    if (on) {
-                        activePresetMinutes = null
-                        onSleepAtEndOfVideo()
-                    } else {
-                        onCancelSleepTimer()
-                    }
-                }
-            )
-        }
-
-        if (customTimerOpen) {
-            val customMinutes = customSleepMinutes(customMinutesText)
-            ApturaDialog(
-                onDismissRequest = { customTimerOpen = false },
-                title = "Custom sleep timer",
-                message = "Minutes from now. The sound fades out over the last 10 seconds.",
-                confirmLabel = "Start timer",
-                onConfirm = {
-                    customMinutes?.let {
-                        activePresetMinutes = it
-                        onStartSleepTimer(it)
-                        customTimerOpen = false
-                    }
-                },
-                confirmEnabled = customMinutes != null,
-                icon = Icons.Filled.Bedtime,
-                content = {
-                    OutlinedTextField(
-                        value = customMinutesText,
-                        onValueChange = { text -> customMinutesText = text.filter(Char::isDigit).take(3) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        label = { Text("Minutes") },
-                        supportingText = { Text("1 to 720 minutes") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        textStyle = ApturaTypography.bodyMedium.copy(
-                            color = ApturaColors.TextHighEmphasis,
-                            fontWeight = FontWeight.Medium
-                        ),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = ApturaColors.SurfaceElevated1,
-                            unfocusedContainerColor = ApturaColors.SurfaceElevated1,
-                            focusedBorderColor = ApturaColors.AccentPrimary,
-                            unfocusedBorderColor = ApturaColors.BorderSubtle,
-                            cursorColor = ApturaColors.AccentPrimary
-                        ),
-                        shape = RoundedCornerShape(10.dp)
-                    )
-                }
-            )
-        }
+        SleepTimerSection(
+            endsAtElapsedRealtime = uiState.sleepTimerEndsAtElapsedRealtime,
+            remainingMs = rememberSleepTimerRemainingMs(uiState.sleepTimerEndsAtElapsedRealtime),
+            totalMs = uiState.sleepTimerTotalMs,
+            expired = uiState.sleepTimerExpired,
+            atEndOfVideo = uiState.sleepAtEndOfVideo,
+            onStart = onStartSleepTimer,
+            onCancel = onCancelSleepTimer,
+            onExtend = onExtendSleepTimer,
+            onSleepAtEndOfVideo = onSleepAtEndOfVideo
+        )
 
         val pointA = uiState.abRepeat.pointA
         val pointB = uiState.abRepeat.pointB

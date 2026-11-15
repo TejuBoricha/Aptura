@@ -208,6 +208,7 @@ class PlayerViewModel(
         _uiState.update {
             it.copy(
                 sleepTimerEndsAtElapsedRealtime = (timer as? SleepTimerState.Counting)?.endsAtElapsedRealtime,
+                sleepTimerTotalMs = (timer as? SleepTimerState.Counting)?.totalMs ?: 0L,
                 sleepTimerExpired = timer == SleepTimerState.Expired,
                 sleepAtEndOfVideo = timer == SleepTimerState.AtEndOfItem
             )

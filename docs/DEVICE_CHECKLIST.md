@@ -15,6 +15,13 @@ Use one video with several audio tracks, one sidecar `.srt`, and Bluetooth headp
 
 ## Sleep timer (FR-CTRL-009)
 
+> **Redesigned 2026-11-16 (tiles and a ring instead of chips and a switch); the passes below were recorded on the earlier
+> layout and have not been repeated on the new one.** Labels now: `Custom…` is the `Custom` tile, "At the end of this video" is
+> the `End of video` tile, `+5 min` and `Turn off` sit under the status (a countdown reads `Stops in 9:58` as before), and
+> there is no `Off` chip. Re-run each step once on the device; also check that the chosen time stays marked after closing and
+> reopening the sheet, and that the ring winds down and `Pauses at` shows the right clock time. The pause, the fade and the
+> timer's survival of task removal are unchanged logic (the timer only gained a recorded length).
+
 - [x] **10 minutes:** Advanced -> Playback -> `10 min`. The HUD shows `Sleep in 9:59` and keeps counting while the
       controls hide and return. *(PASS on Galaxy S24, Android 17, 2026-10-29)*
 - [x] **Fade:** at `0:09` the sound starts fading in ten roughly equal steps and playback pauses at `0:00`. The next

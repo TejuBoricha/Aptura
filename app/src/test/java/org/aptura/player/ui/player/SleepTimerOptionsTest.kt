@@ -30,4 +30,61 @@ class SleepTimerOptionsTest {
         assertNull(customSleepMinutes("721"))
         assertNull(customSleepMinutes("45 min"))
     }
+
+    // ---- Which choice is marked ---------------------------------------------------------------------------------------
+
+    private val minute = 60_000L
+
+    @Test
+    fun aRunningPreset_isMarked_fromTheTimerItself() {
+        // The sheet is built anew each time it opens, so this must come from the timer's total, not from a remembered tap.
+        for (preset in SLEEP_TIMER_PRESET_MINUTES) {
+            assertEquals(SleepChoice.Preset(preset), sleepChoice(counting = true, totalMs = preset * minute, atEnd = false))
+        }
+    }
+
+    @Test
+    fun aTimerPastAPreset_isACustomOne_andNothingIsMarkedWhenNoneRuns() {
+        // 30 minutes and then "+5 min" is a 35 minute timer.
+        assertEquals(SleepChoice.Custom(35), sleepChoice(counting = true, totalMs = 35 * minute, atEnd = false))
+        assertEquals(SleepChoice.Custom(7), sleepChoice(counting = true, totalMs = 7 * minute, atEnd = false))
+        assertEquals(SleepChoice.None, sleepChoice(counting = false, totalMs = 30 * minute, atEnd = false))
+        // A countdown with no recorded length cannot be matched to anything.
+        assertEquals(SleepChoice.None, sleepChoice(counting = true, totalMs = 0L, atEnd = false))
+    }
+
+    @Test
+    fun endOfVideo_isItsOwnChoice() {
+        assertEquals(SleepChoice.EndOfVideo, sleepChoice(counting = false, totalMs = 0L, atEnd = true))
+    }
+
+    @Test
+    fun theModeFollowsTheTimer() {
+        assertEquals(SleepMode.Off, sleepMode(counting = false, expired = false, atEnd = false))
+        assertEquals(SleepMode.Counting, sleepMode(counting = true, expired = false, atEnd = false))
+        assertEquals(SleepMode.Expired, sleepMode(counting = false, expired = true, atEnd = false))
+        assertEquals(SleepMode.AtEndOfVideo, sleepMode(counting = false, expired = false, atEnd = true))
+    }
+
+    // ---- The ring ------------------------------------------------------------------------------------------------------
+
+    @Test
+    fun theRingShowsHowMuchIsLeft() {
+        assertEquals(1f, sleepDialFraction(remainingMs = 30 * minute, totalMs = 30 * minute), 0f)
+        assertEquals(0.5f, sleepDialFraction(remainingMs = 15 * minute, totalMs = 30 * minute), 0.0001f)
+        assertEquals(0f, sleepDialFraction(remainingMs = 0L, totalMs = 30 * minute), 0f)
+    }
+
+    @Test
+    fun theRingNeverLeavesItsRange_andIsEmptyWithoutATimer() {
+        // A refresh that lands just after the deadline moved (+5 min) must not draw more than a full ring.
+        assertEquals(1f, sleepDialFraction(remainingMs = 40 * minute, totalMs = 30 * minute), 0f)
+        assertEquals(0f, sleepDialFraction(remainingMs = null, totalMs = 30 * minute), 0f)
+        assertEquals(0f, sleepDialFraction(remainingMs = null, totalMs = 0L), 0f)
+    }
+
+    @Test
+    fun aCountdownWithNoRecordedLength_isDrawnLit_notAsIfItHadEnded() {
+        assertEquals(1f, sleepDialFraction(remainingMs = 5 * minute, totalMs = 0L), 0f)
+    }
 }
