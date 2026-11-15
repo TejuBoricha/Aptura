@@ -250,3 +250,7 @@ The owner approved the circular Fold symbol after colour/monochrome, app and And
 ## 2026-11-15 — Approve the cinematic listing campaign
 
 The owner approved all of Preview 02, “Every frame. All yours.” Canonical store assets now contain eight phone panels, four tablet panels, the separate feature image, self-contained SVG layouts, alt text and review boards. Eight distinct demo scenes replace the repeated sample library; matching Continue watching and Library entries retain the same file identity. The existing Fold icon is unchanged. PROD-02's human visual sign-off is complete; Play Console upload remains a separate handoff action.
+
+## 2026-11-16 — Rebuild the repository presentation (#218)
+
+Replaced the mixed-aspect README screenshot tables with product-led responsive hero, library and controls compositions, keeping the approved Fold identity and Play artwork intact. Added a feature guide, linked native UI crops, a separate share card and a documented authoring pipeline. Corrected stale SDK, Gradle, APK-name, schema and test-count claims; the source build is the entry path while public app installer assets are unavailable. Presentation integrity/source-drift checks and failure-path tests now run in the local gate and CI. The social-preview card is an asset only; no repository social-preview setting was changed.

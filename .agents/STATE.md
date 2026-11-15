@@ -14,6 +14,7 @@ PR's Verification section and in CI, not here, so most pull requests never need 
 - **Phase:** 1.0 pre-release polish. The 1.0 scope is feature-complete; hardware verification is the remaining gate.
 - **Brand:** Fold is the owner-approved circular mark (DEC-027). Editable SVGs and PNG exports are in `docs/assets/`; the Android foreground and dedicated monochrome resource use the same silhouette. See `docs/BRANDING.md`.
 - **Store artwork:** The owner approved the “Every frame. All yours.” campaign (Preview 02) on 2026-11-15. Canonical PNGs, self-contained SVG layouts, upload order and alt text are in `distribution/play-store/`; see its `README.md`.
+- **Repository presentation:** The README uses responsive compositions under `docs/assets/showcase/`, with native UI sources and regeneration documented in `docs/PRESENTATION.md`. Local gate and CI run the integrity/failure-path tests in `tools/presentation/`.
 - **Team:** one owner (Tejas) and AI coding agents coordinated through [`AGENTS.md`](../AGENTS.md) and
   [`docs/AGENT_WORKFLOW.md`](../docs/AGENT_WORKFLOW.md).
 - **Owner's machine:** Windows, PowerShell. Use `;` not `&&` in commands meant for it. Python is `py -3` there.

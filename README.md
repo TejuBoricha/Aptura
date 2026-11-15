@@ -1,119 +1,74 @@
-<p align="center">
-  <img src="docs/assets/banner.png" alt="Aptura - an offline-first Android video player" width="100%">
-</p>
+<picture>
+  <source media="(max-width: 850px)" srcset="docs/assets/showcase/hero-mobile.webp">
+  <img src="docs/assets/showcase/hero-desktop.webp" alt="Aptura. Every frame, all yours. A real local video playing with precise controls." width="100%">
+</picture>
 
-<h1 align="center">Aptura</h1>
+# Aptura
 
-<p align="center">
-  <strong>A local-first Android video player that asks for nothing.</strong><br>
-  No network permission. No accounts. No telemetry. Just your files, played well.
-</p>
+**An offline Android video player for the files you own.** A personal library, precise playback and room to make it yours. No ads, no account and no tracking.
 
-<p align="center">
-  <a href="https://github.com/TejuBoricha/Aptura/actions/workflows/ci.yml"><img src="https://github.com/TejuBoricha/Aptura/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
-  <img src="https://img.shields.io/badge/license-Apache--2.0-00A8C4?style=flat-square" alt="Apache-2.0">
-  <img src="https://img.shields.io/badge/Android-8.0%2B%20(API%2026)-3DDC84?style=flat-square&logo=android&logoColor=white" alt="Android 8.0+">
-  <img src="https://img.shields.io/badge/Kotlin-2.3-7F52FF?style=flat-square&logo=kotlin&logoColor=white" alt="Kotlin">
-  <img src="https://img.shields.io/badge/network%20permission-none-0D1016?style=flat-square" alt="No network permission">
-</p>
+[Build & install](#build--install) · [Explore the controls](docs/FEATURES.md) · [Privacy](docs/PRIVACY.md) · [Contribute](CONTRIBUTING.md)
 
-> **Status: pre-release.** Aptura is feature-complete for its 1.0 scope and the full quality gate is green. A 30-minute 4K thermal run and SAF copy-and-kill recovery passed on one Galaxy S24, HDR10 decoding was a partial pass, and TalkBack, Bluetooth and real-phone retests of the recent fixes are still open. See the [device checklist](docs/DEVICE_CHECKLIST.md) and [Known limits](#known-limits).
+[![Build and device checks](https://github.com/TejuBoricha/Aptura/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/TejuBoricha/Aptura/actions/workflows/ci.yml)
+**Android 8.0+** · **Pre-release** · [Apache 2.0](LICENSE)
 
----
+> [!NOTE]
+> The 1.0 feature set is implemented; physical-device verification is still in progress. Build the current source to try it. The repository's “Latest” release contains FFmpeg support libraries, not an Aptura installer. See [release readiness](#release-readiness).
 
-## Why another video player?
+## A home for your videos
 
-Most players treat "play a file on my phone" as a feature of an online service. Aptura treats it as the whole product.
+Find the clip you saved. Continue the story you paused. Bring a folder from an SD card into the same library.
 
-- **Offline by construction.** The manifest has no `android.permission.INTERNET`. This is not a setting users can turn off; the capability does not exist. The release build additionally fails if a network stack or telemetry SDK survives R8.
-- **Your library stays yours.** No account, no cloud index, no upload, no ads, no analytics, no crash reporting. Diagnostics are generated locally and redacted before you choose to share them.
-- **Scoped storage only.** Aptura uses MediaStore and the system folder picker. It never requests `MANAGE_EXTERNAL_STORAGE` or all-files access.
-- **Depth without clutter.** Track selection, subtitle timing and styling, a five-band EQ, sleep timer with fade, A-B repeat, frame stepping, bookmarks, decoder choice and picture adjustments live in one consistent player surface.
+Aptura indexes local videos with **MediaStore** and Android's **system folder picker**. Browse a grid or a list, search your files, organise a queue, and resume from saved progress. The layout adapts from a phone to a tablet; the library remains yours.
 
-## Screenshots
+<picture>
+  <source media="(max-width: 850px)" srcset="docs/assets/showcase/library-mobile.webp">
+  <img src="docs/assets/showcase/library-desktop.webp" alt="Aptura's local library with Continue watching and personal videos. The wide view also shows the tablet collection sidebar." width="100%" loading="lazy">
+</picture>
 
-| Library | Dark | Tablet |
-|:---:|:---:|:---:|
-| <img src="docs/assets/screenshots/library-phone.png" width="250" alt="Library on a phone"> | <img src="docs/assets/screenshots/library-phone-dark.png" width="250" alt="Library in dark theme"> | <img src="docs/assets/screenshots/library-tablet.png" width="360" alt="Library on a tablet"> |
+[Inspect the phone library](docs/assets/showcase/native-library.webp) · [Inspect the tablet layout](docs/assets/showcase/native-tablet.webp)
 
-| Details | Player HUD | Playback tools |
-|:---:|:---:|:---:|
-| <img src="docs/assets/screenshots/details.png" width="250" alt="Video details sheet"> | <img src="docs/assets/screenshots/player-hud.png" width="360" alt="Player HUD"> | <img src="docs/assets/screenshots/player-tools.png" width="250" alt="Playback tools sheet"> |
+## Small controls. A big difference.
 
-| Audio | Subtitles | Queue |
-|:---:|:---:|:---:|
-| <img src="docs/assets/screenshots/player-audio.png" width="250" alt="Audio tracks and sync"> | <img src="docs/assets/screenshots/player-subtitles.png" width="250" alt="Subtitle tracks and timing"> | <img src="docs/assets/screenshots/player-queue.png" width="360" alt="Playback queue"> |
+A lesson worth slowing down. A line you want to hear again. Captions that need a little more room. Aptura puts the adjustments close to the picture.
 
-| Settings | Onboarding |
-|:---:|:---:|
-| <img src="docs/assets/screenshots/settings-tablet.png" width="460" alt="Settings on a tablet"> | <img src="docs/assets/screenshots/onboarding-privacy.png" width="250" alt="Privacy onboarding"> |
+- **Set your pace:** 0.25×–2.0× playback, hold for 2×, double-tap seek, and a sleep timer with a gentle fade.
+- **Shape the sound:** audio tracks, a five-band equalizer, sound effects and precise audio sync.
+- **Catch every word:** embedded or imported subtitles, timing adjustments, tap-to-sync, size, colour and background styling.
+- **Keep the useful parts:** A–B repeat, frame stepping and named bookmarks.
 
-These are Robolectric renders of the real composables with representative data, not mockups or device captures.
+<picture>
+  <source media="(max-width: 850px)" srcset="docs/assets/showcase/controls-mobile.webp">
+  <img src="docs/assets/showcase/controls-desktop.webp" alt="Real Aptura equalizer, subtitle styling and A–B looping controls. The narrow composition focuses on sound and captions." width="100%" loading="lazy">
+</picture>
 
-## What it does
+[Explore every feature and the larger UI views](docs/FEATURES.md)
 
-### Library
+<details>
+<summary><strong>More of the everyday details</strong></summary>
 
-- Scans `MediaStore` on start and incrementally in the background with WorkManager.
-- Adds folder trees through the system picker (SAF), including SD cards and USB volumes.
-- Grid and list layouts, instant search, category chips, sorting, and multi-select.
-- Rename, share, move to another folder, hide from the library, and delete.
-- **Trash first.** Where Android supports it, "Move to trash" is the primary delete action; permanent deletion is a red, explicitly secondary choice.
-- Resume positions, "Continue watching", Up Next and a reorderable queue.
-- Handles missing files honestly: progress and bookmarks can be cleared without deleting anything from disk.
+- Picture-in-Picture, background listening and audio-only playback.
+- Brightness and volume gestures, swipe seeking and orientation lock.
+- Fit/fill/zoom, picture adjustments, playback statistics and device-dependent decoder choice.
+- Rename, copy, move, share and hide files. Where supported, Android's trash is the primary delete action.
+- Six accent colours and system, light or dark appearance. The player and its sheets always stay dark.
+- A local codec report, redacted diagnostics you can choose to share, and bundled open-source licence texts.
 
-### Playback
+</details>
 
-- Media3/ExoPlayer with hardware video decoding. No software video decoder is bundled (ADR-010).
-- Decoder strategy per app or per video: Auto, Hardware, Software where the device provides it.
-- Picture-in-Picture, audio-only mode, orientation lock, and edge-to-edge gesture controls.
-- Double-tap seek, horizontal swipe seek, vertical swipe for volume and brightness, long-press 2x.
-- Variable speed, sleep timer, A-B repeat, frame stepping, and bookmarks on the scrubber.
-- Playback statistics for codec, resolution, frame rate and dropped frames.
+*The showcase combines real Compose UI renders and an Android player capture with illustrative demo media. [Capture provenance and presentation sources](docs/PRESENTATION.md).*
 
-### Audio and subtitles
+## Offline is built in
 
-- Audio track selection with language, channel layout and codec shown.
-- Five-band equalizer with presets, bass boost, virtualizer, dialogue boost.
-- Audio sync that says which way the sound moves, with a Bluetooth-aware suggestion.
-- Embedded and imported subtitles (`.srt`, `.vtt`, `.ass`, `.ssa`, `.ttml`, `.sub`, `.zip`).
-- Subtitle timing, tap-to-sync, size, colour and background style, persisted per app.
-- Online subtitle search is a browser hand-off. The app itself never opens a socket.
+The app has no `android.permission.INTERNET`. Your library, preferences, progress and bookmarks stay on the device. There is no account service, advertising SDK, analytics SDK or automatic crash-report upload.
 
-### Fit and finish
+This boundary is checked in the **merged manifest, dependency graph and shipped release code**. Storage uses MediaStore and explicitly granted folder access; Aptura never requests all-files access.
 
-- Dark and Light app themes. The player and every player sheet stay dark in both.
-- Adaptive layouts for phones, foldables and tablets with Navigation 3 scenes and a navigation rail.
-- Material 3 surfaces, 48dp minimum touch targets, tabular timecodes, WCAG AA contrast targets.
-- Shared design kit for dialogs, menus, buttons, notices and player controls. See [DESIGN.md](DESIGN.md).
+External handoffs remain your choice: subtitle search opens your browser, and sharing opens Android's chooser. Local crash reports stay local until you export them. The [privacy policy](docs/PRIVACY.md) explains these paths.
 
-## Quality, not just claims
+## Build & install
 
-| Claim | How it is checked |
-|---|---|
-| No network capability | `PlatformInvariantsTest` asserts the merged manifest has no `INTERNET`; `verifyReleaseApk` reads the R8 mapping and shipped dex for network and telemetry packages. |
-| No telemetry | Dependency-graph invariant test plus the same shipped-code check. |
-| Scoped storage only | Manifest invariant: no `MANAGE_EXTERNAL_STORAGE`, no all-files access. |
-| The suite is green | 992 tests across 139 suites (827 executed, 165 opt-in gallery renders skipped), 0 failures, 0 errors. |
-| Lint is clean | `lintDebug` reports 0 issues on the merged tree. |
-| Release builds work | CI runs `assembleRelease` with R8 and resource shrinking, including the shipped-code invariants. |
-| Real Android behavior | A separate CI job runs instrumented tests on an API 35 tablet emulator. |
-
-The local gate is one command:
-
-```powershell
-./tools/gate.ps1
-```
-
-It compiles the test sources, runs the JVM suite fail-fast, runs Android Lint, then builds the R8 release and verifies what actually ships. CI runs the same checks on every push and pull request.
-
-## Build
-
-**Requirements**
-
-- JDK 17
-- Android SDK 36 (compileSdk/targetSdk 36; minSdk 26)
-- Windows, macOS or Linux
+Use **JDK 17** and **Android SDK Platform 37.0** (`platforms;android-37.0`). The app targets API 36 and runs on API 26 or newer. Gradle is supplied by the wrapper; first-build dependency and FFmpeg-bundle downloads require network access on the development machine.
 
 ```bash
 git clone https://github.com/TejuBoricha/Aptura.git
@@ -121,70 +76,58 @@ cd Aptura
 ./gradlew assembleDebug
 ```
 
-On Windows:
+On Windows, run `.\gradlew.bat assembleDebug` in the cloned directory.
+
+The universal debug APK is written to:
+
+```text
+app/build/outputs/apk/debug/app-universal-debug.apk
+```
+
+Install it on an authorised device with `adb install -r app/build/outputs/apk/debug/app-universal-debug.apk`, or use the matching ABI-specific APK. These are development builds. Signing, releases and troubleshooting are in the [build guide](docs/BUILDING.md).
+
+## Built to keep its promises
+
+**Kotlin + Jetpack Compose** provide the interface. **Media3** handles playback. **Room** indexes the library; **DataStore** keeps preferences. Domain contracts remain pure Kotlin, with Android services behind repository interfaces.
+
+The local gate runs tests, lint and invariant guards. It builds and inspects release APK/AAB outputs when the change can affect them; CI runs the release checks on every pull request and exercises playback on an Android emulator.
 
 ```powershell
-.\gradlew.bat assembleDebug
+./tools/gate.ps1
 ```
 
-The debug APK is written to `app/build/outputs/apk/debug/`. A release build is unsigned unless signing values are supplied; see [docs/BUILDING.md](docs/BUILDING.md) for signing, test variants and the gallery workflow.
+[Architecture and data flow](docs/ARCHITECTURE.md) · [Testing and evidence](docs/TESTING.md) · [Live CI results](https://github.com/TejuBoricha/Aptura/actions/workflows/ci.yml)
 
-## Project layout
+## Release readiness
 
-```
-app/src/main/java/org/aptura/player/
-  core/       platform helpers, permissions, diagnostics, media inspection
-  data/       Room, MediaStore scanning, DataStore, Media3 playback bridge
-  domain/     pure Kotlin models, repositories and use cases
-  theme/      colour, type and shape tokens
-  ui/         library, details, player, settings, onboarding, shared kit
-```
+Aptura is in pre-release polish. **Bluetooth latency, TalkBack, HDR output and other physical-device checks remain open.** A single-device result is not universal hardware support. The [device checklist](docs/DEVICE_CHECKLIST.md) and [current audit](docs/audits/CURRENT_AUDIT.md) hold the detailed evidence and remaining work.
 
-The domain layer has no Android imports. The UI talks to view models; view models talk to domain repositories; Media3 and Room stay behind those interfaces. Design decisions and invariants are recorded in [DESIGN.md](DESIGN.md) and the current audit is [docs/audits/CURRENT_AUDIT.md](docs/audits/CURRENT_AUDIT.md).
+Video decoding depends on Android's available codecs; no software video decoder is bundled. The project's LGPL extension adds **ALAC, AC-3 and G.711 audio** when the device lacks those decoders. Other audio formats depend on the device. See [format support and limits](docs/FEATURES.md#formats-and-boundaries).
 
-## Documentation
+This is a player for local files. Network shares, casting, cloud sync and online catalogues are outside its scope. There is no iOS build.
 
-| Document | What it covers |
+## Find your way around
+
+| If you want to… | Start here |
 |---|---|
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layers, data flow, playback bridge, storage model, invariants |
-| [docs/BUILDING.md](docs/BUILDING.md) | Build variants, signing, tests, gallery renders, CI |
-| [docs/TESTING.md](docs/TESTING.md) | Test strategy, fakes, Robolectric, instrumented tests, evidence |
-| [docs/DEVICE_CHECKLIST.md](docs/DEVICE_CHECKLIST.md) | The physical-device pass to run before the 1.0 tag |
-| [docs/PRIVACY.md](docs/PRIVACY.md) | Data flows, permissions, diagnostics, what is never collected |
-| [DESIGN.md](DESIGN.md) | Colour, type, spacing, player HUD, component contracts |
-| [docs/audits/CURRENT_AUDIT.md](docs/audits/CURRENT_AUDIT.md) | The one active audit: findings, roadmap and progress |
-| [CHANGELOG.md](CHANGELOG.md) | What changed, in Keep a Changelog form |
-| [AGENTS.md](AGENTS.md) · [docs/AGENT_WORKFLOW.md](docs/AGENT_WORKFLOW.md) | Coding rules, hot files, attribution and review gates |
+| Try a build or configure signing | [Building Aptura](docs/BUILDING.md) |
+| Understand features and inspect the UI | [Feature guide](docs/FEATURES.md) |
+| Follow the architecture | [Layers, storage and playback](docs/ARCHITECTURE.md) |
+| Work on the interface | [Design system](DESIGN.md) · [Branding](docs/BRANDING.md) |
+| Understand tests and release evidence | [Testing](docs/TESTING.md) · [Device checklist](docs/DEVICE_CHECKLIST.md) |
+| See changes or remaining work | [Changelog](CHANGELOG.md) · [Current audit](docs/audits/CURRENT_AUDIT.md) |
+| Update this presentation | [Presentation system](docs/PRESENTATION.md) |
 
-## Known limits
+## Make it better
 
-- **Hardware verification:** on one Samsung Galaxy S24 (2026-10-29, over adb, nothing judged by ear) a 30-minute 4K HEVC run on USB power showed no throttling and no dropped frames, and a 2.5 GB SAF copy killed at 42% recovered. HDR10 decoding was a partial pass (tone mapping not judged). The sleep timer was lost when the task was removed; a fix was merged but not retested on a device. Bluetooth, TalkBack and the fixes made after the audit still need a physical-device pass ([checklist](docs/DEVICE_CHECKLIST.md)).
-- **No network features, by design.** No SMB, NAS, DLNA, casting, cloud sync or online metadata. Opening a subtitle search leaves the app for your browser.
-- **No bundled software video decoder.** Files whose codecs the device cannot decode fail with a clear message rather than shipping a patent-encumbered decoder. The bundled FFmpeg extension is audio-only and decodes just ALAC, AC-3 and G.711 A-law and mu-law, and only when the device has no decoder of its own for them; every other format (including E-AC-3, DTS and TrueHD) is left to the device's own decoders.
-- **Android-first.** There is no iOS build.
-- **Pre-release.** The Room schema and public APIs may change before 1.0 is tagged.
+Bug reports, translations, testing and focused patches all help. Read [CONTRIBUTING.md](CONTRIBUTING.md) before starting; keep the offline and storage boundaries intact, test behaviour changes, and run the gate. Agent-assisted work follows [AGENTS.md](AGENTS.md) and the [coordination workflow](docs/AGENT_WORKFLOW.md).
 
-## Support the Project
+Report vulnerabilities through [SECURITY.md](SECURITY.md). Community participation follows the [Code of Conduct](CODE_OF_CONDUCT.md).
 
-Aptura is an independent, 100% offline open-source project with zero ads, zero tracking, and no corporate backing. If you enjoy using Aptura and want to support ongoing maintenance and new features, voluntary contributions are deeply appreciated:
+To support maintenance, [contribute on Ko-fi](https://ko-fi.com/tejuboricha), [donate through PayPal](https://paypal.me/tejuboricha), or share the project with someone who values a good local player.
 
-- **[Support on Ko-fi](https://ko-fi.com/tejuboricha)**
-- **[Donate via PayPal](https://paypal.me/tejuboricha)**
+## Open source, with attribution
 
-Starring the repository on GitHub and sharing the app with others also helps immensely!
+Aptura is [Apache 2.0](LICENSE). Third-party notices are in [NOTICE](NOTICE) and inside the app. The audio-only FFmpeg libraries are separate LGPL-2.1 shared libraries; their exact source, build records and licence texts accompany the [pinned audio bundle](https://github.com/TejuBoricha/Aptura/releases/tag/ffmpeg-audio-n9.0.2-r2). See [the build guide](docs/BUILDING.md#the-ffmpeg-audio-libraries) for provenance and checksum verification.
 
-## Contributing
-
-Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first; the short version is: keep the zero-network invariant, run `tools/gate.ps1`, add tests for behavior changes, and use imperative commit subjects.
-
-Security reports should follow [SECURITY.md](SECURITY.md), not a public issue.
-
-## License
-
-Aptura is licensed under the [Apache License 2.0](LICENSE). Third-party components and their licenses are listed in [NOTICE](NOTICE) and shown inside the app (Settings, Open-source licences). The FFmpeg audio extension is FFmpeg n9.0.2, built by this project from unmodified upstream source as separate LGPL-2.1 shared libraries that contain only the ALAC, AC-3 and G.711 decoders. The exact source, the build records and the licence texts are published beside the binaries in the [`ffmpeg-audio-n9.0.2-r2` release](https://github.com/TejuBoricha/Aptura/releases/tag/ffmpeg-audio-n9.0.2-r2), and `gradle/ffmpeg-bundle.properties` pins the checksum the build accepts. The research behind that choice is in [spec/11B](spec/11B_LEGAL_RESEARCH_FINDINGS.md); it was done without a lawyer and is not legal advice or a clearance.
-
-The name, logo and banner are original works for this project.
-
-## Acknowledgements
-
-Built on the work of the Android Open Source Project, Kotlin, Jetpack Compose, Media3, Room, WorkManager, DataStore, Coil, and FFmpeg. Thanks to everyone who keeps local-first software possible.
+Built with Android, Kotlin, Compose, Media3, Room, WorkManager, DataStore, Coil and FFmpeg. Thanks to the people who make these foundations possible.

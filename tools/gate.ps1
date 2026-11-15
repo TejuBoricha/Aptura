@@ -108,6 +108,9 @@ if ($python) {
     Run-Step "Release-scope tests (tools/gate)" {
         & $python -m unittest discover -s tools/gate
     }
+    Run-Step "Repository presentation and failure-path checks (tools/presentation)" {
+        & $python -m unittest discover -s tools/presentation
+    }
     Run-Step "Release smoke script tests (tools/smoke)" {
         & $python -m unittest discover -s tools/smoke
     }

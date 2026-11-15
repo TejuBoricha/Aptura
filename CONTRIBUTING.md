@@ -18,6 +18,11 @@ If your change adds a permission, a network library, a telemetry SDK or a softwa
 git clone https://github.com/TejuBoricha/Aptura.git
 cd Aptura
 ./gradlew assembleDebug
+```
+
+Run the quality gate from PowerShell (`pwsh` on macOS/Linux):
+
+```powershell
 ./tools/gate.ps1
 ```
 

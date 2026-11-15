@@ -1,0 +1,283 @@
+{
+  "schema": 1,
+  "generator": "tools/presentation/render-showcase.mjs",
+  "inputs": {
+    "distribution/play-store/editable/phone/02_own_the_moment.svg": "d20155d0b169d160e7fde919bc0dc8ff6969c6ba66c554bead8f484160ca2512",
+    "distribution/play-store/editable/phone/01_every_frame.svg": "80528323b1b29d543ace7a7b0ff8ccf7267eec5826462cd82ebf1446f562308c",
+    "distribution/play-store/editable/tablet/01_library_dark.svg": "a6053a834c607a195b088604b8e324e806ff0c0986ae0e57d781f76bb8b97205",
+    "distribution/play-store/editable/phone/03_feel_the_scene.svg": "5b59daffb4bb9d4880f60fbc8d01755bc82718f84eba36b605be0c4071af2716",
+    "distribution/play-store/editable/phone/04_every_word.svg": "f9a21d4ae828d57e935049c2c2863535efa90c8da75311e4107562d9a8e8577a",
+    "distribution/play-store/editable/phone/07_keep_that_part.svg": "f3e053da601f46de314bd5302729403228936eb1caa1381d66bfca6d7e5699e9",
+    "distribution/play-store/editable/phone/05_a_little_more_you.svg": "52e01ce543874e9ef811cdd45a19bda1d6738b1bf458c7b4ed7b2fbe1054d655",
+    "docs/assets/logo.svg": "540be033bbe15e09e6be09b5787465e28d99126084b5b863f52cce71257f377f",
+    "docs/assets/showcase/source/optical-glass.webp": "6a06ddaf8df2ac2fe4108819c6177234d5a268a04013f9be43d44d0e90261486",
+    "docs/assets/logo-mark.svg": "a6d5e718cfc6f45a7f1e032c076aeb931b13fcd900baa0f51bb5d17f890956a7",
+    "tools/presentation/render-showcase.mjs": "608ba4f678f9d5932bc2e67e9a894fd65e37b0908176509839df64b39b936518"
+  },
+  "outputs": [
+    {
+      "file": "docs/assets/showcase/hero-desktop.webp",
+      "width": 1600,
+      "height": 900,
+      "bytes": 119334,
+      "sha256": "ef70aebc8ff56cb0f9ef70ba55c0ab2b3077437d510115c0e92460448a27a10b"
+    },
+    {
+      "file": "docs/assets/showcase/hero-mobile.webp",
+      "width": 900,
+      "height": 1120,
+      "bytes": 103782,
+      "sha256": "e58b196723a51d71770735ba7ac12374a68d425f9a45f9a8eb375ccd561a7afd"
+    },
+    {
+      "file": "docs/assets/showcase/library-desktop.webp",
+      "width": 1600,
+      "height": 930,
+      "bytes": 151288,
+      "sha256": "c86656f488fd8b583d4634d6f3fcac06fd85add7e5bf4b573bbccc97c0df27c3"
+    },
+    {
+      "file": "docs/assets/showcase/library-mobile.webp",
+      "width": 900,
+      "height": 1380,
+      "bytes": 100730,
+      "sha256": "4af6b2860de80c33fe62b31f4bdb311c06da205c0c43ca85c98af899071a4c12"
+    },
+    {
+      "file": "docs/assets/showcase/controls-desktop.webp",
+      "width": 1600,
+      "height": 1200,
+      "bytes": 59128,
+      "sha256": "d48a4be191327808b80d3d7b5d6c6516fb117ab5a9fa1d75a1bb257eeb006f71"
+    },
+    {
+      "file": "docs/assets/showcase/controls-mobile.webp",
+      "width": 900,
+      "height": 1630,
+      "bytes": 43664,
+      "sha256": "ecfed370a0c7fcfff996337e5d1da1ed456bcb284be54c687c539f386e5e0e89"
+    },
+    {
+      "file": "docs/assets/showcase/social-preview.png",
+      "width": 1280,
+      "height": 640,
+      "bytes": 51367,
+      "sha256": "0ee7051dd52105873515d67d23eb1cf6aef39501dfc9d6ceec81d1d28307cf69",
+      "social": true
+    },
+    {
+      "file": "docs/assets/showcase/native-library.webp",
+      "width": 1080,
+      "height": 1740,
+      "bytes": 219748,
+      "sha256": "11a118122caa2aead2350d5d6951f19ded3afc9a2787b4881e8ab6f98d0f78e0",
+      "native": true
+    },
+    {
+      "file": "docs/assets/showcase/native-tablet.webp",
+      "width": 2560,
+      "height": 1600,
+      "bytes": 484584,
+      "sha256": "e90cd394f239dec58cea8a1076f9ff7b7b679846e85633024401c44350e106be",
+      "native": true
+    },
+    {
+      "file": "docs/assets/showcase/native-player.webp",
+      "width": 1920,
+      "height": 956,
+      "bytes": 346074,
+      "sha256": "7f0ea89c00437f090099101bd6e6b3b857a3af2475623ba0faf437cd52dc6010",
+      "native": true
+    },
+    {
+      "file": "docs/assets/showcase/native-audio.webp",
+      "width": 1080,
+      "height": 1562,
+      "bytes": 43566,
+      "sha256": "8af251af9c026507889ff4cc5f0e65b977ac785777bcbccfd05444c497899df9",
+      "native": true
+    },
+    {
+      "file": "docs/assets/showcase/native-captions.webp",
+      "width": 1080,
+      "height": 966,
+      "bytes": 32104,
+      "sha256": "0e2165b80073c42b9700668eaeb898bbf3e8133226924d10f4758ac57ff0b000",
+      "native": true
+    },
+    {
+      "file": "docs/assets/showcase/native-precision.webp",
+      "width": 1080,
+      "height": 1790,
+      "bytes": 50164,
+      "sha256": "ac7dee0aebf6139e94f6c9494a6d0aaf5d6bdc5e3970f820435499688e8e3686",
+      "native": true
+    },
+    {
+      "file": "docs/assets/showcase/native-appearance.webp",
+      "width": 1080,
+      "height": 980,
+      "bytes": 49688,
+      "sha256": "33c08f140d3d2edd7f87a56ec3b710ce7c38c6aa29b25b376732651f0e466fd7",
+      "native": true
+    }
+  ],
+  "placements": [
+    {
+      "label": "hero-player",
+      "x": 646,
+      "y": 225,
+      "width": 880,
+      "height": 438.1666666666667,
+      "sourceWidth": 1920,
+      "sourceHeight": 956,
+      "canvas": {
+        "width": 1600,
+        "height": 900
+      }
+    },
+    {
+      "label": "alternate-player",
+      "x": 72,
+      "y": 466,
+      "width": 760,
+      "height": 378.4166666666667,
+      "sourceWidth": 1920,
+      "sourceHeight": 956,
+      "canvas": {
+        "width": 1600,
+        "height": 900
+      }
+    },
+    {
+      "label": "alternate-precision",
+      "x": 1100,
+      "y": 95,
+      "width": 420,
+      "height": 696.1111111111111,
+      "sourceWidth": 1080,
+      "sourceHeight": 1790,
+      "canvas": {
+        "width": 1600,
+        "height": 900
+      }
+    },
+    {
+      "label": "mobile-hero-player",
+      "x": 55,
+      "y": 616,
+      "width": 790,
+      "height": 393.3541666666667,
+      "sourceWidth": 1920,
+      "sourceHeight": 956,
+      "canvas": {
+        "width": 900,
+        "height": 1120
+      }
+    },
+    {
+      "label": "library-tablet",
+      "x": 500,
+      "y": 190,
+      "width": 1040,
+      "height": 650,
+      "sourceWidth": 2560,
+      "sourceHeight": 1600,
+      "canvas": {
+        "width": 1600,
+        "height": 930
+      }
+    },
+    {
+      "label": "library-phone",
+      "x": 60,
+      "y": 197,
+      "width": 400,
+      "height": 644.4444444444445,
+      "sourceWidth": 1080,
+      "sourceHeight": 1740,
+      "canvas": {
+        "width": 1600,
+        "height": 930
+      }
+    },
+    {
+      "label": "mobile-library",
+      "x": 90,
+      "y": 144,
+      "width": 720,
+      "height": 1160,
+      "sourceWidth": 1080,
+      "sourceHeight": 1740,
+      "canvas": {
+        "width": 900,
+        "height": 1380
+      }
+    },
+    {
+      "label": "controls-sound",
+      "x": 60,
+      "y": 190,
+      "width": 650,
+      "height": 940.0925925925926,
+      "sourceWidth": 1080,
+      "sourceHeight": 1562,
+      "canvas": {
+        "width": 1600,
+        "height": 1200
+      }
+    },
+    {
+      "label": "controls-caption-style",
+      "x": 820,
+      "y": 190,
+      "width": 720,
+      "height": 486.6666666666667,
+      "sourceWidth": 1080,
+      "sourceHeight": 730,
+      "canvas": {
+        "width": 1600,
+        "height": 1200
+      }
+    },
+    {
+      "label": "controls-loop",
+      "x": 820,
+      "y": 720,
+      "width": 720,
+      "height": 373.3333333333333,
+      "sourceWidth": 1080,
+      "sourceHeight": 560,
+      "canvas": {
+        "width": 1600,
+        "height": 1200
+      }
+    },
+    {
+      "label": "mobile-equalizer-bands",
+      "x": 60,
+      "y": 215,
+      "width": 780,
+      "height": 680.3333333333334,
+      "sourceWidth": 1080,
+      "sourceHeight": 942,
+      "canvas": {
+        "width": 900,
+        "height": 1630
+      }
+    },
+    {
+      "label": "mobile-caption-style",
+      "x": 60,
+      "y": 1008,
+      "width": 780,
+      "height": 527.2222222222222,
+      "sourceWidth": 1080,
+      "sourceHeight": 730,
+      "canvas": {
+        "width": 900,
+        "height": 1630
+      }
+    }
+  ]
+}

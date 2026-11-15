@@ -1,0 +1,7 @@
+# Optical glass art plate
+
+Generated using the built-in image-generation tool on 16 November 2026. The selected plate was resized and encoded as `optical-glass.webp` for the presentation compositor. It appears in the social-preview card; the product-led README hero omits it after visual review.
+
+Exact prompt:
+
+> Use case: ads-marketing. Asset type: original 2:1 ultra-wide editorial art plate for the GitHub product launch of Aptura, a personal offline video player. Primary request: exquisite quiet product-photography background. A single low sculptural strip of smoked optical glass with an ice-cyan polished cut edge curves once across a warm off-white matte paper surface, from the lower right toward the lower center. Hard controlled studio side-light produces one elegant deep petrol caustic and a long soft realistic shadow, subtle warm silver highlights. The upper 70 percent and the entire left 50 percent are quiet warm off-white negative space. The object stays mostly along the lower right quarter and does NOT form a ring, tunnel, infinity symbol, logo, or phone. Tactile macro material detail, architectural geometry, extremely restrained, sophisticated physical lighting, muted colour, premium contemporary industrial-design editorial. This is a supporting background behind separately composited real app screenshots and vector typography. No text, no logos, no devices, no screens, no buttons, no people, no particles, no galaxies, no gradients masquerading as space, no abstract neon loops. Very wide 2048 by 1024 composition, highest detail.
