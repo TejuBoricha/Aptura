@@ -133,7 +133,7 @@ Filenames/paths excluded by default; opt-in attach of one specific filename requ
 | India DPDP Act (Rules notified 2025-11-13; duties phasing to 2027-05-13) `[V1/W4]` | Local processing; permission UX; children's provisions (no targeted processing) | Consent clarity for permissions; no children targeting | ⚖️ review |
 | LGPD (Brazil) | Similar local-only posture | Portuguese privacy text at launch locale set | ⚖️ review |
 | COPPA (US, 2025 amendments) | Not directed to children; no collection | Store family policy + rating truthful | ⚖️ review |
-| EAA (EU accessibility, consumer products) | Applicability to free/FOSS apps has carve-outs (microenterprise caveat noted in W4) | Accessibility commitments already core (NFR-A11Y-*) regardless of applicability | ⚖️ review |
+| EAA (EU accessibility, consumer products) | Applicability to free/FOSS apps has carve-outs (microenterprise caveat noted in W4) | Accessibility commitments already core (NFR-A11Y-*) regardless of applicability | Researched 2026-11-15, no obligation found as built ([11B](11B_LEGAL_RESEARCH_FINDINGS.md) C.6, self-conducted); ⚖️ review |
 | Anti-circumvention (DMCA §1201-class) | No DRM removal/circumvention features exist | Protected content → honest unsupported messaging; no marketing implying otherwise | Resolved by design |
 | Export/crypto | No custom cryptography | Platform APIs only | Resolved by design |
 
