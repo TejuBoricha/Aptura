@@ -422,7 +422,7 @@ private fun SidebarControlButton(
 
 @Composable
 internal fun ApturaMark(size: Dp) {
-    // The real aperture mark, not a letter tile: the sidebar should read as Aptura even without its wordmark.
+    // The Fold brand mark stays on its dark tile in both app themes.
     Box(
         modifier = Modifier
             .size(size)

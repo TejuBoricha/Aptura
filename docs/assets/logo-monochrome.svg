@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 256 256" role="img" aria-labelledby="title description">
+  <title id="title">Aptura — Fold, inherits current colour</title>
+  <desc id="description">A circular folded form around one asymmetric angular opening. Aptura brand symbol.</desc>
+  <path d="M240 128 A112 112 0 1 1 16 128 A112 112 0 1 1 240 128 Z M83 53 L182 104 C188 107 191 113 191 122 V191 L160 160 C155 155 150 153 143 153 H63 C56 153 51 151 47 147 L77 123 C81 120 83 115 83 109 Z" fill="currentColor" fill-rule="evenodd" />
+</svg>
