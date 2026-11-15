@@ -18,6 +18,16 @@ ROOT = Path(__file__).resolve().parents[2]
 PRIMARY_BUDGET = 1_200_000
 
 
+def uri_error(link: str) -> str | None:
+    try:
+        scheme = urlsplit(link).scheme.lower()
+    except ValueError:
+        return f'invalid URL: {link}'
+    if scheme and scheme not in {'http', 'https', 'mailto'}:
+        return f'unsafe URL scheme: {scheme}'
+    return None
+
+
 def source_digest(path: Path) -> str:
     data = path.read_bytes()
     if path.suffix in {'.svg', '.mjs'}:
@@ -66,11 +76,15 @@ class Markup(HTMLParser):
         for attr in ['src', 'href', 'srcset']:
             if attrs.get(attr):
                 self.links.append(attrs[attr])
+                if issue := uri_error(attrs[attr]):
+                    self.errors.append(issue)
         if tag == 'img' and len(attrs.get('alt', '').strip()) < 12:
             self.errors.append('image needs meaningful alternative text')
 
 
 def local_link_error(root: Path, source: Path, link: str) -> str | None:
+    if issue := uri_error(link):
+        return issue
     url = urlsplit(link)
     if url.scheme or url.netloc:
         return None
