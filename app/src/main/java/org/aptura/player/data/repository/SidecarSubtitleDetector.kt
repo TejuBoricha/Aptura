@@ -253,10 +253,17 @@ object SidecarSubtitleDetector {
         baseName: String
     ): List<DetectedSidecarSubtitle> {
         val candidates = mutableListOf<DetectedSidecarSubtitle>()
-        val files = dir.listFiles() ?: return emptyList()
+        // Decide on the NAME alone, before any File object exists. This runs on every video start and the shared
+        // Movies/Downloads folders can hold hundreds of files; asking each one whether it is a file (a stat call,
+        // slow through Android's scoped-storage layer) just to throw most of them away was the biggest part of the
+        // pause before a video begins. Only the few names that already look like this video's subtitles are touched.
+        val files = dir.listFiles { _, name ->
+            name.substringAfterLast('.', "").lowercase() in SUPPORTED_EXTENSIONS &&
+                matchSidecarName(baseName, name.substringBeforeLast('.')) != null
+        } ?: return emptyList()
 
         val matched = files
-            .filter { it.isFile && SUPPORTED_EXTENSIONS.contains(it.extension.lowercase()) }
+            .filter { it.isFile }
             .mapNotNull { f -> matchSidecarName(baseName, f.nameWithoutExtension)?.let { f to it } }
             // Plain names first (no role tags), then alphabetical, so the default pick is stable and un-forced.
             .sortedWith(compareBy({ (it.second as? SidecarMatch.Tagged)?.tokens?.size ?: 0 }, { it.first.name.lowercase() }))

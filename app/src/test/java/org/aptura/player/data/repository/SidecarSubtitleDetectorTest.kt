@@ -175,6 +175,34 @@ class SidecarSubtitleDetectorTest {
         assertEquals(listOf("Film.en.srt"), results.filter { it.isDefault }.map { it.displayName })
     }
 
+    // ---- The scan now decides on file NAMES before touching any file (start-latency change) ------------------------
+
+    @Test
+    fun aCrowdedFolder_stillFindsTheRightSubtitle_andIgnoresEverythingElse() {
+        val dir = tempFolder.newFolder("crowded")
+        val video = File(dir, "Film.mkv").apply { createNewFile() }
+        repeat(300) { File(dir, "holiday-$it.jpg").createNewFile() }
+        repeat(50) { writeValidSrt(File(dir, "Other.Movie.$it.srt")) }
+        writeValidSrt(File(dir, "Film.SRT")) // the extension's case must not matter
+        File(dir, "Film").createNewFile() // no extension at all
+
+        val results = SidecarSubtitleDetector.detectSidecars(context, Uri.fromFile(video))
+
+        assertEquals(listOf("Film.SRT"), results.map { it.displayName })
+    }
+
+    @Test
+    fun aFolderWhoseNameLooksLikeASubtitle_isNotTreatedAsOne() {
+        val dir = tempFolder.newFolder("trap")
+        val video = File(dir, "Film.mkv").apply { createNewFile() }
+        File(dir, "Film.srt").mkdir() // a directory, not a file: it still has to be rejected after the name check
+        writeValidSrt(File(dir, "Film.en.srt"))
+
+        val results = SidecarSubtitleDetector.detectSidecars(context, Uri.fromFile(video))
+
+        assertEquals(listOf("Film.en.srt"), results.map { it.displayName })
+    }
+
     @Test
     fun stripVideoExtension_onlyStripsRealVideoExtensions() {
         assertEquals("Spider.Man.2002", SidecarSubtitleDetector.stripVideoExtension("Spider.Man.2002.mkv"))
