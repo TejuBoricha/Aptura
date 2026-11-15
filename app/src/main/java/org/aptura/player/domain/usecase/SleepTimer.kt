@@ -16,8 +16,14 @@ import org.aptura.player.domain.model.DomainPlaybackState
 sealed interface SleepTimerState {
     data object Off : SleepTimerState
 
-    /** Counting down to one monotonic deadline; the sound fades out over the last [SleepTimer.FADE_MS]. */
-    data class Counting(val endsAtElapsedRealtime: Long) : SleepTimerState
+    /**
+     * Counting down to one monotonic deadline; the sound fades out over the last [SleepTimer.FADE_MS].
+     *
+     * [totalMs] is the length of the whole countdown as the person set it: a fresh choice, plus every "+5 min" since.
+     * It exists so a view can draw "how much of it is left" and recognise the preset that was chosen after the sheet is
+     * reopened. It never drives the pause: [endsAtElapsedRealtime] alone does.
+     */
+    data class Counting(val endsAtElapsedRealtime: Long, val totalMs: Long) : SleepTimerState
 
     /** The countdown paused playback. The player offers "+5 min" until playback resumes or the video changes. */
     data object Expired : SleepTimerState
@@ -62,7 +68,7 @@ class SleepTimer(
 
     /** Pauses playback [minutes] from now, fading the sound out first. Replaces whatever was set. */
     fun start(minutes: Int) {
-        count(clock() + minutes * MINUTE_MS)
+        count(endsAt = clock() + minutes * MINUTE_MS, totalMs = minutes * MINUTE_MS)
     }
 
     /**
@@ -71,8 +77,11 @@ class SleepTimer(
      */
     fun extend(minutes: Int) {
         when (val current = _state.value) {
-            is SleepTimerState.Counting -> count(current.endsAtElapsedRealtime + minutes * MINUTE_MS)
-            SleepTimerState.Expired -> count(clock() + minutes * MINUTE_MS)
+            is SleepTimerState.Counting -> count(
+                endsAt = current.endsAtElapsedRealtime + minutes * MINUTE_MS,
+                totalMs = current.totalMs + minutes * MINUTE_MS
+            )
+            SleepTimerState.Expired -> count(endsAt = clock() + minutes * MINUTE_MS, totalMs = minutes * MINUTE_MS)
             else -> Unit
         }
     }
@@ -120,9 +129,9 @@ class SleepTimer(
      * paces itself against the same deadline; nothing ticks for the UI, which derives its countdown from
      * [SleepTimerState.Counting.endsAtElapsedRealtime] while it is on screen.
      */
-    private fun count(endsAt: Long) {
+    private fun count(endsAt: Long, totalMs: Long) {
         replaceRunningTimer()
-        _state.value = SleepTimerState.Counting(endsAt)
+        _state.value = SleepTimerState.Counting(endsAt, totalMs)
         job = scope.launch {
             try {
                 val fadeStart = endsAt - FADE_MS

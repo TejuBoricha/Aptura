@@ -111,6 +111,11 @@ data class PlayerUiState(
      * countdown from this while it is on screen; the ViewModel never ticks just to refresh the UI.
      */
     val sleepTimerEndsAtElapsedRealtime: Long? = null,
+    /**
+     * How long the running countdown was set for, extensions included, or 0 when none runs. The sheet draws "what is
+     * left of it" and marks the preset that was chosen; it is never used to decide when playback pauses.
+     */
+    val sleepTimerTotalMs: Long = 0L,
     /** The timed sleep timer has fired: playback is paused, and the UI offers five more minutes instead of a dead end. */
     val sleepTimerExpired: Boolean = false,
     /** The sleep timer is set to pause when this video ends rather than after a time. */
