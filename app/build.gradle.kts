@@ -516,7 +516,9 @@ android {
         // Shown in diagnostic reports so a report can be matched to the exact source it came from.
         resValue("string", "aptura_build_hash", gitRevision())
         targetSdk = 36
-        versionCode = 1
+        // Google Play rejects an upload whose versionCode is not higher than every one already uploaded to any track.
+        // 1 went to the closed test on 2026-11-06, so the next build is 2. Raise it for every upload, never lower it.
+        versionCode = 2
         versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
