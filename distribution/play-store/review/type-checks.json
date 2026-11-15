@@ -1,0 +1,838 @@
+{
+  "status": "passed",
+  "method": "System-font ink estimates plus manual rendered review",
+  "failures": [],
+  "text_items": 83,
+  "bounds": [
+    {
+      "file": "01_every_frame.svg",
+      "text": "APTURA",
+      "bounds": [
+        149.0,
+        70.0,
+        295.0,
+        91.0
+      ]
+    },
+    {
+      "file": "01_every_frame.svg",
+      "text": "OFFLINE VIDEO PLAYER",
+      "bounds": [
+        753.0,
+        75.0,
+        1020.0,
+        89.0
+      ]
+    },
+    {
+      "file": "01_every_frame.svg",
+      "text": "01 / 08",
+      "bounds": [
+        946.0,
+        1859.0,
+        1020.0,
+        1874.0
+      ]
+    },
+    {
+      "file": "01_every_frame.svg",
+      "text": "Every frame.",
+      "bounds": [
+        60.0,
+        197.0,
+        673.0,
+        301.0
+      ]
+    },
+    {
+      "file": "01_every_frame.svg",
+      "text": "All yours.",
+      "bounds": [
+        46.0,
+        308.0,
+        656.0,
+        455.0
+      ]
+    },
+    {
+      "file": "01_every_frame.svg",
+      "text": "Your own videos. Beautifully offline.",
+      "bounds": [
+        66.0,
+        466.0,
+        515.0,
+        492.0
+      ]
+    },
+    {
+      "file": "01_every_frame.svg",
+      "text": "NO ADS. NO ACCOUNTS. NO TRACKING.",
+      "bounds": [
+        60.0,
+        1858.0,
+        503.8,
+        1874.0
+      ]
+    },
+    {
+      "file": "01_library_dark.svg",
+      "text": "APTURA",
+      "bounds": [
+        153.0,
+        60.0,
+        295.0,
+        80.0
+      ]
+    },
+    {
+      "file": "01_library_dark.svg",
+      "text": "A bigger view. Still all yours.",
+      "bounds": [
+        1085.1,
+        48.0,
+        1860.1,
+        107.0
+      ]
+    },
+    {
+      "file": "01_library_dark.svg",
+      "text": "YOUR OWN VIDEOS. BEAUTIFULLY AT HOME.",
+      "bounds": [
+        60.0,
+        1046.0,
+        557.0,
+        1060.0
+      ]
+    },
+    {
+      "file": "02_library_light.svg",
+      "text": "APTURA",
+      "bounds": [
+        153.0,
+        60.0,
+        295.0,
+        80.0
+      ]
+    },
+    {
+      "file": "02_library_light.svg",
+      "text": "Your library, in a different light.",
+      "bounds": [
+        1011.2,
+        48.0,
+        1860.2,
+        107.0
+      ]
+    },
+    {
+      "file": "02_library_light.svg",
+      "text": "YOUR OWN VIDEOS. BEAUTIFULLY AT HOME.",
+      "bounds": [
+        60.0,
+        1046.0,
+        557.0,
+        1060.0
+      ]
+    },
+    {
+      "file": "02_own_the_moment.svg",
+      "text": "APTURA",
+      "bounds": [
+        149.0,
+        70.0,
+        295.0,
+        91.0
+      ]
+    },
+    {
+      "file": "02_own_the_moment.svg",
+      "text": "PLAYBACK",
+      "bounds": [
+        903.0,
+        75.0,
+        1020.0,
+        89.0
+      ]
+    },
+    {
+      "file": "02_own_the_moment.svg",
+      "text": "02 / 08",
+      "bounds": [
+        946.0,
+        1859.0,
+        1020.0,
+        1874.0
+      ]
+    },
+    {
+      "file": "02_own_the_moment.svg",
+      "text": "Set the pace.",
+      "bounds": [
+        60.0,
+        192.0,
+        709.0,
+        299.0
+      ]
+    },
+    {
+      "file": "02_own_the_moment.svg",
+      "text": "Own the moment.",
+      "bounds": [
+        60.0,
+        322.0,
+        973.0,
+        418.0
+      ]
+    },
+    {
+      "file": "02_own_the_moment.svg",
+      "text": "Slow it down. Speed it up. Keep listening.",
+      "bounds": [
+        66.0,
+        462.0,
+        589.0,
+        488.0
+      ]
+    },
+    {
+      "file": "02_own_the_moment.svg",
+      "text": "01",
+      "bounds": [
+        67.0,
+        1055.0,
+        88.0,
+        1068.0
+      ]
+    },
+    {
+      "file": "02_own_the_moment.svg",
+      "text": "PLAYBACK TOOLS",
+      "bounds": [
+        159.0,
+        1055.0,
+        346.0,
+        1068.0
+      ]
+    },
+    {
+      "file": "02_own_the_moment.svg",
+      "text": "0.25\u00d7\u20132.0\u00d7 SPEED \u00b7 AUDIO ONLY \u00b7 SLEEP TIMER",
+      "bounds": [
+        60.0,
+        1858.0,
+        588.8,
+        1874.0
+      ]
+    },
+    {
+      "file": "03_feel_the_scene.svg",
+      "text": "APTURA",
+      "bounds": [
+        149.0,
+        70.0,
+        295.0,
+        91.0
+      ]
+    },
+    {
+      "file": "03_feel_the_scene.svg",
+      "text": "AUDIO",
+      "bounds": [
+        950.0,
+        75.0,
+        1020.0,
+        89.0
+      ]
+    },
+    {
+      "file": "03_feel_the_scene.svg",
+      "text": "03 / 08",
+      "bounds": [
+        946.0,
+        1859.0,
+        1020.0,
+        1874.0
+      ]
+    },
+    {
+      "file": "03_feel_the_scene.svg",
+      "text": "Hear the detail.",
+      "bounds": [
+        60.0,
+        193.0,
+        826.0,
+        278.0
+      ]
+    },
+    {
+      "file": "03_feel_the_scene.svg",
+      "text": "Feel the scene.",
+      "bounds": [
+        57.0,
+        310.0,
+        881.0,
+        419.0
+      ]
+    },
+    {
+      "file": "03_feel_the_scene.svg",
+      "text": "Equalizer. Audio tracks. Precise sync.",
+      "bounds": [
+        66.0,
+        460.0,
+        540.0,
+        486.0
+      ]
+    },
+    {
+      "file": "03_feel_the_scene.svg",
+      "text": "TUNE THE SOUND TO THE WAY YOU LISTEN.",
+      "bounds": [
+        60.0,
+        1858.0,
+        556.4,
+        1874.0
+      ]
+    },
+    {
+      "file": "03_library_list.svg",
+      "text": "APTURA",
+      "bounds": [
+        153.0,
+        60.0,
+        295.0,
+        80.0
+      ]
+    },
+    {
+      "file": "03_library_list.svg",
+      "text": "A view for the way you browse.",
+      "bounds": [
+        1003.0,
+        48.0,
+        1860.0,
+        107.0
+      ]
+    },
+    {
+      "file": "03_library_list.svg",
+      "text": "YOUR OWN VIDEOS. BEAUTIFULLY AT HOME.",
+      "bounds": [
+        60.0,
+        1046.0,
+        557.0,
+        1060.0
+      ]
+    },
+    {
+      "file": "04_every_word.svg",
+      "text": "APTURA",
+      "bounds": [
+        149.0,
+        70.0,
+        295.0,
+        91.0
+      ]
+    },
+    {
+      "file": "04_every_word.svg",
+      "text": "SUBTITLES",
+      "bounds": [
+        898.0,
+        75.0,
+        1020.0,
+        89.0
+      ]
+    },
+    {
+      "file": "04_every_word.svg",
+      "text": "04 / 08",
+      "bounds": [
+        946.0,
+        1859.0,
+        1020.0,
+        1874.0
+      ]
+    },
+    {
+      "file": "04_every_word.svg",
+      "text": "Every word.",
+      "bounds": [
+        60.0,
+        191.0,
+        684.0,
+        301.0
+      ]
+    },
+    {
+      "file": "04_every_word.svg",
+      "text": "Your way.",
+      "bounds": [
+        60.0,
+        317.0,
+        682.0,
+        448.0
+      ]
+    },
+    {
+      "file": "04_every_word.svg",
+      "text": "Captions with the timing, size and style you need.",
+      "bounds": [
+        66.0,
+        461.0,
+        689.0,
+        487.0
+      ]
+    },
+    {
+      "file": "04_every_word.svg",
+      "text": "EMBEDDED TRACKS + YOUR SUBTITLE FILES",
+      "bounds": [
+        60.0,
+        1858.0,
+        563.4,
+        1874.0
+      ]
+    },
+    {
+      "file": "04_settings.svg",
+      "text": "APTURA",
+      "bounds": [
+        153.0,
+        60.0,
+        295.0,
+        80.0
+      ]
+    },
+    {
+      "file": "04_settings.svg",
+      "text": "Set it up. Make it yours.",
+      "bounds": [
+        1219.0,
+        48.0,
+        1860.0,
+        107.0
+      ]
+    },
+    {
+      "file": "04_settings.svg",
+      "text": "YOUR OWN VIDEOS. BEAUTIFULLY AT HOME.",
+      "bounds": [
+        60.0,
+        1046.0,
+        557.0,
+        1060.0
+      ]
+    },
+    {
+      "file": "05_a_little_more_you.svg",
+      "text": "APTURA",
+      "bounds": [
+        149.0,
+        70.0,
+        295.0,
+        91.0
+      ]
+    },
+    {
+      "file": "05_a_little_more_you.svg",
+      "text": "APPEARANCE",
+      "bounds": [
+        868.0,
+        75.0,
+        1020.0,
+        89.0
+      ]
+    },
+    {
+      "file": "05_a_little_more_you.svg",
+      "text": "05 / 08",
+      "bounds": [
+        946.0,
+        1859.0,
+        1020.0,
+        1874.0
+      ]
+    },
+    {
+      "file": "05_a_little_more_you.svg",
+      "text": "A little more",
+      "bounds": [
+        60.0,
+        186.0,
+        714.0,
+        276.0
+      ]
+    },
+    {
+      "file": "05_a_little_more_you.svg",
+      "text": "you.",
+      "bounds": [
+        45.0,
+        397.0,
+        610.0,
+        610.0
+      ]
+    },
+    {
+      "file": "05_a_little_more_you.svg",
+      "text": "Six accents. Light or dark. All included.",
+      "bounds": [
+        66.0,
+        629.0,
+        554.0,
+        655.0
+      ]
+    },
+    {
+      "file": "05_a_little_more_you.svg",
+      "text": "01",
+      "bounds": [
+        67.0,
+        906.0,
+        88.0,
+        919.0
+      ]
+    },
+    {
+      "file": "05_a_little_more_you.svg",
+      "text": "YOUR APPEARANCE",
+      "bounds": [
+        159.0,
+        906.0,
+        367.0,
+        919.0
+      ]
+    },
+    {
+      "file": "05_a_little_more_you.svg",
+      "text": "MAKE APTURA FEEL AT HOME.",
+      "bounds": [
+        60.0,
+        1858.0,
+        401.6,
+        1874.0
+      ]
+    },
+    {
+      "file": "06_your_place_stays.svg",
+      "text": "APTURA",
+      "bounds": [
+        149.0,
+        70.0,
+        295.0,
+        91.0
+      ]
+    },
+    {
+      "file": "06_your_place_stays.svg",
+      "text": "CONTINUE WATCHING",
+      "bounds": [
+        777.0,
+        75.0,
+        1020.0,
+        89.0
+      ]
+    },
+    {
+      "file": "06_your_place_stays.svg",
+      "text": "06 / 08",
+      "bounds": [
+        946.0,
+        1859.0,
+        1020.0,
+        1874.0
+      ]
+    },
+    {
+      "file": "06_your_place_stays.svg",
+      "text": "Life happens.",
+      "bounds": [
+        60.0,
+        190.0,
+        762.0,
+        299.0
+      ]
+    },
+    {
+      "file": "06_your_place_stays.svg",
+      "text": "Your place stays.",
+      "bounds": [
+        60.0,
+        316.0,
+        975.0,
+        445.0
+      ]
+    },
+    {
+      "file": "06_your_place_stays.svg",
+      "text": "Saved progress. One tap to settle back in.",
+      "bounds": [
+        66.0,
+        460.0,
+        597.0,
+        486.0
+      ]
+    },
+    {
+      "file": "06_your_place_stays.svg",
+      "text": "02",
+      "bounds": [
+        67.0,
+        1432.0,
+        88.0,
+        1445.0
+      ]
+    },
+    {
+      "file": "06_your_place_stays.svg",
+      "text": "CONTINUE WATCHING",
+      "bounds": [
+        159.0,
+        1432.0,
+        388.0,
+        1445.0
+      ]
+    },
+    {
+      "file": "06_your_place_stays.svg",
+      "text": "PICK UP WHERE YOU LEFT OFF.",
+      "bounds": [
+        60.0,
+        1858.0,
+        416.4,
+        1874.0
+      ]
+    },
+    {
+      "file": "07_keep_that_part.svg",
+      "text": "APTURA",
+      "bounds": [
+        149.0,
+        70.0,
+        295.0,
+        91.0
+      ]
+    },
+    {
+      "file": "07_keep_that_part.svg",
+      "text": "PRECISION",
+      "bounds": [
+        898.0,
+        75.0,
+        1020.0,
+        89.0
+      ]
+    },
+    {
+      "file": "07_keep_that_part.svg",
+      "text": "07 / 08",
+      "bounds": [
+        946.0,
+        1859.0,
+        1020.0,
+        1874.0
+      ]
+    },
+    {
+      "file": "07_keep_that_part.svg",
+      "text": "Find that frame.",
+      "bounds": [
+        60.0,
+        194.0,
+        832.0,
+        277.0
+      ]
+    },
+    {
+      "file": "07_keep_that_part.svg",
+      "text": "Keep that part.",
+      "bounds": [
+        58.0,
+        304.0,
+        977.0,
+        448.0
+      ]
+    },
+    {
+      "file": "07_keep_that_part.svg",
+      "text": "Loop a section. Step a frame. Save a bookmark.",
+      "bounds": [
+        66.0,
+        460.0,
+        676.0,
+        486.0
+      ]
+    },
+    {
+      "file": "07_keep_that_part.svg",
+      "text": "SMALL CONTROLS. A BIG DIFFERENCE.",
+      "bounds": [
+        60.0,
+        1858.0,
+        496.8,
+        1874.0
+      ]
+    },
+    {
+      "file": "08_yours_alone.svg",
+      "text": "APTURA",
+      "bounds": [
+        149.0,
+        70.0,
+        295.0,
+        91.0
+      ]
+    },
+    {
+      "file": "08_yours_alone.svg",
+      "text": "PRIVATE BY DESIGN",
+      "bounds": [
+        795.0,
+        75.0,
+        1020.0,
+        89.0
+      ]
+    },
+    {
+      "file": "08_yours_alone.svg",
+      "text": "08 / 08",
+      "bounds": [
+        946.0,
+        1859.0,
+        1020.0,
+        1874.0
+      ]
+    },
+    {
+      "file": "08_yours_alone.svg",
+      "text": "OFFLINE.",
+      "bounds": [
+        60.0,
+        198.0,
+        777.0,
+        320.0
+      ]
+    },
+    {
+      "file": "08_yours_alone.svg",
+      "text": "By design.",
+      "bounds": [
+        57.0,
+        371.0,
+        733.0,
+        523.0
+      ]
+    },
+    {
+      "file": "08_yours_alone.svg",
+      "text": "No accounts. No ads. No tracking.",
+      "bounds": [
+        66.0,
+        533.0,
+        497.0,
+        559.0
+      ]
+    },
+    {
+      "file": "08_yours_alone.svg",
+      "text": "01",
+      "bounds": [
+        67.0,
+        1125.0,
+        88.0,
+        1138.0
+      ]
+    },
+    {
+      "file": "08_yours_alone.svg",
+      "text": "THE OFFLINE GUARANTEE",
+      "bounds": [
+        159.0,
+        1125.0,
+        433.0,
+        1138.0
+      ]
+    },
+    {
+      "file": "08_yours_alone.svg",
+      "text": "Offline is built in.",
+      "bounds": [
+        60.0,
+        1758.0,
+        458.0,
+        1797.0
+      ]
+    },
+    {
+      "file": "08_yours_alone.svg",
+      "text": "YOUR LIBRARY STAYS ON YOUR DEVICE.",
+      "bounds": [
+        60.0,
+        1858.0,
+        521.2,
+        1874.0
+      ]
+    },
+    {
+      "file": "feature-graphic-1024x500.svg",
+      "text": "APTURA",
+      "bounds": [
+        116.0,
+        49.0,
+        233.0,
+        65.0
+      ]
+    },
+    {
+      "file": "feature-graphic-1024x500.svg",
+      "text": "Every frame.",
+      "bounds": [
+        36.0,
+        142.0,
+        372.0,
+        201.0
+      ]
+    },
+    {
+      "file": "feature-graphic-1024x500.svg",
+      "text": "All yours.",
+      "bounds": [
+        27.0,
+        203.0,
+        378.0,
+        289.0
+      ]
+    },
+    {
+      "file": "feature-graphic-1024x500.svg",
+      "text": "The offline video player.",
+      "bounds": [
+        40.0,
+        312.0,
+        270.0,
+        332.0
+      ]
+    },
+    {
+      "file": "feature-graphic-1024x500.svg",
+      "text": "NO ADS \u00b7 NO ACCOUNTS \u00b7 NO TRACKING",
+      "bounds": [
+        40.0,
+        442.0,
+        374.0,
+        453.0
+      ]
+    },
+    {
+      "file": "feature-graphic-1024x500.svg",
+      "text": "YOUR FILES. YOUR TERMS.",
+      "bounds": [
+        745.0,
+        441.0,
+        983.0,
+        453.0
+      ]
+    }
+  ]
+}

@@ -1,0 +1,116 @@
+{
+  "status": "passed",
+  "approvedIconUnchanged": true,
+  "uiAspectRatiosPreserved": true,
+  "firstThreeNativeUiAreaPercent": {
+    "01": 51,
+    "02": 55.5,
+    "03": 56.5
+  },
+  "exports": [
+    {
+      "file": "phone-screenshots/01_every_frame.png",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "channels": 3,
+      "space": "srgb"
+    },
+    {
+      "file": "phone-screenshots/02_own_the_moment.png",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "channels": 3,
+      "space": "srgb"
+    },
+    {
+      "file": "phone-screenshots/03_feel_the_scene.png",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "channels": 3,
+      "space": "srgb"
+    },
+    {
+      "file": "phone-screenshots/04_every_word.png",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "channels": 3,
+      "space": "srgb"
+    },
+    {
+      "file": "phone-screenshots/05_a_little_more_you.png",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "channels": 3,
+      "space": "srgb"
+    },
+    {
+      "file": "phone-screenshots/06_your_place_stays.png",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "channels": 3,
+      "space": "srgb"
+    },
+    {
+      "file": "phone-screenshots/07_keep_that_part.png",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "channels": 3,
+      "space": "srgb"
+    },
+    {
+      "file": "phone-screenshots/08_yours_alone.png",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "channels": 3,
+      "space": "srgb"
+    },
+    {
+      "file": "tablet-screenshots/01_library_dark.png",
+      "width": 1920,
+      "height": 1080,
+      "alpha": false,
+      "channels": 3,
+      "space": "srgb"
+    },
+    {
+      "file": "tablet-screenshots/02_library_light.png",
+      "width": 1920,
+      "height": 1080,
+      "alpha": false,
+      "channels": 3,
+      "space": "srgb"
+    },
+    {
+      "file": "tablet-screenshots/03_library_list.png",
+      "width": 1920,
+      "height": 1080,
+      "alpha": false,
+      "channels": 3,
+      "space": "srgb"
+    },
+    {
+      "file": "tablet-screenshots/04_settings.png",
+      "width": 1920,
+      "height": 1080,
+      "alpha": false,
+      "channels": 3,
+      "space": "srgb"
+    },
+    {
+      "file": "feature-graphic-1024x500.png",
+      "width": 1024,
+      "height": 500,
+      "alpha": false,
+      "channels": 3,
+      "space": "srgb"
+    }
+  ]
+}

@@ -246,3 +246,7 @@
 ## 2026-11-15 — Adopt Fold branding (#214)
 
 The owner approved the circular Fold symbol after colour/monochrome, app and Android previews, then requested replacement of the aperture/play mark. DEC-027 and DESIGN.md now define Fold; canonical SVG/PNG assets, launcher foreground, dedicated themed-icon silhouette, banner, repository store artwork and screenshots containing the mark are updated together. Existing in-app tile sizes and launcher optical bounds are retained. Public Play Console uploads remain a separate step; the design has no asserted exclusivity or legal-clearance status.
+
+## 2026-11-15 — Approve the cinematic listing campaign
+
+The owner approved all of Preview 02, “Every frame. All yours.” Canonical store assets now contain eight phone panels, four tablet panels, the separate feature image, self-contained SVG layouts, alt text and review boards. Eight distinct demo scenes replace the repeated sample library; matching Continue watching and Library entries retain the same file identity. The existing Fold icon is unchanged. PROD-02's human visual sign-off is complete; Play Console upload remains a separate handoff action.
