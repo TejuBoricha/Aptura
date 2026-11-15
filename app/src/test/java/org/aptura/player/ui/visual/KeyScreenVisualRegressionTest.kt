@@ -25,6 +25,7 @@ import org.aptura.player.theme.themeModeForRoute
 import org.aptura.player.ui.library.LIBRARY_VIDEO_GRID_TAG
 import org.aptura.player.ui.library.LibraryViewPrefs
 import org.aptura.player.ui.library.MediaDetailsSheet
+import org.aptura.player.ui.library.OnTheCallingThread
 import org.aptura.player.ui.library.MediaLibraryScreen
 import org.aptura.player.ui.library.MediaLibraryUiState
 import org.aptura.player.ui.library.VideoCardUiModel
@@ -362,13 +363,15 @@ class PhonePortraitVisualRegressionTest : KeyScreenVisualRegressionBase() {
         val darkPalette = ApturaPalettes.dark(AccentColor.CYAN)
 
         composeRule.setContent {
-            ApturaTheme(themeMode = ThemeMode.DARK, accentColor = AccentColor.CYAN) {
-                MediaDetailsSheet(
-                    item = item,
-                    onDismiss = {},
-                    onPlayClick = {},
-                    onShareClick = {}
-                )
+            OnTheCallingThread {
+                ApturaTheme(themeMode = ThemeMode.DARK, accentColor = AccentColor.CYAN) {
+                    MediaDetailsSheet(
+                        item = item,
+                        onDismiss = {},
+                        onPlayClick = {},
+                        onShareClick = {}
+                    )
+                }
             }
         }
         composeRule.waitForIdle()

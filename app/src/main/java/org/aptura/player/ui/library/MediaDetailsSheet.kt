@@ -64,6 +64,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -71,6 +72,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.CoroutineContext
 import org.aptura.player.core.media.MediaExtendedMetadata
 import org.aptura.player.core.media.MediaLanguageLabels
 import org.aptura.player.core.media.MediaMetadataInspector
@@ -104,6 +106,14 @@ import org.aptura.player.ui.components.bottomSheetScrollInterceptor
 import org.aptura.player.domain.usecase.ResumeRules
 
 /**
+ * Where the details sheet reads the file system and MediaStore. Production uses the IO pool. A test replaces it with a
+ * context that stays on the calling thread: in a Compose test the code after a hop to another thread resumes on that
+ * thread, and the test harness then applies a frame there, which fails with "Only the original thread that created a
+ * view hierarchy can touch its views".
+ */
+internal val LocalDetailsLookupContext = staticCompositionLocalOf<CoroutineContext> { Dispatchers.IO }
+
+/**
  * Media Details Content (FR-LIB-013, R-A02, R-A09).
  * The video first (its frame, title and the facts people scan for), then what you can do with it, then the full
  * specification. Play used to sit under twenty rows of codec data; now it is the first thing under the title.
@@ -129,11 +139,12 @@ fun MediaDetailsContent(
 ) {
     val context = LocalContext.current
     // Both lookups touch the file system / MediaStore, so they run off the main thread. `null` = still loading.
+    val lookupContext = LocalDetailsLookupContext.current
     val resolvedPath by produceState<DetailLookup<String>?>(null, item.uri) {
-        value = DetailLookup(withContext(Dispatchers.IO) { MediaPathResolver.resolve(context, item.uri) })
+        value = DetailLookup(withContext(lookupContext) { MediaPathResolver.resolve(context, item.uri) })
     }
     val inspection by produceState<MediaExtendedMetadata?>(null, item.uri) {
-        value = withContext(Dispatchers.IO) {
+        value = withContext(lookupContext) {
             try {
                 MediaMetadataInspector.inspect(context, item.uri.toUri())
             } catch (_: Exception) {
