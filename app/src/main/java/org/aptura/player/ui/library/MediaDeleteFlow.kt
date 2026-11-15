@@ -99,8 +99,14 @@ internal fun rememberMediaDeleteFlow(
     var deletedUris by rememberSaveable { mutableStateOf(emptyList<String>()) }
     var failedUris by rememberSaveable { mutableStateOf(emptyList<String>()) }
 
+    // One contract object for the life of this composable. The contract is a key of the launcher's registration,
+    // so a new object on every recomposition unregistered the launcher and registered it again each time the
+    // queue changed. The effect below launches the consent dialog right after a `withContext(Dispatchers.IO)`,
+    // and under the Compose test dispatcher it resumes on an IO worker thread, where that launch could land
+    // between the unregister and the register on the main thread and fail as an unregistered launcher.
+    val consentContract = remember { ActivityResultContracts.StartIntentSenderForResult() }
     val consentLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartIntentSenderForResult()
+        contract = consentContract
     ) { result ->
         val batch = awaitingBatchConsent
         if (batch.isNotEmpty()) {

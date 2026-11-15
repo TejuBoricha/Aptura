@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.IntentSender
+import android.os.Bundle
 import android.os.Looper
 import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.result.ActivityResultRegistry
@@ -268,5 +269,44 @@ class MediaDeleteFlowTest {
         assertEquals(1, results.size)
         assertTrue(results.single().deletedUris.isEmpty())
         assertTrue(results.single().failedUris.isEmpty())
+    }
+
+    /**
+     * The registry's request codes, read through its public save-state hook. A launcher that is registered
+     * again is unmapped and then mapped to a new random code, so a changed code means "registered again".
+     */
+    private fun registeredRequestCodes(registry: ActivityResultRegistry): List<Int> {
+        val state = Bundle()
+        registry.onSaveInstanceState(state)
+        return state.getIntegerArrayList("KEY_COMPONENT_ACTIVITY_REGISTERED_RCS").orEmpty().sorted()
+    }
+
+    /**
+     * Regression for an intermittent failure of the consent tests on a slow CI runner. The flow launches the
+     * consent dialog right after `withContext(Dispatchers.IO)`, and in the Compose test environment the effect
+     * resumes on the IO worker thread, not the main thread. While the launcher was registered again on every
+     * recomposition (a new contract object each time, which is a key of the registration), that launch could
+     * land between the unregister and the register of the main thread and fail with "Attempting to launch an
+     * unregistered ActivityResultLauncher". The window is too narrow to hit on demand, so this asserts the
+     * cause instead: a recomposition must leave the launcher registered exactly as it was.
+     */
+    @Test
+    fun recomposing_keepsTheConsentLauncherRegisteredAsItWas() {
+        val engine = FakeDeleteEngine()
+        val dialog = FakeConsentDialog()
+        val flow = show(engine, dialog)
+        val registeredBefore = registeredRequestCodes(dialog)
+        assertEquals("the flow registers one consent launcher", 1, registeredBefore.size)
+
+        // A delete rewrites the queue the flow's effect is keyed on, which recomposes it.
+        val results = CopyOnWriteArrayList<DeleteBatchResult>()
+        composeRule.runOnUiThread { flow.deleteAll(uris(1)) { results += it } }
+        waitForReport(results)
+
+        assertEquals(
+            "a recomposition must not register the consent launcher again",
+            registeredBefore,
+            registeredRequestCodes(dialog)
+        )
     }
 }
