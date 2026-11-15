@@ -40,7 +40,7 @@ Aptura is a single-activity Android app. The UI is Jetpack Compose; playback is 
 | `ui/onboarding` | First-run privacy and storage-access guide. |
 | `ui/components` | `ApturaDesignKit`: dialogs, buttons, menu rows, notices, skeletons. |
 | `theme` | Colour, type, shape, accent and route-specific theme policy. |
-| `data/database` | Room entities, DAOs, migrations (schema version 6). |
+| `data/database` | Room entities, DAOs and migrations. `APTURA_DB_VERSION` in `ApturaDatabase.kt` is authoritative (currently schema 8). |
 | `data/scanner` | MediaStore and SAF scanners, reconciliation, WorkManager scheduling. |
 | `data/playback` | Media3 service, player bridge, audio effects, subtitle renderer. |
 | `data/settings` | DataStore-backed `ApturaSettings`. |

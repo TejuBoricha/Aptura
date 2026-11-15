@@ -58,6 +58,9 @@ jobs:
       - name: Gate scoping tests
         run: python3 -m unittest discover -s tools/gate
 
+      - name: Repository presentation and failure-path checks
+        run: python3 -m unittest discover -s tools/presentation
+
       # tools/smoke/release_smoke.py is what the nightly release-smoke job runs; its tests drive a fake adb, so they
       # need no device and fail here, on the pull request, instead of at 03:17 the next night.
       - name: Release smoke script tests

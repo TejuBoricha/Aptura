@@ -5,9 +5,9 @@
 | Tool | Version |
 |---|---|
 | JDK | 17 |
-| Android SDK | 36 (compileSdk and targetSdk) |
-| Gradle | 9.1.0 via the wrapper |
-| Android Studio | Current stable with AGP 9 support, or the command line |
+| Android SDK | Platform 37.0 (`platforms;android-37.0`) for compilation; target API 36 |
+| Gradle | 9.9.1 via the checked-in wrapper |
+| Android Studio | A version compatible with the AGP pinned in `gradle/libs.versions.toml`, or the command line |
 
 `minSdk` is 26 (Android 8.0). The build needs no network permission in the app; Gradle itself downloads dependencies on the first run.
 
@@ -25,7 +25,15 @@ Windows PowerShell:
 .\gradlew.bat assembleDebug
 ```
 
-The APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
+The universal APK is written to `app/build/outputs/apk/debug/app-universal-debug.apk`. The same directory also contains `app-arm64-v8a-debug.apk`, `app-armeabi-v7a-debug.apk` and `app-x86_64-debug.apk`; choose the matching ABI when using a split APK.
+
+To install on an authorised Android device with USB debugging enabled:
+
+```bash
+adb install -r app/build/outputs/apk/debug/app-universal-debug.apk
+```
+
+The app is pre-release. Its public `v1.0.0` prerelease currently has no installer assets; the repository's “Latest” release is an FFmpeg audio bundle, not the Android app. Build the current source rather than using `/releases/latest` as an app-download shortcut.
 
 ### The FFmpeg audio libraries
 
