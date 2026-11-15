@@ -863,14 +863,16 @@ class MediaLibraryScreenUiTest {
     @Test
     fun mediaDetailsContent_quickActions_meetAccessibleTouchTargetMinimum() {
         composeTestRule.setContent {
-            ApturaTheme {
-                MediaDetailsContent(
-                    item = sampleVideos.first(),
-                    onClose = {},
-                    onPlayClick = {},
-                    onResetProgressClick = {},
-                    onUndoResetProgressClick = { _, _ -> }
-                )
+            OnTheCallingThread {
+                ApturaTheme {
+                    MediaDetailsContent(
+                        item = sampleVideos.first(),
+                        onClose = {},
+                        onPlayClick = {},
+                        onResetProgressClick = {},
+                        onUndoResetProgressClick = { _, _ -> }
+                    )
+                }
             }
         }
 
@@ -891,20 +893,22 @@ class MediaLibraryScreenUiTest {
                     sampleVideos.first().copy(playbackPositionMs = 45_000L, isCompleted = false)
                 )
             }
-            ApturaTheme {
-                MediaDetailsContent(
-                    item = currentItem,
-                    onClose = {},
-                    onPlayClick = {},
-                    onResetProgressClick = {
-                        resetCalled = true
-                        currentItem = currentItem.copy(playbackPositionMs = 0L, isCompleted = false)
-                    },
-                    onUndoResetProgressClick = { pos, completed ->
-                        restored = pos to completed
-                        currentItem = currentItem.copy(playbackPositionMs = pos, isCompleted = completed)
-                    }
-                )
+            OnTheCallingThread {
+                ApturaTheme {
+                    MediaDetailsContent(
+                        item = currentItem,
+                        onClose = {},
+                        onPlayClick = {},
+                        onResetProgressClick = {
+                            resetCalled = true
+                            currentItem = currentItem.copy(playbackPositionMs = 0L, isCompleted = false)
+                        },
+                        onUndoResetProgressClick = { pos, completed ->
+                            restored = pos to completed
+                            currentItem = currentItem.copy(playbackPositionMs = pos, isCompleted = completed)
+                        }
+                    )
+                }
             }
         }
 

@@ -36,7 +36,9 @@ class DetailsPlayLabelTest {
 
     private fun show(item: DomainMediaItem) {
         composeRule.setContent {
-            ApturaTheme { MediaDetailsContent(item = item, onClose = {}, onPlayClick = {}) }
+            OnTheCallingThread {
+                ApturaTheme { MediaDetailsContent(item = item, onClose = {}, onPlayClick = {}) }
+            }
         }
     }
 
