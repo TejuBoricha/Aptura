@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 256 256" role="img" aria-label="Aptura Fold logo">
+  <defs>
+    <linearGradient id="plate" x1="20" y1="16" x2="230" y2="246" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#171C25" />
+      <stop offset="1" stop-color="#0D1016" />
+    </linearGradient>
+  </defs>
+  <rect x="15" y="15" width="226" height="226" rx="54" fill="url(#plate)" stroke="#2A3441" stroke-width=".6" />
+  <g transform="translate(29.257142857 29.257142857) scale(.771428571)">
+    <defs>
+      <linearGradient id="shell" x1="82" y1="22" x2="237" y2="204" gradientUnits="userSpaceOnUse">
+        <stop stop-color="#A5FBFC" />
+        <stop offset=".55" stop-color="#7CEEF6" />
+        <stop offset="1" stop-color="#B9FBFC" />
+      </linearGradient>
+      <linearGradient id="left" x1="72" y1="61" x2="23" y2="167" gradientUnits="userSpaceOnUse">
+        <stop stop-color="#00BED5" />
+        <stop offset=".55" stop-color="#04D9E8" />
+        <stop offset="1" stop-color="#00CEDC" />
+      </linearGradient>
+      <linearGradient id="lower" x1="72" y1="153" x2="185" y2="233" gradientUnits="userSpaceOnUse">
+        <stop stop-color="#57F4F0" />
+        <stop offset=".25" stop-color="#05DEE8" />
+        <stop offset="1" stop-color="#00BBD2" />
+      </linearGradient>
+      <clipPath id="body">
+        <path d="M240 128 A112 112 0 1 1 16 128 A112 112 0 1 1 240 128 Z M83 53 L182 104 C188 107 191 113 191 122 V191 L160 160 C155 155 150 153 143 153 H63 C56 153 51 151 47 147 L77 123 C81 120 83 115 83 109 Z" clip-rule="evenodd" />
+      </clipPath>
+    </defs>
+    <path d="M240 128 A112 112 0 1 1 16 128 A112 112 0 1 1 240 128 Z M83 53 L182 104 C188 107 191 113 191 122 V191 L160 160 C155 155 150 153 143 153 H63 C56 153 51 151 47 147 L77 123 C81 120 83 115 83 109 Z" fill="url(#shell)" fill-rule="evenodd" />
+    <g clip-path="url(#body)">
+      <path d="M0 96 L35 67 C53 49 66 47 83 53 V109 C83 115 81 120 77 123 L43 151 C29 162 25 172 29 185 L0 198 Z" fill="url(#left)" />
+      <path d="M29 185 C25 172 29 162 43 151 L47 147 C51 151 56 153 63 153 H143 C150 153 155 155 160 160 L191 191 C191 215 182 229 163 244 L12 256 Z" fill="url(#lower)" />
+    </g>
+  </g>
+</svg>

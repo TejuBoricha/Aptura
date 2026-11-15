@@ -74,13 +74,15 @@ Google's page "Understanding foreground service and full-screen intent requireme
 
 ## 3. Play Store Assets Checklist
 
-- [x] **App Icon:** 512 × 512 px 32-bit PNG with alpha.
-- [x] **Feature Graphic:** 1024 × 500 px JPG or 24-bit PNG.
-- [x] **Screenshots:** 11 freshly rendered Compose gallery captures available under `docs/assets/screenshots/`:
-  - Phone screenshots (1080 × 2400 / 16:9): `library-phone.png`, `library-phone-dark.png`, `player-hud.png`, `player-tools.png`, `player-audio.png`, `player-subtitles.png`, `player-queue.png`, `details.png`.
-  - 7-inch & 10-inch Tablet screenshots: `settings-tablet.png`, `library-tablet.png`.
+- [x] **App Icon:** `distribution/play-store/icon-512x512.png`, 512 × 512 px 32-bit PNG with an opaque square background. Editable source: `icon.svg` in the same directory.
+- [x] **Feature Graphic:** `distribution/play-store/feature-graphic-1024x500.png`, 1024 × 500 px 24-bit PNG. Editable source: `feature-graphic.svg` in the same directory.
+- [x] **Upload screenshots:** six 1080 × 2400 phone captures under `distribution/play-store/phone-screenshots/` and two 2560 × 1600 tablet captures under `distribution/play-store/tablet-screenshots/`.
+- [x] **Documentation screenshots:** 11 Compose gallery captures under `docs/assets/screenshots/`, including `onboarding-privacy.png`, phone portrait/landscape and tall-sheet renders, and `settings-tablet.png` / `library-tablet.png`. These retain their gallery dimensions and are not all store-sized portrait images.
+
 - [x] **Privacy Policy URL:** `https://github.com/TejuBoricha/Aptura/blob/main/docs/PRIVACY.md`
 - [x] **App Bundle (AAB):** Generated via `./gradlew bundleRelease` -> `app/build/outputs/bundle/release/app-release.aab`.
+
+The Fold logo (DEC-027) is included in the repository icon, feature graphic and affected welcome/tablet captures. See [BRANDING.md](BRANDING.md). Replacing these files does not update an already-uploaded Console listing.
 
 ---
 

@@ -28,6 +28,8 @@ All notable changes to Aptura are recorded here. The format follows [Keep a Chan
 
 ### Changed
 
+- Adopt the circular Fold logo across the app, Android launcher and themed icons, editable branding assets, README banner and repository Play Store artwork. Refresh screenshots that contain the old mark.
+
 - **The audio decoder is now self-built and LGPL-only (LEG-02, DEC-025).** The prebuilt Jellyfin decoder (GPL-labelled, FFmpeg linked statically, with AAC, AC-3, E-AC-3, DTS, TrueHD and MLP decoders) is gone. The app links FFmpeg n9.0.2 as separate shared libraries that decode only ALAC, AC-3 and G.711 A-law and mu-law (when the device has none of its own); everything else is decoded by the device. The libraries come from a pinned release bundle and the build refuses it unless the SHA-256 matches; the Java classes are vendored unchanged from AndroidX Media 1.5.1 and checked by checksum; release builds fail if R8 renames what the native library finds by name. Files with E-AC-3, DTS or TrueHD audio now play only on devices that decode them themselves (AC-3 is bundled, DEC-021; E-AC-3 is held back because of Dolby decoder patents that run to about 2030). Not run on a physical device yet.
 - **The Gold accent is open to everyone.** It is no longer locked behind starring the project or an "I Supported Aptura" switch, and the supporter badge and the footer star are gone.
 - **Going to a screen and back no longer cross-fades.** Navigation 3's defaults are a 700 ms cross-fade (both screens half see-through at once) and, for the Back gesture, a page that shrinks and then vanishes while still opaque. Screens now slide over each other, solid the whole time, in 300 ms; the Back gesture drags the page with the finger and letting go carries it on to the edge.

@@ -242,3 +242,7 @@
 
 
 
+
+## 2026-11-15 — Adopt Fold branding (#214)
+
+The owner approved the circular Fold symbol after colour/monochrome, app and Android previews, then requested replacement of the aperture/play mark. DEC-027 and DESIGN.md now define Fold; canonical SVG/PNG assets, launcher foreground, dedicated themed-icon silhouette, banner, repository store artwork and screenshots containing the mark are updated together. Existing in-app tile sizes and launcher optical bounds are retained. Public Play Console uploads remain a separate step; the design has no asserted exclusivity or legal-clearance status.

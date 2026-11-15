@@ -90,17 +90,18 @@ Ratios are measured on every surface a level is drawn on, not on white alone, an
 | `TextOnScrim` | `#F0F4F8` | - | Text/icons on a dark scrim over thumbnails |
 
 ### 2.5 Brand mark
-The Aptura mark is a cyan aperture disc whose triangular opening is the play symbol. Three curved iris seams cut through the disc at 120-degree symmetry. The silhouette stays a clean circle at launcher sizes; the seams never become separated blades.
+The Aptura mark is **Fold**: one circular body around an asymmetric angular opening, with three broad ice/cyan colour planes suggesting a continuous folded strip. The owner adopted it after reviewing app and system previews (DEC-027). The outer silhouette stays circular; the opening is transparent. It replaces the earlier aperture/play mark.
 
 | Property | Value |
 |---|---|
-| Disc gradient | `#6FF3FF` to `#00A8C4`, top-left to bottom-right |
-| Iris seams | `#151820`, rounded ends |
+| Shell plane | `#A5FBFC` / `#7CEEF6` / `#B9FBFC` |
+| Left fold | `#00BED5` / `#04D9E8` / `#00CEDC` |
+| Lower fold | `#57F4F0` / `#05DEE8` / `#00BBD2` |
 | Optional plate | Rounded square, `#171C25` to `#0D1016`, `#2A3441` hairline |
 | Clear space | 25% of the mark diameter on every side |
-| Minimum size | 16 px without the plate; 48 px when the plate is shown |
+| Minimum size | 16 px for the flat mark; use colour at 32 px or larger. Existing in-app tiles range from 26 to 64 dp |
 
-Canonical assets live in `docs/assets/` (`logo.png` with plate, `logo-mark.png` transparent). The launcher foreground in `res/drawable/ic_launcher_foreground.xml` uses the same geometry. Do not redraw the mark as three separated wedges, and do not add a tick outside the disc.
+Canonical editable sources live in `docs/assets/`: `logo-mark.svg` (transparent colour), `logo-monochrome.svg` (flat), `logo.svg` (plated) and `banner.svg`, with matching PNG exports. The launcher foreground uses the same geometry inside the existing safe bounds; both adaptive icons use the dedicated `ic_launcher_monochrome.xml` for themed icons. Keep the dark in-app tile in both themes. Do not add strokes, cut extra seams, fill the opening or replace functional playback controls with the brand mark. See [BRANDING.md](docs/BRANDING.md) for export sizes, provenance and rollout scope.
 
 ---
 
@@ -162,7 +163,7 @@ val ApturaTypography = Typography(
   - **Expanded (≥700dp, Tablets / Desktops):** **248dp collection index** with the library pulse (films, runtime, footprint), All videos, folder rows with counts, Add folder, Open a file, Rescan, Settings and the offline promise. It collapses to the 88dp rail on demand; the choice is remembered for the session.
 - **Short-window rule (a phone held sideways):** height decides as well as width. A current phone sideways is 891 x 411 dp and a small one 740 x 360 dp: wide enough for the tablet layout, a third of a tablet's height. The collection index needs about 450 dp before its first folder row, so it is used only at **600 dp of height or more**; below that the **88 dp rail** is used at every width, with the folder bar in the content (Browse folders, chips, Add folder). Below **480 dp** the rail drops its text labels (its icons keep their names for TalkBack), as it does at large text, so four buttons and the header fit in 360 dp. Spacing on the empty and permission screens tightens below 480 dp so the main button is in view. Any sheet whose content can be taller than 360 dp scrolls (the View sheet, the details sheet, dialog bodies). Below the same 480 dp (`SHORT_WINDOW_HEIGHT`, one constant in `ui/components/WindowSize.kt`) the **Continue watching** cards are **168 dp** wide instead of 248 dp, so the library under the shelf stays in view, and **Settings has no large title**: the compact bar (back button and title) is always there, the list starts under it, and that title is the page's heading for TalkBack. Upright phones and tablets are unchanged.
 - **Large-text fallback:** At `fontScale >= 1.5`, force the 88dp icon rail at every width. The rail hides labels and keeps the icons' `contentDescription` as the accessible names. This is a layout decision, not a truncation: folder names must never be squeezed into unreadable fragments.
-- **Sidebar motion:** Expand/collapse animates over 220ms with size, fade and a small horizontal slide. The compact header is one **68 x 48dp** chip that combines the aperture mark and the chevron; do not separate the mark and the arrow into a stack. Every sidebar control keeps a 48dp target.
+- **Sidebar motion:** Expand/collapse animates over 220ms with size, fade and a small horizontal slide. The compact header is one **68 x 48dp** chip that combines the Fold mark and the chevron; do not separate the mark and the arrow into a stack. Every sidebar control keeps a 48dp target.
 - **Library selection bar:** Cap the selection action bar at **680dp** and center it under the search row at any width; do not let it stretch edge to edge on a tablet. It shows the count, Select all/Clear, Move, Share and the overflow; Back clears selection before leaving the library. Failed deletes stay selected.
 - **Folder swipe:** A horizontal drag of **48dp** on the videos moves to the next/previous folder the moment the finger has gone that far (not when it lifts), and a quicker flick (500dp/s or more) counts on letting go, whatever its length; one move per touch (see 4.2). Disable the gesture while a selection is active.
 - **System Gesture Zones:**
