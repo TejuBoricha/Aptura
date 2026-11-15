@@ -30,6 +30,46 @@ Google Play requires a completed Data Safety form:
 | **Do you provide a way for users to request data deletion?** | **Not applicable** | No user data is stored off the device. |
 | **Is this app designed for children?** | **No** (Target: General / 13+) | |
 
+The rest of the Data safety form, the target audience and the app-content answers are in `distribution/play-store/metadata/data_safety_answers.md`.
+
+---
+
+## 2b. What the Console asks for separately (audit of 2026-11-15)
+
+Checked against the code, Google's help pages (read on 2026-11-15) and the project's tests. Items marked *recheck* come from earlier research that was not repeated; confirm them in the Console at submission, because the forms change.
+
+### Store text: claims audit (spec/15 S3)
+
+Every checkable claim in `distribution/play-store/metadata/full_description.txt` was compared with the code and holds: six accent colours (`AccentColor`), 0.25x to 2.0x speed and hold-to-2x (`PlaybackSpeedOptions`, `startHoldSpeedBoost`), a sleep timer of 1 to 720 minutes with a 10-second fade (`customSleepMinutes`, `SleepTimer.FADE_MS`), A-B repeat, frame stepping, Picture-in-Picture, multi-track audio, audio sync, subtitles, move/copy/rename, no `INTERNET` permission, and no analytics or advertising SDKs (`DependencyInvariants`).
+
+One gap, not a false claim: the heading "Playback on your phone's own decoders" predates the built-in audio extension (ALAC, AC-3 and G.711 through FFmpeg, DEC-020, DEC-021, DEC-025). If the listing should say so, one accurate wording is "plus a small built-in open-source audio extension (FFmpeg, LGPL) for ALAC and AC-3 on phones that lack a decoder". Under `spec/11B` section 6, do not use brand names ("Dolby Digital", "DTS") as selling points, and do not claim E-AC-3, DTS or TrueHD.
+
+### Photo and video permissions (`READ_MEDIA_VIDEO`, `READ_MEDIA_VISUAL_USER_SELECTED`)
+
+Google's help page "Understanding Restricted Permissions with minimum scope alternatives" says apps "whose core functionality revolves around broad access to Photos and Videos may use" these permissions, and that this includes apps whose core function is not served by the system photo picker. `spec/10` section 6.1 records that a declaration is needed (*recheck*). Draft justification, to adapt to the form's wording:
+
+> Aptura is a video player and library. Its core function is to find, list and play the videos on the device and in folders the person chooses: a library with folders and search, a continue-watching list, and queue playback. The system photo picker cannot provide a persistent library or folder browsing, and the app needs to see new videos as they appear. It reads video only and sends nothing off the device (it has no `INTERNET` permission). On Android 14 and later it also works when the person grants only selected videos (`READ_MEDIA_VISUAL_USER_SELECTED`).
+
+### Foreground service (`mediaPlayback`)
+
+Google's page "Understanding foreground service and full-screen intent requirements" asks, for each declared type, for a description of the functionality, the user impact if the task is deferred, and a link to a video demonstrating the feature; for media playback the video must show a user starting playback, which "must be user-initiated". The manifest declares `foregroundServiceType="mediaPlayback"`. Drafts:
+
+- **Functionality:** Continues video or audio playback from the background after the person starts it, so playback survives leaving the app or turning the screen off.
+- **Impact if deferred:** Audio and video would stop or stutter as soon as the app leaves the screen, and the sleep timer could not fade the sound out as the listing promises.
+- **Demo video (to record, 30 to 60 seconds):** open Aptura, tap a video to start it, press Home so playback continues in the background, return, and stop playback. Upload it unlisted and paste the link.
+
+### Other Console items
+
+| Item | Answer / status |
+|---|---|
+| Advertising ID | **No.** No ads and no advertising SDKs; `DependencyInvariants` fails the unit tests if one reaches the release classpath. *Recheck* the exact question in the Console. |
+| Target audience | The 13+ bands only (13 to 15, 16 to 17, 18+); not designed for children. Consistent with `spec/11B` C.8 (Brazil's children's digital law), but the setting does not decide that law's reach: what the app does does. |
+| Content rating (IARC) | Answer truthfully: no user-generated content, no interaction, no ads, no purchases. Expected "Everyone". |
+| Target API level | 36, set in `app/build.gradle.kts`. |
+| Signing | `keystore_setup_guide.md` matches the property and variable names in `app/build.gradle.kts`. Keep the upload key backed up and outside the repository. Play App Signing is set up in the Console at the first upload (*recheck*). |
+| New personal account testing | `spec/10` section 6.1 records at least 12 testers for 14 continuous days of closed testing before production (*recheck*). It is the longest lead time on the path, and it cannot start until the name and the signing key exist. |
+| Developer verification | Recorded as a regional rollout (*recheck*, `spec/10` section 6.1 and `spec/15` S2); complete it early. |
+
 ---
 
 ## 3. Play Store Assets Checklist

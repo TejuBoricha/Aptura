@@ -35,8 +35,11 @@ When prompted to select any collected data types across categories:
 | Policy Area | Response | Details |
 |---|---|---|
 | **Privacy Policy URL** | `https://github.com/TejuBoricha/Aptura/blob/main/docs/PRIVACY.md` | Public GitHub markdown document stating zero-data-collection policy. |
-| **Target Audience** | **13 and older** (or 18+) | General audience video player. |
+| **Target Audience** | **13 to 15, 16 to 17 and 18+** (select no band below 13) | General audience video player, not designed for children. |
 | **News Apps** | **No** | Not a news app. |
 | **COVID-19 Contact Tracing** | **No** | Not related to contact tracing. |
 | **Ads** | **No, my app does not contain ads** | Clean UI with 0 ad networks. |
 | **Financial Features** | **My app doesn't provide any financial features** | No in-app purchases or financial services. |
+| **Advertising ID** | **No, my app does not use the advertising ID** | No ads and no advertising SDKs; `DependencyInvariants` fails the unit tests if one reaches the release classpath. Recheck the question's wording in the Console. |
+| **App access** | **All functionality is available without special access** | No account, no login. |
+| **Photo and video permissions, foreground service** | Separate declarations | Drafts and the demo-video steps are in `docs/RELEASE_KIT.md` section 2b. |
