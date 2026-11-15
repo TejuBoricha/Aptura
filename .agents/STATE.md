@@ -73,9 +73,10 @@ copy found elsewhere, such as an old branch or `.agents/MEMORY.md`, as current. 
   `MediaMoveFlow` launch the system dialog right after `withContext(Dispatchers.IO)`; under the Compose test dispatcher that code
   resumes on an IO worker thread, where a launch during a re-registration failed as "unregistered launcher" now and then on CI.
   Their `recomposing_keeps...RegisteredAsItWas` tests check the cause. The other call sites (`Navigation.kt`,
-  `MediaLibraryScreen.kt`, `PlayerScreen.kt`, the trash flow) still pass an inline contract. On 2026-11-15 their launches were read
-  and sit in click callbacks, not after an IO hop (not traced one by one), so they were left alone; remember the contract if
-  one ever launches after an IO hop.
+  `MediaLibraryScreen.kt`, `PlayerScreen.kt`, the trash flow) still pass an inline contract. On 2026-11-15 each of their eight
+  launchers was traced, and every launch call runs synchronously on the main thread (a click callback, a dialog's `onConfirm`, or a `LaunchedEffect`
+  that does not suspend before the launch), so a re-registration cannot land in the middle of one and they were left alone.
+  `remember` the contract if one ever launches after a suspension point.
 - **Video access** is read from the system every time the app comes to the front (`rememberVideoAccess`); a grant scans now
   and again after 5 s; Settings has a Video access row (DESIGN.md §4.2c).
 - **Folder identity:** the folder key (`folderPath` in Room) is the folder's path on its storage volume, from `MediaFolderKey`;
