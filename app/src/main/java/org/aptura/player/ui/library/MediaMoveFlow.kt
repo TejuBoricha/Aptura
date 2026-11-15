@@ -83,8 +83,12 @@ internal fun rememberMediaMoveFlow(onMoved: (uri: String) -> Unit, mover: InPlac
     var movedUris by rememberSaveable { mutableStateOf(emptyList<String>()) }
     var failedUris by rememberSaveable { mutableStateOf(emptyList<String>()) }
 
+    // One contract object for the life of this composable. The contract is a key of the launcher's registration,
+    // so a new object on every recomposition unregistered the launcher and registered it again each time the
+    // queue changed; the effect below launches the dialog right after an IO hop, where that could fail.
+    val consentContract = remember { ActivityResultContracts.StartIntentSenderForResult() }
     val consentLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartIntentSenderForResult()
+        contract = consentContract
     ) { result ->
         val batch = awaitingBatchConsent
         val destination = currentDestination

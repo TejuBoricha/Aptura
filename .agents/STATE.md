@@ -35,8 +35,6 @@ copy found elsewhere, such as an old branch or `.agents/MEMORY.md`, as current. 
    Android 14+ selected-photos dialog (`UX-01`), process-kill during a SAF copy (and a running sleep timer,
    `FR-CTRL-009`). Run [DEVICE_CHECKLIST.md](../docs/DEVICE_CHECKLIST.md) before tagging 1.0.
 2. **Release:** signed 1.0 tag when a signing key exists (`SEC-01`). The decoder swap (`LEG-02`, `DEC-025`) is done and AC-3 ships (`DEC-021`, bundle r2). E-AC-3 is held back on purpose, and DTS and TrueHD stay out; re-check DTS on or after 2027-02-07 (`spec/11B`). The legal research behind the decoder set (`spec/11B`) is the project's own, not counsel's.
-3. **Intermittent test, not yet root-caused:** `MediaDeleteFlowTest.singleDelete_needsConsent_whenDeclined_keepsFileAndReportsFailure` failed once on CI and passed on a re-run. Reproduce it with a deliberately slow or ordered seam, as was done for the licences screen, before changing anything; do not just re-run it.
-
 ## Facts that older notes get wrong
 
 - **Sleep timer:** one monotonic deadline (`sleepTimerEndsAtElapsedRealtime`, injected clock) is authoritative; the UI
@@ -70,6 +68,14 @@ copy found elsewhere, such as an old branch or `.agents/MEMORY.md`, as current. 
 - **Playback is tested on a real codec in CI:** `PlaybackSmokeTest` (`connected` job) plays H.264, HEVC and a 558-item queue and
   taps a video in the library. The player never stays silently stuck: 8 s without starting tries the software decoder once,
   then shows "Playback Did Not Start" (DESIGN.md §5.5b). Not checked on a Samsung S24 yet.
+- **Activity-result launchers:** the contract passed to `rememberLauncherForActivityResult` is a key of the launcher's
+  registration, so `remember` it, or every recomposition unregisters and registers the launcher again. `MediaDeleteFlow` and
+  `MediaMoveFlow` launch the system dialog right after `withContext(Dispatchers.IO)`; under the Compose test dispatcher that code
+  resumes on an IO worker thread, where a launch during a re-registration failed as "unregistered launcher" now and then on CI.
+  Their `recomposing_keeps...RegisteredAsItWas` tests check the cause. The other call sites (`Navigation.kt`,
+  `MediaLibraryScreen.kt`, `PlayerScreen.kt`, the trash flow) still pass an inline contract. On 2026-11-15 their launches were read
+  and sit in click callbacks, not after an IO hop (not traced one by one), so they were left alone; remember the contract if
+  one ever launches after an IO hop.
 - **Video access** is read from the system every time the app comes to the front (`rememberVideoAccess`); a grant scans now
   and again after 5 s; Settings has a Video access row (DESIGN.md §4.2c).
 - **Folder identity:** the folder key (`folderPath` in Room) is the folder's path on its storage volume, from `MediaFolderKey`;

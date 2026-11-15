@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.IntentSender
+import android.os.Bundle
 import android.os.Looper
 import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.result.ActivityResultRegistry
@@ -146,6 +147,44 @@ class MediaMoveFlowTest {
         assertEquals("all three are reported moved, each once", batch, results.single().movedUris.sorted())
         assertTrue("none failed", results.single().failedUris.isEmpty())
         assertEquals("the library is told about each move once", batch, movedCallbacks.sorted())
+    }
+
+    /**
+     * The registry's request codes, read through its public save-state hook. A launcher that is registered again is
+     * unmapped and then mapped to a new random code, so a changed code means "registered again".
+     */
+    private fun registeredRequestCodes(registry: ActivityResultRegistry): List<Int> {
+        val state = Bundle()
+        registry.onSaveInstanceState(state)
+        return state.getIntegerArrayList("KEY_COMPONENT_ACTIVITY_REGISTERED_RCS").orEmpty().sorted()
+    }
+
+    /**
+     * The flow launches the permission dialog right after `withContext(Dispatchers.IO)`, and in the Compose test
+     * environment that effect resumes on the IO worker thread. While the launcher was registered again on every
+     * recomposition (a new contract object each time is a key of the registration), that launch could land between
+     * the unregister and the register on the main thread and fail as an unregistered launcher; the same intermittent
+     * failure as in `MediaDeleteFlowTest`. The window is too narrow to hit on demand, so this asserts the cause: a
+     * recomposition must leave the launcher registered exactly as it was.
+     */
+    @Test
+    fun recomposing_keepsThePermissionLauncherRegisteredAsItWas() {
+        val mover = FakeMover(sender = null)
+        val dialog = FakeConsentDialog()
+        val flow = show(mover, dialog)
+        val registeredBefore = registeredRequestCodes(dialog)
+        assertEquals("the flow registers one permission launcher", 1, registeredBefore.size)
+
+        // A move rewrites the queue the flow's effect is keyed on, which recomposes it.
+        val results = CopyOnWriteArrayList<MoveBatchResult>()
+        composeRule.runOnUiThread { flow.moveAll(uris(1), "Movies/Trips") { results += it } }
+        waitForReport(results)
+
+        assertEquals(
+            "a recomposition must not register the permission launcher again",
+            registeredBefore,
+            registeredRequestCodes(dialog)
+        )
     }
 
     // --- Guards: the paths that were right must stay right ---
