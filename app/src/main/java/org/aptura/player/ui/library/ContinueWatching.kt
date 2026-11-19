@@ -27,8 +27,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.aptura.player.theme.ApturaColors
@@ -80,9 +80,9 @@ private fun ContinueWatchingCard(
         modifier = Modifier
             .width(if (compact) COMPACT_CARD_WIDTH else CARD_WIDTH)
             .clip(RoundedCornerShape(16.dp))
-            // One TalkBack stop per card, announced as an action: "Resume Title, 12 min left".
-            .clearAndSetSemantics { contentDescription = "Resume ${card.title}, $remaining" }
             .clickable(onClick = onClick)
+            // One TalkBack stop per card, announced as an action: "Resume Title, 12 min left".
+            .semantics(mergeDescendants = true) { contentDescription = "Resume ${card.title}, $remaining" }
     ) {
         Box(
             modifier = Modifier

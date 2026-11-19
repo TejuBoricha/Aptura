@@ -22,12 +22,14 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.Icon
@@ -165,7 +167,7 @@ internal fun ActionRow(
 
 @Composable
 internal fun NavigationChevron() {
-    Icon(imageVector = Icons.Default.ChevronRight, contentDescription = null, tint = ApturaColors.TextLowEmphasis)
+    Icon(imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = ApturaColors.TextLowEmphasis)
 }
 
 /** A small outlined action (Add, Clear, Restore). The visible pill is compact; the tap area is still 48 dp. */
@@ -260,11 +262,8 @@ internal fun SegmentedPicker(
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
-    val fontScale = LocalDensity.current.fontScale
-    // Segmented button segments have fixed equal-width columns. At 200% font scale,
-    // single-word labels (e.g. "Medium", "Western") exceed column width and truncate with ellipsis.
-    // Scale font size proportionally to guarantee full readability without ellipsis (audit A11Y-08).
-    val effectiveSp = if (fontScale > 1.15f) (14f / (fontScale / 1.15f)).sp else 14.sp
+    val effectiveSp = 14.sp
+    val isRtl = androidx.compose.ui.platform.LocalLayoutDirection.current == androidx.compose.ui.unit.LayoutDirection.Rtl
     val position by animateFloatAsState(
         targetValue = selectedIndex.coerceAtLeast(0).toFloat(),
         animationSpec = spring(dampingRatio = 0.78f, stiffness = Spring.StiffnessMedium),
@@ -278,6 +277,7 @@ internal fun SegmentedPicker(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .height(androidx.compose.foundation.layout.IntrinsicSize.Min)
             .heightIn(min = 54.dp)
             .clip(trackShape)
             .background(ApturaColors.SurfaceRecessed)
@@ -286,9 +286,14 @@ internal fun SegmentedPicker(
                 if (options.isEmpty()) return@drawBehind
                 val pad = inset.toPx()
                 val segment = (size.width - pad * 2) / options.size
+                val x = if (isRtl) {
+                    (size.width - pad) - (position + 1f) * segment
+                } else {
+                    pad + position * segment
+                }
                 drawRoundRect(
                     color = thumbColor.copy(alpha = thumbAlpha),
-                    topLeft = Offset(pad + position * segment, pad),
+                    topLeft = Offset(x, pad),
                     size = Size(segment, size.height - pad * 2),
                     cornerRadius = CornerRadius(12.dp.toPx())
                 )
@@ -309,6 +314,7 @@ internal fun SegmentedPicker(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
+                    .heightIn(min = 48.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .selectable(
                         selected = selected,
@@ -443,6 +449,7 @@ private fun AccentSwatchItem(
 ) {
     Column(
         modifier = Modifier
+            .widthIn(min = 48.dp)
             .clip(RoundedCornerShape(12.dp))
             .selectable(
                 selected = isSelected,
@@ -504,9 +511,8 @@ private fun AccentSwatchItem(
 /** One figure of the library strip: a large tabular number over a small caption. */
 @Composable
 internal fun ReadoutCell(value: String, caption: String, modifier: Modifier = Modifier) {
-    val fontScale = LocalDensity.current.fontScale
-    val valueSp = if (fontScale > 1.15f) (21f / (fontScale / 1.15f)).sp else 21.sp
-    val captionSp = if (fontScale > 1.15f) (10f / (fontScale / 1.15f)).sp else 10.sp
+    val valueSp = 21.sp
+    val captionSp = 10.sp
     Column(
         modifier = modifier.semantics(mergeDescendants = true) { }.padding(vertical = 16.dp, horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally

@@ -144,7 +144,7 @@ internal object ApturaPalettes {
         accentSubtle = accent.lightPrimary.copy(alpha = 0.12f),
         borderSubtle = Color(0x1F0F172A),
         statusSuccess = Color(0xFF087A42),
-        statusWarning = Color(0xFF9A6B00),
+        statusWarning = Color(0xFF805800),
         statusError = Color(0xFFC62828),
         statusInfo = Color(0xFF0B6FA4),
         textHighEmphasis = Color(0xFF111418),

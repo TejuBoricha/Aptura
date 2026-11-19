@@ -471,8 +471,6 @@ internal fun SheetChip(label: String, selected: Boolean, onClick: () -> Unit) {
     val shape = RoundedCornerShape(12.dp)
     Row(
         modifier = Modifier
-            .heightIn(min = 48.dp)
-            .padding(vertical = 6.dp)
             .clip(shape)
             .background(if (selected) ApturaColors.AccentSubtle else ApturaColors.SurfaceElevated2)
             .border(1.dp, if (selected) ApturaColors.AccentPrimary.copy(alpha = 0.6f) else ApturaColors.BorderSubtle, shape)
@@ -481,6 +479,7 @@ internal fun SheetChip(label: String, selected: Boolean, onClick: () -> Unit) {
                 if (!selected) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 onClick()
             }
+            .heightIn(min = 48.dp)
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

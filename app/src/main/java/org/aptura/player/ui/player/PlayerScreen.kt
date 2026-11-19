@@ -916,15 +916,21 @@ fun PlayerScreen(
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
                                 color = ApturaColors.AccentPrimary.copy(alpha = 0.2f),
-                                modifier = Modifier.clickable { onWhyCompatibilityClick() }
+                                modifier = Modifier
+                                    .heightIn(min = 48.dp)
+                                    .clickable { onWhyCompatibilityClick() }
                             ) {
-                                Text(
-                                    text = "Why?",
-                                    style = ApturaTypography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = ApturaColors.AccentPrimary,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                                )
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier.padding(horizontal = 8.dp)
+                                ) {
+                                    Text(
+                                        text = "Why?",
+                                        style = ApturaTypography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = ApturaColors.AccentPrimary
+                                    )
+                                }
                             }
                             Spacer(modifier = Modifier.width(4.dp))
                             IconButton(
@@ -1405,6 +1411,7 @@ fun PlayerScreen(
                                 .clickable(role = Role.Button) {
                                     if (sleepExpired) onExtendSleepTimer(5) else onAdvancedSheetVisible(true)
                                 }
+                                .heightIn(min = 48.dp)
                                 .padding(vertical = 2.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp)

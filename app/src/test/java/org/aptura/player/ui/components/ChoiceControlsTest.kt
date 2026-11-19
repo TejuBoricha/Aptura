@@ -1,12 +1,17 @@
 package org.aptura.player.ui.components
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
@@ -17,6 +22,7 @@ import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.height
 import org.aptura.player.theme.ApturaTheme
@@ -86,6 +92,50 @@ class ChoiceControlsTest {
             val bounds = composeRule.onNode(isRadioButton and androidx.compose.ui.test.hasText(it)).getUnclippedBoundsInRoot()
             assertTrue("$it is ${bounds.height} tall", bounds.height >= 48.dp)
         }
+    }
+
+    @Test
+    fun tonalSegmentedPicker_insideScrollableColumn_maintainsAtLeast48dpHeight() {
+        composeRule.setContent {
+            ApturaTheme {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    TonalSegmentedPicker(
+                        options = listOf("Compact", "Comfortable", "Large"),
+                        selectedIndex = 1,
+                        onSelect = {},
+                        label = "Size"
+                    )
+                }
+            }
+        }
+        composeRule.waitForIdle()
+        listOf("Compact", "Comfortable", "Large").forEach {
+            val bounds = composeRule.onNode(isRadioButton and androidx.compose.ui.test.hasText(it)).getUnclippedBoundsInRoot()
+            assertTrue("$it in scrollable container is ${bounds.height} tall", bounds.height >= 48.dp)
+        }
+    }
+
+    @Test
+    fun tonalSegmentedPicker_inRtlLayout_retainsTouchTargetAndSelection() {
+        var chosen by mutableIntStateOf(0)
+        composeRule.setContent {
+            ApturaTheme {
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                    TonalSegmentedPicker(
+                        options = listOf("Option 1", "Option 2"),
+                        selectedIndex = chosen,
+                        onSelect = { chosen = it },
+                        label = "RTL Picker"
+                    )
+                }
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Option 1").assertIsSelected()
+        composeRule.onNodeWithText("Option 2").assertIsNotSelected()
+        composeRule.onNodeWithText("Option 2").performClick()
+        assertEquals(1, chosen)
+        composeRule.onNodeWithText("Option 2").assertIsSelected()
     }
 
     @Test

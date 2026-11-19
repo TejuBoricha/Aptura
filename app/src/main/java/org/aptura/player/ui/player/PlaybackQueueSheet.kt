@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -30,6 +31,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -49,12 +51,15 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -65,11 +70,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.aptura.player.domain.model.DomainMediaItem
@@ -328,11 +335,18 @@ fun PlaybackQueueContent(
                     )
                 }
             } else {
+                val listState = rememberLazyListState()
+                LaunchedEffect(currentIndex) {
+                    if (currentIndex in queueItems.indices) {
+                        listState.animateScrollToItem(currentIndex)
+                    }
+                }
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f, fill = false)
-                        .height(380.dp)
+                        .heightIn(max = 380.dp)
                         .bottomSheetScrollInterceptor(),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
@@ -392,6 +406,8 @@ private fun QueueItemRow(
         label = "queue_row_bg"
     )
     val borderColor = if (isPlaying) ApturaColors.AccentPrimary else ApturaColors.BorderSubtle
+    val screenWidthDp = LocalConfiguration.current.screenWidthDp
+    val isCompact = screenWidthDp < 400
 
     Surface(
         color = backgroundColor,
@@ -402,9 +418,9 @@ private fun QueueItemRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 6.dp),
+                .padding(horizontal = if (isCompact) 4.dp else 8.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(if (isCompact) 2.dp else 6.dp)
         ) {
             // Main clickable item target (plays/jumps to item)
             Row(
@@ -416,15 +432,15 @@ private fun QueueItemRow(
                         onClickLabel = "Play ${item.title}",
                         onClick = onClick
                     )
-                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                    .padding(horizontal = if (isCompact) 2.dp else 4.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(if (isCompact) 6.dp else 10.dp)
             ) {
                 // Index or Playing Icon Indicator
                 if (isPlaying) {
                     Box(
                         modifier = Modifier
-                            .size(28.dp)
+                            .size(if (isCompact) 24.dp else 28.dp)
                             .clip(CircleShape)
                             .background(ApturaColors.AccentSubtle),
                         contentAlignment = Alignment.Center
@@ -433,7 +449,7 @@ private fun QueueItemRow(
                             imageVector = Icons.Default.Equalizer,
                             contentDescription = "Now playing",
                             tint = ApturaColors.AccentPrimary,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(if (isCompact) 14.dp else 16.dp)
                         )
                     }
                 } else {
@@ -445,14 +461,14 @@ private fun QueueItemRow(
                             fontWeight = FontWeight.Medium,
                             fontFeatureSettings = "tnum"
                         ),
-                        modifier = Modifier.width(28.dp)
+                        modifier = Modifier.width(if (isCompact) 20.dp else 28.dp)
                     )
                 }
 
                 // The video's own frame: a column of identical file glyphs gave no way to recognise an episode at a glance.
                 Box(
                     modifier = Modifier
-                        .width(72.dp)
+                        .width(if (isCompact) 54.dp else 72.dp)
                         .aspectRatio(16f / 9f)
                         .clip(RoundedCornerShape(8.dp))
                         .background(ApturaColors.SurfaceElevated3)

@@ -154,6 +154,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.LayoutDirection
@@ -253,9 +255,19 @@ fun MediaLibraryScreen(
     modifier: Modifier = Modifier
 ) {
     var undoPrompt by remember { mutableStateOf<LibraryUndoPrompt?>(null) }
+    val a11yContext = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(undoPrompt?.token) {
         if (undoPrompt != null) {
-            kotlinx.coroutines.delay(6000)
+            val a11yManager = a11yContext.getSystemService(android.content.Context.ACCESSIBILITY_SERVICE) as? android.view.accessibility.AccessibilityManager
+            val timeout = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                a11yManager?.getRecommendedTimeoutMillis(
+                    6000,
+                    android.view.accessibility.AccessibilityManager.FLAG_CONTENT_TEXT or android.view.accessibility.AccessibilityManager.FLAG_CONTENT_CONTROLS
+                )?.toLong() ?: 6000L
+            } else {
+                6000L
+            }
+            kotlinx.coroutines.delay(timeout)
             undoPrompt = null
         }
     }
@@ -857,7 +869,8 @@ private fun MediaLibraryContentView(
                             onExpand = { sidebarExpanded = true },
                             onOpenFilePicker = onOpenFilePicker,
                             onRefresh = onRefresh,
-                            onSettingsClick = onSettingsClick
+                            onSettingsClick = onSettingsClick,
+                            onFolderSelected = onFolderSelected
                         )
                     }
                 }
@@ -1017,7 +1030,8 @@ private fun MediaLibraryContentView(
                                         containerColor = ApturaColors.SurfaceElevated2,
                                         shape = RoundedCornerShape(16.dp)
                                     ) {
-                                        val allSelected = selectedItems.size == state.videos.size
+                                        val selectableVideos = state.videos.filter { !it.isMissing }
+                                        val allSelected = selectableVideos.isNotEmpty() && selectedItems.size >= selectableVideos.size
                                         ApturaMenuItem(
                                             text = if (allSelected) "Clear" else "Select all",
                                             icon = if (allSelected) Icons.Default.Close else Icons.Default.Check,
@@ -1026,7 +1040,7 @@ private fun MediaLibraryContentView(
                                                 selectedUris = if (allSelected) {
                                                     emptySet()
                                                 } else {
-                                                    state.videos.mapTo(mutableSetOf()) { it.uri }
+                                                    selectableVideos.mapTo(mutableSetOf()) { it.uri }
                                                 }
                                             }
                                         )
@@ -1221,6 +1235,7 @@ private fun MediaLibraryContentView(
             VideoCardActions(
                 onClick = { card ->
                     if (currentSelectedUris.isNotEmpty()) {
+                        if (card.isMissing) return@VideoCardActions
                         selectedUris = if (card.uri in currentSelectedUris) {
                             currentSelectedUris - card.uri
                         } else {
@@ -1231,6 +1246,7 @@ private fun MediaLibraryContentView(
                     }
                 },
                 onLongClick = { card ->
+                    if (card.isMissing) return@VideoCardActions
                     selectedUris = if (card.uri in currentSelectedUris) {
                         currentSelectedUris
                     } else {
@@ -1822,7 +1838,9 @@ private fun LibraryUndoSnackbar(
         shape = RoundedCornerShape(14.dp),
         border = BorderStroke(1.dp, ApturaColors.BorderSubtle),
         shadowElevation = 6.dp,
-        modifier = modifier.widthIn(max = 460.dp)
+        modifier = modifier
+            .widthIn(max = 460.dp)
+            .semantics { liveRegion = LiveRegionMode.Polite }
     ) {
         Row(
             modifier = Modifier

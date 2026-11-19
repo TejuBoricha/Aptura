@@ -101,7 +101,7 @@ private fun ApturaPalette.toColorScheme() = if (isDark) {
         surfaceContainerHighest = surfaceElevated3,
         outline = textLowEmphasis,
         error = statusError,
-        onError = textHighEmphasis
+        onError = Color.Black
     )
 } else {
     lightColorScheme(

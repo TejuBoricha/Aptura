@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -33,10 +35,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -136,13 +145,40 @@ internal fun SpeedRail(
         }
     }
 
-    Column(modifier = modifier.fillMaxWidth()) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(railHeight)
-                .testTag("speed_rail")
-                .semantics {
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+        Column(modifier = modifier.fillMaxWidth()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(railHeight)
+                    .testTag("speed_rail")
+                    .focusable()
+                    .onKeyEvent { event ->
+                        if (event.type == KeyEventType.KeyDown) {
+                            when (event.key) {
+                                Key.DirectionLeft -> {
+                                    if (currentLocalIndex > 0) {
+                                        val newIndex = currentLocalIndex - 1
+                                        localIndex = newIndex
+                                        currentOnSelect(speeds[newIndex])
+                                        scope.launch { needle.animateTo(SpeedRailMath.fractionForIndex(newIndex, speeds.size), needleSpring) }
+                                        true
+                                    } else false
+                                }
+                                Key.DirectionRight -> {
+                                    if (currentLocalIndex < speeds.size - 1) {
+                                        val newIndex = currentLocalIndex + 1
+                                        localIndex = newIndex
+                                        currentOnSelect(speeds[newIndex])
+                                        scope.launch { needle.animateTo(SpeedRailMath.fractionForIndex(newIndex, speeds.size), needleSpring) }
+                                        true
+                                    } else false
+                                }
+                                else -> false
+                            }
+                        } else false
+                    }
+                    .semantics {
                     contentDescription = "$label, $firstLabel to $lastLabel"
                     stateDescription = valueLabel
                     progressBarRangeInfo = ProgressBarRangeInfo(
@@ -210,7 +246,7 @@ internal fun SpeedRail(
         ) {
             // Read here, not in the draw lambda: tokens belong to the theme this rail is composed in.
             val accent = ApturaColors.AccentPrimary
-            val hairline = ApturaColors.BorderSubtle
+            val hairline = ApturaColors.ControlTrack
             val onAccent = ApturaColors.TextOnAccent
             val isLightSurface = ApturaColors.SurfaceBase.luminance() > 0.5f
             Canvas(modifier = Modifier.fillMaxSize()) {
@@ -309,4 +345,5 @@ internal fun SpeedRail(
             )
         }
     }
+}
 }

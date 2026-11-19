@@ -215,7 +215,8 @@ internal fun LibraryCompactRail(
     onRefresh: () -> Unit,
     onSettingsClick: () -> Unit,
     modifier: Modifier = Modifier,
-    shortWindow: Boolean = false
+    shortWindow: Boolean = false,
+    onFolderSelected: ((String?) -> Unit)? = null
 ) {
     val total = state.libraryVideoCount.takeIf { it > 0 } ?: state.totalCount
     // 88 dp cannot hold a wordmark or navigational labels at 200% type: "APTURA" wraps to two lines and
@@ -264,15 +265,15 @@ internal fun LibraryCompactRail(
         }
     ) {
         NavigationRailItem(
-            selected = true,
-            onClick = { },
+            selected = state.selectedFolder == null,
+            onClick = { onFolderSelected?.invoke(null) },
             icon = { Icon(Icons.Default.VideoLibrary, contentDescription = "Videos") },
             label = if (showLabels) {
                 { Text("Videos", style = ApturaTypography.labelSmall) }
             } else {
                 null
             },
-            colors = railItemColors(selected = true)
+            colors = railItemColors(selected = state.selectedFolder == null)
         )
         NavigationRailItem(
             selected = false,
@@ -287,6 +288,7 @@ internal fun LibraryCompactRail(
         )
         NavigationRailItem(
             selected = false,
+            enabled = !state.isRefreshing,
             onClick = onRefresh,
             icon = {
                 if (state.isRefreshing) {

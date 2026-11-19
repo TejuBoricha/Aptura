@@ -68,10 +68,8 @@ fun TonalSegmentedPicker(
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
-    val fontScale = androidx.compose.ui.platform.LocalDensity.current.fontScale
-    // Proportionally scale down font size when accessibility font scale is enlarged (> 1.15f)
-    // so that single-word options (e.g. "Comfortable") fit within column segments without ellipsis.
-    val effectiveSp = if (fontScale > 1.15f) (14f / (fontScale / 1.15f)).sp else 14.sp
+    val effectiveSp = 14.sp
+    val isRtl = androidx.compose.ui.platform.LocalLayoutDirection.current == androidx.compose.ui.unit.LayoutDirection.Rtl
     val position by animateFloatAsState(
         targetValue = selectedIndex.coerceAtLeast(0).toFloat(),
         animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMedium),
@@ -85,6 +83,7 @@ fun TonalSegmentedPicker(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .height(androidx.compose.foundation.layout.IntrinsicSize.Min)
             .heightIn(min = 48.dp)
             .clip(trackShape)
             .background(ApturaColors.SurfaceRecessed)
@@ -93,7 +92,12 @@ fun TonalSegmentedPicker(
                 if (options.isEmpty()) return@drawBehind
                 val inset = 3.dp.toPx()
                 val segment = size.width / options.size
-                val topLeft = Offset(position * segment + inset, inset)
+                val x = if (isRtl) {
+                    size.width - (position + 1f) * segment + inset
+                } else {
+                    position * segment + inset
+                }
+                val topLeft = Offset(x, inset)
                 val thumb = Size(segment - inset * 2, size.height - inset * 2)
                 val corner = CornerRadius(11.dp.toPx())
                 // The sheet's own colour first, so the tint reads as a tint of the page and not as a smudge on the track.
@@ -116,6 +120,7 @@ fun TonalSegmentedPicker(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
+                    .heightIn(min = 48.dp)
                     .selectable(
                         selected = selected,
                         role = Role.RadioButton,

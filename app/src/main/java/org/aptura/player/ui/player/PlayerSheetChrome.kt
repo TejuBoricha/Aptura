@@ -144,7 +144,7 @@ internal fun PlayerSheetTabs(
                 Row(
                     modifier = Modifier
                         .weight(1f)
-                        .heightIn(min = 44.dp)
+                        .heightIn(min = 48.dp)
                         .clip(RoundedCornerShape(10.dp))
                         .background(if (isSelected) ApturaColors.SurfaceElevated3 else Color.Transparent)
                         .semantics {
