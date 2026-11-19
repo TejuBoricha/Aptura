@@ -151,4 +151,15 @@ class BackgroundAudioPlaybackTest {
 
         assertFalse("Must not re-disable or flag video if already disabled", shouldDisable)
     }
+
+    @Test
+    fun backgroundAudio_whenActivityRecreated_videoDisabledForBackgroundPersistsOnPlayerManager() {
+        PlayerManager.release()
+        assertFalse(PlayerManager.videoDisabledForBackground)
+        PlayerManager.videoDisabledForBackground = true
+        // PlayerManager retains flag across Activity destruction
+        assertTrue(PlayerManager.videoDisabledForBackground)
+        PlayerManager.release()
+        assertFalse(PlayerManager.videoDisabledForBackground)
+    }
 }

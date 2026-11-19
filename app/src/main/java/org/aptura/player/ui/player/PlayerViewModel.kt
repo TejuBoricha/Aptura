@@ -124,6 +124,8 @@ class PlayerViewModel(
     private var lockHintJob: Job? = null
     private var audioSyncJob: Job? = null
     private var subtitleSyncJob: Job? = null
+    private var hasPendingAudioSync: Boolean = false
+    private var hasPendingSubtitleSync: Boolean = false
     private var autoAdvanceJob: Job? = null
     private var bookmarksJob: Job? = null
     private var lastPersistedPositionMs: Long = 0L
@@ -1140,10 +1142,7 @@ class PlayerViewModel(
         viewModelScope.launch(dispatcher + errorHandler) {
             playbackController.setPlaybackSpeed(speed)
             _uiState.update {
-                it.copy(
-                    playbackSpeed = speed,
-                    activeSheet = if (it.activeSheet == PlayerSheet.Speed) null else it.activeSheet
-                )
+                it.copy(playbackSpeed = speed)
             }
             persistPlaybackPreferences()
             scheduleAutoHide()
@@ -1279,20 +1278,24 @@ class PlayerViewModel(
      */
     fun setSubtitleDelay(delayMs: Long) {
         _uiState.update { it.copy(subtitleDelayMs = delayMs) }
+        hasPendingSubtitleSync = true
         subtitleSyncJob?.cancel()
         subtitleSyncJob = viewModelScope.launch(dispatcher + errorHandler) {
             delay(SYNC_APPLY_DEBOUNCE_MS)
             playbackController.setSubtitleDelay(delayMs)
+            hasPendingSubtitleSync = false
             persistPlaybackPreferences()
         }
     }
 
     fun setAudioDelay(delayMs: Long) {
         _uiState.update { it.copy(audioDelayMs = delayMs, audioDelayOverridden = true) }
+        hasPendingAudioSync = true
         audioSyncJob?.cancel()
         audioSyncJob = viewModelScope.launch(dispatcher + errorHandler) {
             delay(SYNC_APPLY_DEBOUNCE_MS)
             playbackController.setAudioDelay(delayMs)
+            hasPendingAudioSync = false
             persistPlaybackPreferences()
         }
     }
@@ -1304,6 +1307,7 @@ class PlayerViewModel(
     fun applyAudioDelayToAllVideos() {
         val targetDelayMs = _uiState.value.audioDelayMs
         audioSyncJob?.cancel()
+        hasPendingAudioSync = false
         defaultAudioDelayMs = targetDelayMs
         _uiState.update { it.copy(audioDelayOverridden = false) }
         viewModelScope.launch(dispatcher + errorHandler) {
@@ -1317,6 +1321,7 @@ class PlayerViewModel(
     /** Clears this video's audio sync override and reverts to the global Settings default (ISSUE-012). */
     fun resetAudioDelayToDefault() {
         audioSyncJob?.cancel()
+        hasPendingAudioSync = false
         val targetDelayMs = defaultAudioDelayMs
         _uiState.update { it.copy(audioDelayMs = targetDelayMs, audioDelayOverridden = false) }
         viewModelScope.launch(dispatcher + errorHandler) {
@@ -1703,9 +1708,11 @@ class PlayerViewModel(
      * [persistScope] instead, which is the scope built to outlive the screen.
      */
     private fun flushPendingSyncEdits() {
-        val audioPending = audioSyncJob?.isActive == true
-        val subtitlePending = subtitleSyncJob?.isActive == true
+        val audioPending = hasPendingAudioSync
+        val subtitlePending = hasPendingSubtitleSync
         if (!audioPending && !subtitlePending) return
+        hasPendingAudioSync = false
+        hasPendingSubtitleSync = false
         val uri = _uiState.value.videoUri
         if (uri.isBlank()) return
         val state = _uiState.value

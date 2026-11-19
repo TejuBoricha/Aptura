@@ -21,6 +21,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
@@ -92,6 +93,7 @@ class Media3PlaybackController(
     elapsedRealtime: () -> Long = { android.os.SystemClock.elapsedRealtime() }
 ) : PlaybackController {
 
+    @Volatile
     var currentDecoderStrategy: Int = initialDecoderStrategy
         private set
 
@@ -714,6 +716,8 @@ class Media3PlaybackController(
         } else {
             startWatchdog = null
             stalledReason = facts
+            _isCompatibilityMode.value = false
+            _compatibilityNotice.value = null
             updatePlaybackState()
             updatePlaybackStats()
         }
@@ -1412,8 +1416,10 @@ class Media3PlaybackController(
         stalledReason = null
         startWatchdog?.cancel()
         startWatchdog = null
+        player.stop()
         player.prepare()
         player.play()
+        updatePlaybackState()
         updateStartWatch()
     }
 
@@ -1446,14 +1452,21 @@ class Media3PlaybackController(
             .build()
     }
 
-    override suspend fun release() {
+    fun releaseNow() {
         sleepTimer.close()
         positionTickerJob?.cancel()
         positionTickerJob = null
+        startWatchdog?.cancel()
+        startWatchdog = null
+        scope.cancel()
         player.removeListener(playerListener)
         (player as? ExoPlayer)?.removeAnalyticsListener(analyticsListener)
         player.release()
         _playbackState.value = DomainPlaybackState.Idle
+    }
+
+    override suspend fun release() {
+        releaseNow()
     }
 
     private companion object {

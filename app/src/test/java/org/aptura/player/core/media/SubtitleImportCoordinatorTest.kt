@@ -250,4 +250,33 @@ class SubtitleImportCoordinatorTest {
         assertNotNull(toastMessage)
         assertEquals(Toast.LENGTH_LONG, toastDuration)
     }
+
+    @Test
+    fun importSubtitle_forwardsOverrideCharsetToValidator() = runTest {
+        val uri = Uri.parse("content://media/external/file/sub_cp1252.srt")
+        val expectedCharset = Charsets.ISO_8859_1
+        var receivedCharset: java.nio.charset.Charset? = null
+
+        val coordinator = DefaultSubtitleImportCoordinator(
+            validator = { _, _, charset ->
+                receivedCharset = charset
+                SubtitleValidationResult.Valid(
+                    displayName = "sub_cp1252.srt",
+                    mimeType = "application/x-subrip",
+                    formatDescription = "SubRip"
+                )
+            }
+        )
+
+        coordinator.importSubtitle(
+            context = context,
+            uri = uri,
+            overrideCharset = expectedCharset,
+            onExternalSubtitleSelected = { _, _, _ -> },
+            showToast = { _, _ -> },
+            performHaptic = { }
+        )
+
+        assertEquals(expectedCharset, receivedCharset)
+    }
 }

@@ -983,6 +983,8 @@ class PlayerViewModelTest {
 
         assertEquals(1.5f, controller.lastSpeed)
         assertEquals(1.5f, viewModel.uiState.value.playbackSpeed)
+        assertTrue(viewModel.uiState.value.isSpeedSheetVisible)
+        viewModel.setSpeedSheetVisible(false)
         assertFalse(viewModel.uiState.value.isSpeedSheetVisible)
         viewModel.clearForTesting()
     }
@@ -1184,9 +1186,9 @@ class PlayerViewModelTest {
 
         viewModel.setAudioDelay(-400L)
         runCurrent()
-        viewModel.clearForTesting()
-        // ViewModel.clear() cancels viewModelScope right after onCleared(); the test has to do it by hand.
+        // Real AndroidX clear() cancels viewModelScope BEFORE calling onCleared().
         viewModel.viewModelScope.cancel()
+        viewModel.clearForTesting()
         advanceTimeBy(PlayerViewModel.SYNC_APPLY_DEBOUNCE_MS)
         runCurrent()
 

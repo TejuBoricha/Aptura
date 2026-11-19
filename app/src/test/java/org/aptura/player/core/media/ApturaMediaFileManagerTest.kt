@@ -114,6 +114,34 @@ class ApturaMediaFileManagerTest {
         assertTrue(java.io.File(directory, "Holiday.mp4").exists())
     }
 
+    @Test
+    fun renamingALocalFileFailsWhenTargetAlreadyExists() {
+        val directory = java.io.File(context.cacheDir, "rename-test-exists").apply { mkdirs() }
+        val source = java.io.File(directory, "Source.mp4").apply { writeText("source content") }
+        val existing = java.io.File(directory, "Existing.mp4").apply { writeText("original content") }
+
+        val result = ApturaMediaFileManager.renameMediaFile(
+            context = context,
+            uri = Uri.fromFile(source),
+            newNameWithExt = "Existing"
+        )
+
+        assertTrue(result is MediaRenameResult.Failed)
+        assertEquals("original content", existing.readText())
+        assertEquals("source content", source.readText())
+    }
+
+    @Test
+    fun renamingWithIllegalPathCharactersOrTraversalFails() {
+        val directory = java.io.File(context.cacheDir, "rename-test-traversal").apply { mkdirs() }
+        val source = java.io.File(directory, "Clip.mp4").apply { writeText("fixture") }
+
+        assertTrue(ApturaMediaFileManager.renameMediaFile(context, Uri.fromFile(source), "../escaped") is MediaRenameResult.Failed)
+        assertTrue(ApturaMediaFileManager.renameMediaFile(context, Uri.fromFile(source), "sub/dir") is MediaRenameResult.Failed)
+        assertTrue(ApturaMediaFileManager.renameMediaFile(context, Uri.fromFile(source), "sub\\dir") is MediaRenameResult.Failed)
+        assertTrue(ApturaMediaFileManager.renameMediaFile(context, Uri.fromFile(source), "bad\u0000name") is MediaRenameResult.Failed)
+    }
+
     private fun assertRename(requested: String, expected: String) {
         val uri = Uri.parse("content://$AUTHORITY/document/Holiday.mp4")
         provider.renamedUri = Uri.parse("content://$AUTHORITY/document/$expected")

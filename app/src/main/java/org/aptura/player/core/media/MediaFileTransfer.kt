@@ -130,12 +130,13 @@ object MediaFileTransfer {
                 } catch (_: IllegalArgumentException) {
                     null
                 }
-                if (sourceDocumentId != null &&
-                    (sourceDocumentId == destinationId ||
-                        sourceDocumentId.startsWith("$destinationId/") ||
-                        sourceDocumentId.startsWith("$destinationId:"))
-                ) {
-                    throw IOException("Choose a different destination folder.")
+                if (sourceDocumentId != null) {
+                    val immediateParent = parentDocumentIdOf(sourceDocumentId)
+                    if (sourceDocumentId == destinationId ||
+                        (immediateParent != null && (immediateParent == destinationId || immediateParent.trimEnd(':') == destinationId.trimEnd(':')))
+                    ) {
+                        throw IOException("Choose a different destination folder.")
+                    }
                 }
                 val name = displayName(resolver, source)
                 val mimeType = resolver.getType(source) ?: mimeTypeFromName(name)
@@ -167,6 +168,7 @@ object MediaFileTransfer {
                 }
                 // A move deletes the original once this returns, so it must be shown complete first (audit DATA-06).
                 verifyCopy(resolver, createdUri, written = fileBytes, expected = sizes[sourceString] ?: 0L)
+                created = null
                 copied += sourceString
                 completed++
                 notify { onSourceCopied(sourceString, createdUri) }
@@ -325,6 +327,7 @@ object MediaFileTransfer {
                     resolver.update(createdUri, values, null, null)
                 }
 
+                created = null
                 copied += sourceString
                 completed++
                 notify { onSourceCopied(sourceString, createdUri) }
@@ -340,6 +343,16 @@ object MediaFileTransfer {
             }
         }
         return MediaTransferResult(copied, failed)
+    }
+
+    internal fun parentDocumentIdOf(documentId: String): String? {
+        return if ('/' in documentId) {
+            documentId.substringBeforeLast('/')
+        } else if (':' in documentId) {
+            documentId.substringBefore(':') + ":"
+        } else {
+            null
+        }
     }
 
     internal fun relativePathFor(folderPath: String): String {
@@ -391,8 +404,11 @@ object MediaFileTransfer {
         }
         val path = destination.removePrefix("file://")
         val available = try {
-            val file = File(path)
-            if (file.exists()) file.usableSpace else Environment.getExternalStorageDirectory().usableSpace
+            var candidate: File? = File(path)
+            while (candidate != null && !candidate.exists()) {
+                candidate = candidate.parentFile
+            }
+            candidate?.usableSpace
         } catch (_: Exception) {
             null
         }

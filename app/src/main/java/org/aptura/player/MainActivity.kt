@@ -44,9 +44,6 @@ class MainActivity : ComponentActivity() {
     /** Mirrors the "Background Audio Playback" setting so [onStop] can honour it synchronously. */
     internal var backgroundAudioEnabled = true
 
-    /** True when video track was disabled in [onStop] during background audio playback, to re-enable on [onStart]. */
-    internal var videoDisabledForBackground = false
-
     /** True only while the active navigation destination is [PlayerKey]. */
     private var isPlayerRouteActive = false
 
@@ -127,8 +124,8 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         PlayerManager.ensureServiceRunning(this)
-        if (videoDisabledForBackground) {
-            videoDisabledForBackground = false
+        if (PlayerManager.videoDisabledForBackground) {
+            PlayerManager.videoDisabledForBackground = false
             lifecycleScope.launch {
                 PlayerManager.activeController?.setVideoEnabled(true)
             }
@@ -150,7 +147,7 @@ class MainActivity : ComponentActivity() {
             isInPictureInPictureMode = isInPictureInPictureMode
         )
         if (shouldDisable) {
-            videoDisabledForBackground = true
+            PlayerManager.videoDisabledForBackground = true
             lifecycleScope.launch {
                 controller?.setVideoEnabled(false)
             }

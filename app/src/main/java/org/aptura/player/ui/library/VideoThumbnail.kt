@@ -80,6 +80,7 @@ internal fun VideoThumbnail(
         LaunchedEffect(key) {
             val inMemory = ThumbnailBitmapCache[key]
             if (inMemory != null) {
+                alpha?.snapTo(1f)
                 bitmap = inMemory
                 return@LaunchedEffect
             }

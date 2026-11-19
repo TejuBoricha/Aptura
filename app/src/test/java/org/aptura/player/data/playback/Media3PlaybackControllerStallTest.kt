@@ -396,4 +396,25 @@ class Media3PlaybackControllerStallTest {
         assertTrue("retryPlayback starts playback", player.playWhenReady)
         assertEquals("surface remains intact after retry", 0, player.clearVideoSurfaceCalls)
     }
+
+    @Test
+    fun retryPlayback_afterStall_stopsAndPreparesPlayer() = runTest(dispatcher) {
+        val player = StuckPlayer()
+        val controller = controllerWith(player)
+        controller.setDecoderStrategy(1)
+        controller.playQueue(listOf(video), 0)
+        runCurrent()
+
+        advanceTimeBy(window)
+        runCurrent()
+        assertTrue(controller.playbackState.value is DomainPlaybackState.Error)
+
+        val stopsBefore = player.stops
+        val preparesBefore = player.prepares
+        controller.retryPlayback()
+        runCurrent()
+
+        assertEquals("retryPlayback must stop the player to reset ExoPlayer from buffering", stopsBefore + 1, player.stops)
+        assertEquals("retryPlayback must prepare the player", preparesBefore + 1, player.prepares)
+    }
 }
