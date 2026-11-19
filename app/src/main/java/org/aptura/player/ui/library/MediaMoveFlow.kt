@@ -181,7 +181,21 @@ internal fun rememberMediaMoveFlow(onMoved: (uri: String) -> Unit, mover: InPlac
             }
             is MoveOutcome.NeedsConsent -> {
                 awaitingConsentUri = uri
-                consentLauncher.launch(IntentSenderRequest.Builder(outcome.intentSender).build())
+                try {
+                    consentLauncher.launch(IntentSenderRequest.Builder(outcome.intentSender).build())
+                } catch (_: Exception) {
+                    awaitingConsentUri = null
+                    val newFailed = failedUris + uri
+                    failedUris = newFailed
+                    Toast.makeText(context, "Could not request Android's move confirmation.", Toast.LENGTH_LONG).show()
+                    val remaining = moveQueue.dropWhile { it != uri }.drop(1)
+                    moveQueue = remaining
+                    if (remaining.isEmpty()) {
+                        val callback = completionCallback
+                        completionCallback = null
+                        callback?.invoke(MoveBatchResult(movedUris, newFailed, currentDestination))
+                    }
+                }
             }
             is MoveOutcome.Failed -> {
                 failedUris = failedUris + uri
@@ -213,10 +227,21 @@ internal fun rememberMediaMoveFlow(onMoved: (uri: String) -> Unit, mover: InPlac
                 ) {
                     val sender = mover.requestBatchWriteConsent(uniqueUris)
                     if (sender != null) {
-                        awaitingBatchConsent = uniqueUris
-                        moveQueue = uniqueUris
-                        consentLauncher.launch(IntentSenderRequest.Builder(sender).build())
-                        return@MediaMoveFlow
+                        try {
+                            awaitingBatchConsent = uniqueUris
+                            moveQueue = uniqueUris
+                            consentLauncher.launch(IntentSenderRequest.Builder(sender).build())
+                            return@MediaMoveFlow
+                        } catch (_: Exception) {
+                            awaitingBatchConsent = emptyList()
+                            moveQueue = emptyList()
+                            failedUris = uniqueUris
+                            val callback = completionCallback
+                            completionCallback = null
+                            callback?.invoke(MoveBatchResult(emptyList(), uniqueUris, destinationFolder))
+                            Toast.makeText(context, "Could not request Android's move confirmation.", Toast.LENGTH_LONG).show()
+                            return@MediaMoveFlow
+                        }
                     }
                 }
                 moveQueue = uniqueUris

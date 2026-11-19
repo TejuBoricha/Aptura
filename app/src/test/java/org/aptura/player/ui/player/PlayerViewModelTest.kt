@@ -3707,4 +3707,113 @@ class PlayerViewModelTest {
 
         viewModel.clearForTesting()
     }
+
+    @Test
+    fun scheduleAutoHide_inAudioOnlyMode_neverHidesControls() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        repository.items[sampleVideo.uri] = sampleVideo
+
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+        viewModel.playQueue(listOf(sampleVideo), 0, audioOnly = true)
+        runCurrent()
+
+        controller._playbackState.value = DomainPlaybackState.Ready(
+            positionMs = 10_000L,
+            durationMs = sampleVideo.durationMs,
+            isPlaying = true
+        )
+        runCurrent()
+        assertTrue(viewModel.uiState.value.isControlsVisible)
+
+        advanceTimeBy(6000L) // Past the 5000ms autoHideDelayMs
+        runCurrent()
+
+        assertTrue("Controls must remain visible in Audio-only mode", viewModel.uiState.value.isControlsVisible)
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun abRepeat_doesNotLoopWhilePausedOrScrubbing() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        viewModel.loadAndPlay(sampleVideo.uri)
+        runCurrent()
+
+        controller._playbackState.value = DomainPlaybackState.Ready(
+            positionMs = 10_000L,
+            durationMs = sampleVideo.durationMs,
+            isPlaying = true
+        )
+        runCurrent()
+        viewModel.setAbPointA()
+
+        controller._playbackState.value = DomainPlaybackState.Ready(
+            positionMs = 25_000L,
+            durationMs = sampleVideo.durationMs,
+            isPlaying = true
+        )
+        runCurrent()
+        viewModel.setAbPointB()
+        assertTrue(viewModel.uiState.value.abRepeat.isLooping)
+
+        controller.lastSeekPosition = -1L
+
+        // Paused at 26_000ms -> should not seek to Point A
+        controller._playbackState.value = DomainPlaybackState.Ready(
+            positionMs = 26_000L,
+            durationMs = sampleVideo.durationMs,
+            isPlaying = false
+        )
+        runCurrent()
+        assertEquals(-1L, controller.lastSeekPosition)
+
+        // Scrubbing while playing -> should not seek to Point A
+        viewModel.onScrubStart(26_000L)
+        controller._playbackState.value = DomainPlaybackState.Ready(
+            positionMs = 26_000L,
+            durationMs = sampleVideo.durationMs,
+            isPlaying = true
+        )
+        runCurrent()
+        assertEquals(-1L, controller.lastSeekPosition)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun abRepeat_loopsBackToPointAOnPlaybackEnded() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        viewModel.loadAndPlay(sampleVideo.uri)
+        runCurrent()
+
+        controller._playbackState.value = DomainPlaybackState.Ready(
+            positionMs = 10_000L,
+            durationMs = sampleVideo.durationMs,
+            isPlaying = true
+        )
+        runCurrent()
+        viewModel.setAbPointA()
+
+        controller._playbackState.value = DomainPlaybackState.Ready(
+            positionMs = 25_000L,
+            durationMs = sampleVideo.durationMs,
+            isPlaying = true
+        )
+        runCurrent()
+        viewModel.setAbPointB()
+        assertTrue(viewModel.uiState.value.abRepeat.isLooping)
+
+        controller.lastSeekPosition = -1L
+        controller._playbackState.value = DomainPlaybackState.Ended(durationMs = 25_000L)
+        runCurrent()
+
+        assertEquals(10_000L, controller.lastSeekPosition)
+        viewModel.clearForTesting()
+    }
 }

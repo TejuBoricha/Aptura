@@ -424,7 +424,8 @@ class PlayerViewModel(
                         }
                         val ab = _uiState.value.abRepeat
                         if (ab.isLooping && ab.pointA != null && ab.pointB != null &&
-                            (state.positionMs >= ab.pointB || state.positionMs < ab.pointA)
+                            state.isPlaying && !_uiState.value.isScrubbing &&
+                            state.positionMs >= ab.pointB
                         ) {
                             playbackController.seekTo(ab.pointA)
                         }
@@ -442,6 +443,12 @@ class PlayerViewModel(
                         }
                     }
                     is DomainPlaybackState.Ended -> {
+                        val ab = _uiState.value.abRepeat
+                        if (ab.isLooping && ab.pointA != null && ab.pointB != null) {
+                            playbackController.seekTo(ab.pointA)
+                            playbackController.play()
+                            return@collect
+                        }
                         lastKnownPositionMs = state.durationMs
                         _positionState.value = _positionState.value.copy(currentPositionMs = state.durationMs)
                         _uiState.update {
@@ -502,6 +509,8 @@ class PlayerViewModel(
                     // position is neither lost nor filed under the new video.
                     persistCurrentPosition()
                     lastPersistedPositionMs = 0L
+                    lastKnownPositionMs = 0L
+                    _positionState.value = PlayerPositionState()
                 }
                 _uiState.update {
                     it.copy(
@@ -944,7 +953,9 @@ class PlayerViewModel(
             val isSameDirection = (deltaMs > 0 && accumulatedSeekDeltaMs > 0) ||
                     (deltaMs < 0 && accumulatedSeekDeltaMs < 0)
 
-            val baseTarget = if (now - lastSeekTimestampMs < SEEK_ACCUMULATION_THRESHOLD_MS && isSameDirection && accumulatedTargetPosMs != null) {
+            val shouldAccumulate = (seekFeedbackJob?.isActive == true || (now - lastSeekTimestampMs < FEEDBACK_OVERLAY_DELAY_MS)) &&
+                isSameDirection && accumulatedTargetPosMs != null
+            val baseTarget = if (shouldAccumulate) {
                 accumulatedSeekDeltaMs += deltaMs
                 accumulatedTargetPosMs!!
             } else {
@@ -1017,9 +1028,12 @@ class PlayerViewModel(
         _uiState.update {
             it.copy(
                 swipeSeekTargetMs = null,
-                swipeSeekDeltaMs = null
+                swipeSeekDeltaMs = null,
+                currentPositionMs = targetMs
             )
         }
+        lastKnownPositionMs = targetMs
+        _positionState.value = _positionState.value.copy(currentPositionMs = targetMs)
         viewModelScope.launch(dispatcher + errorHandler) {
             playbackController.seekTo(targetMs)
             scheduleAutoHide()
@@ -1674,6 +1688,7 @@ class PlayerViewModel(
         if (_uiState.value.isPlaying &&
             !_uiState.value.isScrubbing &&
             !_uiState.value.isAnySheetVisible &&
+            !_uiState.value.isAudioOnly &&
             _uiState.value.errorMessage == null
         ) {
             autoHideJob = viewModelScope.launch(dispatcher + errorHandler) {

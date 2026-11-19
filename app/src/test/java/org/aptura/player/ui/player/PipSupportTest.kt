@@ -73,4 +73,24 @@ class PipSupportTest {
         assertEquals(expectedLeft, rect.left)
         assertEquals(2400 - expectedLeft, rect.right)
     }
+
+    @Test
+    fun anamorphicVideo_appliesPixelWidthHeightRatio() {
+        // Anamorphic NTSC 720x480 with 16:9 DAR (SAR = 32/27 ≈ 1.185)
+        val (n, d) = PipSupport.aspectRatioFor(720, 480, pixelWidthHeightRatio = 32f / 27f)
+        assertEquals(16f / 9f, n.toFloat() / d, 0.02f)
+
+        val rect = PipSupport.calculateSourceRect(
+            videoWidth = 720,
+            videoHeight = 480,
+            windowWidth = 1080,
+            windowHeight = 2400,
+            pixelWidthHeightRatio = 32f / 27f
+        )
+        assertNotNull(rect)
+        assertEquals(0, rect!!.left)
+        assertEquals(1080, rect.right)
+        val expectedHeight = 608 // 1080 * 9 / 16
+        assertEquals(expectedHeight, rect.bottom - rect.top)
+    }
 }

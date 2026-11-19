@@ -247,12 +247,13 @@ class MainActivity : ComponentActivity() {
         val size = PlayerManager.activeController?.player?.videoSize
         val videoWidth = size?.width ?: 0
         val videoHeight = size?.height ?: 0
-        val (num, den) = PipSupport.aspectRatioFor(videoWidth, videoHeight)
+        val sar = size?.pixelWidthHeightRatio ?: 1f
+        val (num, den) = PipSupport.aspectRatioFor(videoWidth, videoHeight, sar)
         val builder = PictureInPictureParams.Builder().setAspectRatio(Rational(num, den))
         val decor = window?.decorView
         val windowWidth = decor?.width ?: 0
         val windowHeight = decor?.height ?: 0
-        val sourceRect = PipSupport.calculateSourceRect(videoWidth, videoHeight, windowWidth, windowHeight)
+        val sourceRect = PipSupport.calculateSourceRect(videoWidth, videoHeight, windowWidth, windowHeight, sar)
         if (sourceRect != null) {
             builder.setSourceRectHint(Rect(sourceRect.left, sourceRect.top, sourceRect.right, sourceRect.bottom))
         }

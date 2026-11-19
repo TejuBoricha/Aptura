@@ -582,13 +582,15 @@ private fun AppNavHost(
             }
 
             entry<MediaDetailsKey> { detailsKey ->
+                val coroutineScope = rememberCoroutineScope()
+                var currentVideoUri by rememberSaveable(detailsKey.videoUri) { mutableStateOf(detailsKey.videoUri) }
                 val uiState by libraryViewModel.uiState.collectAsStateWithLifecycle()
                 val domainItems = (uiState as? MediaLibraryUiState.Success)?.videos?.map { it.rawItem } ?: emptyList()
-                val item = domainItems.find { it.uri == detailsKey.videoUri }
-                    ?: remember(detailsKey.videoUri) {
-                        val seg = detailsKey.videoUri.substringAfterLast('/')
+                val item = domainItems.find { it.uri == currentVideoUri }
+                    ?: remember(currentVideoUri) {
+                        val seg = currentVideoUri.substringAfterLast('/')
                         DomainMediaItem(
-                            uri = detailsKey.videoUri,
+                            uri = currentVideoUri,
                             title = if (seg.isNotBlank() && !seg.all { it.isDigit() }) seg else "External Video",
                             durationMs = 0L,
                             sizeBytes = 0L,
@@ -600,34 +602,38 @@ private fun AppNavHost(
                 var itemToDelete by remember { mutableStateOf<DomainMediaItem?>(null) }
                 var itemToHide by remember { mutableStateOf<DomainMediaItem?>(null) }
                 var itemToRemoveMissing by remember { mutableStateOf<DomainMediaItem?>(null) }
-                var pendingRenameUri by remember { mutableStateOf<String?>(null) }
-                var pendingRenameTitle by remember { mutableStateOf<String?>(null) }
+                var pendingRenameUri by rememberSaveable { mutableStateOf<String?>(null) }
+                var pendingRenameTitle by rememberSaveable { mutableStateOf<String?>(null) }
                 val renameLauncher = rememberLauncherForActivityResult(
                     contract = ActivityResultContracts.StartIntentSenderForResult()
                 ) { result ->
                     val uri = pendingRenameUri
                     val title = pendingRenameTitle
                     if (result.resultCode == Activity.RESULT_OK && uri != null && title != null) {
-                        when (
-                            val outcome = ApturaMediaFileManager.renameMediaFile(
-                                context = context,
-                                uri = Uri.parse(uri),
-                                newNameWithExt = title
-                            )
-                        ) {
-                            is MediaRenameResult.Renamed -> {
-                                libraryViewModel.renameVideo(
-                                    uri = uri,
-                                    newName = title,
-                                    newUri = outcome.uri.toString(),
-                                    newDisplayName = outcome.displayName
+                        coroutineScope.launch {
+                            val outcome = withContext(Dispatchers.IO) {
+                                ApturaMediaFileManager.renameMediaFile(
+                                    context = context,
+                                    uri = Uri.parse(uri),
+                                    newNameWithExt = title
                                 )
-                                Toast.makeText(context, "Renamed to \"$title\"", Toast.LENGTH_SHORT).show()
                             }
+                            when (outcome) {
+                                is MediaRenameResult.Renamed -> {
+                                    currentVideoUri = outcome.uri.toString()
+                                    libraryViewModel.renameVideo(
+                                        uri = uri,
+                                        newName = title,
+                                        newUri = outcome.uri.toString(),
+                                        newDisplayName = outcome.displayName
+                                    )
+                                    Toast.makeText(context, "Renamed to \"$title\"", Toast.LENGTH_SHORT).show()
+                                }
 
-                            is MediaRenameResult.PermissionRequired,
-                            MediaRenameResult.Failed -> {
-                                Toast.makeText(context, "Android did not allow the rename.", Toast.LENGTH_LONG).show()
+                                is MediaRenameResult.PermissionRequired,
+                                MediaRenameResult.Failed -> {
+                                    Toast.makeText(context, "Android did not allow the rename.", Toast.LENGTH_LONG).show()
+                                }
                             }
                         }
                     } else if (result.resultCode != Activity.RESULT_OK) {
@@ -637,13 +643,15 @@ private fun AppNavHost(
                     pendingRenameTitle = null
                 }
                 val deleteFlow = rememberMediaDeleteFlow(onDeleted = { uri ->
-                    ThumbnailRepository.deleteThumbnail(context, uri)
+                    coroutineScope.launch(Dispatchers.IO) {
+                        ThumbnailRepository.deleteThumbnail(context, uri)
+                    }
                     libraryViewModel.onVideoDeleted(uri)
                     backStack.removeLastOrNull()
                 })
                 val trashFlow = rememberMediaTrashFlow { uris ->
                     uris.forEach { uri ->
-                        libraryViewModel.hideVideo(uri)
+                        libraryViewModel.onVideoDeleted(uri)
                     }
                     backStack.removeLastOrNull()
                 }
@@ -725,33 +733,37 @@ private fun AppNavHost(
                     RenameVideoDialog(
                         itemTitle = target.title,
                         onConfirm = { newName ->
-                            when (
-                                val outcome = ApturaMediaFileManager.renameMediaFile(
-                                    context = context,
-                                    uri = target.uri.toUri(),
-                                    newNameWithExt = newName
-                                )
-                            ) {
-                                is MediaRenameResult.Renamed -> {
-                                    libraryViewModel.renameVideo(
-                                        uri = target.uri,
-                                        newName = newName,
-                                        newUri = outcome.uri.toString(),
-                                        newDisplayName = outcome.displayName
-                                    )
-                                    Toast.makeText(context, "Renamed to \"$newName\"", Toast.LENGTH_SHORT).show()
-                                }
-
-                                is MediaRenameResult.PermissionRequired -> {
-                                    pendingRenameUri = target.uri
-                                    pendingRenameTitle = newName
-                                    renameLauncher.launch(
-                                        IntentSenderRequest.Builder(outcome.intentSender).build()
+                            coroutineScope.launch {
+                                val outcome = withContext(Dispatchers.IO) {
+                                    ApturaMediaFileManager.renameMediaFile(
+                                        context = context,
+                                        uri = target.uri.toUri(),
+                                        newNameWithExt = newName
                                     )
                                 }
+                                when (outcome) {
+                                    is MediaRenameResult.Renamed -> {
+                                        currentVideoUri = outcome.uri.toString()
+                                        libraryViewModel.renameVideo(
+                                            uri = target.uri,
+                                            newName = newName,
+                                            newUri = outcome.uri.toString(),
+                                            newDisplayName = outcome.displayName
+                                        )
+                                        Toast.makeText(context, "Renamed to \"$newName\"", Toast.LENGTH_SHORT).show()
+                                    }
 
-                                MediaRenameResult.Failed -> {
-                                    Toast.makeText(context, "Could not rename this video file.", Toast.LENGTH_LONG).show()
+                                    is MediaRenameResult.PermissionRequired -> {
+                                        pendingRenameUri = target.uri
+                                        pendingRenameTitle = newName
+                                        renameLauncher.launch(
+                                            IntentSenderRequest.Builder(outcome.intentSender).build()
+                                        )
+                                    }
+
+                                    MediaRenameResult.Failed -> {
+                                        Toast.makeText(context, "Could not rename this video file.", Toast.LENGTH_LONG).show()
+                                    }
                                 }
                             }
                             itemToRename = null
