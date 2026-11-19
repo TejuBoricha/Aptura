@@ -288,6 +288,12 @@ fun MediaLibraryScreen(
                 }
 
                 is MediaLibraryUiState.Empty -> {
+                    if (uiState.isFiltered) {
+                        BackHandler {
+                            onSearchQueryChanged("")
+                            onFolderSelected(null)
+                        }
+                    }
                     // Without videos there is no sidebar or search row, but Settings (theme, folders, the guide) must
                     // still be one tap away: an empty library used to be a dead end.
                     Column(
@@ -437,25 +443,29 @@ private fun MediaLibraryContentView(
     var selectedUris by rememberSaveable { mutableStateOf(emptySet<String>()) }
     var clipboardUris by rememberSaveable { mutableStateOf(emptyList<String>()) }
     var clipboardIsCut by rememberSaveable { mutableStateOf(false) }
-    var transferUris by remember { mutableStateOf(emptyList<String>()) }
-    var transferIsMove by remember { mutableStateOf(false) }
-    var transferFromClipboard by remember { mutableStateOf(false) }
+    var transferUris by rememberSaveable { mutableStateOf(emptyList<String>()) }
+    var transferIsMove by rememberSaveable { mutableStateOf(false) }
+    var transferFromClipboard by rememberSaveable { mutableStateOf(false) }
     var transferResult by remember { mutableStateOf<TransferResultMessage?>(null) }
     var transferJob by remember { mutableStateOf<MediaTransferJob?>(null) }
     var transferWorkInfo by remember { mutableStateOf<WorkInfo?>(null) }
     var transferCancelling by remember { mutableStateOf(false) }
-    var handledTransferId by remember { mutableStateOf<String?>(null) }
-    var itemPendingRenameUri by remember { mutableStateOf<String?>(null) }
-    var itemPendingRenameNewName by remember { mutableStateOf<String?>(null) }
+    var handledTransferId by rememberSaveable { mutableStateOf<String?>(null) }
+    var itemPendingRenameUri by rememberSaveable { mutableStateOf<String?>(null) }
+    var itemPendingRenameNewName by rememberSaveable { mutableStateOf<String?>(null) }
     val mover = remember(context) { MediaMover(context) }
     val moveFlow = rememberMediaMoveFlow(onMoved = { uri ->
-        ThumbnailRepository.deleteThumbnail(context, uri)
+        coroutineScope.launch(Dispatchers.IO) {
+            ThumbnailRepository.deleteThumbnail(context, uri)
+        }
         clipboardUris = clipboardUris - uri
         if (clipboardUris.isEmpty()) clipboardIsCut = false
     })
     var pendingCrossVolumeMoveJob by remember { mutableStateOf<MediaTransferJob?>(null) }
     val deleteFlow = rememberMediaDeleteFlow(onDeleted = { uri ->
-        ThumbnailRepository.deleteThumbnail(context, uri)
+        coroutineScope.launch(Dispatchers.IO) {
+            ThumbnailRepository.deleteThumbnail(context, uri)
+        }
         onVideoDeleted(uri)
         clipboardUris = clipboardUris - uri
         if (clipboardUris.isEmpty()) clipboardIsCut = false
@@ -464,14 +474,16 @@ private fun MediaLibraryContentView(
     // deleted: its index row keeps its progress, settings and bookmarks and is marked missing, and the next scan pairs
     // the copy with it. Using [deleteFlow] here dropped them with the row (audit DATA-01).
     val moveDeleteFlow = rememberMediaDeleteFlow(onDeleted = { uri ->
-        ThumbnailRepository.deleteThumbnail(context, uri)
+        coroutineScope.launch(Dispatchers.IO) {
+            ThumbnailRepository.deleteThumbnail(context, uri)
+        }
         onVideoMovedAway(uri)
         clipboardUris = clipboardUris - uri
         if (clipboardUris.isEmpty()) clipboardIsCut = false
     })
     val trashFlow = rememberMediaTrashFlow { uris ->
         uris.forEach { uri ->
-            onRemoveVideo(uri)
+            onVideoDeleted(uri)
         }
         activeModal = null
         selectedUris = emptySet()
@@ -485,6 +497,16 @@ private fun MediaLibraryContentView(
     // Selection is a mode, so Back leaves it before it navigates away from the library.
     BackHandler(enabled = selectedUris.isNotEmpty()) {
         selectedUris = emptySet()
+    }
+
+    // When searching, Back clears the query first before exiting the library.
+    BackHandler(enabled = selectedUris.isEmpty() && state.searchQuery.isNotBlank()) {
+        onSearchQueryChanged("")
+    }
+
+    // When filtered to a folder, Back returns to the full library before exiting the app.
+    BackHandler(enabled = selectedUris.isEmpty() && state.searchQuery.isBlank() && state.selectedFolder != null) {
+        onFolderSelected(null)
     }
 
     fun forgetTransferredClipboard(uris: List<String>, fromClipboard: Boolean) {
@@ -755,21 +777,24 @@ private fun MediaLibraryContentView(
             val uri = itemPendingRenameUri
             val title = itemPendingRenameNewName
             if (uri != null && title != null) {
-                when (
-                    val outcome = ApturaMediaFileManager.renameMediaFile(
-                        context = context,
-                        uri = uri.toUri(),
-                        newNameWithExt = title
-                    )
-                ) {
-                    is MediaRenameResult.Renamed -> {
-                        onRenameVideo(uri, title, outcome.uri.toString(), outcome.displayName)
-                        Toast.makeText(context, "Renamed to \"$title\"", Toast.LENGTH_SHORT).show()
+                coroutineScope.launch {
+                    val outcome = withContext(Dispatchers.IO) {
+                        ApturaMediaFileManager.renameMediaFile(
+                            context = context,
+                            uri = uri.toUri(),
+                            newNameWithExt = title
+                        )
                     }
+                    when (outcome) {
+                        is MediaRenameResult.Renamed -> {
+                            onRenameVideo(uri, title, outcome.uri.toString(), outcome.displayName)
+                            Toast.makeText(context, "Renamed to \"$title\"", Toast.LENGTH_SHORT).show()
+                        }
 
-                    is MediaRenameResult.PermissionRequired,
-                    MediaRenameResult.Failed -> {
-                        Toast.makeText(context, "Android did not allow the rename.", Toast.LENGTH_LONG).show()
+                        is MediaRenameResult.PermissionRequired,
+                        MediaRenameResult.Failed -> {
+                            Toast.makeText(context, "Android did not allow the rename.", Toast.LENGTH_LONG).show()
+                        }
                     }
                 }
             }
@@ -1080,22 +1105,27 @@ private fun MediaLibraryContentView(
                                     val dest = activeViewFolder
                                     val destLabel = activeFolderLabel ?: friendlyFolderName(dest)
                                     TextButton(onClick = {
-                                        if (clipboardIsCut && mover.canMoveAllInPlace(clipboardUris, dest)) {
-                                            moveFlow.moveAll(clipboardUris, dest) { batch ->
-                                                forgetTransferredClipboard(batch.movedUris, fromClipboard = true)
-                                                onRefresh()
-                                                if (batch.movedUris.isNotEmpty()) {
-                                                    val count = batch.movedCount
-                                                    val total = batch.movedCount + batch.failedCount
-                                                    val noun = if (count == 1) "video" else "videos"
-                                                    transferResult = TransferResultMessage(
-                                                        title = "Move complete",
-                                                        message = if (total == 1) "Moved $count $noun to $destLabel." else "$count of $total $noun moved to $destLabel."
-                                                    )
-                                                }
+                                        coroutineScope.launch {
+                                            val canMoveInPlace = clipboardIsCut && withContext(Dispatchers.IO) {
+                                                mover.canMoveAllInPlace(clipboardUris, dest)
                                             }
-                                        } else {
-                                            launchTransfer(clipboardUris, dest, clipboardIsCut, true)
+                                            if (canMoveInPlace) {
+                                                moveFlow.moveAll(clipboardUris, dest) { batch ->
+                                                    forgetTransferredClipboard(batch.movedUris, fromClipboard = true)
+                                                    onRefresh()
+                                                    if (batch.movedUris.isNotEmpty()) {
+                                                        val count = batch.movedCount
+                                                        val total = batch.movedCount + batch.failedCount
+                                                        val noun = if (count == 1) "video" else "videos"
+                                                        transferResult = TransferResultMessage(
+                                                            title = "Move complete",
+                                                            message = if (total == 1) "Moved $count $noun to $destLabel." else "$count of $total $noun moved to $destLabel."
+                                                        )
+                                                    }
+                                                }
+                                            } else {
+                                                launchTransfer(clipboardUris, dest, clipboardIsCut, true)
+                                            }
                                         }
                                     }) {
                                         Text(
@@ -1408,28 +1438,31 @@ private fun MediaLibraryContentView(
                 RenameVideoDialog(
                     itemTitle = MediaFormatters.cleanTitle(item.title),
                     onConfirm = { newName ->
-                        when (
-                            val outcome = ApturaMediaFileManager.renameMediaFile(
-                                context = context,
-                                uri = item.uri.toUri(),
-                                newNameWithExt = newName
-                            )
-                        ) {
-                            is MediaRenameResult.Renamed -> {
-                                onRenameVideo(item.uri, newName, outcome.uri.toString(), outcome.displayName)
-                                Toast.makeText(context, "Renamed to \"$newName\"", Toast.LENGTH_SHORT).show()
-                            }
-
-                            is MediaRenameResult.PermissionRequired -> {
-                                itemPendingRenameUri = item.uri
-                                itemPendingRenameNewName = newName
-                                renameLauncher.launch(
-                                    IntentSenderRequest.Builder(outcome.intentSender).build()
+                        coroutineScope.launch {
+                            val outcome = withContext(Dispatchers.IO) {
+                                ApturaMediaFileManager.renameMediaFile(
+                                    context = context,
+                                    uri = item.uri.toUri(),
+                                    newNameWithExt = newName
                                 )
                             }
+                            when (outcome) {
+                                is MediaRenameResult.Renamed -> {
+                                    onRenameVideo(item.uri, newName, outcome.uri.toString(), outcome.displayName)
+                                    Toast.makeText(context, "Renamed to \"$newName\"", Toast.LENGTH_SHORT).show()
+                                }
 
-                            MediaRenameResult.Failed -> {
-                                Toast.makeText(context, "Could not rename this video file.", Toast.LENGTH_LONG).show()
+                                is MediaRenameResult.PermissionRequired -> {
+                                    itemPendingRenameUri = item.uri
+                                    itemPendingRenameNewName = newName
+                                    renameLauncher.launch(
+                                        IntentSenderRequest.Builder(outcome.intentSender).build()
+                                    )
+                                }
+
+                                MediaRenameResult.Failed -> {
+                                    Toast.makeText(context, "Could not rename this video file.", Toast.LENGTH_LONG).show()
+                                }
                             }
                         }
                         activeModal = null
@@ -1553,23 +1586,28 @@ private fun MediaLibraryContentView(
                         onSelectDestination = { destinationFolder ->
                             activeModal = null
                             val destLabel = labels[destinationFolder] ?: friendlyFolderName(destinationFolder)
-                            if (isMove && mover.canMoveAllInPlace(uris, destinationFolder)) {
-                                moveFlow.moveAll(uris, destinationFolder) { batch ->
-                                    selectedUris = emptySet()
-                                    forgetTransferredClipboard(batch.movedUris, modal.fromClipboard)
-                                    onRefresh()
-                                    if (batch.movedUris.isNotEmpty()) {
-                                        val count = batch.movedCount
-                                        val total = batch.movedCount + batch.failedCount
-                                        val noun = if (count == 1) "video" else "videos"
-                                        transferResult = TransferResultMessage(
-                                            title = "Move complete",
-                                            message = if (total == 1) "Moved $count $noun to $destLabel." else "$count of $total $noun moved to $destLabel."
-                                        )
-                                    }
+                            coroutineScope.launch {
+                                val canMoveInPlace = isMove && withContext(Dispatchers.IO) {
+                                    mover.canMoveAllInPlace(uris, destinationFolder)
                                 }
-                            } else {
-                                launchTransfer(uris, destinationFolder, isMove, modal.fromClipboard)
+                                if (canMoveInPlace) {
+                                    moveFlow.moveAll(uris, destinationFolder) { batch ->
+                                        selectedUris = emptySet()
+                                        forgetTransferredClipboard(batch.movedUris, modal.fromClipboard)
+                                        onRefresh()
+                                        if (batch.movedUris.isNotEmpty()) {
+                                            val count = batch.movedCount
+                                            val total = batch.movedCount + batch.failedCount
+                                            val noun = if (count == 1) "video" else "videos"
+                                            transferResult = TransferResultMessage(
+                                                title = "Move complete",
+                                                message = if (total == 1) "Moved $count $noun to $destLabel." else "$count of $total $noun moved to $destLabel."
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    launchTransfer(uris, destinationFolder, isMove, modal.fromClipboard)
+                                }
                             }
                         },
                         onBrowseStorage = {
@@ -1710,7 +1748,7 @@ private fun TransferProgressDialog(
     val percent = (progress.fraction * 100f).roundToInt()
     ApturaDialog(
         onDismissRequest = { if (!isCancelling) onCancel() },
-        properties = DialogProperties(dismissOnClickOutside = false),
+        properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false),
         title = "$verb ${progress.totalFiles} $noun",
         confirmLabel = null,
         onConfirm = {},

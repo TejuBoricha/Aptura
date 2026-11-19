@@ -65,13 +65,16 @@ fun PlayerVideoSurface(
                     playerView.player = player
                 }
                 val contentFrame = playerView.findViewById<AspectRatioFrameLayout>(androidx.media3.ui.R.id.exo_content_frame)
+                val videoSize = player?.videoSize
+                val sar = if (videoSize != null && videoSize.pixelWidthHeightRatio > 0f) videoSize.pixelWidthHeightRatio else 1f
+                val nativeAspectRatio = if (videoSize != null && videoSize.width > 0 && videoSize.height > 0) {
+                    (videoSize.width.toFloat() * sar) / videoSize.height.toFloat()
+                } else 16f / 9f
+
                 when (resizeMode) {
                     AspectRatioMode.FIT -> {
                         playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                        val videoSize = player?.videoSize
-                        if (videoSize != null && videoSize.width > 0 && videoSize.height > 0) {
-                            contentFrame?.setAspectRatio(videoSize.width.toFloat() / videoSize.height.toFloat())
-                        }
+                        contentFrame?.setAspectRatio(nativeAspectRatio)
                     }
                     AspectRatioMode.FIXED_16_9 -> {
                         playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
@@ -83,9 +86,11 @@ fun PlayerVideoSurface(
                     }
                     AspectRatioMode.FILL -> {
                         playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+                        contentFrame?.setAspectRatio(nativeAspectRatio)
                     }
                     AspectRatioMode.ZOOM -> {
                         playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                        contentFrame?.setAspectRatio(nativeAspectRatio)
                     }
                 }
 

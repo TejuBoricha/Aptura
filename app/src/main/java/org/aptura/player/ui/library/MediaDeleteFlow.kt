@@ -204,7 +204,20 @@ internal fun rememberMediaDeleteFlow(
             }
             is DeleteOutcome.NeedsConsent -> {
                 awaitingConsentUri = uri
-                consentLauncher.launch(IntentSenderRequest.Builder(outcome.intentSender).build())
+                try {
+                    consentLauncher.launch(IntentSenderRequest.Builder(outcome.intentSender).build())
+                } catch (_: Exception) {
+                    awaitingConsentUri = null
+                    val newFailed = failedUris + uri
+                    failedUris = newFailed
+                    Toast.makeText(context, "Could not request Android's delete confirmation.", Toast.LENGTH_LONG).show()
+                    val remaining = deleteQueue.dropWhile { it != uri }.drop(1)
+                    deleteQueue = remaining
+                    if (remaining.isEmpty()) {
+                        completionCallback?.invoke(DeleteBatchResult(deletedUris, newFailed))
+                        completionCallback = null
+                    }
+                }
             }
             is DeleteOutcome.Failed -> {
                 failedUris = failedUris + uri
@@ -264,15 +277,15 @@ internal fun canMoveToSystemTrash(uris: List<String>): Boolean =
 fun rememberMediaTrashFlow(onTrashed: (List<String>) -> Unit): MediaTrashFlow {
     val context = LocalContext.current
     val currentOnTrashed by rememberUpdatedState(onTrashed)
-    var trashUris by remember { mutableStateOf<List<String>>(emptyList()) }
+    var trashUris by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             Toast.makeText(
                 context,
-                "Moved to Android trash. If restored, unhide it from Settings.",
-                Toast.LENGTH_LONG
+                "Moved to Android trash.",
+                Toast.LENGTH_SHORT
             ).show()
             currentOnTrashed(trashUris)
         } else {

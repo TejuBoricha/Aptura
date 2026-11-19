@@ -16,8 +16,9 @@ object PipSupport {
     const val MAX_RATIO = 2.39f
 
     /** Returns the (numerator, denominator) PiP aspect ratio for a video, clamped to what Android accepts. */
-    fun aspectRatioFor(videoWidth: Int, videoHeight: Int): Pair<Int, Int> {
-        val ratio = if (videoWidth > 0 && videoHeight > 0) videoWidth.toFloat() / videoHeight.toFloat() else 16f / 9f
+    fun aspectRatioFor(videoWidth: Int, videoHeight: Int, pixelWidthHeightRatio: Float = 1f): Pair<Int, Int> {
+        val sar = if (pixelWidthHeightRatio > 0f) pixelWidthHeightRatio else 1f
+        val ratio = if (videoWidth > 0 && videoHeight > 0) (videoWidth.toFloat() * sar) / videoHeight.toFloat() else 16f / 9f
         return when {
             ratio > MAX_RATIO -> 239 to 100
             ratio < MIN_RATIO -> 100 to 239
@@ -29,9 +30,16 @@ object PipSupport {
      * Calculates the letterboxed or pillarboxed source rectangle of the video within the window.
      * Returns null if dimensions are invalid or window is not yet laid out.
      */
-    fun calculateSourceRect(videoWidth: Int, videoHeight: Int, windowWidth: Int, windowHeight: Int): PipRect? {
+    fun calculateSourceRect(
+        videoWidth: Int,
+        videoHeight: Int,
+        windowWidth: Int,
+        windowHeight: Int,
+        pixelWidthHeightRatio: Float = 1f
+    ): PipRect? {
         if (videoWidth <= 0 || videoHeight <= 0 || windowWidth <= 0 || windowHeight <= 0) return null
-        val videoRatio = videoWidth.toFloat() / videoHeight.toFloat()
+        val sar = if (pixelWidthHeightRatio > 0f) pixelWidthHeightRatio else 1f
+        val videoRatio = (videoWidth.toFloat() * sar) / videoHeight.toFloat()
         val windowRatio = windowWidth.toFloat() / windowHeight.toFloat()
         return if (videoRatio > windowRatio) {
             // Letterboxed: video matches window width, centered vertically
