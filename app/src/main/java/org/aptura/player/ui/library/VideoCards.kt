@@ -48,6 +48,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -185,7 +186,7 @@ fun VideoGridCard(
     decodeContext: CoroutineContext? = null
 ) {
     val compact = density == LibraryDensity.COMPACT
-    val metadata = remember(card.uri, card.fileSizeFormatted, card.folderName, card.rawItem.dateAddedSec, detail) {
+    val metadata = remember(card.uri, card.fileSizeFormatted, card.folderName, card.rawItem.dateAddedSec, card.rawItem.width, card.rawItem.height, detail) {
         videoMetadataLines(card, detail)
     }
     Column(
@@ -283,7 +284,7 @@ fun VideoListRow(
     context: Context? = null,
     decodeContext: CoroutineContext? = null
 ) {
-    val metadata = remember(card.uri, card.fileSizeFormatted, card.folderName, card.rawItem.dateAddedSec, detail) {
+    val metadata = remember(card.uri, card.fileSizeFormatted, card.folderName, card.rawItem.dateAddedSec, card.rawItem.width, card.rawItem.height, detail) {
         videoMetadataLines(card, detail)
     }
     val remaining = if (card.progressFraction > 0f && !card.isCompleted && !card.isMissing) {
@@ -367,7 +368,7 @@ private fun MetadataLines(lines: List<String>, compact: Boolean) {
 private fun Modifier.clickableCard(card: VideoCardUiModel, actions: VideoCardActions): Modifier {
     val onClick = remember(card, actions) { { actions.onClick(card) } }
     val longClickAction = actions.onLongClick
-    return if (longClickAction != null) {
+    return if (longClickAction != null && !card.isMissing) {
         val onLongClick = remember(card, actions) { { longClickAction(card) } }
         combinedClickable(
             onClick = onClick,
@@ -478,12 +479,12 @@ internal fun VideoThumbnailFrame(
                 Icon(
                     imageVector = Icons.Default.FolderOff,
                     contentDescription = null,
-                    tint = ApturaColors.TextOnScrim,
+                    tint = Color.Black,
                     modifier = Modifier.size(12.dp)
                 )
                 if (pillsFit) {
                     Spacer(Modifier.width(4.dp))
-                    Text(text = "Missing", style = ApturaTypography.labelSmall, color = ApturaColors.TextOnScrim)
+                    Text(text = "Missing", style = ApturaTypography.labelSmall, color = Color.Black)
                 }
             }
         }

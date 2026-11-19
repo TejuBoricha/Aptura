@@ -106,4 +106,15 @@ class ApturaContrastTest {
             failures(p, p.controlTrack, 3.0, listOf("base", "elevated 1", "elevated 2 (sheets)", "elevated 3"))
         )
     }
+
+    @Test
+    fun statusColors_satisfyAccessibilityContrast() {
+        val darkP = ApturaPalettes.dark(AccentColor.CYAN)
+        val darkOnErrorRatio = contrast(Color.Black, darkP.statusError)
+        assertTrue("dark onError ($darkOnErrorRatio) on statusError must be >= 4.5:1", darkOnErrorRatio >= 4.5)
+
+        val lightP = ApturaPalettes.light(AccentColor.CYAN)
+        val lightWarningRatio = contrast(lightP.statusWarning, lightP.surfaceElevated3)
+        assertTrue("light statusWarning ($lightWarningRatio) on surfaceElevated3 must be >= 4.5:1", lightWarningRatio >= 4.5)
+    }
 }

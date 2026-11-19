@@ -175,7 +175,9 @@ internal fun FolderStrip(
 
 @Composable
 private fun androidx.compose.foundation.layout.BoxScope.EdgeFade(alignment: Alignment) {
-    val start = alignment == Alignment.CenterStart
+    val isRtl = androidx.compose.ui.platform.LocalLayoutDirection.current == androidx.compose.ui.unit.LayoutDirection.Rtl
+    val isLeft = alignment == Alignment.CenterStart
+    val isOpaqueOnLeft = if (isRtl) !isLeft else isLeft
     Box(
         modifier = Modifier
             .align(alignment)
@@ -183,7 +185,7 @@ private fun androidx.compose.foundation.layout.BoxScope.EdgeFade(alignment: Alig
             .fillMaxHeight()
             .background(
                 Brush.horizontalGradient(
-                    if (start) listOf(ApturaColors.SurfaceBase, Color.Transparent) else listOf(Color.Transparent, ApturaColors.SurfaceBase)
+                    if (isOpaqueOnLeft) listOf(ApturaColors.SurfaceBase, Color.Transparent) else listOf(Color.Transparent, ApturaColors.SurfaceBase)
                 )
             )
     )

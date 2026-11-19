@@ -52,7 +52,7 @@ Appearance is a user setting (`ThemeMode` = `System` / `Light` / `Dark`, plus on
 | `TextOnAccent` | `#FFFFFF` | Light accents are dark enough for white labels |
 | `TextOnScrim` | `#F0F4F8` | Fixed light text over dark scrims, in either mode |
 | `StatusSuccess` | `#087A42` | Darkened for 4.5:1 on white |
-| `StatusWarning` | `#9A6B00` | Darkened for 4.5:1 on white |
+| `StatusWarning` | `#805800` | Darkened for 4.5:1 on white and elevated surfaces |
 | `StatusError` | `#C62828` | Darkened for 4.5:1 on white |
 | `StatusInfo` | `#0B6FA4` | Darkened for 4.5:1 on white |
 

@@ -233,7 +233,7 @@ fun LicensesScreen(
 @Composable
 private fun DocumentHeader(document: LicenseDocument, expanded: Boolean, onClick: () -> Unit) {
     SettingsPanel(modifier = Modifier.testTag(licenseDocumentTag(document.id))) {
-        Box(modifier = Modifier.semantics { stateDescription = if (expanded) "Expanded" else "Collapsed" }) {
+        Box(modifier = Modifier.semantics(mergeDescendants = true) { stateDescription = if (expanded) "Expanded" else "Collapsed" }) {
             ActionRow(
                 icon = Icons.Default.Description,
                 title = document.title,

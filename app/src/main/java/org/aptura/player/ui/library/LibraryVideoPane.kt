@@ -191,7 +191,11 @@ internal fun LibraryHeader(
         }
 
         if (showRefreshAndSettings) {
-            IconButton(onClick = onRefresh, modifier = Modifier.size(48.dp)) {
+            IconButton(
+                onClick = onRefresh,
+                enabled = !isRefreshing,
+                modifier = Modifier.size(48.dp)
+            ) {
                 if (isRefreshing) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(20.dp),
