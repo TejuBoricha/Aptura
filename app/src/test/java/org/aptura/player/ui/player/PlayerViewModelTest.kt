@@ -1768,6 +1768,71 @@ class PlayerViewModelTest {
         viewModel.clearForTesting()
     }
 
+    @Test
+    fun autoAdvanceCountdown_whenConfiguredToOff_doesNotStartCountdown() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val settingsFlow = MutableStateFlow(org.aptura.player.data.settings.ApturaSettings(autoAdvanceCountdownSeconds = -1))
+        val viewModel = PlayerViewModel(
+            playbackController = controller,
+            mediaRepository = repository,
+            dispatcher = testDispatcher,
+            playbackSettingsFlow = settingsFlow
+        )
+        runCurrent()
+
+        val nextItem = DomainMediaItem(
+            uri = "content://media/2",
+            title = "Next Video",
+            durationMs = 60_000L,
+            sizeBytes = 1000L,
+            mimeType = "video/mp4",
+            dateAddedSec = 2000L,
+            folderPath = "Movies"
+        )
+        viewModel.playQueue(listOf(sampleVideo, nextItem), 0)
+        runCurrent()
+
+        controller._playbackState.value = DomainPlaybackState.Ended(sampleVideo.durationMs)
+        runCurrent()
+
+        assertNull("Countdown must not start when auto advance is Off", viewModel.uiState.value.autoAdvanceCountdownSeconds)
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun autoAdvanceCountdown_whenConfiguredToInstant_skipsImmediatelyWithoutCountdown() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val settingsFlow = MutableStateFlow(org.aptura.player.data.settings.ApturaSettings(autoAdvanceCountdownSeconds = 0))
+        val viewModel = PlayerViewModel(
+            playbackController = controller,
+            mediaRepository = repository,
+            dispatcher = testDispatcher,
+            playbackSettingsFlow = settingsFlow
+        )
+        runCurrent()
+
+        val nextItem = DomainMediaItem(
+            uri = "content://media/2",
+            title = "Next Video",
+            durationMs = 60_000L,
+            sizeBytes = 1000L,
+            mimeType = "video/mp4",
+            dateAddedSec = 2000L,
+            folderPath = "Movies"
+        )
+        viewModel.playQueue(listOf(sampleVideo, nextItem), 0)
+        runCurrent()
+
+        controller._playbackState.value = DomainPlaybackState.Ended(sampleVideo.durationMs)
+        runCurrent()
+
+        assertNull("Countdown overlay must not show when Instant", viewModel.uiState.value.autoAdvanceCountdownSeconds)
+        assertEquals("Must skip to next video immediately", 1, controller.playbackQueue.value.currentIndex)
+        viewModel.clearForTesting()
+    }
+
     // --- Audit FUNC-06: the Up Next countdown must not outlive what started it ---
 
     private fun upNextVideo(n: Int) = DomainMediaItem(

@@ -77,4 +77,13 @@ class NavigationBackTest {
         handleBack(mutableListOf<NavKey>()) { dismissed++ }
         assertEquals(0, dismissed)
     }
+
+    @Test
+    fun handleBack_onSingleEntryStack_doesNotPop() {
+        var dismissed = 0
+        val stack = mutableListOf<NavKey>(MediaLibrary)
+        handleBack(stack) { dismissed++ }
+        assertEquals(0, dismissed)
+        assertEquals(listOf<NavKey>(MediaLibrary), stack)
+    }
 }

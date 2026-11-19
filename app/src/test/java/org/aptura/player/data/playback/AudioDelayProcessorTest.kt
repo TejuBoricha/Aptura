@@ -170,9 +170,24 @@ class AudioDelayProcessorTest {
     }
 
     @Test
-    fun nonPcm16Input_leavesTheProcessorInactive_soPlaybackIsNeverBroken() {
+    fun supportedLinearPcmEncodings_configureSuccessfully() {
+        listOf(
+            C.ENCODING_PCM_16BIT,
+            C.ENCODING_PCM_24BIT,
+            C.ENCODING_PCM_32BIT,
+            C.ENCODING_PCM_FLOAT
+        ).forEach { encoding ->
+            val p = AudioDelayProcessor()
+            val out = p.configure(AudioFormat(sampleRate, 2, encoding))
+            assertTrue("Encoding $encoding should be supported", p.isActive)
+            assertEquals(encoding, out.encoding)
+        }
+    }
+
+    @Test
+    fun unsupportedEncoding_leavesTheProcessorInactive_soPlaybackIsNeverBroken() {
         val p = AudioDelayProcessor()
-        p.configure(AudioFormat(sampleRate, 2, C.ENCODING_PCM_FLOAT))
+        p.configure(AudioFormat(sampleRate, 2, 9999))
         assertFalse(p.isActive)
         val event = org.aptura.player.core.diagnostics.ApturaDiagnostics.ringBuffer.getAllEvents()
             .find { it.code == org.aptura.player.core.diagnostics.EventCode.EV_014 }

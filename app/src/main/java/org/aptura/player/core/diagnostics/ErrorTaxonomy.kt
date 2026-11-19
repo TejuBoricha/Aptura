@@ -42,7 +42,9 @@ object ErrorTaxonomy {
         return isDecoderErrorCode && (
             combinedMessage.contains("MediaCodecAudioRenderer", ignoreCase = true) ||
                 combinedMessage.contains("AudioTrack", ignoreCase = true) ||
-                combinedMessage.contains("audio/", ignoreCase = true)
+                combinedMessage.contains("audio/", ignoreCase = true) ||
+                combinedMessage.contains("FfmpegAudioRenderer", ignoreCase = true) ||
+                combinedMessage.contains("FfmpegDecoder", ignoreCase = true)
             )
     }
 
@@ -86,7 +88,7 @@ object ErrorTaxonomy {
             return TaxonomyError(
                 code = "AUDIO_INIT_FAILED",
                 title = "Audio Track Incompatible",
-                whatHappened = "This video's audio stream uses a format or surround codec (such as DTS, AC-3, or TrueHD) not supported by your device's platform audio decoders.",
+                whatHappened = "This video's audio stream uses a format or surround codec (such as DTS, E-AC-3, or TrueHD) not supported by your device's audio decoders.",
                 whatWasTried = "Platform MediaCodec audio decoders and audio output paths were evaluated.",
                 suggestedActions = listOf(
                     "Switch to another audio track if available",
@@ -99,6 +101,7 @@ object ErrorTaxonomy {
         }
 
         val isUnsupportedProfileOrExceedsCapabilities = errorCode == PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES ||
+            errorCode == PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED ||
             rawMessage.contains("hevc", ignoreCase = true) ||
             rawMessage.contains("hvc1", ignoreCase = true) ||
             rawMessage.contains("10-bit", ignoreCase = true) ||
@@ -112,7 +115,8 @@ object ErrorTaxonomy {
         return when {
             errorCode == PlaybackException.ERROR_CODE_DECODING_FAILED ||
             errorCode == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
-            errorCode == PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES -> {
+            errorCode == PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES ||
+            errorCode == PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED -> {
                 if (isUnsupportedProfileOrExceedsCapabilities) {
                     TaxonomyError(
                         code = "UNSUPPORTED_PROFILE",
@@ -238,7 +242,8 @@ object ErrorTaxonomy {
             }
 
             errorCode == PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND ||
-            errorCode == PlaybackException.ERROR_CODE_IO_NO_PERMISSION -> {
+            errorCode == PlaybackException.ERROR_CODE_IO_NO_PERMISSION ||
+            errorCode == PlaybackException.ERROR_CODE_IO_UNSPECIFIED -> {
                 val isPermission = errorCode == PlaybackException.ERROR_CODE_IO_NO_PERMISSION
                 TaxonomyError(
                     code = if (isPermission) "PERMISSION_LOST" else "IO_STORAGE_UNAVAILABLE",

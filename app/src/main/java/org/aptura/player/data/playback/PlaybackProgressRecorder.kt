@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
 import org.aptura.player.domain.model.DomainPlaybackQueue
 import org.aptura.player.domain.model.DomainPlaybackState
+import org.aptura.player.domain.usecase.ResumeRules
 import kotlin.math.abs
 
 /**
@@ -84,6 +85,9 @@ class PlaybackProgressRecorder(
             is DomainPlaybackState.Ready -> {
                 val position = state.positionMs
                 lastPositionMs = position
+                if (currentFinished && state.isPlaying && !ResumeRules.isFinished(position, state.durationMs)) {
+                    currentFinished = false
+                }
                 if (state.isPlaying) {
                     if (position > 0L && abs(position - lastSavedPositionMs) >= checkpointIntervalMs) {
                         persist(uri, position, isCompleted = false)

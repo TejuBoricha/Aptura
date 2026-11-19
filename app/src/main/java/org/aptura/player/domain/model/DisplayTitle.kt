@@ -4,6 +4,8 @@ private val VIDEO_EXTENSION = Regex(
     """\.(mp4|mkv|webm|avi|mov|ts|m4v|3gp|flv|wmv|asf|m2ts|mts|vob|ogv|divx|f4v)$""",
     RegexOption.IGNORE_CASE
 )
+private val WORD_DOT_WORD = Regex("""(?<=\w)\.(?=[A-Za-z])""")
+private val MULTI_SPACE = Regex("""\s+""")
 
 /** Human-readable title for a raw file/media title: no video extension, underscores and dot separators become spaces (P2-04). */
 fun cleanDisplayTitle(rawTitle: String): String {
@@ -15,7 +17,7 @@ fun cleanDisplayTitle(rawTitle: String): String {
         cleaned = cleaned.replace('.', ' ')
     } else if (cleaned.contains('.')) {
         // Titles with dots between word boundaries, preserving version/decimal numbers like 5.1 or v1.2
-        cleaned = cleaned.replace(Regex("""(?<=\w)\.(?=[A-Za-z])"""), " ")
+        cleaned = cleaned.replace(WORD_DOT_WORD, " ")
     }
-    return cleaned.replace(Regex("""\s+"""), " ").trim()
+    return cleaned.replace(MULTI_SPACE, " ").trim()
 }

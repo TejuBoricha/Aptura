@@ -119,6 +119,8 @@ object PlayerManager {
         val localDataSourceFactory = DefaultDataSource.Factory(appContext, offlineBaseDataSourceFactory)
 
         val player = ExoPlayer.Builder(appContext, renderersFactory)
+            .setLooper(android.os.Looper.getMainLooper())
+            .setWakeMode(C.WAKE_MODE_LOCAL)
             .setMediaSourceFactory(DefaultMediaSourceFactory(localDataSourceFactory, extractorsFactory))
             .setAudioAttributes(
                 AudioAttributes.Builder()

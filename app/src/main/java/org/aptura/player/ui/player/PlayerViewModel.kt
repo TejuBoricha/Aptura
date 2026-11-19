@@ -7,6 +7,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,6 +35,7 @@ import org.aptura.player.domain.model.EqualizerPreset
 import org.aptura.player.domain.model.PictureAdjustmentState
 import org.aptura.player.core.media.SubtitleQuerySanitizer
 import org.aptura.player.ui.library.MediaFormatters
+import org.aptura.player.data.settings.ApturaSettings
 import org.aptura.player.data.settings.ApturaSettingsRepository
 import org.aptura.player.domain.model.DomainExternalSubtitle
 import org.aptura.player.domain.usecase.ResumeRules
@@ -50,6 +52,7 @@ class PlayerViewModel(
     private val settingsRepository: ApturaSettingsRepository? = null,
     private val dispatcher: CoroutineDispatcher = Dispatchers.Main,
     private val audioEffectsStore: AudioEffectsStore? = settingsRepository,
+    private val playbackSettingsFlow: Flow<ApturaSettings>? = settingsRepository?.settingsFlow,
     /** The default decoder from Settings (0 Auto, 1 Hardware, 2 Software). Videos without a choice of their own follow it. */
     private val defaultDecoderFlow: Flow<Int>? = settingsRepository?.settingsFlow?.map { it.defaultDecoderStrategy },
     /** The global default audio sync offset from Settings (ISSUE-012). Videos without a choice of their own follow it. */
@@ -274,9 +277,9 @@ class PlayerViewModel(
 
     /** Playback-affecting settings: double-tap seek step, default speed/aspect ratio, and the Up Next countdown (0 = advance immediately). */
     private fun observePlaybackSettings() {
-        val repository = settingsRepository ?: return
+        val flow = playbackSettingsFlow ?: return
         viewModelScope.launch(dispatcher + errorHandler) {
-            repository.settingsFlow.collect { settings ->
+            flow.collect { settings ->
                 val prevDefaultSpeed = defaultPlaybackSpeed
                 val prevDefaultResize = defaultResizeMode
                 defaultPlaybackSpeed = settings.defaultPlaybackSpeed
@@ -285,7 +288,7 @@ class PlayerViewModel(
                 _uiState.update {
                     it.copy(
                         seekStepMs = settings.seekDeltaSeconds * 1000L,
-                        autoAdvanceTotalSeconds = settings.autoAdvanceCountdownSeconds.coerceAtLeast(1),
+                        autoAdvanceTotalSeconds = if (settings.autoAdvanceCountdownSeconds > 0) settings.autoAdvanceCountdownSeconds else 0,
                         resizeMode = if (it.resizeMode == prevDefaultResize) defaultResizeMode else it.resizeMode,
                         playbackSpeed = if (it.playbackSpeed == prevDefaultSpeed) defaultPlaybackSpeed else it.playbackSpeed,
                         subtitleFontSizeSp = settings.subtitleFontSizeSp,
@@ -298,7 +301,7 @@ class PlayerViewModel(
                 if (_uiState.value.playbackSpeed == defaultPlaybackSpeed && prevDefaultSpeed != defaultPlaybackSpeed) {
                     playbackController.setPlaybackSpeed(defaultPlaybackSpeed)
                 }
-                playbackController.setPauseAtEndOfItems(settings.autoAdvanceCountdownSeconds > 0)
+                playbackController.setPauseAtEndOfItems(settings.autoAdvanceCountdownSeconds != 0)
             }
         }
     }
@@ -727,8 +730,17 @@ class PlayerViewModel(
 
     private fun handleAutoAdvanceOnEnded() {
         autoAdvanceJob?.cancel()
+        if (autoAdvanceCountdownSeconds < 0) {
+            // Auto-advance disabled ("Off")
+            return
+        }
         val queue = playbackController.playbackQueue.value
         if (queue.hasNext) {
+            if (autoAdvanceCountdownSeconds == 0) {
+                // Instant auto-advance: skip immediately
+                skipToNext()
+                return
+            }
             val nextIndex = queue.nextIndex ?: when (queue.playMode) {
                 PlayMode.REPEAT_ALL -> (queue.currentIndex + 1) % queue.items.size
                 else -> queue.currentIndex + 1
@@ -739,7 +751,7 @@ class PlayerViewModel(
             val nextUri = nextItem?.uri
 
             autoAdvanceJob = viewModelScope.launch(dispatcher + errorHandler) {
-                val totalSeconds = autoAdvanceCountdownSeconds.coerceAtLeast(1)
+                val totalSeconds = autoAdvanceCountdownSeconds
                 for (s in totalSeconds downTo 1) {
                     _uiState.update {
                         it.copy(
@@ -1790,6 +1802,7 @@ class PlayerViewModel(
 
     fun clearForTesting() {
         onCleared()
+        viewModelScope.coroutineContext.cancelChildren()
     }
 
     override fun onCleared() {

@@ -194,4 +194,21 @@ class PlaybackProgressRecorderTest {
             rig.saved
         )
     }
+
+    @Test
+    fun replayingTheSameVideo_resetsFinishedAndMarksCompletedAgainOnEnded() = runTest(StandardTestDispatcher()) {
+        val rig = Rig()
+        start(rig)
+        rig.state.value = playing(59_000L); runCurrent()
+        rig.state.value = DomainPlaybackState.Ended(60_000L); runCurrent()
+        assertEquals(Saved("content://media/1", 60_000L, true), rig.saved.last())
+
+        // Replaying video from start
+        rig.state.value = playing(5_000L); runCurrent()
+        assertEquals(Saved("content://media/1", 5_000L, false), rig.saved.last())
+
+        // Reaches end again
+        rig.state.value = DomainPlaybackState.Ended(60_000L); runCurrent()
+        assertEquals(Saved("content://media/1", 60_000L, true), rig.saved.last())
+    }
 }

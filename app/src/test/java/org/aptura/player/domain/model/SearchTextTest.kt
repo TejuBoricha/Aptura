@@ -57,6 +57,22 @@ class SearchTextTest {
     }
 
     @Test
+    fun nonDecomposableLatinLetters_matchAsciiEquivalents() {
+        assertTrue(matchesSearch("Łódź Documentary", "lodz"))
+        assertTrue(matchesSearch("København", "kobenhavn"))
+        assertTrue(matchesSearch("Đorđe", "dorde"))
+        assertTrue(matchesSearch("Straße", "strasse"))
+        assertTrue(matchesSearch("Encyclopædia", "encyclopaedia"))
+        assertTrue(matchesSearch("Cœur", "coeur"))
+    }
+
+    @Test
+    fun independentTokens_matchOutOfOrder() {
+        assertTrue(matchesSearch("The Lord of the Rings: The Fellowship", "rings fellowship"))
+        assertTrue(matchesSearch("Breaking Bad S05E16 Felina", "bad felina s05"))
+    }
+
+    @Test
     fun extraSpacesInTheQueryOrTitleDoNotMatter() {
         assertTrue(matchesSearch("Show  S01E01", "show s01e01"))
         assertTrue(matchesSearch("Show.S01E01", "  show   s01e01  "))

@@ -17,8 +17,8 @@ import java.nio.ByteBuffer
  * Real audio/video sync offset (audit P0-08: the "lip-sync" stepper used to be stored and displayed but never
  * applied to the audio).
  *
- *  - **Positive delay** (+150 ms, "Bluetooth buds"): inserts silence, so the sound arrives *later* than the picture.
- *  - **Negative delay**: drops samples, so the sound arrives *earlier*.
+ *  - **Positive delay**: inserts silence, so the sound arrives *later* than the picture.
+ *  - **Negative delay** (-150 ms, "Bluetooth buds"): drops samples, so the sound arrives *earlier* to compensate for Bluetooth latency.
  *
  * Because the player's media clock follows the audio sink, shifting the audio stream shifts it relative to the
  * video, which is exactly the offset the user asked for. The delay can change while playing; a flush (seek) restarts
@@ -28,7 +28,7 @@ import java.nio.ByteBuffer
  * announces that through [DelayAfterSpeedChain], which calls [keepOffsetAcrossNextFlush] first, so that flush keeps
  * the offset instead of applying it a second time (audit FUNC-04).
  *
- * Only 16-bit PCM is processed; any other format makes the processor inactive (it never breaks playback).
+ * Supported formats: 16-bit, 24-bit, 32-bit, and float linear PCM. Any other format makes the processor inactive.
  */
 class AudioDelayProcessor : BaseAudioProcessor() {
 
@@ -61,8 +61,15 @@ class AudioDelayProcessor : BaseAudioProcessor() {
 
     override fun onConfigure(inputAudioFormat: AudioFormat): AudioFormat {
         keepOffsetOnNextFlush = false
-        if (inputAudioFormat.encoding != C.ENCODING_PCM_16BIT || inputAudioFormat.sampleRate <= 0) {
-            if (inputAudioFormat.encoding != C.ENCODING_PCM_16BIT) {
+        val isLinearPcm = when (inputAudioFormat.encoding) {
+            C.ENCODING_PCM_16BIT,
+            C.ENCODING_PCM_24BIT,
+            C.ENCODING_PCM_32BIT,
+            C.ENCODING_PCM_FLOAT -> true
+            else -> false
+        }
+        if (!isLinearPcm || inputAudioFormat.sampleRate <= 0) {
+            if (!isLinearPcm && inputAudioFormat.encoding != C.ENCODING_INVALID) {
                 org.aptura.player.core.diagnostics.ApturaDiagnostics.logEvent(
                     code = org.aptura.player.core.diagnostics.EventCode.EV_014,
                     payload = mapOf(
@@ -108,7 +115,14 @@ class AudioDelayProcessor : BaseAudioProcessor() {
 
         val keepBytes = inputBytes - dropBytes
         val output = replaceOutputBuffer(silenceBytes + keepBytes)
-        if (silenceBytes > 0) output.put(ByteArray(silenceBytes))
+        if (silenceBytes > 0) {
+            var remainingSilence = silenceBytes
+            while (remainingSilence > 0) {
+                val chunkSize = minOf(remainingSilence, ZERO_CHUNK.size)
+                output.put(ZERO_CHUNK, 0, chunkSize)
+                remainingSilence -= chunkSize
+            }
+        }
 
         inputBuffer.position(inputBuffer.position() + dropBytes)
         val originalLimit = inputBuffer.limit()
@@ -121,6 +135,7 @@ class AudioDelayProcessor : BaseAudioProcessor() {
     companion object {
         const val MAX_DELAY_MS = 10_000L
         private const val MAX_SILENCE_BYTES_PER_CALL = 4 * 1024 * 1024
+        private val ZERO_CHUNK = ByteArray(4096)
     }
 }
 
