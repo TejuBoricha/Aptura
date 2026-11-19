@@ -48,6 +48,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.SecureFlagPolicy
@@ -518,7 +519,7 @@ fun SkeletonBlock(modifier: Modifier = Modifier, shape: RoundedCornerShape = Rou
 fun Modifier.filterTouchesWhenObscured(): Modifier = this.pointerInput(Unit) {
     awaitPointerEventScope {
         while (true) {
-            val event = awaitPointerEvent()
+            val event = awaitPointerEvent(PointerEventPass.Initial)
             val native = event.motionEvent
             if (native != null) {
                 val isObscured = (native.flags and (

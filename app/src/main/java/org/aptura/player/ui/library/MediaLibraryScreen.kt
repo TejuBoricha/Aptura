@@ -305,6 +305,10 @@ fun MediaLibraryScreen(
                             isPermissionDenied = uiState.isPermissionDenied,
                             isPartialMediaAccess = uiState.isPartialMediaAccess,
                             onClearSearch = { onSearchQueryChanged("") },
+                            onShowAllVideos = {
+                                onFolderSelected(null)
+                                onSearchQueryChanged("")
+                            },
                             onRefresh = onRefresh,
                             onOpenFilePicker = onOpenFilePicker,
                             onRequestPermission = onRequestPermission,
@@ -1924,6 +1928,7 @@ private fun MediaLibraryEmptyView(
     isPermissionDenied: Boolean = false,
     isPartialMediaAccess: Boolean = false,
     onClearSearch: () -> Unit,
+    onShowAllVideos: () -> Unit = onClearSearch,
     onRefresh: () -> Unit,
     onOpenFilePicker: () -> Unit = {},
     onRequestPermission: () -> Unit = {},
@@ -1972,7 +1977,8 @@ private fun MediaLibraryEmptyView(
                     text = when {
                         isPermissionDenied -> "Allow access to your videos"
                         isPartialMediaAccess -> "No videos selected"
-                        isFiltered -> "No results for “$query”"
+                        isFiltered && query.isNotBlank() -> "No results for “$query”"
+                        isFiltered -> "No videos in this folder"
                         else -> "No videos yet"
                     },
                     style = ApturaTypography.headlineMedium,
@@ -1986,7 +1992,8 @@ private fun MediaLibraryEmptyView(
                     text = when {
                         isPermissionDenied -> "Aptura needs permission to list the videos on this device. You can also add only the folders you choose."
                         isPartialMediaAccess -> "Aptura can only see the videos you select. Pick videos to show, or allow all videos in settings."
-                        isFiltered -> "Check the spelling, or try a shorter part of the title."
+                        isFiltered && query.isNotBlank() -> "Check the spelling, or try a shorter part of the title."
+                        isFiltered -> "Videos in this folder will appear here once added or moved."
                         else -> "Aptura lists the videos on this device and its SD card. Scan again after adding files, or add a folder it can't see yet."
                     },
                     style = ApturaTypography.bodyLarge,
@@ -2028,7 +2035,13 @@ private fun MediaLibraryEmptyView(
                         ApturaTextButton(text = "Add a folder", onClick = onAddFolderClick)
                     }
 
-                    isFiltered -> ApturaButton(text = "Clear search", onClick = onClearSearch)
+                    isFiltered -> {
+                        if (query.isNotBlank()) {
+                            ApturaButton(text = "Clear search", onClick = onClearSearch)
+                        } else {
+                            ApturaButton(text = "Show all videos", onClick = onShowAllVideos)
+                        }
+                    }
 
                     else -> {
                         ApturaButton(

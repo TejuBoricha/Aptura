@@ -163,9 +163,11 @@ internal fun PlayerSeekBar(
                             val targetMs = (fraction * dur).toLong()
                             currentOnScrubStart(targetMs)
                             currentOnScrubMove(targetMs)
-                            tryAwaitRelease()
-                            currentOnScrubEnd()
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            val released = tryAwaitRelease()
+                            if (released) {
+                                currentOnScrubEnd()
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            }
                         }
                     }
                 )

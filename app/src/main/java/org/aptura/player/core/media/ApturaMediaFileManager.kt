@@ -42,7 +42,14 @@ object ApturaMediaFileManager {
         newNameWithExt: String
     ): MediaRenameResult {
         val requestedName = newNameWithExt.trim().trimEnd('.')
-        if (requestedName.isBlank()) return MediaRenameResult.Failed
+        if (requestedName.isBlank() ||
+            requestedName.contains('/') ||
+            requestedName.contains('\\') ||
+            requestedName.contains('\u0000') ||
+            requestedName == "." ||
+            requestedName == ".." ||
+            requestedName.contains("..")
+        ) return MediaRenameResult.Failed
         // Callers only know the library title, which often has no extension. Keep the real file extension so a
         // rename does not turn "Holiday.mp4" into an extension-less file that Android can no longer play.
         val cleanName = withPreservedExtension(context, uri, requestedName)
@@ -84,7 +91,16 @@ object ApturaMediaFileManager {
         if (uri.scheme == "file") {
             try {
                 val currentFile = File(uri.path ?: return MediaRenameResult.Failed)
-                val targetFile = File(currentFile.parentFile, cleanName)
+                val parent = currentFile.parentFile ?: return MediaRenameResult.Failed
+                val targetFile = File(parent, cleanName)
+                val canonicalTarget = targetFile.canonicalFile
+                val canonicalCurrent = currentFile.canonicalFile
+                if (canonicalTarget.parentFile != canonicalCurrent.parentFile) {
+                    return MediaRenameResult.Failed
+                }
+                if (canonicalTarget.exists() && canonicalTarget != canonicalCurrent) {
+                    return MediaRenameResult.Failed
+                }
                 if (currentFile.renameTo(targetFile)) {
                     return MediaRenameResult.Renamed(Uri.fromFile(targetFile), cleanName)
                 }

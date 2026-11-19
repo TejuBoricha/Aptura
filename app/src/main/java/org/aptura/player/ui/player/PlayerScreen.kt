@@ -10,7 +10,10 @@ package org.aptura.player.ui.player
 import android.app.Activity
 import android.content.Context
 import android.media.AudioManager
+import android.os.SystemClock
 import android.view.ViewGroup
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerId
 import androidx.core.net.toUri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -337,14 +340,21 @@ fun PlayerScreen(
     }
 
     val subtitleImportCoordinator = LocalSubtitleImportCoordinator.current
+    val subtitleContract = remember { ActivityResultContracts.OpenDocument() }
     val subtitlePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
+        contract = subtitleContract
     ) { uri ->
         if (uri != null) {
             coroutineScope.launch {
+                val overrideCharset = try {
+                    uiState.subtitleEncoding?.let { java.nio.charset.Charset.forName(it) }
+                } catch (_: Throwable) {
+                    null
+                }
                 subtitleImportCoordinator.importSubtitle(
                     context = context,
                     uri = uri,
+                    overrideCharset = overrideCharset,
                     onExternalSubtitleSelected = onExternalSubtitleSelected,
                     showToast = { msg, duration -> Toast.makeText(context, msg, duration).show() },
                     performHaptic = { type -> haptic.performHapticFeedback(type) }
@@ -463,6 +473,12 @@ fun PlayerScreen(
             } else {
                 false
             }
+        }
+    }
+
+    LaunchedEffect(isPipMode) {
+        if (isPipMode) {
+            dismissAnyActiveSheet()
         }
     }
 
@@ -624,26 +640,30 @@ fun PlayerScreen(
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
                         var twoFingerDetected = false
-                        val startTime = System.currentTimeMillis()
+                        val startTime = SystemClock.uptimeMillis()
                         var movedPastSlop = false
                         val touchSlop = viewConfiguration.touchSlop
-                        val startPos = down.position
+                        val initialPositions = mutableMapOf<PointerId, Offset>()
+                        initialPositions[down.id] = down.position
 
                         while (true) {
-                            val event = awaitPointerEvent()
+                            val event = awaitPointerEvent(PointerEventPass.Main)
                             if (event.changes.size >= 2) {
                                 twoFingerDetected = true
                             }
                             for (change in event.changes) {
-                                if ((change.position - startPos).getDistance() > touchSlop * 2) {
+                                val initial = initialPositions.getOrPut(change.id) { change.position }
+                                if ((change.position - initial).getDistance() > touchSlop * 2) {
                                     movedPastSlop = true
+                                }
+                                if (twoFingerDetected) {
+                                    change.consume()
                                 }
                             }
                             val allUp = event.changes.all { !it.pressed }
                             if (allUp) {
-                                val elapsed = System.currentTimeMillis() - startTime
+                                val elapsed = SystemClock.uptimeMillis() - startTime
                                 if (twoFingerDetected && !movedPastSlop && elapsed < 500L && !currentIsLocked) {
-                                    event.changes.forEach { it.consume() }
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     currentOnTwoFingerTap()
                                 }
@@ -1065,7 +1085,7 @@ fun PlayerScreen(
         // 3. Transient Feedback Overlays (Volume, Brightness, Double-Tap Seek, Horizontal Swipe Seek, Lock Hint)
         // Right-side Volume Indicator (FR-CTRL-005, FR-CTRL-015)
         AnimatedVisibility(
-            visible = uiState.volumePercent != null,
+            visible = uiState.volumePercent != null && !isPipMode,
             enter = fadeIn() + scaleIn(),
             exit = fadeOut() + scaleOut(),
             modifier = Modifier
@@ -1083,7 +1103,7 @@ fun PlayerScreen(
 
         // Left-side Brightness Indicator (FR-CTRL-005, FR-CTRL-015)
         AnimatedVisibility(
-            visible = uiState.brightnessPercent != null,
+            visible = uiState.brightnessPercent != null && !isPipMode,
             enter = fadeIn() + scaleIn(),
             exit = fadeOut() + scaleOut(),
             modifier = Modifier
@@ -1101,7 +1121,7 @@ fun PlayerScreen(
 
         // Double-Tap Seek Curved Ripple Overlay (FR-CTRL-002)
         AnimatedVisibility(
-            visible = uiState.seekDeltaSeconds != null,
+            visible = uiState.seekDeltaSeconds != null && !isPipMode,
             enter = fadeIn() + scaleIn(),
             exit = fadeOut() + scaleOut(),
             modifier = Modifier
@@ -1125,7 +1145,7 @@ fun PlayerScreen(
 
         // Horizontal Swipe Seek HUD (FR-CTRL-005, FR-CTRL-003)
         AnimatedVisibility(
-            visible = uiState.swipeSeekTargetMs != null,
+            visible = uiState.swipeSeekTargetMs != null && !isPipMode,
             enter = fadeIn() + scaleIn(),
             exit = fadeOut() + scaleOut(),
             modifier = Modifier.align(Alignment.Center)
@@ -1141,7 +1161,7 @@ fun PlayerScreen(
 
         // Lock Mode Touch Guard Hint (FR-CTRL-006)
         AnimatedVisibility(
-            visible = uiState.isLockHintVisible,
+            visible = uiState.isLockHintVisible && !isPipMode,
             enter = fadeIn() + scaleIn(),
             exit = fadeOut() + scaleOut(),
             modifier = Modifier
@@ -1152,7 +1172,7 @@ fun PlayerScreen(
         }
 
         // Center Buffering Spinner
-        if (uiState.isBuffering && !uiState.isPlaying) {
+        if (uiState.isBuffering && !uiState.isPlaying && !isPipMode) {
             CircularProgressIndicator(
                 color = ApturaColors.AccentPrimary,
                 strokeWidth = 3.dp,
@@ -1163,7 +1183,7 @@ fun PlayerScreen(
         }
 
         // 4. Lock Mode Indicator (When locked)
-        if (uiState.isLocked) {
+        if (uiState.isLocked && !isPipMode) {
             Surface(
                 color = ApturaColors.SurfaceElevated2.copy(alpha = 0.85f),
                 shape = RoundedCornerShape(24.dp),
@@ -1686,7 +1706,7 @@ fun PlayerScreen(
         }
 
         // 6. Playback Error State Banner (SCR-010x)
-        if (uiState.errorMessage != null) {
+        if (uiState.errorMessage != null && !isPipMode) {
             Surface(
                 color = ApturaColors.SurfaceElevated2,
                 shape = RoundedCornerShape(20.dp),
@@ -1891,7 +1911,7 @@ fun PlayerScreen(
         }
 
         // 7. Up Next Auto-Advance Countdown Overlay (SCR-010g)
-        if (uiState.isEnded && uiState.autoAdvanceCountdownSeconds != null) {
+        if (uiState.isEnded && uiState.autoAdvanceCountdownSeconds != null && !isPipMode) {
             UpNextOverlay(
                 countdownSeconds = uiState.autoAdvanceCountdownSeconds,
                 nextTitle = uiState.nextItemTitle ?: "Next Video",
@@ -1905,7 +1925,7 @@ fun PlayerScreen(
         }
 
         // 7b. Playback Queue Sheet (SCR-010f, FR-CTRL-001, FR-CTRL-017)
-        if (uiState.isQueueSheetVisible) {
+        if (uiState.isQueueSheetVisible && !isPipMode) {
             PlaybackQueueSheet(
                 queueItems = uiState.queueItems,
                 currentIndex = uiState.currentQueueIndex,
@@ -1921,7 +1941,7 @@ fun PlayerScreen(
         }
 
         // 7c. Speed Selection Sheet (SCR-010b)
-        if (uiState.isSpeedSheetVisible) {
+        if (uiState.isSpeedSheetVisible && !isPipMode) {
             ModalBottomSheet(
                 onDismissRequest = { onSpeedSheetVisible(false) },
                 sheetState = rememberModalBottomSheetState(),
@@ -1955,7 +1975,7 @@ fun PlayerScreen(
         }
 
         // 8. Audio & Sound Enhancements Sheet (SCR-010d, FR-AUD-001..004)
-        if (uiState.isAudioSheetVisible) {
+        if (uiState.isAudioSheetVisible && !isPipMode) {
             AudioEnhancementSheet(
                 audioTracks = uiState.audioTracks,
                 selectedAudioTrackIndex = uiState.selectedAudioTrackIndex,
@@ -1978,7 +1998,7 @@ fun PlayerScreen(
         }
 
         // 9. Subtitle Track & Sync Sheet (SCR-010c)
-        if (uiState.isSubtitleSheetVisible) {
+        if (uiState.isSubtitleSheetVisible && !isPipMode) {
             SubtitleSheet(
                 uiState = uiState,
                 onDismissRequest = { onSubtitleSheetVisible(false) },
@@ -1994,7 +2014,9 @@ fun PlayerScreen(
                             "application/xml",
                             "text/xml",
                             "text/plain",
-                            "application/zip"
+                            "application/zip",
+                            "application/octet-stream",
+                            "*/*"
                         )
                     )
                 },
@@ -2011,7 +2033,7 @@ fun PlayerScreen(
         }
 
         // 9b. Subtitle Web Search Assistant Dialog
-        if (uiState.isWebSearchDialogVisible) {
+        if (uiState.isWebSearchDialogVisible && !isPipMode) {
             WebSearchDialog(
                 initialQuery = uiState.cleanSearchQuery.ifBlank { uiState.videoTitle },
                 onDismissRequest = onDismissWebSearchDialog,
@@ -2021,7 +2043,7 @@ fun PlayerScreen(
 
 
         // 10. Playback & Display Settings Sheet (SCR-010e)
-        if (uiState.isAdvancedSheetVisible) {
+        if (uiState.isAdvancedSheetVisible && !isPipMode) {
             var selectedTab by remember { mutableIntStateOf(0) }
 
             ModalBottomSheet(
@@ -2101,7 +2123,7 @@ fun PlayerScreen(
         }
 
         // 11. Compatibility Explainer Sheet (SCR-010h, FR-PLAY-003)
-        if (uiState.isWhyCompatibilitySheetVisible) {
+        if (uiState.isWhyCompatibilitySheetVisible && !isPipMode) {
             CompatibilityExplainerSheet(
                 failedCodecName = uiState.failedCodecName,
                 failureReason = uiState.failureReason,

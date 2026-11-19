@@ -54,6 +54,9 @@ object PlayerManager {
     val activeController: Media3PlaybackController?
         get() = controllerInstance
 
+    @Volatile
+    var videoDisabledForBackground: Boolean = false
+
     @Synchronized
     fun getOrCreate(context: Context): Media3PlaybackController {
         val existing = controllerInstance
@@ -200,6 +203,7 @@ object PlayerManager {
 
     @Synchronized
     fun release() {
+        videoDisabledForBackground = false
         progressRecorderJob?.cancel()
         progressRecorderJob = null
         effectsFollowerJob?.cancel()
@@ -208,7 +212,7 @@ object PlayerManager {
         audioEnhancementInstance?.releaseEffects()
         audioEnhancementInstance = null
         controllerInstance?.let { controller ->
-            controller.player.release()
+            controller.releaseNow()
             controllerInstance = null
         }
     }

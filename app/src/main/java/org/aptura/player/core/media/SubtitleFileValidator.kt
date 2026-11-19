@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
 import java.net.URLDecoder
+import java.nio.charset.Charset
 
 sealed class SubtitleValidationResult {
     data class Valid(
@@ -50,7 +51,7 @@ object SubtitleFileValidator {
         "tar" to "Tar archive"
     )
 
-    fun validate(context: Context, uri: Uri): SubtitleValidationResult {
+    fun validate(context: Context, uri: Uri, overrideCharset: Charset? = null): SubtitleValidationResult {
         // 1. Resolve real display name from ContentResolver or URI
         val resolvedName = resolveDisplayName(context, uri)
         val extension = resolvedName.substringAfterLast('.', "").lowercase()
@@ -66,7 +67,7 @@ object SubtitleFileValidator {
         if (isZip) {
             return when (val zipResult = SubtitleZipExtractor.extractSubtitleFromZip(context, uri)) {
                 is ZipExtractionResult.Success -> {
-                    val normalizedFile = SubtitleCharsetNormalizer.normalizeToUtf8(zipResult.extractedFile, context.cacheDir)
+                    val normalizedFile = SubtitleCharsetNormalizer.normalizeToUtf8(zipResult.extractedFile, context.cacheDir, overrideCharset)
                     SubtitleValidationResult.Valid(
                         displayName = zipResult.entryName,
                         mimeType = zipResult.mimeType,
@@ -136,7 +137,7 @@ object SubtitleFileValidator {
 
         // 5. Normalize non-UTF-8 / BOM-prefixed subtitle files so Media3 parsers receive clean UTF-8
         val normalizedFile = try {
-            SubtitleCharsetNormalizer.normalizeBytesToUtf8File(rawBytes, resolvedName, context.cacheDir)
+            SubtitleCharsetNormalizer.normalizeBytesToUtf8File(rawBytes, resolvedName, context.cacheDir, overrideCharset)
         } catch (_: Throwable) {
             null
         }

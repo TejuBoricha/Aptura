@@ -418,4 +418,40 @@ class MediaFileTransferTest {
         assertTrue(result.failedUris.isEmpty())
         assertArrayEquals(bytes, destinationFile.readBytes())
     }
+
+    @Test
+    fun parentDocumentIdOf_identifiesParentInSubfolderAndRoot() {
+        assertEquals("primary:Movies", MediaFileTransfer.parentDocumentIdOf("primary:Movies/clip.mp4"))
+        assertEquals("primary:Movies/sub", MediaFileTransfer.parentDocumentIdOf("primary:Movies/sub/clip.mp4"))
+        assertEquals("primary:", MediaFileTransfer.parentDocumentIdOf("primary:clip.mp4"))
+    }
+
+    @Test
+    fun cancellingAfterSourceCopiedDoesNotDeleteVerifiedDestination() = runTest {
+        val source = temporaryFolder.newFile("complete.mp4")
+        val bytes = byteArrayOf(1, 2, 3)
+        source.writeBytes(bytes)
+        val destinationTree = Uri.parse("content://org.aptura.test.documents/tree/root")
+
+        var cancelled = false
+        val copyJob = launch {
+            try {
+                MediaFileTransfer.copyIntoTree(
+                    context,
+                    listOf(Uri.fromFile(source).toString()),
+                    destinationTree,
+                    onSourceCopied = { _, _ ->
+                        throw kotlinx.coroutines.CancellationException("Job cancelled during journal step")
+                    }
+                )
+            } catch (_: kotlinx.coroutines.CancellationException) {
+                cancelled = true
+            }
+        }
+        copyJob.join()
+
+        assertTrue(cancelled)
+        assertTrue("verified destination must stay on disk", destinationFile.exists())
+        assertArrayEquals(bytes, destinationFile.readBytes())
+    }
 }

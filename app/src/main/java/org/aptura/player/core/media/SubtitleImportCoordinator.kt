@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import java.nio.charset.Charset
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -17,6 +18,7 @@ interface SubtitleImportCoordinator {
     suspend fun importSubtitle(
         context: Context,
         uri: Uri,
+        overrideCharset: Charset? = null,
         onExternalSubtitleSelected: (Uri, String, String) -> Unit,
         showToast: (String, Int) -> Unit,
         performHaptic: (HapticFeedbackType) -> Unit
@@ -25,20 +27,29 @@ interface SubtitleImportCoordinator {
 
 class DefaultSubtitleImportCoordinator(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-    private val validator: (Context, Uri) -> SubtitleValidationResult = { ctx, uri ->
-        SubtitleFileValidator.validate(ctx, uri)
+    private val validator: (Context, Uri, Charset?) -> SubtitleValidationResult = { ctx, uri, charset ->
+        SubtitleFileValidator.validate(ctx, uri, charset)
     }
 ) : SubtitleImportCoordinator {
+
+    constructor(
+        ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+        validator: (Context, Uri) -> SubtitleValidationResult
+    ) : this(
+        ioDispatcher = ioDispatcher,
+        validator = { ctx, uri, _ -> validator(ctx, uri) }
+    )
 
     override suspend fun importSubtitle(
         context: Context,
         uri: Uri,
+        overrideCharset: Charset?,
         onExternalSubtitleSelected: (Uri, String, String) -> Unit,
         showToast: (String, Int) -> Unit,
         performHaptic: (HapticFeedbackType) -> Unit
     ): SubtitleValidationResult {
         val validation = withContext(ioDispatcher) {
-            validator(context, uri)
+            validator(context, uri, overrideCharset)
         }
         when (validation) {
             is SubtitleValidationResult.Valid -> {

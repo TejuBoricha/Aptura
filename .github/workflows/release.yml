@@ -28,6 +28,7 @@ jobs:
         run: |
           ./gradlew assembleRelease --stacktrace
           ./gradlew bundleRelease --stacktrace
+          ./gradlew writeReleaseRuntimeDependencies --stacktrace
 
       - name: Stage release artifacts and generate SHA256SUMS.txt
         run: |
@@ -35,9 +36,9 @@ jobs:
           cp app/build/outputs/apk/release/*.apk release-out/
           cp app/build/outputs/bundle/release/*.aab release-out/
           cp app/build/outputs/mapping/release/mapping.txt release-out/mapping.txt
-          cp app/build/invariants/apk-verification.txt release-out/apk-verification.txt
-          cp app/build/invariants/bundle-verification.txt release-out/bundle-verification.txt
-          cp app/build/invariants/release-dependencies.txt release-out/release-dependencies.txt
+          cp app/build/invariants/release-apk-check.txt release-out/release-apk-check.txt
+          cp app/build/invariants/release-bundle-check.txt release-out/release-bundle-check.txt
+          cp app/build/invariants/release-runtime-dependencies.txt release-out/release-runtime-dependencies.txt
           (cd release-out && sha256sum * > SHA256SUMS.txt)
           cat release-out/SHA256SUMS.txt
 
@@ -56,4 +57,4 @@ jobs:
           gh release create "$TAG" release-out/* \
             --title "Aptura $TAG (pre-release)" \
             --prerelease \
-            --notes "Automated release verification build (`verifyReleaseApk` + `verifyReleaseBundle`). Unsigned unless Play App Signing / upload keystore is configured locally. See `SHA256SUMS.txt` and `release-dependencies.txt`."
+            --notes 'Automated release verification build (`verifyReleaseApk` + `verifyReleaseBundle`). Unsigned unless Play App Signing / upload keystore is configured locally. See `SHA256SUMS.txt` and `release-runtime-dependencies.txt`.'

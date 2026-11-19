@@ -133,16 +133,24 @@ object MediaFormatters {
         }
     }
 
+    private val KNOWN_VIDEO_EXTENSIONS = setOf(
+        "MP4", "MKV", "WEBM", "3GP", "MOV", "TS", "M2TS", "AVI", "FLV", "WMV", "M4V", "OGV"
+    )
+
+    private fun gcd(a: Int, b: Int): Int = if (b == 0) a else gcd(b, a % b)
+
     /** The short quality name people use ("4K", "1080p"), or null when the size is unknown. */
     fun qualityLabel(width: Int, height: Int): String? {
         if (width <= 0 || height <= 0) return null
+        val shortEdge = minOf(width, height)
+        val longEdge = maxOf(width, height)
         return when {
-            width >= 3840 || height >= 2160 -> "4K"
-            width >= 2560 || height >= 1440 -> "1440p"
-            width >= 1920 || height >= 1080 -> "1080p"
-            width >= 1280 || height >= 720 -> "720p"
-            width >= 854 || height >= 480 -> "480p"
-            else -> "${height}p"
+            shortEdge >= 2160 || longEdge >= 3840 -> "4K"
+            shortEdge >= 1440 || longEdge >= 2560 -> "1440p"
+            shortEdge >= 1080 || longEdge >= 1920 -> "1080p"
+            shortEdge >= 720 || longEdge >= 1280 -> "720p"
+            shortEdge >= 480 || longEdge >= 854 -> "480p"
+            else -> "${shortEdge}p"
         }
     }
 
@@ -178,27 +186,38 @@ object MediaFormatters {
 
     fun formatResolution(width: Int, height: Int): String {
         if (width <= 0 || height <= 0) return "Unknown"
+        val shortEdge = minOf(width, height)
+        val longEdge = maxOf(width, height)
         val quality = when {
-            width >= 3840 || height >= 2160 -> "4K UHD"
-            width >= 2560 || height >= 1440 -> "2K QHD"
-            width >= 1920 || height >= 1080 -> "1080p FHD"
-            width >= 1280 || height >= 720 -> "720p HD"
-            width >= 854 || height >= 480 -> "480p SD"
-            else -> "${height}p"
+            shortEdge >= 2160 || longEdge >= 3840 -> "4K UHD"
+            shortEdge >= 1440 || longEdge >= 2560 -> "2K QHD"
+            shortEdge >= 1080 || longEdge >= 1920 -> "1080p FHD"
+            shortEdge >= 720 || longEdge >= 1280 -> "720p HD"
+            shortEdge >= 480 || longEdge >= 854 -> "480p SD"
+            else -> "${shortEdge}p"
         }
         val ratio = when {
             Math.abs((width.toDouble() / height) - (16.0 / 9)) < 0.05 -> "16:9"
+            Math.abs((width.toDouble() / height) - (9.0 / 16)) < 0.05 -> "9:16"
             Math.abs((width.toDouble() / height) - (4.0 / 3)) < 0.05 -> "4:3"
+            Math.abs((width.toDouble() / height) - (3.0 / 4)) < 0.05 -> "3:4"
             Math.abs((width.toDouble() / height) - (21.0 / 9)) < 0.08 -> "21:9"
-            else -> "$width:$height"
+            else -> {
+                val g = gcd(width, height)
+                if (g > 1 && width / g <= 32 && height / g <= 32) {
+                    "${width / g}:${height / g}"
+                } else {
+                    "$width:$height"
+                }
+            }
         }
         return "$width × $height ($quality · $ratio)"
     }
 
     fun formatContainer(mimeType: String?, title: String): String {
         val ext = title.substringAfterLast('.', "").uppercase()
-        if (ext.isNotBlank() && ext.length in 2..5) {
-            return ext
+        if (ext in KNOWN_VIDEO_EXTENSIONS) {
+            return if (ext == "MKV") "MKV (Matroska)" else ext
         }
         return when (mimeType?.lowercase()) {
             "video/mp4" -> "MP4"
