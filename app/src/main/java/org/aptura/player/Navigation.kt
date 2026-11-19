@@ -99,6 +99,7 @@ import org.aptura.player.theme.themeModeForRoute
  * previously only the arrow did, so system Back left the video playing under the library.
  */
 internal fun handleBack(backStack: MutableList<NavKey>, onPlayerDismissed: () -> Unit) {
+    if (backStack.size <= 1) return
     if (backStack.lastOrNull() is PlayerKey) {
         onPlayerDismissed()
     }

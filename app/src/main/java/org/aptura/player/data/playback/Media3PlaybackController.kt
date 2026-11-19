@@ -221,7 +221,7 @@ class Media3PlaybackController(
                 positionTickerJob = scope.launch(mainDispatcher) {
                     while (isActive && player.isPlaying) {
                         delay(250L)
-                        updatePlaybackState()
+                        updatePlaybackState(calledFromTicker = true)
                         updatePlaybackStats()
                     }
                 }
@@ -330,7 +330,8 @@ class Media3PlaybackController(
             val isDecoderFailure = !isAudioFailure && (
                 error.errorCode == PlaybackException.ERROR_CODE_DECODING_FAILED ||
                     error.errorCode == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
-                    error.errorCode == PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES
+                    error.errorCode == PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES ||
+                    error.errorCode == PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED
                 )
 
             // Check if software fallback is viable before attempting:
@@ -506,7 +507,7 @@ class Media3PlaybackController(
         updateTracks(currentTracks)
     }
 
-    private fun updatePlaybackState() {
+    private fun updatePlaybackState(calledFromTicker: Boolean = false) {
         stalledReason?.let { facts ->
             val taxonomy = ErrorTaxonomy.playbackNotStarted(
                 PLAYBACK_START_TIMEOUT_MS / 1000,
@@ -557,7 +558,9 @@ class Media3PlaybackController(
             Player.STATE_ENDED -> DomainPlaybackState.Ended(duration)
             else -> DomainPlaybackState.Idle
         }
-        checkPositionTicker(player.isPlaying)
+        if (!calledFromTicker) {
+            checkPositionTicker(player.isPlaying)
+        }
     }
 
     fun updatePlaybackStats() {
@@ -1489,6 +1492,7 @@ internal const val MIN_FRAMES_FOR_DROP_RATE = 30
  */
 internal fun dropPercentage(dropped: Int, rendered: Int): Float {
     val total = dropped + rendered
-    if (total < MIN_FRAMES_FOR_DROP_RATE) return 0f
-    return dropped.toFloat() / total.toFloat() * 100f
+    if (total < MIN_FRAMES_FOR_DROP_RATE || dropped <= 0) return 0f
+    val raw = dropped.toFloat() / total.toFloat() * 100f
+    return kotlin.math.round(raw * 10f) / 10f
 }

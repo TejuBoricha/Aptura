@@ -64,6 +64,7 @@ class SleepTimer(
     val state: StateFlow<SleepTimerState> = _state.asStateFlow()
 
     private var job: Job? = null
+    private var disarmJob: Job? = null
     private var closed = false
 
     /** Pauses playback [minutes] from now, fading the sound out first. Replaces whatever was set. */
@@ -120,6 +121,8 @@ class SleepTimer(
         closed = true
         job?.cancel()
         job = null
+        disarmJob?.cancel()
+        disarmJob = null
         _state.value = SleepTimerState.Off
     }
 
@@ -148,7 +151,7 @@ class SleepTimer(
                 _state.value = SleepTimerState.Expired
             } finally {
                 // Paused, cancelled or extended: the next play starts at full volume.
-                if (!closed) withContext(NonCancellable) { setVolume(1f) }
+                if (!closed) setVolume(1f)
             }
         }
     }
@@ -157,7 +160,10 @@ class SleepTimer(
         val wasArmedAtEndOfItem = _state.value == SleepTimerState.AtEndOfItem
         job?.cancel()
         job = null
-        if (wasArmedAtEndOfItem) scope.launch { setStopAfterCurrentItem(false) }
+        disarmJob?.cancel()
+        if (wasArmedAtEndOfItem && !closed) {
+            disarmJob = scope.launch { setStopAfterCurrentItem(false) }
+        }
     }
 
     companion object {

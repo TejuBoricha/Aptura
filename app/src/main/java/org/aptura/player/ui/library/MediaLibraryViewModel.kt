@@ -21,6 +21,7 @@ import org.aptura.player.core.platform.MediaAccessLevel
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.domain.repository.MediaRepository
 import org.aptura.player.domain.model.matchesSearch
+import org.aptura.player.domain.model.searchKey
 
 /**
  * Presentation ViewModel for the Media Library Screen.
@@ -169,10 +170,13 @@ class MediaLibraryViewModel(
             // Apply search query filter
             if (filter.query.isNotBlank()) {
                 val trimmedQuery = filter.query.trim()
+                val queryKey = searchKey(trimmedQuery)
+                val queryTokens = if (queryKey.isNotEmpty()) queryKey.split(' ').filter { it.isNotEmpty() } else emptyList()
+                val labels = folderLabels(folders)
                 filtered = filtered.filter { item ->
-                    // The title as it is shown on the card, not only as it is stored (audit DATA-14).
-                    matchesSearch(item.title, trimmedQuery) ||
-                        matchesSearch(friendlyFolderName(item.folderPath), trimmedQuery)
+                    val folderName = labels[item.folderPath] ?: friendlyFolderName(item.folderPath)
+                    matchesSearch(item.title, trimmedQuery, queryKey = queryKey, queryTokens = queryTokens) ||
+                        matchesSearch(folderName, trimmedQuery, queryKey = queryKey, queryTokens = queryTokens)
                 }
             }
 
@@ -182,7 +186,8 @@ class MediaLibraryViewModel(
             if (filtered.isEmpty()) {
                 MediaLibraryUiState.Empty(isFiltered = true, query = filter.query)
             } else {
-                val cards = filtered.map { item -> item.toCardUiModel() }
+                val labels = folderLabels(folders)
+                val cards = filtered.map { item -> item.toCardUiModel(labels) }
                 MediaLibraryUiState.Success(
                     videos = cards,
                     folders = folders,
@@ -194,7 +199,7 @@ class MediaLibraryViewModel(
                     isLimitedMode = filter.isPermissionDenied,
                     isPartialMediaAccess = filter.isPartialMediaAccess,
                     continueWatching = if (filter.showContinueWatching) {
-                        allVideos.continueWatching().map { it.toCardUiModel() }
+                        allVideos.continueWatching().map { it.toCardUiModel(labels) }
                     } else {
                         emptyList()
                     },
@@ -392,9 +397,9 @@ class MediaLibraryViewModel(
             )
         }
 
-    private fun DomainMediaItem.toCardUiModel(): VideoCardUiModel {
+    private fun DomainMediaItem.toCardUiModel(labels: Map<String, String>? = null): VideoCardUiModel {
         val progress = MediaFormatters.calculateProgressFraction(playbackPositionMs, durationMs)
-        val folderDisplay = friendlyFolderName(folderPath)
+        val folderDisplay = labels?.get(folderPath) ?: friendlyFolderName(folderPath)
 
         return VideoCardUiModel(
             uri = uri,

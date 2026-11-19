@@ -9,7 +9,8 @@ fun automaticSortOrder(selectedFolder: String?): LibrarySortOrder =
     if (selectedFolder != null) LibrarySortOrder.TITLE_ASC else LibrarySortOrder.DATE_ADDED_DESC
 
 private val byNaturalTitle: Comparator<DomainMediaItem> =
-    Comparator { a, b -> NaturalOrder.compare(cleanDisplayTitle(a.title), cleanDisplayTitle(b.title)) }
+    Comparator<DomainMediaItem> { a, b -> NaturalOrder.compare(cleanDisplayTitle(a.title), cleanDisplayTitle(b.title)) }
+        .thenBy { it.uri }
 
 /**
  * Orders library items. Every order falls back to the natural title, so items that tie (a whole season downloaded in

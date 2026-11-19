@@ -116,7 +116,7 @@ import org.aptura.player.ui.library.MediaFormatters
 
 private val ResizeModeChoices = listOf("Fit", "Fill", "Zoom", "16:9", "4:3")
 private val SeekSteps = listOf(5, 10, 15, 30)
-private val CountdownChoices = listOf(5, 10, 15, 0) // seconds; 0 plays the next video straight away
+private val CountdownChoices = listOf(-1, 0, 5, 10, 15) // seconds: -1 is Off, 0 is Instant
 private val DecoderChoices = listOf("Auto", "Hardware", "Software")
 
 internal const val VIDEO_ACCESS_BUTTON_TAG = "settings_video_access_button"
@@ -265,8 +265,12 @@ fun SettingsScreen(
                 "• Scoped Storage: Access is strictly confined to standard MediaStore video reads and user-selected SAF folders.",
             confirmLabel = "View on GitHub",
             onConfirm = {
-                val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/TejuBoricha/Aptura/blob/main/docs/PRIVACY.md"))
-                context.startActivity(intent)
+                try {
+                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/TejuBoricha/Aptura/blob/main/docs/PRIVACY.md"))
+                    context.startActivity(intent)
+                } catch (_: Throwable) {
+                    Toast.makeText(context, "No web browser found to open link", Toast.LENGTH_SHORT).show()
+                }
             },
             dismissLabel = "Close"
         )
@@ -400,8 +404,14 @@ fun SettingsScreen(
                         PickerRow(
                             title = "Up next countdown",
                             subtitle = "How long to wait before the next video starts",
-                            options = CountdownChoices.map { if (it == 0) "Instant" else "${it}s" },
-                            selectedIndex = CountdownChoices.indexOf(settings.autoAdvanceCountdownSeconds),
+                            options = CountdownChoices.map {
+                                when (it) {
+                                    -1 -> "Off"
+                                    0 -> "Instant"
+                                    else -> "${it}s"
+                                }
+                            },
+                            selectedIndex = CountdownChoices.indexOf(settings.autoAdvanceCountdownSeconds).coerceAtLeast(0),
                             onSelect = { onUpdateAutoAdvanceCountdown(CountdownChoices[it]) }
                         )
                         PanelDivider()
@@ -712,8 +722,12 @@ fun SettingsScreen(
                             title = "Source code",
                             subtitle = "Public Apache-2.0 repository on GitHub",
                             onClick = {
-                                val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/TejuBoricha/Aptura"))
-                                context.startActivity(intent)
+                                try {
+                                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/TejuBoricha/Aptura"))
+                                    context.startActivity(intent)
+                                } catch (_: Throwable) {
+                                    Toast.makeText(context, "No web browser found to open link", Toast.LENGTH_SHORT).show()
+                                }
                             },
                             trailing = {
                                 Icon(
@@ -769,8 +783,12 @@ fun SettingsScreen(
                                 PillButton(
                                     text = "Star on GitHub",
                                     onClick = {
-                                        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/TejuBoricha/Aptura"))
-                                        context.startActivity(intent)
+                                        try {
+                                            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/TejuBoricha/Aptura"))
+                                            context.startActivity(intent)
+                                        } catch (_: Throwable) {
+                                            Toast.makeText(context, "No web browser found to open link", Toast.LENGTH_SHORT).show()
+                                        }
                                     },
                                     leading = {
                                         Icon(
@@ -784,12 +802,16 @@ fun SettingsScreen(
                                 PillButton(
                                     text = "Share app",
                                     onClick = {
-                                        val sendIntent = Intent().apply {
-                                            action = Intent.ACTION_SEND
-                                            putExtra(Intent.EXTRA_TEXT, "Check out Aptura - a 100% offline, privacy-first Android video player with no internet permission: https://github.com/TejuBoricha/Aptura")
-                                            type = "text/plain"
+                                        try {
+                                            val sendIntent = Intent().apply {
+                                                action = Intent.ACTION_SEND
+                                                putExtra(Intent.EXTRA_TEXT, "Check out Aptura - a 100% offline, privacy-first Android video player with no internet permission: https://github.com/TejuBoricha/Aptura")
+                                                type = "text/plain"
+                                            }
+                                            context.startActivity(Intent.createChooser(sendIntent, "Share Aptura"))
+                                        } catch (_: Throwable) {
+                                            Toast.makeText(context, "No app found to share link", Toast.LENGTH_SHORT).show()
                                         }
-                                        context.startActivity(Intent.createChooser(sendIntent, "Share Aptura"))
                                     },
                                     leading = {
                                         Icon(

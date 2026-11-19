@@ -255,7 +255,8 @@ internal fun SpeedRail(
                 }
 
                 // Value bubble + pointer + needle, drawn last so they sit above the ticks.
-                val bubbleX = (needleX - bubbleWidthPx / 2f).coerceIn(0f, size.width - bubbleWidthPx)
+                val maxBubbleX = (size.width - bubbleWidthPx).coerceAtLeast(0f)
+                val bubbleX = (needleX - bubbleWidthPx / 2f).coerceIn(0f, maxBubbleX)
                 drawRoundRect(
                     color = accent,
                     topLeft = Offset(bubbleX, 0f),
