@@ -9,7 +9,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -38,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -103,7 +108,12 @@ fun LicensesScreen(
     }
 
     val statusTop = StableStatusBars.asPaddingValues().calculateTopPadding()
-    val navigationBottom = StableNavigationBars.asPaddingValues().calculateBottomPadding()
+    val navPadding = StableNavigationBars.asPaddingValues()
+    val navigationBottom = navPadding.calculateBottomPadding()
+    val cutoutPadding = WindowInsets.displayCutout.asPaddingValues()
+    val layoutDir = LocalLayoutDirection.current
+    val horizontalStart = maxOf(navPadding.calculateStartPadding(layoutDir), cutoutPadding.calculateStartPadding(layoutDir))
+    val horizontalEnd = maxOf(navPadding.calculateEndPadding(layoutDir), cutoutPadding.calculateEndPadding(layoutDir))
     val topBar = statusTop + SETTINGS_TOP_BAR_HEIGHT_DP.dp
 
     Box(
@@ -118,7 +128,12 @@ fun LicensesScreen(
                 .fillMaxHeight()
                 .widthIn(max = 600.dp)
                 .fillMaxWidth(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = topBar + 8.dp, bottom = navigationBottom + 32.dp),
+            contentPadding = PaddingValues(
+                start = 16.dp + horizontalStart,
+                end = 16.dp + horizontalEnd,
+                top = topBar + 8.dp,
+                bottom = navigationBottom + 32.dp
+            ),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item(key = "intro", contentType = "panel") {
@@ -206,7 +221,10 @@ fun LicensesScreen(
                 .fillMaxWidth()
                 .padding(top = statusTop)
                 .height(SETTINGS_TOP_BAR_HEIGHT_DP.dp)
-                .padding(horizontal = 8.dp)
+                .padding(
+                    start = 8.dp + horizontalStart,
+                    end = 8.dp + horizontalEnd
+                )
         ) {
             CircleIconButton(
                 icon = Icons.AutoMirrored.Filled.ArrowBack,

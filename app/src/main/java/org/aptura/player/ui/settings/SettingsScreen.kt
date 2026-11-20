@@ -17,6 +17,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -80,6 +83,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
@@ -295,7 +299,12 @@ fun SettingsScreen(
     }
 
     val statusTop = StableStatusBars.asPaddingValues().calculateTopPadding()
-    val navigationBottom = StableNavigationBars.asPaddingValues().calculateBottomPadding()
+    val navPadding = StableNavigationBars.asPaddingValues()
+    val navigationBottom = navPadding.calculateBottomPadding()
+    val cutoutPadding = WindowInsets.displayCutout.asPaddingValues()
+    val layoutDir = LocalLayoutDirection.current
+    val horizontalStart = maxOf(navPadding.calculateStartPadding(layoutDir), cutoutPadding.calculateStartPadding(layoutDir))
+    val horizontalEnd = maxOf(navPadding.calculateEndPadding(layoutDir), cutoutPadding.calculateEndPadding(layoutDir))
 
     Box(
         modifier = modifier
@@ -310,8 +319,8 @@ fun SettingsScreen(
                 .widthIn(max = 600.dp)
                 .fillMaxWidth(),
             contentPadding = PaddingValues(
-                start = 16.dp,
-                end = 16.dp,
+                start = 16.dp + horizontalStart,
+                end = 16.dp + horizontalEnd,
                 top = if (shortWindow) statusTop + SETTINGS_TOP_BAR_HEIGHT_DP.dp + 8.dp else statusTop,
                 bottom = navigationBottom + 32.dp
             ),
@@ -879,7 +888,10 @@ fun SettingsScreen(
                 .fillMaxWidth()
                 .padding(top = statusTop)
                 .height(SETTINGS_TOP_BAR_HEIGHT_DP.dp)
-                .padding(horizontal = 8.dp)
+                .padding(
+                    start = 8.dp + horizontalStart,
+                    end = 8.dp + horizontalEnd
+                )
         ) {
             CircleIconButton(
                 icon = Icons.AutoMirrored.Filled.ArrowBack,
