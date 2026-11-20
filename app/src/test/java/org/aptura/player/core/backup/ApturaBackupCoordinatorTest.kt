@@ -126,7 +126,14 @@ class ApturaBackupCoordinatorTest {
             themeMode = ThemeMode.LIGHT,
             accentColor = AccentColor.CYAN,
             defaultPlaybackSpeed = 1.25f,
-            seekDeltaSeconds = 20
+            seekDeltaSeconds = 20,
+            swapSwipeGestures = true,
+            volumeGestureEnabled = false,
+            brightnessGestureEnabled = false,
+            swipeToSeekEnabled = false,
+            doubleTapToSeekEnabled = false,
+            holdFor2xSpeedEnabled = false,
+            matchVideoOrientation = false
         )
         val media = listOf(
             MediaItemEntity(
@@ -174,6 +181,16 @@ class ApturaBackupCoordinatorTest {
         assertEquals(1, restoredBookmarks.size)
         assertEquals("Test Bookmark", restoredBookmarks[0].note)
         assertEquals(15000L, restoredBookmarks[0].timestampMs)
+
+        // Verify settings restored
+        val restoredSettings = settingsRepo.settingsFlow.first()
+        assertTrue(restoredSettings.swapSwipeGestures)
+        assertFalse(restoredSettings.volumeGestureEnabled)
+        assertFalse(restoredSettings.brightnessGestureEnabled)
+        assertFalse(restoredSettings.swipeToSeekEnabled)
+        assertFalse(restoredSettings.doubleTapToSeekEnabled)
+        assertFalse(restoredSettings.holdFor2xSpeedEnabled)
+        assertFalse(restoredSettings.matchVideoOrientation)
     }
 
     @Test(expected = IllegalArgumentException::class)

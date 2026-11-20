@@ -62,6 +62,13 @@ internal object PreferencesKeys {
     val FOLDER_LAYOUT = stringPreferencesKey("folder_layout")
     val LIBRARY_SORT = stringPreferencesKey("library_sort")
     val PRIVATE_MODE_ENABLED = booleanPreferencesKey("private_mode_enabled")
+    val SWAP_SWIPE_GESTURES = booleanPreferencesKey("swap_swipe_gestures")
+    val VOLUME_GESTURE_ENABLED = booleanPreferencesKey("volume_gesture_enabled")
+    val BRIGHTNESS_GESTURE_ENABLED = booleanPreferencesKey("brightness_gesture_enabled")
+    val SWIPE_TO_SEEK_ENABLED = booleanPreferencesKey("swipe_to_seek_enabled")
+    val DOUBLE_TAP_TO_SEEK_ENABLED = booleanPreferencesKey("double_tap_to_seek_enabled")
+    val HOLD_FOR_2X_SPEED_ENABLED = booleanPreferencesKey("hold_for_2x_speed_enabled")
+    val MATCH_VIDEO_ORIENTATION = booleanPreferencesKey("match_video_orientation")
 }
 
 /**
@@ -132,7 +139,21 @@ data class ApturaSettings(
     /** The name of the sort the user picked in the library, or null to let the library choose by folder. */
     val librarySortName: String? = null,
     /** When enabled, sets FLAG_SECURE on the window to block screenshots and mask recents previews (audit SEC-11). */
-    val isPrivateMode: Boolean = false
+    val isPrivateMode: Boolean = false,
+    /** Swaps the vertical edge drag controls: volume on left and brightness on right (FEAT-06, FR-CTRL-005). */
+    val swapSwipeGestures: Boolean = false,
+    /** Enables vertical edge swipe on the volume side to adjust media stream volume (FR-CTRL-005). */
+    val volumeGestureEnabled: Boolean = true,
+    /** Enables vertical edge swipe on the brightness side to adjust screen brightness (FR-CTRL-005). */
+    val brightnessGestureEnabled: Boolean = true,
+    /** Enables full-screen horizontal drag to scrub through media position (FR-CTRL-005). */
+    val swipeToSeekEnabled: Boolean = true,
+    /** Enables double-tap on screen edges to skip backward or forward (FR-CTRL-005, FR-CTRL-002). */
+    val doubleTapToSeekEnabled: Boolean = true,
+    /** Enables press-and-hold during playback to temporarily accelerate to 2x speed (FR-CTRL-005). */
+    val holdFor2xSpeedEnabled: Boolean = true,
+    /** When true, automatically orients the player window to match the video aspect ratio (FEAT-06, FR-CTRL-008). */
+    val matchVideoOrientation: Boolean = true
 ) {
     companion object {
         const val DEFAULT_SEEK_DELTA_SECONDS = 10
@@ -201,7 +222,14 @@ class ApturaSettingsRepository(private val context: Context) : AudioEffectsStore
                 libraryDetail = preferences.enumOr(PreferencesKeys.LIBRARY_DETAIL, LibraryDetail.STANDARD),
                 folderLayout = preferences.enumOr(PreferencesKeys.FOLDER_LAYOUT, FolderLayout.LIST),
                 librarySortName = preferences[PreferencesKeys.LIBRARY_SORT],
-                isPrivateMode = preferences[PreferencesKeys.PRIVATE_MODE_ENABLED] ?: false
+                isPrivateMode = preferences[PreferencesKeys.PRIVATE_MODE_ENABLED] ?: false,
+                swapSwipeGestures = preferences[PreferencesKeys.SWAP_SWIPE_GESTURES] ?: false,
+                volumeGestureEnabled = preferences[PreferencesKeys.VOLUME_GESTURE_ENABLED] ?: true,
+                brightnessGestureEnabled = preferences[PreferencesKeys.BRIGHTNESS_GESTURE_ENABLED] ?: true,
+                swipeToSeekEnabled = preferences[PreferencesKeys.SWIPE_TO_SEEK_ENABLED] ?: true,
+                doubleTapToSeekEnabled = preferences[PreferencesKeys.DOUBLE_TAP_TO_SEEK_ENABLED] ?: true,
+                holdFor2xSpeedEnabled = preferences[PreferencesKeys.HOLD_FOR_2X_SPEED_ENABLED] ?: true,
+                matchVideoOrientation = preferences[PreferencesKeys.MATCH_VIDEO_ORIENTATION] ?: true
             )
         }
 
@@ -297,6 +325,55 @@ class ApturaSettingsRepository(private val context: Context) : AudioEffectsStore
             preferences[PreferencesKeys.AUTO_ADVANCE_COUNTDOWN] = 10
             preferences[PreferencesKeys.DEFAULT_DECODER_STRATEGY] = 0
             preferences[PreferencesKeys.DEFAULT_AUDIO_DELAY_MS] = 0L
+            preferences[PreferencesKeys.SWAP_SWIPE_GESTURES] = false
+            preferences[PreferencesKeys.VOLUME_GESTURE_ENABLED] = true
+            preferences[PreferencesKeys.BRIGHTNESS_GESTURE_ENABLED] = true
+            preferences[PreferencesKeys.SWIPE_TO_SEEK_ENABLED] = true
+            preferences[PreferencesKeys.DOUBLE_TAP_TO_SEEK_ENABLED] = true
+            preferences[PreferencesKeys.HOLD_FOR_2X_SPEED_ENABLED] = true
+            preferences[PreferencesKeys.MATCH_VIDEO_ORIENTATION] = true
+        }
+    }
+
+    suspend fun updateSwapSwipeGestures(swap: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.SWAP_SWIPE_GESTURES] = swap
+        }
+    }
+
+    suspend fun updateVolumeGestureEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.VOLUME_GESTURE_ENABLED] = enabled
+        }
+    }
+
+    suspend fun updateBrightnessGestureEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.BRIGHTNESS_GESTURE_ENABLED] = enabled
+        }
+    }
+
+    suspend fun updateSwipeToSeekEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.SWIPE_TO_SEEK_ENABLED] = enabled
+        }
+    }
+
+    suspend fun updateDoubleTapToSeekEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.DOUBLE_TAP_TO_SEEK_ENABLED] = enabled
+        }
+    }
+
+    suspend fun updateHoldFor2xSpeedEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.HOLD_FOR_2X_SPEED_ENABLED] = enabled
+        }
+    }
+
+    suspend fun updateMatchVideoOrientation(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.MATCH_VIDEO_ORIENTATION] = enabled
         }
     }
 

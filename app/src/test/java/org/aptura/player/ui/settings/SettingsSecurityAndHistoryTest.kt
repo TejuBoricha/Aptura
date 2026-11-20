@@ -145,6 +145,56 @@ class SettingsSecurityAndHistoryTest {
         assertTrue("onRestoreBackup should be called", restoreCalled)
     }
 
+    @Test
+    fun gesturesAndOrientationRows_renderAndTriggerCallbacks() {
+        var updatedMatchVideoOrientation: Boolean? = null
+        var updatedSwapSwipeGestures: Boolean? = null
+        var updatedSwipeToSeek: Boolean? = null
+
+        composeRule.setContent {
+            SettingsScreen(
+                settings = ApturaSettings(
+                    matchVideoOrientation = true,
+                    swapSwipeGestures = false,
+                    swipeToSeekEnabled = true
+                ),
+                libraryStats = emptyStats,
+                onBackClick = {},
+                onUpdateSpeed = {},
+                onUpdateResizeMode = {},
+                onUpdateSeekDelta = {},
+                onUpdateBackgroundAudio = {},
+                onUpdateAutoAdvanceCountdown = {},
+                onRescanClick = {},
+                onReplayOnboardingClick = {},
+                onUpdateMatchVideoOrientation = { updatedMatchVideoOrientation = it },
+                onUpdateSwapSwipeGestures = { updatedSwapSwipeGestures = it },
+                onUpdateSwipeToSeekEnabled = { updatedSwipeToSeek = it }
+            )
+        }
+
+        // Match video orientation toggle
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("Match video orientation"))
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Match video orientation").performClick()
+        composeRule.waitForIdle()
+        assertEquals(false, updatedMatchVideoOrientation)
+
+        // Swap swipe sides toggle
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("Swap swipe sides"))
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Swap swipe sides").performClick()
+        composeRule.waitForIdle()
+        assertEquals(true, updatedSwapSwipeGestures)
+
+        // Swipe to seek toggle
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("Swipe to seek"))
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Swipe to seek").performClick()
+        composeRule.waitForIdle()
+        assertEquals(false, updatedSwipeToSeek)
+    }
+
     private fun assertEquals(expected: Any?, actual: Any?) {
         org.junit.Assert.assertEquals(expected, actual)
     }
