@@ -88,6 +88,10 @@ internal fun PlaybackToolsTab(
                 onSelect = onSpeedSelected,
                 label = "Playback speed"
             )
+            FineSpeedAdjustmentRow(
+                currentSpeed = uiState.playbackSpeed,
+                onSpeedSelected = onSpeedSelected
+            )
             SheetSwitchRow(
                 title = "Audio only",
                 subtitle = "Turn the picture off and keep listening",
@@ -140,6 +144,7 @@ internal fun PlaybackToolsTab(
                     label = if (pointB != null) "End  ${MediaFormatters.formatDuration(pointB)}" else "Set end",
                     set = pointB != null,
                     onClick = onSetAbPointB,
+                    enabled = pointA != null,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -241,7 +246,7 @@ internal fun PlaybackToolsTab(
 private fun FrameStepPositionRow(positionProvider: () -> PlayerPositionState) {
     val posMs = positionProvider().currentPositionMs
     SheetRowText(
-        title = "At ${MediaFormatters.formatDuration(posMs)}.${"%03d".format(posMs.coerceAtLeast(0L) % 1000)}",
+        title = "At ${MediaFormatters.formatDuration(posMs)}.${java.lang.String.format(java.util.Locale.US, "%03d", posMs.coerceAtLeast(0L) % 1000)}",
         subtitle = "Pauses the video and moves one frame at a time"
     )
 }
@@ -260,11 +265,11 @@ private fun AddBookmarkAtPositionButton(
 }
 
 @Composable
-private fun AbButton(label: String, set: Boolean, onClick: () -> Unit, modifier: Modifier) {
+private fun AbButton(label: String, set: Boolean, onClick: () -> Unit, modifier: Modifier, enabled: Boolean = true) {
     if (set) {
-        ApturaButton(text = label, icon = Icons.Default.Check, onClick = onClick, tone = ApturaTone.Neutral, modifier = modifier)
+        ApturaButton(text = label, icon = Icons.Default.Check, onClick = onClick, tone = ApturaTone.Neutral, enabled = enabled, modifier = modifier)
     } else {
-        ApturaOutlinedButton(text = label, onClick = onClick, modifier = modifier)
+        ApturaOutlinedButton(text = label, onClick = onClick, enabled = enabled, modifier = modifier)
     }
 }
 

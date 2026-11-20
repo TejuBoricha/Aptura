@@ -2,8 +2,10 @@ package org.aptura.player.ui.player
 
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import org.aptura.player.theme.ApturaTheme
 import org.junit.Assert.assertEquals
@@ -86,5 +88,20 @@ class PlayerSpeedRailTest {
         composeRule.onNodeWithTag("speed_rail").performSemanticsAction(SemanticsActions.SetProgress) { it(2f) }
 
         assertEquals(0.75f, chosen)
+    }
+
+    @Test
+    fun fineSpeedAdjustment_stepsSpeedBy005x_andSupportsHighSpeedPresets() {
+        var chosen: Float? = null
+        showSheet(speed = 1.0f, sheet = PlayerSheet.Speed, onSpeed = { chosen = it })
+
+        composeRule.onNodeWithContentDescription("Increase speed by 0.05x").performClick()
+        assertEquals(1.05f, chosen)
+
+        composeRule.onNodeWithContentDescription("Decrease speed by 0.05x").performClick()
+        assertEquals(0.95f, chosen)
+
+        composeRule.onNodeWithText("3.0x").performClick()
+        assertEquals(3.0f, chosen)
     }
 }

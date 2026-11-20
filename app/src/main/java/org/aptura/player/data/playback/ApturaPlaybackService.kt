@@ -58,7 +58,11 @@ class ApturaPlaybackService : MediaSessionService() {
         val player = mediaSession?.player
         // If playback is not active when app is swiped away from Recents, stop foreground service. This is the one
         // exit that also releases the player, because nobody is left to use it.
-        if (player == null || !player.playWhenReady || player.mediaItemCount == 0) {
+        if (player == null ||
+            !player.playWhenReady ||
+            player.mediaItemCount == 0 ||
+            player.playbackState == androidx.media3.common.Player.STATE_ENDED
+        ) {
             releasePlayerOnDestroy = true
             stopSelf()
         }

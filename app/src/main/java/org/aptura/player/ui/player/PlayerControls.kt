@@ -229,12 +229,14 @@ internal fun ApturaSlider(
             }
             .pointerInput(valueRange) {
                 val pad = thumbRadius.toPx()
-                fun at(x: Float) = valueRange.start + ((x - pad) / (size.width - 2 * pad)).coerceIn(0f, 1f) * span
+                val usableWidth = (size.width - 2 * pad).coerceAtLeast(1f)
+                fun at(x: Float) = valueRange.start + ((x - pad) / usableWidth).coerceIn(0f, 1f) * span
                 detectTapGestures { currentOnChange(at(it.x)) }
             }
             .pointerInput(valueRange) {
                 val pad = thumbRadius.toPx()
-                fun at(x: Float) = valueRange.start + ((x - pad) / (size.width - 2 * pad)).coerceIn(0f, 1f) * span
+                val usableWidth = (size.width - 2 * pad).coerceAtLeast(1f)
+                fun at(x: Float) = valueRange.start + ((x - pad) / usableWidth).coerceIn(0f, 1f) * span
                 detectHorizontalDragGestures { change, _ ->
                     change.consume()
                     currentOnChange(at(change.position.x))
@@ -242,7 +244,7 @@ internal fun ApturaSlider(
             }
     ) {
         val pad = thumbRadius.toPx()
-        val usable = size.width - 2 * pad
+        val usable = (size.width - 2 * pad).coerceAtLeast(1f)
         fun xOf(v: Float) = pad + ((v - valueRange.start) / span).coerceIn(0f, 1f) * usable
         val cy = size.height / 2f
         val track = 4.dp.toPx()
@@ -387,7 +389,11 @@ private fun StepButton(icon: androidx.compose.ui.graphics.vector.ImageVector, de
     val pressed by interaction.collectIsPressedAsState()
     var repeatedWhileHeld by remember { mutableStateOf(false) }
     LaunchedEffect(pressed) {
-        if (!pressed) return@LaunchedEffect
+        if (!pressed) {
+            delay(50L)
+            repeatedWhileHeld = false
+            return@LaunchedEffect
+        }
         repeatedWhileHeld = false
         delay(STEP_HOLD_DELAY_MS)
         while (true) {
@@ -502,3 +508,73 @@ internal fun SheetChip(label: String, selected: Boolean, onClick: () -> Unit) {
 
 private fun Modifier.clickableWithRole(role: Role, enabled: Boolean = true, onClick: () -> Unit): Modifier =
     this.then(Modifier.clickable(enabled = enabled, role = role, onClick = onClick))
+
+/**
+ * Fine 0.05x playback speed adjustment stepper and extended high-speed presets (0.25x..4.0x, FEAT-07).
+ */
+@Composable
+internal fun FineSpeedAdjustmentRow(
+    currentSpeed: Float,
+    onSpeedSelected: (Float) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val haptic = LocalHapticFeedback.current
+    fun stepBy(delta: Float) {
+        val next = (kotlin.math.round((currentSpeed + delta).coerceIn(0.25f, 4.0f) * 20f) / 20f)
+        if (next != currentSpeed) {
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            onSpeedSelected(next)
+        }
+    }
+
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .background(ApturaColors.SurfaceRecessed)
+                .border(1.dp, ApturaColors.BorderSubtle, RoundedCornerShape(14.dp))
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            StepButton(
+                icon = Icons.Default.Remove,
+                description = "Decrease speed by 0.05x",
+                onStep = { stepBy(-0.05f) }
+            )
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "${java.lang.String.format(java.util.Locale.US, "%.2f", currentSpeed)}x",
+                    style = ApturaTypography.titleMedium.copy(fontFeatureSettings = "tnum"),
+                    color = if (currentSpeed != 1.0f) ApturaColors.AccentPrimary else ApturaColors.TextHighEmphasis
+                )
+                Text(
+                    text = "Fine step (±0.05x)",
+                    style = ApturaTypography.bodySmall,
+                    color = ApturaColors.TextLowEmphasis
+                )
+            }
+            StepButton(
+                icon = Icons.Default.Add,
+                description = "Increase speed by 0.05x",
+                onStep = { stepBy(0.05f) }
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            listOf(1.0f, 2.5f, 3.0f, 4.0f).forEach { preset ->
+                val isSelected = kotlin.math.abs(currentSpeed - preset) < 0.01f
+                SheetChip(
+                    label = "${preset}x",
+                    selected = isSelected,
+                    onClick = { onSpeedSelected(preset) }
+                )
+            }
+        }
+    }
+}

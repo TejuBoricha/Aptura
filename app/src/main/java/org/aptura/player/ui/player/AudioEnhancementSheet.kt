@@ -230,7 +230,7 @@ private fun AudioTracksAndSyncTab(
                                 track.isExternal -> "Added file"
                                 else -> null
                             },
-                            selected = track.isSelected || track.index == selectedAudioTrackIndex,
+                            selected = if (selectedAudioTrackIndex != null) track.index == selectedAudioTrackIndex else track.isSelected,
                             enabled = track.isSupported,
                             onClick = { onAudioTrackSelected(track.index) }
                         )
@@ -399,11 +399,19 @@ private fun EqualizerTab(
             if (audioEnhancement.bands.isEmpty()) {
                 SheetRowText("Not available", "This device doesn't offer an equalizer to apps.")
             } else {
-                Row(
-                    modifier = Modifier
+                val bandsModifier = if (audioEnhancement.bands.size > 5) {
+                    Modifier
                         .fillMaxWidth()
-                        .height(220.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly
+                        .horizontalScroll(rememberScrollState())
+                        .height(220.dp)
+                } else {
+                    Modifier
+                        .fillMaxWidth()
+                        .height(220.dp)
+                }
+                Row(
+                    modifier = bandsModifier,
+                    horizontalArrangement = if (audioEnhancement.bands.size > 5) Arrangement.spacedBy(12.dp) else Arrangement.SpaceEvenly
                 ) {
                     audioEnhancement.bands.forEach { band ->
                         VerticalMixerFader(

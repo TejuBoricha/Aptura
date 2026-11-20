@@ -309,4 +309,22 @@ class PlayerKeyHandlerTest {
         assertEquals(1, triggerLockHintCalls)
         assertEquals(0, playPauseCalls)
     }
+
+    @Test
+    fun lockedMode_passesVolumeAndTabKeysThrough() {
+        listOf(
+            AndroidKeyEvent.KEYCODE_VOLUME_UP,
+            AndroidKeyEvent.KEYCODE_VOLUME_DOWN,
+            AndroidKeyEvent.KEYCODE_TAB
+        ).forEach { keyCode ->
+            val consumed = handlePlayerKeyEvent(
+                event = downEvent(keyCode),
+                isLocked = true,
+                isAnySheetVisible = false,
+                actions = actions
+            )
+            assertFalse("Expected keyCode $keyCode to pass through in locked mode", consumed)
+        }
+        assertEquals(0, triggerLockHintCalls)
+    }
 }

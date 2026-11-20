@@ -127,7 +127,7 @@ fun CompatibilityExplainerContent(
                 icon = Icons.Filled.Info,
                 title = "What is being used instead",
                 description = "Aptura switched to Android's software decoder so the video keeps playing.",
-                detail = null
+                detail = activeDecoderPath.takeIf { it.isNotBlank() }
             )
 
             Spacer(modifier = Modifier.height(12.dp))

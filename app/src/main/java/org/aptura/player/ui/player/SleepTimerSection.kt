@@ -553,7 +553,7 @@ private fun SleepModeTile(
         horizontalArrangement = Arrangement.Center
     ) {
         Icon(
-            imageVector = if (selected && detail == null) Icons.Filled.Check else icon,
+            imageVector = if (selected) Icons.Filled.Check else icon,
             contentDescription = null,
             tint = if (selected) ApturaColors.AccentPrimary else ApturaColors.TextMediumEmphasis,
             modifier = Modifier.size(20.dp)
