@@ -8,6 +8,8 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.longClick
 import org.aptura.player.theme.ApturaTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -225,9 +227,9 @@ class PlayerScreenUiTest {
         composeTestRule.onNodeWithContentDescription("Pause").assertDoesNotExist()
         composeTestRule.onNodeWithContentDescription("Rewind 10s").assertDoesNotExist()
 
-        // Locked indicator pill must be visible and clickable to toggle lock
+        // Locked indicator pill must be visible and long-clickable to unlock (FEAT-11)
         composeTestRule.onNodeWithText("Unlock").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Unlock").performClick()
+        composeTestRule.onNodeWithText("Unlock").performTouchInput { longClick() }
         assertTrue(unlockClicked)
     }
 
