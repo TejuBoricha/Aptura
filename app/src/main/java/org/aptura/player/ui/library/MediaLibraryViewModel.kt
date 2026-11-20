@@ -137,15 +137,7 @@ class MediaLibraryViewModel(
             for (i in old.indices) {
                 val a = old[i]
                 val b = new[i]
-                if (a.uri != b.uri ||
-                    a.title != b.title ||
-                    a.durationMs != b.durationMs ||
-                    a.sizeBytes != b.sizeBytes ||
-                    a.folderPath != b.folderPath ||
-                    a.isMissing != b.isMissing ||
-                    a.isCompleted != b.isCompleted ||
-                    a.lastPlayedTimestamp != b.lastPlayedTimestamp
-                ) {
+                if (a.copy(playbackPositionMs = 0L) != b.copy(playbackPositionMs = 0L)) {
                     return@distinctUntilChanged false
                 }
                 // Suppress re-allocations if progress delta is under 1%

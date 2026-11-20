@@ -34,8 +34,10 @@ class MediaLanguageLabelsTest {
 
     @Test
     fun regionalTags_keepTheirLanguageName() {
-        assertEquals("Portuguese", MediaLanguageLabels.displayName("pt-BR"))
-        assertEquals("English", MediaLanguageLabels.displayName("en-GB"))
+        assertEquals("Portuguese", MediaLanguageLabels.displayName("pt-BR", java.util.Locale.ENGLISH))
+        assertEquals("Portuguese", MediaLanguageLabels.displayName("pt_BR", java.util.Locale.ENGLISH))
+        assertEquals("Chinese", MediaLanguageLabels.displayName("zh_CN", java.util.Locale.ENGLISH))
+        assertEquals("English", MediaLanguageLabels.displayName("en-GB", java.util.Locale.ENGLISH))
     }
 
     @Test

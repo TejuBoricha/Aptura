@@ -62,7 +62,7 @@ object SidecarSubtitleDetector {
     )
 
     private val LANGUAGE_NAMES = LANGUAGE_MAP.values.map { it.lowercase() }.toSet()
-    private val LANGUAGE_TAG = Regex("^[a-z]{2,3}(-[a-z0-9]{2,8})?$")
+    private val LANGUAGE_TAG = Regex("^[a-z]{2,3}(-[a-z0-9]{2,8}){0,2}$")
 
     /**
      * Removes the file extension only when it really is a video extension. The previous implementation chopped

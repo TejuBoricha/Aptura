@@ -53,11 +53,12 @@ object MediaLanguageLabels {
         val normalized = code?.trim().orEmpty()
         if (normalized.isEmpty() || normalized.equals("und", ignoreCase = true)) return null
 
-        val primarySubtag = normalized.substringBefore('-').substringBefore('_').lowercase(Locale.ROOT)
+        val hyphenated = normalized.replace('_', '-')
+        val primarySubtag = hyphenated.substringBefore('-').lowercase(Locale.ROOT)
         val canonicalTag = iso6392ToIso6391[primarySubtag]?.let { iso2 ->
-            val rest = normalized.substring(primarySubtag.length)
+            val rest = hyphenated.substring(primarySubtag.length)
             iso2 + rest
-        } ?: normalized
+        } ?: hyphenated
 
         val targetLocale = Locale.forLanguageTag(canonicalTag)
         val englishName = try {
