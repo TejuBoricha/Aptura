@@ -1233,34 +1233,14 @@ fun PlayerScreen(
 
         // 4. Lock Mode Indicator (When locked)
         if (uiState.isLocked && !isPipMode) {
-            Surface(
-                color = ApturaColors.SurfaceElevated2.copy(alpha = 0.85f),
-                shape = RoundedCornerShape(24.dp),
+            LockModeUnlockPill(
+                onUnlock = onLockToggle,
+                onTapHint = onTriggerLockHint,
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .windowInsetsPadding(WindowInsets.safeDrawing)
                     .padding(16.dp)
-                    .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
-                    .clickable { onLockToggle() }
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Lock,
-                        contentDescription = "Locked",
-                        tint = ApturaColors.AccentPrimary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Text(
-                        text = "Unlock",
-                        style = ApturaTypography.labelLarge,
-                        color = ApturaColors.TextHighEmphasis
-                    )
-                }
-            }
+            )
         }
 
         // 5. Main Controls Overlay (Top Bar, Transport, Bottom Bar)

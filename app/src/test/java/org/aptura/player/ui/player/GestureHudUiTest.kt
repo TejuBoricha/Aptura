@@ -9,7 +9,12 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.longClick
 import org.aptura.player.theme.ApturaTheme
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -119,7 +124,34 @@ class GestureHudUiTest {
             }
         }
 
-        composeTestRule.onNodeWithText("Screen locked · Tap Unlock to use the controls").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Screen locked · Touch & hold Unlock to use the controls").assertIsDisplayed()
         composeTestRule.onNodeWithContentDescription("Screen locked").assertIsDisplayed()
+    }
+
+    @Test
+    fun lockModeUnlockPill_quickTap_triggersHint_longClick_unlocks() {
+        var unlocked = false
+        var hintTriggered = false
+
+        composeTestRule.setContent {
+            ApturaTheme {
+                LockModeUnlockPill(
+                    onUnlock = { unlocked = true },
+                    onTapHint = { hintTriggered = true }
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithText("Unlock").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("LockModeUnlockPill").assertIsDisplayed()
+
+        // 1. Quick tap triggers hint without unlocking
+        composeTestRule.onNodeWithTag("LockModeUnlockPill").performClick()
+        assertFalse(unlocked)
+        assertTrue(hintTriggered)
+
+        // 2. Long click triggers unlock
+        composeTestRule.onNodeWithTag("LockModeUnlockPill").performTouchInput { longClick() }
+        assertTrue(unlocked)
     }
 }

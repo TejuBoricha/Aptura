@@ -1,12 +1,15 @@
 package org.aptura.player.ui.player
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -24,12 +27,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -296,8 +301,62 @@ fun LockModeGuardHint(
                 modifier = Modifier.size(20.dp)
             )
             Text(
-                text = "Screen locked · Tap Unlock to use the controls",
+                text = "Screen locked · Touch & hold Unlock to use the controls",
                 style = ApturaTypography.labelMedium.copy(fontWeight = FontWeight.Medium),
+                color = ApturaColors.TextHighEmphasis
+            )
+        }
+    }
+}
+
+/**
+ * Toddler-safe hold-to-unlock pill for Lock Mode (FEAT-11).
+ * Requires holding the button (long click) to prevent accidental unlocks by children or palm contact,
+ * while giving a helpful hint and light haptic on an accidental tap.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun LockModeUnlockPill(
+    onUnlock: () -> Unit,
+    onTapHint: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    val haptic = LocalHapticFeedback.current
+
+    Surface(
+        color = ApturaColors.SurfaceElevated2.copy(alpha = 0.85f),
+        shape = RoundedCornerShape(24.dp),
+        border = BorderStroke(1.dp, ApturaColors.AccentPrimary.copy(alpha = 0.5f)),
+        modifier = modifier
+            .testTag("LockModeUnlockPill")
+            .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .combinedClickable(
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onTapHint()
+                },
+                onLongClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onUnlock()
+                },
+                onLongClickLabel = "Unlock screen"
+            )
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Lock,
+                contentDescription = "Locked",
+                tint = ApturaColors.AccentPrimary,
+                modifier = Modifier.size(20.dp)
+            )
+            Text(
+                text = "Unlock",
+                style = ApturaTypography.labelLarge,
                 color = ApturaColors.TextHighEmphasis
             )
         }
