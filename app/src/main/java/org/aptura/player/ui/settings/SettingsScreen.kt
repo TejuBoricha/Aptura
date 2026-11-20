@@ -174,6 +174,8 @@ fun SettingsScreen(
     missingVideoCount: Int = 0,
     onClearMissingVideos: () -> Unit = {},
     onClearPlaybackHistory: () -> Unit = {},
+    onExportBackup: () -> Unit = {},
+    onRestoreBackup: () -> Unit = {},
     onUpdatePrivateMode: (Boolean) -> Unit = {},
     onDeleteDiagnosticData: () -> Unit = { ApturaDiagnostics.clearAll() },
     modifier: Modifier = Modifier
@@ -583,6 +585,31 @@ fun SettingsScreen(
                                     text = "Clear",
                                     onClick = { isClearHistoryDialogOpen = true },
                                     tint = ApturaColors.StatusError
+                                )
+                            }
+                        )
+                        PanelDivider()
+                        // Local Backup & Restore (FEAT-05)
+                        ActionRow(
+                            icon = Icons.Default.Description,
+                            title = "Back up data",
+                            subtitle = "Save settings, progress, and bookmarks to a JSON file",
+                            trailing = {
+                                PillButton(
+                                    text = "Export",
+                                    onClick = onExportBackup
+                                )
+                            }
+                        )
+                        PanelDivider()
+                        ActionRow(
+                            icon = Icons.Default.Refresh,
+                            title = "Restore data",
+                            subtitle = "Restore saved settings, progress, and bookmarks from a file",
+                            trailing = {
+                                PillButton(
+                                    text = "Restore",
+                                    onClick = onRestoreBackup
                                 )
                             }
                         )

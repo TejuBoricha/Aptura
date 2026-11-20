@@ -244,7 +244,7 @@ fun UpNextOverlay(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Replay,
-                            contentDescription = "Replay",
+                            contentDescription = null,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
@@ -266,7 +266,7 @@ fun UpNextOverlay(
                     ) {
                         Icon(
                             imageVector = Icons.Default.PlayArrow,
-                            contentDescription = "Play now",
+                            contentDescription = null,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))

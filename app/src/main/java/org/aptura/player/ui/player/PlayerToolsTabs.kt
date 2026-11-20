@@ -334,6 +334,8 @@ internal fun PictureTab(
     brightness: Float? = null,
     onBrightnessChanged: (Float) -> Unit = {},
     onResizeModeSelected: (AspectRatioMode) -> Unit,
+    onRotationChanged: (Int) -> Unit = {},
+    onMirrorToggle: (Boolean) -> Unit = {},
     onNightModeToggle: (Boolean) -> Unit,
     onNightModeWarmthChanged: (Float) -> Unit,
     onContrastChanged: (Float) -> Unit,
@@ -355,9 +357,27 @@ internal fun PictureTab(
             )
         }
 
+        SheetSection("Transform") {
+            SegmentedPicker(
+                options = listOf("0°", "90°", "180°", "270°"),
+                selectedIndex = listOf(0, 90, 180, 270).indexOf(picture.rotationDegrees).coerceAtLeast(0),
+                onSelect = { index ->
+                    val degrees = listOf(0, 90, 180, 270)[index]
+                    onRotationChanged(degrees)
+                },
+                label = "Rotation"
+            )
+            SheetSwitchRow(
+                title = "Mirror flip",
+                subtitle = "Flip video horizontally",
+                checked = picture.isMirrored,
+                onCheckedChange = onMirrorToggle
+            )
+        }
+
         SheetSection(
             "Picture",
-            trailing = if (picture.contrast != 1f || picture.saturation != 1f || picture.isNightModeEnabled) {
+            trailing = if (picture.contrast != 1f || picture.saturation != 1f || picture.isNightModeEnabled || picture.rotationDegrees != 0 || picture.isMirrored) {
                 { ApturaTextButton(text = "Reset", onClick = onResetPictureAdjustment) }
             } else null
         ) {

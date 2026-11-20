@@ -47,6 +47,7 @@ import androidx.navigation3.ui.NavDisplay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.aptura.player.core.backup.ApturaBackupCoordinator
 import org.aptura.player.core.diagnostics.ApturaDiagnostics
 import org.aptura.player.core.diagnostics.DiagnosticStore
 import org.aptura.player.core.diagnostics.EventCode
@@ -820,6 +821,63 @@ private fun AppNavHost(
                     libraryStats = mediaRepository.getLibraryStatistics()
                 }
 
+                val exportBackupLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.CreateDocument("application/json")
+                ) { uri ->
+                    if (uri != null) {
+                        coroutineScope.launch {
+                            try {
+                                val mediaItems = withContext(Dispatchers.IO) { database.mediaItemDao().getAllVideosRaw() }
+                                val bookmarks = withContext(Dispatchers.IO) { database.bookmarkDao().getAllBookmarksRaw() }
+                                withContext(Dispatchers.IO) {
+                                    context.contentResolver.openOutputStream(uri)?.use { os ->
+                                        ApturaBackupCoordinator.exportToStream(os, settings, mediaItems, bookmarks)
+                                    }
+                                }
+                                Toast.makeText(context, "Backup exported successfully", Toast.LENGTH_SHORT).show()
+                            } catch (e: Exception) {
+                                ApturaDiagnostics.logEvent(
+                                    code = EventCode.EV_006,
+                                    payload = mapOf("action" to "exportBackup", "error" to e.javaClass.simpleName)
+                                )
+
+                                Toast.makeText(context, "Export failed", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+                }
+
+                val restoreBackupLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.OpenDocument()
+                ) { uri ->
+                    if (uri != null) {
+                        coroutineScope.launch {
+                            try {
+                                val summary = withContext(Dispatchers.IO) {
+                                    context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                                        ApturaBackupCoordinator.restoreFromStream(inputStream, settingsRepository, database)
+                                    }
+                                }
+                                if (summary != null) {
+                                    Toast.makeText(
+                                        context,
+                                        "Restored: ${summary.videosRestored} videos, ${summary.bookmarksRestored} bookmarks",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                    libraryStats = mediaRepository.getLibraryStatistics()
+                                }
+                            } catch (e: Exception) {
+                                ApturaDiagnostics.logEvent(
+                                    code = EventCode.EV_006,
+                                    payload = mapOf("action" to "restoreBackup", "error" to e.javaClass.simpleName)
+                                )
+
+                                Toast.makeText(context, "Restore failed", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+                }
+
                 val hiddenVideoCount by libraryViewModel.hiddenVideoCount.collectAsStateWithLifecycle()
                 val missingVideoCount by libraryViewModel.missingVideoCount.collectAsStateWithLifecycle()
                 SettingsScreen(
@@ -830,6 +888,12 @@ private fun AppNavHost(
                     missingVideoCount = missingVideoCount,
                     onClearMissingVideos = libraryViewModel::clearMissingVideos,
                     onClearPlaybackHistory = libraryViewModel::clearAllPlaybackHistory,
+                    onExportBackup = {
+                        exportBackupLauncher.launch(ApturaBackupCoordinator.defaultBackupFileName())
+                    },
+                    onRestoreBackup = {
+                        restoreBackupLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
+                    },
                     onUpdatePrivateMode = { enabled ->
                         coroutineScope.launch { settingsRepository.updatePrivateMode(enabled) }
                     },
@@ -1040,6 +1104,8 @@ private fun AppNavHost(
                             onSaturationChanged = playerViewModel::setSaturation,
                             onNightModeToggle = { enabled -> playerViewModel.setNightMode(enabled) },
                             onNightModeWarmthChanged = { warmth -> playerViewModel.setNightMode(true, warmth) },
+                            onRotationChanged = playerViewModel::setRotationDegrees,
+                            onMirrorToggle = { playerViewModel.toggleMirrorFlip() },
                             onResetPictureAdjustment = playerViewModel::resetPictureAdjustments,
                             onSetAbPointA = playerViewModel::setAbPointA,
                             onSetAbPointB = playerViewModel::setAbPointB,

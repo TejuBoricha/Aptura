@@ -705,7 +705,8 @@ class PlayerViewModel(
         _uiState.update { it.copy(isAudioOnly = audioOnly) }
         playbackController.setVideoEnabled(!audioOnly)
         playbackController.playQueue(items, clampedIndex)
-        applyItemPreferences(currentItem, resume = true)
+        val freshItem = mediaRepository.getVideoByUri(currentItem.uri) ?: currentItem
+        applyItemPreferences(freshItem, resume = true)
         observeBookmarks(currentItem.uri)
         scheduleAutoHide()
     }
@@ -1636,6 +1637,31 @@ class PlayerViewModel(
                     nightModeWarmth = warmth.coerceIn(0.1f, 0.8f)
                 )
             )
+        }
+    }
+
+    fun setRotationDegrees(degrees: Int) {
+        _uiState.update {
+            it.copy(pictureAdjustment = it.pictureAdjustment.copy(rotationDegrees = (degrees % 360 + 360) % 360))
+        }
+    }
+
+    fun rotateVideo() {
+        _uiState.update {
+            val next = (it.pictureAdjustment.rotationDegrees + 90) % 360
+            it.copy(pictureAdjustment = it.pictureAdjustment.copy(rotationDegrees = next))
+        }
+    }
+
+    fun setMirrorFlip(mirrored: Boolean) {
+        _uiState.update {
+            it.copy(pictureAdjustment = it.pictureAdjustment.copy(isMirrored = mirrored))
+        }
+    }
+
+    fun toggleMirrorFlip() {
+        _uiState.update {
+            it.copy(pictureAdjustment = it.pictureAdjustment.copy(isMirrored = !it.pictureAdjustment.isMirrored))
         }
     }
 

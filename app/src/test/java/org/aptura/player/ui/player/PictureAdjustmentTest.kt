@@ -90,4 +90,35 @@ class PictureAdjustmentTest {
         PictureFilter.apply(view, PictureAdjustmentState())
         assertNull("reset must remove the filter", view.lastLayerPaint)
     }
+
+    @Test
+    fun rotationAndMirror_updatesTargetTransform() {
+        val view = RecordingTextureView(ApplicationProvider.getApplicationContext())
+        PictureFilter.apply(view, PictureAdjustmentState(rotationDegrees = 90, isMirrored = true))
+        assertEquals(90f, view.rotation, 0.01f)
+        assertEquals(-1f, view.scaleX, 0.01f)
+
+        // Trigger layout pass (1920x1080)
+        view.layout(0, 0, 1920, 1080)
+        val expectedScale = 1080f / 1920f
+        assertEquals(-expectedScale, view.scaleX, 0.01f)
+        assertEquals(expectedScale, view.scaleY, 0.01f)
+
+        PictureFilter.apply(view, PictureAdjustmentState(rotationDegrees = 180, isMirrored = false))
+        assertEquals(180f, view.rotation, 0.01f)
+        assertEquals(1f, view.scaleX, 0.01f)
+        assertEquals(1f, view.scaleY, 0.01f)
+    }
+
+    @Test
+    fun pictureAdjustment_isModified_whenRotatedOrMirrored() {
+        val standard = PictureAdjustmentState()
+        assertTrue(!standard.isModified)
+
+        val rotated = PictureAdjustmentState(rotationDegrees = 90)
+        assertTrue(rotated.isModified)
+
+        val mirrored = PictureAdjustmentState(isMirrored = true)
+        assertTrue(mirrored.isModified)
+    }
 }

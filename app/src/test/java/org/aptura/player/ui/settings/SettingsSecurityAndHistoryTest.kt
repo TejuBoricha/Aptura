@@ -104,6 +104,47 @@ class SettingsSecurityAndHistoryTest {
         assertEquals(true, updatedPrivateMode)
     }
 
+    @Test
+    fun backupAndRestoreRows_showAndTriggerCallbacks() {
+        var exportCalled = false
+        var restoreCalled = false
+
+        composeRule.setContent {
+            SettingsScreen(
+                settings = ApturaSettings(),
+                libraryStats = emptyStats,
+                onBackClick = {},
+                onUpdateSpeed = {},
+                onUpdateResizeMode = {},
+                onUpdateSeekDelta = {},
+                onUpdateBackgroundAudio = {},
+                onUpdateAutoAdvanceCountdown = {},
+                onRescanClick = {},
+                onReplayOnboardingClick = {},
+                onExportBackup = { exportCalled = true },
+                onRestoreBackup = { restoreCalled = true }
+            )
+        }
+
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("Back up data"))
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Back up data").assertExists()
+        composeRule.onNodeWithText("Save settings, progress, and bookmarks to a JSON file").assertExists()
+
+        composeRule.onNodeWithText("Export").performClick()
+        composeRule.waitForIdle()
+        assertTrue("onExportBackup should be called", exportCalled)
+
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("Restore data"))
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Restore data").assertExists()
+        composeRule.onNodeWithText("Restore saved settings, progress, and bookmarks from a file").assertExists()
+
+        composeRule.onNodeWithText("Restore").performClick()
+        composeRule.waitForIdle()
+        assertTrue("onRestoreBackup should be called", restoreCalled)
+    }
+
     private fun assertEquals(expected: Any?, actual: Any?) {
         org.junit.Assert.assertEquals(expected, actual)
     }

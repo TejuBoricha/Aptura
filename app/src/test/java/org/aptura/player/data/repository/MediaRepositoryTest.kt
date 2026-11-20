@@ -261,6 +261,8 @@ class MediaRepositoryTest {
         override suspend fun remapMediaUri(oldUri: String, newUri: String) {
             bookmarks.value = bookmarks.value.map { if (it.mediaUri == oldUri) it.copy(mediaUri = newUri) else it }
         }
+
+        override suspend fun getAllBookmarksRaw(): List<BookmarkEntity> = bookmarks.value
     }
 
     @Test
