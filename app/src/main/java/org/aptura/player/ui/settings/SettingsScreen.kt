@@ -91,6 +91,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -113,6 +114,7 @@ import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
 import org.aptura.player.ui.components.ApturaDialog
 import org.aptura.player.ui.components.ApturaTone
+import org.aptura.player.ui.components.DialogAlternative
 import org.aptura.player.theme.ThemeMode
 import org.aptura.player.ui.components.SpeedRail
 import org.aptura.player.ui.components.isShortWindowHeight
@@ -187,6 +189,8 @@ fun SettingsScreen(
     var isClearHistoryDialogOpen by remember { mutableStateOf(false) }
     var isCodecDialogOpen by remember { mutableStateOf(false) }
     var isPrivacyPolicyDialogOpen by remember { mutableStateOf(false) }
+    var isDiagnosticReportDialogOpen by remember { mutableStateOf(false) }
+    var diagnosticMarkdown by remember { mutableStateOf<String?>(null) }
     var codecReport by remember { mutableStateOf<CodecSupportReport?>(null) }
     var cacheSizeBytes by remember { mutableStateOf(0L) }
 
@@ -208,6 +212,57 @@ fun SettingsScreen(
             report = codecReport,
             onDismiss = { isCodecDialogOpen = false }
         )
+    }
+
+    if (isDiagnosticReportDialogOpen) {
+        val markdown = diagnosticMarkdown ?: ""
+        @Suppress("DEPRECATION")
+        val clipboard = LocalClipboardManager.current
+        ApturaDialog(
+            onDismissRequest = { isDiagnosticReportDialogOpen = false },
+            icon = Icons.Default.Description,
+            title = "Diagnostic report",
+            message = "Review the redacted event log before sharing. File names, video titles, and personal paths are stripped.",
+            confirmLabel = "Share",
+            onConfirm = {
+                isDiagnosticReportDialogOpen = false
+                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_EMAIL, arrayOf("tejasboricha225@gmail.com"))
+                    putExtra(Intent.EXTRA_SUBJECT, "Aptura Redacted Diagnostic Report")
+                    putExtra(Intent.EXTRA_TEXT, markdown)
+                }
+                context.startActivity(Intent.createChooser(shareIntent, "Export Diagnostic Report"))
+            },
+            alternative = DialogAlternative(
+                label = "Copy report",
+                onClick = {
+                    clipboard.setText(AnnotatedString(markdown))
+                    Toast.makeText(context, "Report copied to clipboard", Toast.LENGTH_SHORT).show()
+                }
+            ),
+            dismissLabel = "Close"
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 100.dp, max = 240.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(ApturaColors.SurfaceBase)
+                    .border(1.dp, ApturaColors.BorderSubtle, RoundedCornerShape(8.dp))
+                    .padding(10.dp)
+            ) {
+                Text(
+                    text = markdown.ifBlank { "No events logged yet." },
+                    style = ApturaTypography.bodySmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp,
+                        lineHeight = 15.sp
+                    ),
+                    color = ApturaColors.TextMediumEmphasis
+                )
+            }
+        }
     }
 
     if (isDeleteDiagnosticsDialogOpen) {
@@ -669,17 +724,12 @@ fun SettingsScreen(
                         ActionRow(
                             icon = Icons.Default.Share,
                             title = "Share diagnostic report",
-                            subtitle = "An error log with file names and personal details removed",
+                            subtitle = "Review and export an error log with file names and personal details removed",
                             onClick = {
-                                val markdown = ApturaDiagnostics.generateDiagnosticMarkdown(context)
-                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                    type = "text/plain"
-                                    putExtra(Intent.EXTRA_EMAIL, arrayOf("tejasboricha225@gmail.com"))
-                                    putExtra(Intent.EXTRA_SUBJECT, "Aptura Redacted Diagnostic Report")
-                                    putExtra(Intent.EXTRA_TEXT, markdown)
-                                }
-                                context.startActivity(Intent.createChooser(shareIntent, "Export Diagnostic Report"))
-                            }
+                                diagnosticMarkdown = ApturaDiagnostics.generateDiagnosticMarkdown(context)
+                                isDiagnosticReportDialogOpen = true
+                            },
+                            trailing = { NavigationChevron() }
                         )
                         PanelDivider()
                         // Delete Diagnostic Data (spec/14 §2): removes the on-device event log and crash reports.
