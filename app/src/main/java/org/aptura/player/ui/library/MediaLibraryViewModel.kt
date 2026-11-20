@@ -8,6 +8,7 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -75,6 +76,18 @@ class MediaLibraryViewModel(
             viewModelScope.launch(dispatcher + errorHandler) {
                 activity.collect { scanning -> _isRefreshing.value = scanning }
             }
+        }
+        viewModelScope.launch(dispatcher + errorHandler) {
+            combine(
+                mediaRepository.getAllFolders(),
+                mediaRepository.getAllVideos(),
+                _selectedFolder
+            ) { folders, videos, selected ->
+                val availableFolders = if (folders.isNotEmpty()) folders else videos.map { it.folderPath }.distinct()
+                if (availableFolders.isNotEmpty() && selected != null && selected !in availableFolders) {
+                    _selectedFolder.value = null
+                }
+            }.collect()
         }
     }
     private data class AccessFlags(
@@ -147,7 +160,16 @@ class MediaLibraryViewModel(
         mediaRepository.getAllFolders(),
         filterState
     ) { allVideos: List<DomainMediaItem>, folders: List<String>, filter: FilterState ->
-        if (allVideos.isEmpty() && filter.query.isBlank() && filter.folder == null) {
+        val currentFolder = filter.folder
+        val allAvailableFolders = if (folders.isNotEmpty()) folders else allVideos.map { it.folderPath }.distinct()
+        val effectiveFolder = if (allAvailableFolders.isNotEmpty() && currentFolder != null && currentFolder !in allAvailableFolders) {
+            _selectedFolder.value = null
+            null
+        } else {
+            currentFolder
+        }
+
+        if (allVideos.isEmpty() && filter.query.isBlank() && effectiveFolder == null) {
             // A scan that is queued or running may be about to fill the library (the first one after an install always
             // is), so this is "still looking", not "nothing found". Without access there is no scan to wait for.
             if (filter.isRefreshing && !filter.isPermissionDenied) {
@@ -163,8 +185,8 @@ class MediaLibraryViewModel(
             var filtered = allVideos
 
             // Apply folder filter
-            if (filter.folder != null) {
-                filtered = filtered.filter { it.folderPath == filter.folder }
+            if (effectiveFolder != null) {
+                filtered = filtered.filter { it.folderPath == effectiveFolder }
             }
 
             // Apply search query filter
@@ -191,7 +213,7 @@ class MediaLibraryViewModel(
                 MediaLibraryUiState.Success(
                     videos = cards,
                     folders = folders,
-                    selectedFolder = filter.folder,
+                    selectedFolder = effectiveFolder,
                     searchQuery = filter.query,
                     sortOrder = filter.sort,
                     totalCount = cards.size,
