@@ -86,4 +86,22 @@ class NavigationBackTest {
         assertEquals(0, dismissed)
         assertEquals(listOf<NavKey>(MediaLibrary), stack)
     }
+
+    @Test
+    fun popBackStack_neverEmptiesSingleEntryStack() {
+        val stack = mutableListOf<NavKey>(MediaLibrary)
+        popBackStack(stack)
+        assertEquals(listOf<NavKey>(MediaLibrary), stack)
+    }
+
+    @Test
+    fun navigateSingleTop_doesNotDuplicateTopEntry() {
+        val stack = mutableListOf<NavKey>(MediaLibrary)
+        navigateSingleTop(stack, Settings)
+        assertEquals(listOf(MediaLibrary, Settings), stack)
+
+        // Rapid second tap on Settings
+        navigateSingleTop(stack, Settings)
+        assertEquals(listOf(MediaLibrary, Settings), stack)
+    }
 }

@@ -40,12 +40,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -215,7 +217,8 @@ fun ApturaDialog(
     properties: DialogProperties = DialogProperties(),
     content: (@Composable ColumnScope.() -> Unit)? = null
 ) {
-    val dialogProperties = if (confirmTone == ApturaTone.Destructive && properties.securePolicy == SecureFlagPolicy.Inherit) {
+    val isDestructive = confirmTone == ApturaTone.Destructive || alternative?.tone == ApturaTone.Destructive
+    val dialogProperties = if (isDestructive && properties.securePolicy == SecureFlagPolicy.Inherit) {
         DialogProperties(
             dismissOnBackPress = properties.dismissOnBackPress,
             dismissOnClickOutside = properties.dismissOnClickOutside,
@@ -227,6 +230,14 @@ fun ApturaDialog(
         properties
     }
     BasicAlertDialog(onDismissRequest = onDismissRequest, modifier = modifier, properties = dialogProperties) {
+        val view = LocalView.current
+        DisposableEffect(view) {
+            val previous = view.filterTouchesWhenObscured
+            view.filterTouchesWhenObscured = true
+            onDispose {
+                view.filterTouchesWhenObscured = previous
+            }
+        }
         Surface(
             shape = RoundedCornerShape(28.dp),
             color = ApturaColors.SurfaceElevated2,

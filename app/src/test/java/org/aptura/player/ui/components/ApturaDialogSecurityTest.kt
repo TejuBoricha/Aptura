@@ -81,6 +81,28 @@ class ApturaDialogSecurityTest {
     }
 
     @Test
+    fun destructiveAlternative_rendersAndConfirmsAlternativeAction() {
+        var altClicked = false
+        composeRule.setContent {
+            ApturaDialog(
+                onDismissRequest = {},
+                title = "Trash video?",
+                confirmLabel = "Move to trash",
+                confirmTone = ApturaTone.Accent,
+                alternative = DialogAlternative(
+                    label = "Delete permanently",
+                    tone = ApturaTone.Destructive,
+                    onClick = { altClicked = true }
+                ),
+                onConfirm = {}
+            )
+        }
+        composeRule.onNodeWithText("Delete permanently").assertExists()
+        composeRule.onNodeWithText("Delete permanently").performClick()
+        assertTrue(altClicked)
+    }
+
+    @Test
     fun filterTouchesWhenObscured_modifierExistsAndCompilesCleanly() {
         var clicked = false
         composeRule.setContent {

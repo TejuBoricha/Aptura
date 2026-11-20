@@ -187,8 +187,9 @@ internal fun SpeedRail(
                         steps = (speeds.size - 2).coerceAtLeast(0)
                     )
                     setProgress { target ->
-                        val index = target.roundToInt().coerceIn(speeds.indices)
-                        if (index != currentLocalIndex) {
+                        val safeIndices = if (speeds.isNotEmpty()) speeds.indices else 0..0
+                        val index = target.roundToInt().coerceIn(safeIndices)
+                        if (index != currentLocalIndex && speeds.isNotEmpty()) {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             localIndex = index
                             currentOnSelect(speeds[index])
