@@ -85,6 +85,7 @@ fun StatsOverlay(
 ) {
     @Suppress("DEPRECATION")
     val clipboardManager = LocalClipboardManager.current
+    val context = androidx.compose.ui.platform.LocalContext.current
     val largeFont = LocalDensity.current.fontScale >= 1.4f
     val scroll = rememberScrollState()
 
@@ -129,6 +130,7 @@ fun StatsOverlay(
                         onClick = {
                             val bundle = buildDiagnosticsString(stats)
                             clipboardManager.setText(AnnotatedString(bundle))
+                            android.widget.Toast.makeText(context, "Copied stats to clipboard", android.widget.Toast.LENGTH_SHORT).show()
                         },
                         modifier = Modifier.size(48.dp)
                     ) {

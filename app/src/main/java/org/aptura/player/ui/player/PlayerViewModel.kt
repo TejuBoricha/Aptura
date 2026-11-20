@@ -1164,7 +1164,8 @@ class PlayerViewModel(
         _uiState.update {
             it.copy(
                 isLocked = nextLockState,
-                isControlsVisible = !nextLockState
+                isControlsVisible = !nextLockState,
+                activeSheet = if (nextLockState) null else it.activeSheet
             )
         }
         if (!nextLockState) {
@@ -1175,11 +1176,12 @@ class PlayerViewModel(
     }
 
     fun setPlaybackSpeed(speed: Float) {
+        val clamped = (kotlin.math.round(speed.coerceIn(0.25f, 4.0f) * 100f) / 100f)
         preHoldPlaybackSpeed = null
         viewModelScope.launch(dispatcher + errorHandler) {
-            playbackController.setPlaybackSpeed(speed)
+            playbackController.setPlaybackSpeed(clamped)
             _uiState.update {
-                it.copy(playbackSpeed = speed)
+                it.copy(playbackSpeed = clamped)
             }
             persistPlaybackPreferences()
             scheduleAutoHide()

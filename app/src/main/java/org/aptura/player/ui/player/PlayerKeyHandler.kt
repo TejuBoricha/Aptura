@@ -60,9 +60,14 @@ fun handlePlayerKeyEvent(
 ): Boolean {
     if (event.type != KeyEventType.KeyDown) return false
 
-    // Lock mode: show lock hint and swallow interactive media keys
+    // Lock mode: show lock hint and swallow interactive media keys, while allowing hardware volume and focus traversal keys through
     if (isLocked) {
-        if (event.key != Key.Back && event.key != Key.Escape) {
+        val isPassthrough = event.key == Key.Back ||
+            event.key == Key.Escape ||
+            event.key == Key.VolumeUp ||
+            event.key == Key.VolumeDown ||
+            event.key == Key.Tab
+        if (!isPassthrough) {
             actions.onTriggerLockHint()
             return true
         }

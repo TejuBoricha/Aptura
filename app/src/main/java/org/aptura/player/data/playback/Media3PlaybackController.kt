@@ -289,8 +289,10 @@ class Media3PlaybackController(
             if (newId != currentMediaId) {
                 currentMediaId = newId
                 resetPerItemState()
-                registerExternalLabels(sidecarsByUri[newId].orEmpty())
-                announceAutoPair(sidecarsByUri[newId].orEmpty())
+                val subs = sidecarsByUri[newId].orEmpty()
+                registerExternalLabels(subs)
+                enableSubtitlesFor(subs)
+                announceAutoPair(subs)
                 prefetchNeighbours()
             }
             publishQueue()
@@ -802,9 +804,9 @@ class Media3PlaybackController(
             .build()
     }
 
-    /** Resolves subtitles for the next/previous items in the background and bakes them into those media items. */
+    /** Resolves subtitles and artwork for the next/previous items in the background and bakes them into those media items. */
     private fun prefetchNeighbours() {
-        if (sidecarResolver == null) return
+        if (sidecarResolver == null && artworkProvider == null) return
         val candidates = listOf(player.nextMediaItemIndex, player.previousMediaItemIndex)
             .filter { it != C.INDEX_UNSET && it in queueItems.indices }
             .distinct()
@@ -813,14 +815,19 @@ class Media3PlaybackController(
             if (sidecarsByUri.containsKey(item.uri)) continue
             scope.launch(mainDispatcher) {
                 val subs = resolveSidecars(item)
+                val art = resolveArtwork(item)
                 sidecarsByUri[item.uri] = subs
-                if (subs.isEmpty()) return@launch
-                val liveIndex = queueItems.indexOfFirst { it.uri == item.uri }
+                if (subs.isEmpty() && art == null) return@launch
+                val liveIndex = if (index in queueItems.indices && queueItems[index].uri == item.uri) {
+                    index
+                } else {
+                    queueItems.indexOfFirst { it.uri == item.uri }
+                }
                 // Never replace the item that is playing now (that would restart it); it was resolved up front.
                 if (liveIndex >= 0 && liveIndex != player.currentMediaItemIndex &&
                     liveIndex < player.mediaItemCount && player.getMediaItemAt(liveIndex).mediaId == item.uri
                 ) {
-                    player.replaceMediaItem(liveIndex, buildMediaItem(item, subs, null))
+                    player.replaceMediaItem(liveIndex, buildMediaItem(item, subs, art))
                 }
             }
         }
@@ -829,6 +836,7 @@ class Media3PlaybackController(
     /** Everything that belongs to "the video that is playing" and must start fresh for each new item. */
     private fun resetPerItemState() {
         externalSubtitleLabels.clear()
+        lastStepTargetMs = null
         apturaTextRenderer?.subtitleDelayMs = 0L
         audioDelayProcessor?.delayMs = 0L
         try { player.setPlaybackSpeed(1.0f) } catch (_: Throwable) {}
@@ -1014,8 +1022,9 @@ class Media3PlaybackController(
             return
         }
         queueItems.add(item)
-        player.addMediaItem(buildMediaItem(item, emptyList(), null))
+        player.addMediaItem(buildMediaItem(item, sidecarsByUri[item.uri].orEmpty(), null))
         publishQueue()
+        prefetchNeighbours()
     }
 
     override suspend fun playNext(item: DomainMediaItem) {
@@ -1025,9 +1034,10 @@ class Media3PlaybackController(
         }
         val insertIndex = (player.currentMediaItemIndex + 1).coerceIn(0, queueItems.size)
         queueItems.add(insertIndex, item)
-        player.addMediaItem(insertIndex, buildMediaItem(item, emptyList(), null))
+        player.addMediaItem(insertIndex, buildMediaItem(item, sidecarsByUri[item.uri].orEmpty(), null))
         if (playMode == PlayMode.SHUFFLE) placeInShuffleOrderRightAfterCurrent(insertIndex)
         publishQueue()
+        prefetchNeighbours()
     }
 
     /**
@@ -1112,15 +1122,16 @@ class Media3PlaybackController(
         if (queueItems.isEmpty()) return
         if (beforeCurrent.isNotEmpty()) {
             queueItems.addAll(0, beforeCurrent)
-            val beforeMedia = beforeCurrent.map { buildMediaItem(it, emptyList(), null) }
+            val beforeMedia = beforeCurrent.map { buildMediaItem(it, sidecarsByUri[it.uri].orEmpty(), null) }
             player.addMediaItems(0, beforeMedia)
         }
         if (afterCurrent.isNotEmpty()) {
             queueItems.addAll(afterCurrent)
-            val afterMedia = afterCurrent.map { buildMediaItem(it, emptyList(), null) }
+            val afterMedia = afterCurrent.map { buildMediaItem(it, sidecarsByUri[it.uri].orEmpty(), null) }
             player.addMediaItems(afterMedia)
         }
         publishQueue()
+        prefetchNeighbours()
     }
 
     override suspend fun setPlaybackSpeed(speed: Float) {
@@ -1212,6 +1223,7 @@ class Media3PlaybackController(
             if (group.type == C.TRACK_TYPE_TEXT) {
                 for (i in 0 until group.length) {
                     if (subCount == index) {
+                        if (!group.isTrackSupported(i, /* allowExceedsCapabilities = */ true)) return
                         params?.let {
                             player.trackSelectionParameters = it
                                 .buildUpon()
@@ -1267,8 +1279,17 @@ class Media3PlaybackController(
         val currentItem = player.currentMediaItem ?: return
         val existingConfigs = currentItem.localConfiguration?.subtitleConfigurations ?: emptyList()
         val newUris = subtitles.map { it.uri.toUri() }.toSet()
+        val hasNewDefault = subtitles.any { it.isDefault }
 
-        val retainedConfigs = existingConfigs.filter { it.uri !in newUris }
+        val retainedConfigs = existingConfigs
+            .filter { it.uri !in newUris }
+            .map { config ->
+                if (hasNewDefault && (config.selectionFlags and C.SELECTION_FLAG_DEFAULT) != 0) {
+                    config.buildUpon().setSelectionFlags(config.selectionFlags and C.SELECTION_FLAG_DEFAULT.inv()).build()
+                } else {
+                    config
+                }
+            }
 
         val newConfigs = subtitles.map { sub ->
             externalSubtitleLabels.add(sub.label)
@@ -1334,10 +1355,16 @@ class Media3PlaybackController(
                     else -> null
                 }
 
+                val trackOrdinal = when (trackType) {
+                    C.TRACK_TYPE_AUDIO -> audioTrackCount + 1
+                    C.TRACK_TYPE_TEXT -> subtitleTrackCount + 1
+                    else -> i + 1
+                }
+
                 val label = when {
                     !format.label.isNullOrBlank() && !format.label.equals("und", ignoreCase = true) -> format.label!!
                     resolvedLanguage != null -> if (channelDesc != null) "$resolvedLanguage ($channelDesc)" else resolvedLanguage
-                    else -> if (channelDesc != null) "Track ${i + 1} ($channelDesc)" else "Track ${i + 1}"
+                    else -> if (channelDesc != null) "Track $trackOrdinal ($channelDesc)" else "Track $trackOrdinal"
                 }
 
                 when (trackType) {
@@ -1431,6 +1458,7 @@ class Media3PlaybackController(
     private var lastStepTargetMs: Double? = null
 
     override suspend fun stepFrame(forward: Boolean) {
+        pausedAtItemEnd = false
         player.pause()
         val exo = player as? ExoPlayer
         val fps = (exo?.videoFormat ?: currentVideoFormat)?.frameRate?.takeIf { it > 0f } ?: DEFAULT_FRAME_RATE
@@ -1439,8 +1467,13 @@ class Media3PlaybackController(
         // Continue from the previous *unrounded* target while stepping repeatedly: rounding every step to whole
         // milliseconds drifts and eventually repeats or skips frames.
         val base = lastStepTargetMs?.takeIf { abs(it - position) <= 2.0 } ?: position.toDouble()
-        val duration = player.duration.coerceAtLeast(0L).toDouble()
-        val target = (base + if (forward) frameMs else -frameMs).coerceIn(0.0, duration)
+        val rawDuration = player.duration
+        val nextTarget = base + if (forward) frameMs else -frameMs
+        val target = if (rawDuration == C.TIME_UNSET || rawDuration <= 0L) {
+            nextTarget.coerceAtLeast(0.0)
+        } else {
+            nextTarget.coerceIn(0.0, rawDuration.toDouble())
+        }
         lastStepTargetMs = target
 
         val previous = exo?.seekParameters

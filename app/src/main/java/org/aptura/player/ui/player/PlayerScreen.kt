@@ -1011,7 +1011,7 @@ fun PlayerScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 // Compatibility Mode Notice Chip (SCR-010h)
-                if (uiState.isCompatibilityMode && uiState.compatibilityNotice != null) {
+                if (uiState.isCompatibilityMode && uiState.compatibilityNotice != null && !uiState.isLocked) {
                     Surface(
                         color = ApturaColors.SurfaceElevated1.copy(alpha = 0.94f),
                         shape = RoundedCornerShape(20.dp),
@@ -1876,10 +1876,19 @@ fun PlayerScreen(
                                     onClick = { onAdvancedSheetVisible(true) },
                                     modifier = Modifier.size(48.dp)
                                 ) {
+                                    val isToolsActive = uiState.subtitleDelayMs != 0L ||
+                                        uiState.audioDelayMs != 0L ||
+                                        uiState.sleepTimerEndsAtElapsedRealtime != null ||
+                                        uiState.sleepTimerExpired ||
+                                        uiState.sleepAtEndOfVideo ||
+                                        uiState.abRepeat.pointA != null ||
+                                        uiState.pictureAdjustment != org.aptura.player.domain.model.PictureAdjustmentState() ||
+                                        uiState.isAudioOnly ||
+                                        uiState.isStatsOverlayVisible
                                     Icon(
                                         imageVector = Icons.Filled.Tune,
                                         contentDescription = "Playback tools",
-                                        tint = if (uiState.subtitleDelayMs != 0L || uiState.audioDelayMs != 0L || uiState.sleepTimerEndsAtElapsedRealtime != null || uiState.sleepTimerExpired || uiState.sleepAtEndOfVideo)
+                                        tint = if (isToolsActive)
                                             ApturaColors.AccentPrimary
                                         else
                                             ApturaColors.TextMediumEmphasis
@@ -1894,7 +1903,7 @@ fun PlayerScreen(
 
 
         // 5b. Playback Stats Studio HUD Overlay (SCR-010e, FR-DIAG-001)
-        if (uiState.isStatsOverlayVisible && !isPipMode) {
+        if (uiState.isStatsOverlayVisible && !isPipMode && !uiState.isLocked) {
             // Never taller than the room it has (it scrolls inside): above the seek bar in a wide window, above the
             // buttons in a tall one. When the buttons have moved aside it is never wider than the room to their right;
             // a window too narrow even for that keeps a readable width rather than a sliver.
@@ -2178,6 +2187,11 @@ fun PlayerScreen(
                         selectedSpeed = uiState.playbackSpeed,
                         onSelect = onSpeedSelected,
                         label = "Playback speed"
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    FineSpeedAdjustmentRow(
+                        currentSpeed = uiState.playbackSpeed,
+                        onSpeedSelected = onSpeedSelected
                     )
                 }
             }
