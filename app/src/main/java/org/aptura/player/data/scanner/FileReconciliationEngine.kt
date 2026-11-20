@@ -55,10 +55,16 @@ object FileReconciliationEngine {
 
         // Pass 1: Direct Matching (exact URI or MediaStore ID)
         for (existing in existingItems) {
-            val matchedScanned = scannedByUri[existing.uri] ?: scannedById[existing.mediaStoreId]
+            val matchedScanned = scannedByUri.remove(existing.uri) ?: scannedById.remove(existing.mediaStoreId)
 
             if (matchedScanned != null) {
+                scannedByUri.remove(matchedScanned.uri)
+                scannedById.remove(matchedScanned.mediaStoreId)
                 matchedScannedUris.add(matchedScanned.uri)
+
+                if (matchedScanned.uri != existing.uri) {
+                    uriRemaps[existing.uri] = matchedScanned.uri
+                }
 
                 val wasMissing = existing.isMissing
                 if (wasMissing) {
@@ -76,20 +82,26 @@ object FileReconciliationEngine {
             }
         }
 
-        // Remaining scanned items that haven't been matched directly
+        // Remaining scanned items that haven't been matched directly, indexed by sizeBytes for O(1) lookup (audit DAT-17)
         val remainingScanned = scannedItems.filter { it.uri !in matchedScannedUris }.toMutableList()
+        val remainingBySize = HashMap<Long, MutableList<MediaItemEntity>>()
+        for (candidate in remainingScanned) {
+            if (candidate.sizeBytes > 0L) {
+                remainingBySize.getOrPut(candidate.sizeBytes) { mutableListOf() }.add(candidate)
+            }
+        }
 
         // Pass 2: Heuristic Matching for Renamed / Moved Files (FR-LIB-018)
         // Matches by identical file size and duration within ±1000ms
         for (existing in unmatchedExisting) {
-            val candidateIndex = remainingScanned.indexOfFirst { candidate ->
-                candidate.sizeBytes > 0L &&
-                    candidate.sizeBytes == existing.sizeBytes &&
-                    abs(candidate.durationMs - existing.durationMs) <= 1000L
-            }
+            val sizeBucket = if (existing.sizeBytes > 0L) remainingBySize[existing.sizeBytes] else null
+            val candidateIndex = sizeBucket?.indexOfFirst { candidate ->
+                abs(candidate.durationMs - existing.durationMs) <= 1000L
+            } ?: -1
 
-            if (candidateIndex >= 0) {
-                val candidate = remainingScanned.removeAt(candidateIndex)
+            if (candidateIndex >= 0 && sizeBucket != null) {
+                val candidate = sizeBucket.removeAt(candidateIndex)
+                remainingScanned.remove(candidate)
                 matchedScannedUris.add(candidate.uri)
                 movedCount++
 

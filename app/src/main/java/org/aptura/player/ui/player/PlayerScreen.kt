@@ -343,7 +343,7 @@ fun PlayerScreen(
 
     var is2xSpeedActive by remember { mutableStateOf(false) }
     var lastLongPressReleaseUptimeMs by remember { mutableLongStateOf(0L) }
-    var currentOrientationMode by remember { mutableIntStateOf(0) } // 0: Auto, 1: Landscape, 2: Portrait
+    var currentOrientationMode by androidx.compose.runtime.saveable.rememberSaveable { mutableIntStateOf(0) } // 0: Auto, 1: Landscape, 2: Portrait
     var orientationToastMessage by remember { mutableStateOf<String?>(null) }
     var scrubPreviewBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
 
@@ -802,7 +802,7 @@ fun PlayerScreen(
                 if (newBrightness != null) {
                     brightnessLevel = newBrightness
                     val newPercent = (newBrightness * 100).toInt()
-                    if (newPercent / 10 != oldPercent / 10 || newPercent == 100 || newPercent == 1) {
+                    if (newPercent != oldPercent && (newPercent / 10 != oldPercent / 10 || newPercent == 100 || newPercent == 1)) {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     }
                     currentOnBrightnessPercentChanged(newPercent)
