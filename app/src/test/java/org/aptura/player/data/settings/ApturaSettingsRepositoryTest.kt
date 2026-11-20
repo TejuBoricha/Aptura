@@ -56,6 +56,13 @@ class ApturaSettingsRepositoryTest {
             assertEquals(0, initial.defaultDecoderStrategy)
             assertFalse(initial.isSupporter)
             assertFalse(initial.isPrivateMode)
+            assertFalse(initial.swapSwipeGestures)
+            assertTrue(initial.volumeGestureEnabled)
+            assertTrue(initial.brightnessGestureEnabled)
+            assertTrue(initial.swipeToSeekEnabled)
+            assertTrue(initial.doubleTapToSeekEnabled)
+            assertTrue(initial.holdFor2xSpeedEnabled)
+            assertTrue(initial.matchVideoOrientation)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -144,6 +151,27 @@ class ApturaSettingsRepositoryTest {
             repository.updateSupporter(true)
             assertTrue(awaitItem().isSupporter)
 
+            repository.updateSwapSwipeGestures(true)
+            assertTrue(awaitItem().swapSwipeGestures)
+
+            repository.updateVolumeGestureEnabled(false)
+            assertFalse(awaitItem().volumeGestureEnabled)
+
+            repository.updateBrightnessGestureEnabled(false)
+            assertFalse(awaitItem().brightnessGestureEnabled)
+
+            repository.updateSwipeToSeekEnabled(false)
+            assertFalse(awaitItem().swipeToSeekEnabled)
+
+            repository.updateDoubleTapToSeekEnabled(false)
+            assertFalse(awaitItem().doubleTapToSeekEnabled)
+
+            repository.updateHoldFor2xSpeedEnabled(false)
+            assertFalse(awaitItem().holdFor2xSpeedEnabled)
+
+            repository.updateMatchVideoOrientation(false)
+            assertFalse(awaitItem().matchVideoOrientation)
+
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -157,6 +185,13 @@ class ApturaSettingsRepositoryTest {
         repository.updateAutoAdvanceCountdown(0)
         repository.updateDefaultDecoderStrategy(2)
         repository.updateDefaultAudioDelayMs(150L)
+        repository.updateSwapSwipeGestures(true)
+        repository.updateVolumeGestureEnabled(false)
+        repository.updateBrightnessGestureEnabled(false)
+        repository.updateSwipeToSeekEnabled(false)
+        repository.updateDoubleTapToSeekEnabled(false)
+        repository.updateHoldFor2xSpeedEnabled(false)
+        repository.updateMatchVideoOrientation(false)
 
         repository.resetPlaybackDefaults()
 
@@ -168,6 +203,13 @@ class ApturaSettingsRepositoryTest {
         assertEquals(10, reset.autoAdvanceCountdownSeconds)
         assertEquals(0, reset.defaultDecoderStrategy)
         assertEquals(0L, reset.defaultAudioDelayMs)
+        assertFalse(reset.swapSwipeGestures)
+        assertTrue(reset.volumeGestureEnabled)
+        assertTrue(reset.brightnessGestureEnabled)
+        assertTrue(reset.swipeToSeekEnabled)
+        assertTrue(reset.doubleTapToSeekEnabled)
+        assertTrue(reset.holdFor2xSpeedEnabled)
+        assertTrue(reset.matchVideoOrientation)
     }
 
     @Test

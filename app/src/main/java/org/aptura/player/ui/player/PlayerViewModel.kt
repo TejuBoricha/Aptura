@@ -295,7 +295,14 @@ class PlayerViewModel(
                         subtitleTextColorHex = settings.subtitleTextColorHex,
                         subtitleBackgroundEnabled = settings.subtitleBackgroundEnabled,
                         subtitleUseSystemStyle = settings.subtitleUseSystemStyle,
-                        subtitleEncoding = settings.subtitleEncoding
+                        subtitleEncoding = settings.subtitleEncoding,
+                        swapSwipeGestures = settings.swapSwipeGestures,
+                        volumeGestureEnabled = settings.volumeGestureEnabled,
+                        brightnessGestureEnabled = settings.brightnessGestureEnabled,
+                        swipeToSeekEnabled = settings.swipeToSeekEnabled,
+                        doubleTapToSeekEnabled = settings.doubleTapToSeekEnabled,
+                        holdFor2xSpeedEnabled = settings.holdFor2xSpeedEnabled,
+                        matchVideoOrientation = settings.matchVideoOrientation
                     )
                 }
                 if (_uiState.value.playbackSpeed == defaultPlaybackSpeed && prevDefaultSpeed != defaultPlaybackSpeed) {

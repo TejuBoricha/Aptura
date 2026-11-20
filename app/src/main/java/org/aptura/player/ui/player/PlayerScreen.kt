@@ -432,6 +432,39 @@ fun PlayerScreen(
         }
     }
 
+    var observedVideoSize by remember(player) {
+        mutableStateOf(player?.videoSize ?: androidx.media3.common.VideoSize.UNKNOWN)
+    }
+    DisposableEffect(player) {
+        val listener = object : androidx.media3.common.Player.Listener {
+            override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+                observedVideoSize = videoSize
+            }
+        }
+        player?.addListener(listener)
+        onDispose {
+            player?.removeListener(listener)
+        }
+    }
+
+    val videoWidth = observedVideoSize.width
+    val videoHeight = observedVideoSize.height
+
+    // Auto Match-Video Orientation (FEAT-06, FR-CTRL-008)
+    LaunchedEffect(currentOrientationMode, uiState.matchVideoOrientation, videoWidth, videoHeight, orientationSupported) {
+        if (orientationSupported && currentOrientationMode == 0) {
+            if (uiState.matchVideoOrientation && videoWidth > 0 && videoHeight > 0) {
+                if (videoWidth >= videoHeight) {
+                    activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                } else {
+                    activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                }
+            } else {
+                activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            }
+        }
+    }
+
     // Keep screen awake while actively playing video (P-16, spec/10:92, PLY-19)
     val keepScreenOn = uiState.isPlaying && !uiState.isAudioOnly
     DisposableEffect(activity, keepScreenOn) {
@@ -647,6 +680,11 @@ fun PlayerScreen(
         val currentDoubleTapSeekSide by rememberUpdatedState(uiState.doubleTapSeekSide)
         val currentSeekStepMs by rememberUpdatedState(uiState.seekStepMs)
         val currentSwipeSensitivity by rememberUpdatedState(swipeSensitivityMsPerPixel)
+        val currentSwapSwipeGestures by rememberUpdatedState(uiState.swapSwipeGestures)
+        val currentVolumeGestureEnabled by rememberUpdatedState(uiState.volumeGestureEnabled)
+        val currentBrightnessGestureEnabled by rememberUpdatedState(uiState.brightnessGestureEnabled)
+        val currentDoubleTapToSeekEnabled by rememberUpdatedState(uiState.doubleTapToSeekEnabled)
+        val currentHoldFor2xSpeedEnabled by rememberUpdatedState(uiState.holdFor2xSpeedEnabled)
         val currentOnTwoFingerTap by rememberUpdatedState(onTwoFingerTap)
         val currentOnHorizontalSwipeSeekStart by rememberUpdatedState(onHorizontalSwipeSeekStart)
         val currentOnHorizontalSwipeSeek by rememberUpdatedState(onHorizontalSwipeSeek)
@@ -672,7 +710,7 @@ fun PlayerScreen(
                         true
                     }
                     // Lock mode turns the brightness swipe off, so it turns these off too.
-                    if (!uiState.isLocked) {
+                    if (!uiState.isLocked && uiState.brightnessGestureEnabled) {
                         customActions = listOf(
                             CustomAccessibilityAction("Increase brightness") { stepBrightness(BRIGHTNESS_ACTION_STEP) },
                             CustomAccessibilityAction("Decrease brightness") { stepBrightness(-BRIGHTNESS_ACTION_STEP) }
@@ -715,8 +753,8 @@ fun PlayerScreen(
                         }
                     }
                 }
-                .pointerInput(uiState.isLocked) {
-                    if (!uiState.isLocked) {
+                .pointerInput(uiState.isLocked, uiState.swipeToSeekEnabled) {
+                    if (!uiState.isLocked && uiState.swipeToSeekEnabled) {
                         detectHorizontalDragGestures(
                             onDragStart = {
                                 if (currentDurationMs > 0L) {
@@ -748,8 +786,34 @@ fun PlayerScreen(
                     }
                 }
         ) {
+            val adjustBrightness: (Float, Float) -> Unit = { dragAmount, heightPx ->
+                val oldPercent = (windowBrightness.current() * 100).toInt()
+                val newBrightness = windowBrightness.adjustBy(-dragAmount / heightPx)
+                if (newBrightness != null) {
+                    brightnessLevel = newBrightness
+                    val newPercent = (newBrightness * 100).toInt()
+                    if (newPercent / 10 != oldPercent / 10 || newPercent == 100 || newPercent == 1) {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    }
+                    currentOnBrightnessPercentChanged(newPercent)
+                }
+            }
+
+            val adjustVolume: (Float, Float, (Float) -> Unit) -> Unit = { dragAmount, heightPx, updateAccumulator ->
+                if (audioManager != null && maxVolume > 0) {
+                    val stepThreshold = (heightPx / maxVolume.toFloat()).coerceIn(20f, 60f)
+                    if (dragAmount > stepThreshold) {
+                        stepVolume(1)
+                        updateAccumulator(0f)
+                    } else if (dragAmount < -stepThreshold) {
+                        stepVolume(-1)
+                        updateAccumulator(0f)
+                    }
+                }
+            }
+
             Row(modifier = Modifier.fillMaxSize()) {
-                // Left half: Brightness & Rewind
+                // Left half: Brightness (or Volume when swapped) & Rewind
                 var leftDragAccumulator by remember { mutableFloatStateOf(0f) }
                 var leftBoxHeightPx by remember { mutableFloatStateOf(1000f) }
                 Box(
@@ -766,7 +830,7 @@ fun PlayerScreen(
                                     if (currentIsLocked) {
                                         currentOnTriggerLockHint()
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    } else if (currentSeekDeltaSeconds != null && currentDoubleTapSeekSide == SeekTapSide.LEFT) {
+                                    } else if (currentDoubleTapToSeekEnabled && currentSeekDeltaSeconds != null && currentDoubleTapSeekSide == SeekTapSide.LEFT) {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                         currentOnSeekRelativeWithSide(-currentSeekStepMs, SeekTapSide.LEFT)
                                     } else {
@@ -775,8 +839,12 @@ fun PlayerScreen(
                                 },
                                 onDoubleTap = {
                                     if (!currentIsLocked) {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        currentOnSeekRelativeWithSide(-currentSeekStepMs, SeekTapSide.LEFT)
+                                        if (currentDoubleTapToSeekEnabled) {
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            currentOnSeekRelativeWithSide(-currentSeekStepMs, SeekTapSide.LEFT)
+                                        } else {
+                                            currentOnControlsVisibilityToggle()
+                                        }
                                     } else {
                                         currentOnTriggerLockHint()
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -786,7 +854,7 @@ fun PlayerScreen(
                                     var longPressActive = false
                                     val job = coroutineScope.launch {
                                         kotlinx.coroutines.delay(400L)
-                                        if (!currentIsLocked && currentIsPlaying) {
+                                        if (!currentIsLocked && currentIsPlaying && currentHoldFor2xSpeedEnabled) {
                                             longPressActive = true
                                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                             is2xSpeedActive = true
@@ -806,30 +874,29 @@ fun PlayerScreen(
                                 }
                             )
                         }
-                        .pointerInput(uiState.isLocked) {
+                        .pointerInput(uiState.isLocked, uiState.swapSwipeGestures, uiState.brightnessGestureEnabled, uiState.volumeGestureEnabled) {
                             if (!uiState.isLocked) {
-                                detectVerticalDragGestures(
-                                    onDragStart = { leftDragAccumulator = 0f },
-                                    onVerticalDrag = { change, dragAmount ->
-                                        change.consume()
-                                        leftDragAccumulator -= dragAmount
-                                        val oldPercent = (windowBrightness.current() * 100).toInt()
-                                        val newBrightness = windowBrightness.adjustBy(-dragAmount / leftBoxHeightPx)
-                                        if (newBrightness != null) {
-                                            brightnessLevel = newBrightness
-                                            val newPercent = (newBrightness * 100).toInt()
-                                            if (newPercent / 10 != oldPercent / 10 || newPercent == 100 || newPercent == 1) {
-                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                val isLeftBrightness = !currentSwapSwipeGestures
+                                val isGestureActive = if (isLeftBrightness) currentBrightnessGestureEnabled else currentVolumeGestureEnabled
+                                if (isGestureActive) {
+                                    detectVerticalDragGestures(
+                                        onDragStart = { leftDragAccumulator = 0f },
+                                        onVerticalDrag = { change, dragAmount ->
+                                            change.consume()
+                                            leftDragAccumulator -= dragAmount
+                                            if (isLeftBrightness) {
+                                                adjustBrightness(dragAmount, leftBoxHeightPx)
+                                            } else {
+                                                adjustVolume(leftDragAccumulator, leftBoxHeightPx) { leftDragAccumulator = it }
                                             }
-                                            currentOnBrightnessPercentChanged(newPercent)
                                         }
-                                    }
-                                )
+                                    )
+                                }
                             }
                         }
                 )
 
-                // Right half: Volume & Fast-forward
+                // Right half: Volume (or Brightness when swapped) & Fast-forward
                 var rightDragAccumulator by remember { mutableFloatStateOf(0f) }
                 var rightBoxHeightPx by remember { mutableFloatStateOf(1000f) }
                 Box(
@@ -846,7 +913,7 @@ fun PlayerScreen(
                                     if (currentIsLocked) {
                                         currentOnTriggerLockHint()
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    } else if (currentSeekDeltaSeconds != null && currentDoubleTapSeekSide == SeekTapSide.RIGHT) {
+                                    } else if (currentDoubleTapToSeekEnabled && currentSeekDeltaSeconds != null && currentDoubleTapSeekSide == SeekTapSide.RIGHT) {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                         currentOnSeekRelativeWithSide(currentSeekStepMs, SeekTapSide.RIGHT)
                                     } else {
@@ -855,8 +922,12 @@ fun PlayerScreen(
                                 },
                                 onDoubleTap = {
                                     if (!currentIsLocked) {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        currentOnSeekRelativeWithSide(currentSeekStepMs, SeekTapSide.RIGHT)
+                                        if (currentDoubleTapToSeekEnabled) {
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            currentOnSeekRelativeWithSide(currentSeekStepMs, SeekTapSide.RIGHT)
+                                        } else {
+                                            currentOnControlsVisibilityToggle()
+                                        }
                                     } else {
                                         currentOnTriggerLockHint()
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -866,7 +937,7 @@ fun PlayerScreen(
                                     var longPressActive = false
                                     val job = coroutineScope.launch {
                                         kotlinx.coroutines.delay(400L)
-                                        if (!currentIsLocked && currentIsPlaying) {
+                                        if (!currentIsLocked && currentIsPlaying && currentHoldFor2xSpeedEnabled) {
                                             longPressActive = true
                                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                             is2xSpeedActive = true
@@ -886,25 +957,24 @@ fun PlayerScreen(
                                 }
                             )
                         }
-                        .pointerInput(uiState.isLocked) {
+                        .pointerInput(uiState.isLocked, uiState.swapSwipeGestures, uiState.brightnessGestureEnabled, uiState.volumeGestureEnabled) {
                             if (!uiState.isLocked) {
-                                detectVerticalDragGestures(
-                                    onDragStart = { rightDragAccumulator = 0f },
-                                    onVerticalDrag = { change, dragAmount ->
-                                        change.consume()
-                                        rightDragAccumulator -= dragAmount
-                                        if (audioManager != null && maxVolume > 0) {
-                                            val stepThreshold = (rightBoxHeightPx / maxVolume.toFloat()).coerceIn(20f, 60f)
-                                            if (rightDragAccumulator > stepThreshold) {
-                                                stepVolume(1)
-                                                rightDragAccumulator = 0f
-                                            } else if (rightDragAccumulator < -stepThreshold) {
-                                                stepVolume(-1)
-                                                rightDragAccumulator = 0f
+                                val isRightVolume = !currentSwapSwipeGestures
+                                val isGestureActive = if (isRightVolume) currentVolumeGestureEnabled else currentBrightnessGestureEnabled
+                                if (isGestureActive) {
+                                    detectVerticalDragGestures(
+                                        onDragStart = { rightDragAccumulator = 0f },
+                                        onVerticalDrag = { change, dragAmount ->
+                                            change.consume()
+                                            rightDragAccumulator -= dragAmount
+                                            if (isRightVolume) {
+                                                adjustVolume(rightDragAccumulator, rightBoxHeightPx) { rightDragAccumulator = it }
+                                            } else {
+                                                adjustBrightness(dragAmount, rightBoxHeightPx)
                                             }
                                         }
-                                    }
-                                )
+                                    )
+                                }
                             }
                         }
                 )
@@ -1132,14 +1202,16 @@ fun PlayerScreen(
         }
 
         // 3. Transient Feedback Overlays (Volume, Brightness, Double-Tap Seek, Horizontal Swipe Seek, Lock Hint)
-        // Right-side Volume Indicator (FR-CTRL-005, FR-CTRL-015)
+        // Volume Indicator (FR-CTRL-005, FR-CTRL-015, FEAT-06)
+        val volumeAlignment = if (uiState.swapSwipeGestures) Alignment.CenterStart else Alignment.CenterEnd
+        val volumePadding = if (uiState.swapSwipeGestures) Modifier.padding(start = 32.dp) else Modifier.padding(end = 32.dp)
         AnimatedVisibility(
             visible = uiState.volumePercent != null && !isPipMode,
             enter = fadeIn() + scaleIn(),
             exit = fadeOut() + scaleOut(),
             modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .padding(end = 32.dp)
+                .align(volumeAlignment)
+                .then(volumePadding)
         ) {
             uiState.volumePercent?.let { vol ->
                 VerticalLevelGaugeHud(
@@ -1150,14 +1222,16 @@ fun PlayerScreen(
             }
         }
 
-        // Left-side Brightness Indicator (FR-CTRL-005, FR-CTRL-015)
+        // Brightness Indicator (FR-CTRL-005, FR-CTRL-015, FEAT-06)
+        val brightnessAlignment = if (uiState.swapSwipeGestures) Alignment.CenterEnd else Alignment.CenterStart
+        val brightnessPadding = if (uiState.swapSwipeGestures) Modifier.padding(end = 32.dp) else Modifier.padding(start = 32.dp)
         AnimatedVisibility(
             visible = uiState.brightnessPercent != null && !isPipMode,
             enter = fadeIn() + scaleIn(),
             exit = fadeOut() + scaleOut(),
             modifier = Modifier
-                .align(Alignment.CenterStart)
-                .padding(start = 32.dp)
+                .align(brightnessAlignment)
+                .then(brightnessPadding)
         ) {
             uiState.brightnessPercent?.let { bri ->
                 VerticalLevelGaugeHud(
@@ -1322,8 +1396,18 @@ fun PlayerScreen(
                                     orientationToastMessage = "Portrait locked"
                                 }
                                 else -> {
-                                    activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-                                    orientationToastMessage = "Auto-rotate"
+                                    if (uiState.matchVideoOrientation && videoWidth > 0 && videoHeight > 0) {
+                                        if (videoWidth >= videoHeight) {
+                                            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                                            orientationToastMessage = "Auto (Landscape)"
+                                        } else {
+                                            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                                            orientationToastMessage = "Auto (Portrait)"
+                                        }
+                                    } else {
+                                        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                                        orientationToastMessage = "Auto-rotate"
+                                    }
                                 }
                             }
                             coroutineScope.launch {

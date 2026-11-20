@@ -897,6 +897,27 @@ private fun AppNavHost(
                     onUpdatePrivateMode = { enabled ->
                         coroutineScope.launch { settingsRepository.updatePrivateMode(enabled) }
                     },
+                    onUpdateMatchVideoOrientation = { enabled ->
+                        coroutineScope.launch { settingsRepository.updateMatchVideoOrientation(enabled) }
+                    },
+                    onUpdateSwapSwipeGestures = { swap ->
+                        coroutineScope.launch { settingsRepository.updateSwapSwipeGestures(swap) }
+                    },
+                    onUpdateSwipeToSeekEnabled = { enabled ->
+                        coroutineScope.launch { settingsRepository.updateSwipeToSeekEnabled(enabled) }
+                    },
+                    onUpdateDoubleTapToSeekEnabled = { enabled ->
+                        coroutineScope.launch { settingsRepository.updateDoubleTapToSeekEnabled(enabled) }
+                    },
+                    onUpdateVolumeGestureEnabled = { enabled ->
+                        coroutineScope.launch { settingsRepository.updateVolumeGestureEnabled(enabled) }
+                    },
+                    onUpdateBrightnessGestureEnabled = { enabled ->
+                        coroutineScope.launch { settingsRepository.updateBrightnessGestureEnabled(enabled) }
+                    },
+                    onUpdateHoldFor2xSpeedEnabled = { enabled ->
+                        coroutineScope.launch { settingsRepository.updateHoldFor2xSpeedEnabled(enabled) }
+                    },
                     onBackClick = { backStack.removeLastOrNull() },
                     onUpdateSpeed = { speed ->
                         coroutineScope.launch { settingsRepository.updateDefaultPlaybackSpeed(speed) }

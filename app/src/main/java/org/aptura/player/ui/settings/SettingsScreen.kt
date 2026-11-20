@@ -179,6 +179,13 @@ fun SettingsScreen(
     onExportBackup: () -> Unit = {},
     onRestoreBackup: () -> Unit = {},
     onUpdatePrivateMode: (Boolean) -> Unit = {},
+    onUpdateMatchVideoOrientation: (Boolean) -> Unit = {},
+    onUpdateSwapSwipeGestures: (Boolean) -> Unit = {},
+    onUpdateSwipeToSeekEnabled: (Boolean) -> Unit = {},
+    onUpdateDoubleTapToSeekEnabled: (Boolean) -> Unit = {},
+    onUpdateVolumeGestureEnabled: (Boolean) -> Unit = {},
+    onUpdateBrightnessGestureEnabled: (Boolean) -> Unit = {},
+    onUpdateHoldFor2xSpeedEnabled: (Boolean) -> Unit = {},
     onDeleteDiagnosticData: () -> Unit = { ApturaDiagnostics.clearAll() },
     modifier: Modifier = Modifier
 ) {
@@ -287,7 +294,7 @@ fun SettingsScreen(
             onDismissRequest = { isResetPlaybackDialogOpen = false },
             icon = Icons.Default.Refresh,
             title = "Reset playback defaults?",
-            message = "This restores the default speed, aspect ratio, double-tap skip, background audio and " +
+            message = "This restores the default speed, aspect ratio, double-tap skip, gestures, background audio and " +
                 "up next countdown.",
             confirmLabel = "Reset",
             onConfirm = {
@@ -491,7 +498,7 @@ fun SettingsScreen(
                         ActionRow(
                             icon = Icons.Default.Refresh,
                             title = "Reset playback defaults",
-                            subtitle = "Speed, aspect ratio, double-tap skip and countdown",
+                            subtitle = "Speed, aspect ratio, double-tap skip, gestures and countdown",
                             trailing = {
                                 PillButton(
                                     text = "Reset",
@@ -523,6 +530,63 @@ fun SettingsScreen(
                                     }
                                 }
                             }
+                        )
+                    }
+                }
+            }
+
+            // Gestures & Controls (FEAT-06, FR-CTRL-005, FR-CTRL-008)
+            item(key = "gestures", contentType = "section") {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SectionLabel("Gestures & controls")
+                    SettingsPanel {
+                        ToggleRow(
+                            title = "Match video orientation",
+                            subtitle = "Automatically rotate screen to match video dimensions when playback begins",
+                            checked = settings.matchVideoOrientation,
+                            onCheckedChange = onUpdateMatchVideoOrientation
+                        )
+                        PanelDivider()
+                        ToggleRow(
+                            title = "Swap swipe sides",
+                            subtitle = if (settings.swapSwipeGestures) "Volume on left, brightness on right" else "Brightness on left, volume on right",
+                            checked = settings.swapSwipeGestures,
+                            onCheckedChange = onUpdateSwapSwipeGestures
+                        )
+                        PanelDivider()
+                        ToggleRow(
+                            title = "Swipe to seek",
+                            subtitle = "Swipe horizontally across the screen to scrub through video",
+                            checked = settings.swipeToSeekEnabled,
+                            onCheckedChange = onUpdateSwipeToSeekEnabled
+                        )
+                        PanelDivider()
+                        ToggleRow(
+                            title = "Double-tap to seek",
+                            subtitle = "Double-tap left or right edge to skip backward or forward",
+                            checked = settings.doubleTapToSeekEnabled,
+                            onCheckedChange = onUpdateDoubleTapToSeekEnabled
+                        )
+                        PanelDivider()
+                        ToggleRow(
+                            title = "Volume gesture",
+                            subtitle = "Swipe vertically to adjust media volume",
+                            checked = settings.volumeGestureEnabled,
+                            onCheckedChange = onUpdateVolumeGestureEnabled
+                        )
+                        PanelDivider()
+                        ToggleRow(
+                            title = "Brightness gesture",
+                            subtitle = "Swipe vertically to adjust screen brightness",
+                            checked = settings.brightnessGestureEnabled,
+                            onCheckedChange = onUpdateBrightnessGestureEnabled
+                        )
+                        PanelDivider()
+                        ToggleRow(
+                            title = "Hold for 2x speed",
+                            subtitle = "Press and hold anywhere on the screen during playback for 2x speed",
+                            checked = settings.holdFor2xSpeedEnabled,
+                            onCheckedChange = onUpdateHoldFor2xSpeedEnabled
                         )
                     }
                 }

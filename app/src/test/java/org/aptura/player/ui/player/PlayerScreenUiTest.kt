@@ -9,9 +9,12 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.test.doubleClick
 import androidx.compose.ui.test.longClick
 import org.aptura.player.theme.ApturaTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -318,5 +321,151 @@ class PlayerScreenUiTest {
         composeTestRule.onNodeWithText("Retry").assertIsDisplayed()
         composeTestRule.onNodeWithText("Retry").performClick()
         assertTrue(retryTriggered)
+    }
+
+    @Test
+    fun playerScreen_whenOrientationToggleClicked_cyclesModes() {
+        composeTestRule.setContent {
+            ApturaTheme {
+                PlayerScreen(
+                    uiState = PlayerUiState(
+                        videoTitle = "Landscape Movie",
+                        durationMs = 60_000L,
+                        currentPositionMs = 10_000L,
+                        isPlaying = true,
+                        isControlsVisible = true,
+                        matchVideoOrientation = true
+                    ),
+                    player = null,
+                    orientationSupported = true,
+                    onBackClick = {},
+                    onPlayPauseClick = {},
+                    onSeekRelative = {},
+                    onScrubStart = {},
+                    onScrubMove = {},
+                    onScrubEnd = {},
+                    onControlsVisibilityToggle = {},
+                    onLockToggle = {},
+                    onSpeedSelected = {},
+                    onResizeModeToggle = {},
+                    onSpeedSheetVisible = {},
+                    onAudioSheetVisible = {},
+                    onSubtitleSheetVisible = {},
+                    onAudioTrackSelected = {},
+                    onSubtitleTrackSelected = {},
+                    onVolumePercentChanged = {},
+                    onBrightnessPercentChanged = {},
+                    onRetryPlayback = {}
+                )
+            }
+        }
+
+        // Click 1: Landscape locked via More options
+        composeTestRule.onNodeWithContentDescription("More options").performClick()
+        composeTestRule.onNodeWithText("Screen orientation").performClick()
+        composeTestRule.onNodeWithText("Landscape locked").assertExists()
+
+        // Click 2: Portrait locked via More options
+        composeTestRule.onNodeWithContentDescription("More options").performClick()
+        composeTestRule.onNodeWithText("Screen orientation").performClick()
+        composeTestRule.onNodeWithText("Portrait locked").assertExists()
+
+        // Click 3: Auto-rotate via More options
+        composeTestRule.onNodeWithContentDescription("More options").performClick()
+        composeTestRule.onNodeWithText("Screen orientation").performClick()
+        composeTestRule.onNodeWithText("Auto", substring = true).assertExists()
+    }
+
+    @Test
+    fun playerScreen_whenDoubleTapToSeekDisabled_doubleTapTogglesControlsInsteadOfSeeking() {
+        var seekRelativeInvoked = false
+        var controlsVisibilityToggled = false
+
+        composeTestRule.setContent {
+            ApturaTheme {
+                PlayerScreen(
+                    uiState = PlayerUiState(
+                        videoTitle = "Tutorial",
+                        durationMs = 60_000L,
+                        currentPositionMs = 10_000L,
+                        isPlaying = true,
+                        isControlsVisible = false,
+                        doubleTapToSeekEnabled = false
+                    ),
+                    player = null,
+                    onBackClick = {},
+                    onPlayPauseClick = {},
+                    onSeekRelative = { seekRelativeInvoked = true },
+                    onScrubStart = {},
+                    onScrubMove = {},
+                    onScrubEnd = {},
+                    onControlsVisibilityToggle = { controlsVisibilityToggled = true },
+                    onLockToggle = {},
+                    onSpeedSelected = {},
+                    onResizeModeToggle = {},
+                    onSpeedSheetVisible = {},
+                    onAudioSheetVisible = {},
+                    onSubtitleSheetVisible = {},
+                    onAudioTrackSelected = {},
+                    onSubtitleTrackSelected = {},
+                    onVolumePercentChanged = {},
+                    onBrightnessPercentChanged = {},
+                    onRetryPlayback = {}
+                )
+            }
+        }
+
+        // Double-tap right half with doubleTapToSeekEnabled=false
+        val videoNode = composeTestRule.onNodeWithContentDescription("Video")
+        videoNode.performTouchInput {
+            doubleClick(Offset(x = width * 0.75f, y = height * 0.5f))
+        }
+
+        assertFalse(seekRelativeInvoked)
+        assertTrue(controlsVisibilityToggled)
+    }
+
+    @Test
+    fun playerScreen_whenSwipeGesturesSwapped_gaugeHudDisplays() {
+        composeTestRule.setContent {
+            ApturaTheme {
+                PlayerScreen(
+                    uiState = PlayerUiState(
+                        videoTitle = "Tutorial",
+                        durationMs = 60_000L,
+                        currentPositionMs = 10_000L,
+                        isPlaying = true,
+                        isControlsVisible = false,
+                        swapSwipeGestures = true,
+                        volumePercent = 75,
+                        brightnessPercent = 50
+                    ),
+                    player = null,
+                    onBackClick = {},
+                    onPlayPauseClick = {},
+                    onSeekRelative = {},
+                    onScrubStart = {},
+                    onScrubMove = {},
+                    onScrubEnd = {},
+                    onControlsVisibilityToggle = {},
+                    onLockToggle = {},
+                    onSpeedSelected = {},
+                    onResizeModeToggle = {},
+                    onSpeedSheetVisible = {},
+                    onAudioSheetVisible = {},
+                    onSubtitleSheetVisible = {},
+                    onAudioTrackSelected = {},
+                    onSubtitleTrackSelected = {},
+                    onVolumePercentChanged = {},
+                    onBrightnessPercentChanged = {},
+                    onRetryPlayback = {}
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithContentDescription("Volume").assertExists()
+        composeTestRule.onNodeWithText("75%").assertExists()
+        composeTestRule.onNodeWithContentDescription("Brightness").assertExists()
+        composeTestRule.onNodeWithText("50%").assertExists()
     }
 }

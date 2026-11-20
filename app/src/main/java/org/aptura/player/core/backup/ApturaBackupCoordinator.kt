@@ -70,6 +70,13 @@ object ApturaBackupCoordinator {
             put("folderLayout", settings.folderLayout.name)
             settings.librarySortName?.let { put("librarySortName", it) }
             put("isPrivateMode", settings.isPrivateMode)
+            put("swapSwipeGestures", settings.swapSwipeGestures)
+            put("volumeGestureEnabled", settings.volumeGestureEnabled)
+            put("brightnessGestureEnabled", settings.brightnessGestureEnabled)
+            put("swipeToSeekEnabled", settings.swipeToSeekEnabled)
+            put("doubleTapToSeekEnabled", settings.doubleTapToSeekEnabled)
+            put("holdFor2xSpeedEnabled", settings.holdFor2xSpeedEnabled)
+            put("matchVideoOrientation", settings.matchVideoOrientation)
             val safArray = JSONArray()
             settings.persistedSafFolders.forEach { safArray.put(it) }
             put("persistedSafFolders", safArray)
@@ -195,6 +202,27 @@ object ApturaBackupCoordinator {
             }
             if (s.has("isPrivateMode")) {
                 settingsRepo.updatePrivateMode(s.getBoolean("isPrivateMode"))
+            }
+            if (s.has("swapSwipeGestures")) {
+                settingsRepo.updateSwapSwipeGestures(s.getBoolean("swapSwipeGestures"))
+            }
+            if (s.has("volumeGestureEnabled")) {
+                settingsRepo.updateVolumeGestureEnabled(s.getBoolean("volumeGestureEnabled"))
+            }
+            if (s.has("brightnessGestureEnabled")) {
+                settingsRepo.updateBrightnessGestureEnabled(s.getBoolean("brightnessGestureEnabled"))
+            }
+            if (s.has("swipeToSeekEnabled")) {
+                settingsRepo.updateSwipeToSeekEnabled(s.getBoolean("swipeToSeekEnabled"))
+            }
+            if (s.has("doubleTapToSeekEnabled")) {
+                settingsRepo.updateDoubleTapToSeekEnabled(s.getBoolean("doubleTapToSeekEnabled"))
+            }
+            if (s.has("holdFor2xSpeedEnabled")) {
+                settingsRepo.updateHoldFor2xSpeedEnabled(s.getBoolean("holdFor2xSpeedEnabled"))
+            }
+            if (s.has("matchVideoOrientation")) {
+                settingsRepo.updateMatchVideoOrientation(s.getBoolean("matchVideoOrientation"))
             }
             settingsRestored = true
         }

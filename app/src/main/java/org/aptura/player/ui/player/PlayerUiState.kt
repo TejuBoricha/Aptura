@@ -164,7 +164,14 @@ data class PlayerUiState(
     /** Double-tap / transport seek step from Settings (was hard-coded to 10 s). */
     val seekStepMs: Long = 10_000L,
     /** Audio-only mode: video is not decoded or rendered; audio keeps playing. */
-    val isAudioOnly: Boolean = false
+    val isAudioOnly: Boolean = false,
+    val swapSwipeGestures: Boolean = false,
+    val volumeGestureEnabled: Boolean = true,
+    val brightnessGestureEnabled: Boolean = true,
+    val swipeToSeekEnabled: Boolean = true,
+    val doubleTapToSeekEnabled: Boolean = true,
+    val holdFor2xSpeedEnabled: Boolean = true,
+    val matchVideoOrientation: Boolean = true
 ) {
     // Computed property compatibility bridges for Compose bindings & legacy tests
     val isAudioSheetVisible: Boolean get() = activeSheet == PlayerSheet.Audio
