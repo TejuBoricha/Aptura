@@ -261,4 +261,25 @@ class DiagnosticsUiTest {
         composeRule.onNodeWithText("Dismiss").performClick()
         assertEquals(1, dismissed)
     }
+
+    @Test
+    fun tappingShareDiagnosticReport_opensRedactedPreviewDialog() {
+        ApturaDiagnostics.logEvent(EventCode.EV_001, payload = mapOf("source" to "unit_test"))
+        showSettings()
+
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("Share diagnostic report"))
+        composeRule.onNodeWithText("Share diagnostic report").performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("Diagnostic report").assertIsDisplayed()
+        composeRule.onNodeWithText("Review the redacted event log before sharing. File names, video titles, and personal paths are stripped.").assertIsDisplayed()
+        composeRule.onNodeWithText("Share").assertIsDisplayed()
+        composeRule.onNodeWithText("Copy report").assertIsDisplayed()
+        composeRule.onNodeWithText("Close").assertIsDisplayed()
+
+        // Clicking Close dismisses the dialog
+        composeRule.onNodeWithText("Close").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Diagnostic report").assertDoesNotExist()
+    }
 }
