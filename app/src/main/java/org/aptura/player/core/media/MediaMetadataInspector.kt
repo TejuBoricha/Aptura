@@ -152,7 +152,7 @@ object MediaMetadataInspector {
                             name = "Audio Track ${audioTracks.size + 1}"
                         )
                     )
-                } else if (mime.startsWith("text/") || mime.startsWith("application/")) {
+                } else if (isSubtitleMime(mime)) {
                     val lang = if (format.containsKey(MediaFormat.KEY_LANGUAGE)) {
                         format.getString(MediaFormat.KEY_LANGUAGE)
                     } else null
@@ -173,12 +173,13 @@ object MediaMetadataInspector {
         }
 
         // 3. Media3 MetadataRetriever pass when Android MediaExtractor misses MKV/TS tracks (e.g., AC-3, E-AC-3, DTS, embedded SRT/ASS/PGS)
-        if (videoCodec == null || audioTracks.isEmpty() || subtitleTracks.isEmpty()) {
+        if (videoCodec == null || audioTracks.isEmpty()) {
             val needAudio = audioTracks.isEmpty()
             val needSubtitles = subtitleTracks.isEmpty()
+            var future: com.google.common.util.concurrent.ListenableFuture<androidx.media3.exoplayer.source.TrackGroupArray>? = null
             try {
-                val trackGroups = MetadataRetriever.retrieveMetadata(context, MediaItem.fromUri(uri))
-                    .get(2, TimeUnit.SECONDS)
+                future = MetadataRetriever.retrieveMetadata(context, MediaItem.fromUri(uri))
+                val trackGroups = future.get(2, TimeUnit.SECONDS)
                 if (trackGroups.length > 0) {
                     inspected = true
                 }
@@ -223,7 +224,7 @@ object MediaMetadataInspector {
                             )
                         )
                     } else if (
-                        (mime.startsWith("text/") || mime.startsWith("application/") || mime.startsWith("image/")) &&
+                        isSubtitleMime(mime) &&
                         needSubtitles &&
                         !mime.equals("application/x-media3-cues", ignoreCase = true)
                     ) {
@@ -249,6 +250,8 @@ object MediaMetadataInspector {
                 }
             } catch (_: Throwable) {
                 // best-effort fallback
+            } finally {
+                try { future?.cancel(true) } catch (_: Throwable) {}
             }
         }
 
@@ -320,11 +323,28 @@ object MediaMetadataInspector {
         }
     }
 
-    fun formatChannels(channelCount: Int): String = when (channelCount) {
-        1 -> "Mono (1.0 ch)"
-        2 -> "Stereo (2.0 ch)"
-        6 -> "5.1 Surround (6 ch)"
-        8 -> "7.1 Surround (8 ch)"
+    internal fun isSubtitleMime(mime: String): Boolean {
+        val lower = mime.lowercase(Locale.US)
+        return lower.startsWith("text/") ||
+            lower.startsWith("application/cea-") ||
+            lower in setOf(
+                "application/x-subrip",
+                "application/ttml+xml",
+                "application/pgs",
+                "application/vobsub",
+                "application/dvbsubs",
+                "application/x-mp4-vtt",
+                "application/x-quicktime-tx3g",
+                "application/x-mp4-cea-608"
+            )
+    }
+
+    fun formatChannels(channelCount: Int): String = when {
+        channelCount <= 0 -> "Unknown"
+        channelCount == 1 -> "Mono (1.0 ch)"
+        channelCount == 2 -> "Stereo (2.0 ch)"
+        channelCount == 6 -> "5.1 Surround (6 ch)"
+        channelCount == 8 -> "7.1 Surround (8 ch)"
         else -> "$channelCount channels"
     }
 

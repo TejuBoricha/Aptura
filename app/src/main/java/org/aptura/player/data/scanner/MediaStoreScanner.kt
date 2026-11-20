@@ -60,9 +60,17 @@ class MediaStoreScanner(
 
         val uri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI
         val sortOrder = "${MediaStore.Video.Media.DATE_ADDED} DESC"
+        val pendingFilter = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            " AND ${MediaStore.MediaColumns.IS_PENDING} = 0"
+        } else ""
+        val trashedFilter = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            " AND ${MediaStore.MediaColumns.IS_TRASHED} = 0"
+        } else ""
         val selection = "${MediaStore.Video.Media.SIZE} > 1024 " +
-            "AND (${MediaStore.Video.Media.MIME_TYPE} LIKE 'video/%' " +
-            "OR ${MediaStore.Video.Media.MIME_TYPE} IN ('application/x-matroska', 'application/ogg', 'application/mp4', 'application/vnd.rn-realmedia'))"
+            "AND (${MediaStore.Video.Media.MIME_TYPE} IS NULL " +
+            "OR ${MediaStore.Video.Media.MIME_TYPE} LIKE 'video/%' " +
+            "OR ${MediaStore.Video.Media.MIME_TYPE} IN ('application/x-matroska', 'application/ogg', 'application/mp4', 'application/vnd.rn-realmedia'))" +
+            pendingFilter + trashedFilter
 
         // A null cursor means MediaStore did not answer (the provider is not ready or died), which is not the same as
         // "there are no videos". Treating it as an empty library made the scan look like every file had vanished

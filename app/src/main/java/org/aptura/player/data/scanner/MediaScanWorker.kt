@@ -258,8 +258,8 @@ class MediaScanWorker(
             // 3. Merge the findings into the library, in one transaction (see persistScan).
             val itemsToUpsert = persistScan(database, allScanned, existingVideos, hasFullStorage)
 
-            // 4c. Pre-warm persistent thumbnail disk cache for first batch of scanned items
-            val preheatItems = itemsToUpsert.take(24)
+            // 4c. Pre-warm persistent thumbnail disk cache for first batch of visible, existing scanned items (audit DAT-21)
+            val preheatItems = itemsToUpsert.filter { !it.isMissing && !it.isHidden }.take(24)
             for (item in preheatItems) {
                 try {
                     ThumbnailRepository.getOrCreateThumbnail(
