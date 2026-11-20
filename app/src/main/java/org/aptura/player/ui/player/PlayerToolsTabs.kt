@@ -65,6 +65,7 @@ internal fun PlaybackToolsTab(
     onSetAbPointB: () -> Unit,
     onClearAbRepeat: () -> Unit,
     onStepFrame: (Boolean) -> Unit,
+    onCaptureFrame: () -> Unit = {},
     onAddBookmark: () -> Unit,
     onSeekTo: (Long) -> Unit,
     onDeleteBookmark: (Long) -> Unit,
@@ -142,7 +143,15 @@ internal fun PlaybackToolsTab(
             }
         }
 
-        SheetSection("Frame by frame") {
+        SheetSection(
+            "Frame by frame",
+            trailing = {
+                ApturaTextButton(
+                    text = "Save frame",
+                    onClick = onCaptureFrame
+                )
+            }
+        ) {
             // To the millisecond: frame stepping is how people find an exact cut, and m:ss can't tell frames apart.
             FrameStepPositionRow(positionProvider = positionProvider)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
