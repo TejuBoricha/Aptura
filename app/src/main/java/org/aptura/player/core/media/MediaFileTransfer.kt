@@ -525,7 +525,7 @@ object MediaFileTransfer {
      *   because keeping the original is the safe side.
      */
     private fun verifyCopy(resolver: ContentResolver, destination: Uri, written: Long, expected: Long) {
-        if (expected > 0L && written != expected) {
+        if (written <= 0L || (expected > 0L && written != expected)) {
             throw IOException("Only part of the video could be read, so the original was kept.")
         }
         val stored = storedSize(resolver, destination)

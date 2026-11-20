@@ -1,6 +1,7 @@
 package org.aptura.player.domain.model
 
 import java.text.Collator
+import java.util.Locale
 
 /**
  * "Natural" text ordering: runs of digits compare by their number, everything else compares like a person would read
@@ -12,7 +13,24 @@ import java.text.Collator
  */
 object NaturalOrder : Comparator<String> {
 
-    private val collator: Collator = Collator.getInstance().apply { strength = Collator.PRIMARY }
+    @Volatile
+    private var cachedLocale: Locale = Locale.getDefault()
+
+    @Volatile
+    private var collator: Collator = Collator.getInstance(cachedLocale).apply { strength = Collator.PRIMARY }
+
+    private fun currentCollator(): Collator {
+        val current = Locale.getDefault()
+        if (current != cachedLocale) {
+            synchronized(this) {
+                if (current != cachedLocale) {
+                    cachedLocale = current
+                    collator = Collator.getInstance(current).apply { strength = Collator.PRIMARY }
+                }
+            }
+        }
+        return collator
+    }
 
     override fun compare(a: String, b: String): Int {
         var i = 0
@@ -39,7 +57,8 @@ object NaturalOrder : Comparator<String> {
                 else -> {
                     val endA = runEnd(a, i, digits = false)
                     val endB = runEnd(b, j, digits = false)
-                    val byText = synchronized(collator) { collator.compare(a.substring(i, endA), b.substring(j, endB)) }
+                    val activeCollator = currentCollator()
+                    val byText = synchronized(activeCollator) { activeCollator.compare(a.substring(i, endA), b.substring(j, endB)) }
                     if (byText != 0) return byText
                     i = endA
                     j = endB

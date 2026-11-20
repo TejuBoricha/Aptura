@@ -1293,6 +1293,11 @@ private fun MediaLibraryContentView(
                 onSwipe = swipeToFolder,
                 modifier = Modifier.fillMaxSize()
             ) { paneState, paneModifier ->
+                val effectivePaneWidth = when {
+                    !isWideScreen -> containerWidth
+                    isExpandedSidebar -> (containerWidth - 249.dp).coerceAtLeast(320.dp)
+                    else -> (containerWidth - 81.dp).coerceAtLeast(320.dp)
+                }
                 LibraryVideoPane(
                     state = paneState,
                     prefs = viewPrefs,
@@ -1302,7 +1307,7 @@ private fun MediaLibraryContentView(
                         else -> "Library"
                     },
                     isWideScreen = isWideScreen,
-                    containerWidth = containerWidth,
+                    containerWidth = effectivePaneWidth,
                     pagePadding = pagePadding,
                     bottomPadding = bottomPadding,
                     onResumeContinueWatching = { card -> onVideoClick(card.rawItem, allRawVideos) },

@@ -72,8 +72,22 @@ class StorageVolumeReceiver : BroadcastReceiver() {
                     val controller = PlayerManager.activeController
                     controller?.let {
                         val activeItem = it.player.currentMediaItem
-                        val activeUri = activeItem?.localConfiguration?.uri?.toString() ?: ""
-                        if (path.isNotBlank() && activeUri.contains(path)) {
+                        val activeUri = activeItem?.localConfiguration?.uri?.toString()
+                            ?: activeItem?.mediaId
+                            ?: ""
+                        val decodedUri = try { android.net.Uri.decode(activeUri) } catch (_: Throwable) { activeUri }
+                        val activeFolder = it.playbackQueue.value.currentItem?.folderPath.orEmpty()
+                        val volumeId = path.trimEnd('/').substringAfterLast('/')
+                        val matchesPath = path.isNotBlank() && (
+                            activeUri.contains(path, ignoreCase = true) ||
+                                decodedUri.contains(path, ignoreCase = true) ||
+                                activeFolder.contains(path, ignoreCase = true)
+                            )
+                        val matchesVolumeId = volumeId.length >= 4 && !volumeId.equals("storage", ignoreCase = true) && (
+                            decodedUri.contains(volumeId, ignoreCase = true) ||
+                                activeFolder.contains(volumeId, ignoreCase = true)
+                            )
+                        if (matchesPath || matchesVolumeId) {
                             CoroutineScope(Dispatchers.Main).launch {
                                 it.pause()
                             }
