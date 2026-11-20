@@ -60,6 +60,7 @@ sealed interface PlayerSheet {
     data object PlayMode : PlayerSheet
     data object WhyCompatibility : PlayerSheet
     data object WebSearch : PlayerSheet
+    data object Chapters : PlayerSheet
 }
 
 /**
@@ -171,7 +172,8 @@ data class PlayerUiState(
     val swipeToSeekEnabled: Boolean = true,
     val doubleTapToSeekEnabled: Boolean = true,
     val holdFor2xSpeedEnabled: Boolean = true,
-    val matchVideoOrientation: Boolean = true
+    val matchVideoOrientation: Boolean = true,
+    val chapters: List<org.aptura.player.domain.model.Chapter> = emptyList()
 ) {
     // Computed property compatibility bridges for Compose bindings & legacy tests
     val isAudioSheetVisible: Boolean get() = activeSheet == PlayerSheet.Audio
@@ -184,6 +186,14 @@ data class PlayerUiState(
     val isPlayModeSheetVisible: Boolean get() = activeSheet == PlayerSheet.PlayMode
     val isWhyCompatibilitySheetVisible: Boolean get() = activeSheet == PlayerSheet.WhyCompatibility
     val isWebSearchDialogVisible: Boolean get() = activeSheet == PlayerSheet.WebSearch
+    val isChaptersSheetVisible: Boolean get() = activeSheet == PlayerSheet.Chapters
+
+    val currentChapter: org.aptura.player.domain.model.Chapter?
+        get() {
+            if (chapters.isEmpty()) return null
+            val pos = effectivePositionMs
+            return chapters.lastOrNull { it.startTimeMs <= pos } ?: chapters.firstOrNull()
+        }
 
     val isAnySheetVisible: Boolean get() = activeSheet != null
 

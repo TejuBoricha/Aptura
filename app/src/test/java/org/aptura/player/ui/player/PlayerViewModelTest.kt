@@ -17,6 +17,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.aptura.player.domain.model.Bookmark
+import org.aptura.player.domain.model.Chapter
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.domain.model.DomainPlaybackQueue
 import org.aptura.player.domain.model.DomainPlaybackState
@@ -484,6 +485,9 @@ class PlayerViewModelTest {
                 }
             }
         }
+
+        val chaptersMap = mutableMapOf<String, List<Chapter>>()
+        override suspend fun getChapters(uri: String): List<Chapter> = chaptersMap[uri] ?: emptyList()
     }
 
     private val sampleVideo = DomainMediaItem(
@@ -3889,6 +3893,114 @@ class PlayerViewModelTest {
         runCurrent()
 
         assertEquals(10_000L, controller.lastSeekPosition)
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun chapters_loadedFromRepository_andExposedInUiState() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val testChapters = listOf(
+            Chapter("ch1", "Prologue", 0L, 30_000L),
+            Chapter("ch2", "The Journey", 30_000L, 90_000L),
+            Chapter("ch3", "Finale", 90_000L, 120_000L)
+        )
+        repository.items[sampleVideo.uri] = sampleVideo
+        repository.chaptersMap[sampleVideo.uri] = testChapters
+
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+        viewModel.loadAndPlay(sampleVideo.uri)
+        runCurrent()
+
+        assertEquals(3, viewModel.uiState.value.chapters.size)
+        assertEquals("Prologue", viewModel.uiState.value.currentChapter?.title)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun chapters_navigation_nextAndPrevious() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val testChapters = listOf(
+            Chapter("ch1", "Part 1", 0L, 30_000L),
+            Chapter("ch2", "Part 2", 30_000L, 60_000L),
+            Chapter("ch3", "Part 3", 60_000L, 90_000L)
+        )
+        repository.items[sampleVideo.uri] = sampleVideo
+        repository.chaptersMap[sampleVideo.uri] = testChapters
+
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+        viewModel.loadAndPlay(sampleVideo.uri)
+        runCurrent()
+
+        // At position 5,000ms: next chapter should seek to 30,000ms
+        controller._playbackState.value = DomainPlaybackState.Ready(
+            positionMs = 5_000L,
+            durationMs = 90_000L,
+            isPlaying = true
+        )
+        runCurrent()
+
+        viewModel.seekToNextChapter()
+        runCurrent()
+        assertEquals(30_000L, controller.lastSeekPosition)
+
+        // At position 40,000ms (10s into chapter 2): previous chapter should seek back to start of chapter 2 (30,000ms)
+        controller._playbackState.value = DomainPlaybackState.Ready(
+            positionMs = 40_000L,
+            durationMs = 90_000L,
+            isPlaying = true
+        )
+        runCurrent()
+
+        viewModel.seekToPreviousChapter()
+        runCurrent()
+        assertEquals(30_000L, controller.lastSeekPosition)
+
+        // At position 31,000ms (within 3s of chapter 2): previous chapter should seek to chapter 1 (0ms)
+        controller._playbackState.value = DomainPlaybackState.Ready(
+            positionMs = 31_000L,
+            durationMs = 90_000L,
+            isPlaying = true
+        )
+        runCurrent()
+
+        viewModel.seekToPreviousChapter()
+        runCurrent()
+        assertEquals(0L, controller.lastSeekPosition)
+
+        viewModel.clearForTesting()
+    }
+
+    @Test
+    fun chapters_sheet_obeysModalMutualExclusion() = runTest(testDispatcher) {
+        val controller = FakePlaybackController()
+        val repository = FakeMediaRepository()
+        val viewModel = PlayerViewModel(controller, repository, testDispatcher)
+
+        assertFalse(viewModel.uiState.value.isChaptersSheetVisible)
+        assertEquals(0, viewModel.uiState.value.countActiveModals())
+
+        viewModel.setChaptersSheetVisible(true)
+        runCurrent()
+        assertTrue(viewModel.uiState.value.isChaptersSheetVisible)
+        assertEquals(1, viewModel.uiState.value.countActiveModals())
+
+        // Opening audio sheet atomically closes chapters sheet
+        viewModel.setAudioSheetVisible(true)
+        runCurrent()
+        assertFalse(viewModel.uiState.value.isChaptersSheetVisible)
+        assertTrue(viewModel.uiState.value.isAudioSheetVisible)
+        assertEquals(1, viewModel.uiState.value.countActiveModals())
+
+        // closeAllSheets clears everything
+        viewModel.closeAllSheets()
+        runCurrent()
+        assertFalse(viewModel.uiState.value.isChaptersSheetVisible)
+        assertFalse(viewModel.uiState.value.isAudioSheetVisible)
+        assertEquals(0, viewModel.uiState.value.countActiveModals())
+
         viewModel.clearForTesting()
     }
 }

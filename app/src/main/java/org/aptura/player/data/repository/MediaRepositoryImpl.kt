@@ -1,12 +1,14 @@
 package org.aptura.player.data.repository
 
 import android.content.Context
+import android.net.Uri
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import org.aptura.player.core.media.ChapterExtractor
 import org.aptura.player.data.database.BookmarkDao
 import org.aptura.player.data.database.BookmarkEntity
 import org.aptura.player.data.database.MediaItemDao
@@ -15,6 +17,7 @@ import org.aptura.player.data.database.toDomainBookmark
 import org.aptura.player.data.database.toDomainMediaItem
 import org.aptura.player.data.scanner.SafTreeScanner
 import org.aptura.player.domain.model.Bookmark
+import org.aptura.player.domain.model.Chapter
 import org.aptura.player.domain.model.DomainMediaItem
 import org.aptura.player.domain.repository.MediaRepository
 import org.aptura.player.domain.usecase.ResumeRules
@@ -317,5 +320,15 @@ class MediaRepositoryImpl(
         }
     } catch (_: Throwable) {
         "External Video"
+    }
+
+    override suspend fun getChapters(uri: String): List<Chapter> = withContext(ioDispatcher) {
+        val ctx = context ?: return@withContext emptyList()
+        try {
+            val parsedUri = Uri.parse(uri)
+            ChapterExtractor.extractChapters(ctx, parsedUri)
+        } catch (_: Throwable) {
+            emptyList()
+        }
     }
 }

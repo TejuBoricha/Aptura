@@ -538,6 +538,7 @@ class PlayerViewModel(
                 }
                 if (currentItem != null && currentItem.uri.isNotBlank()) {
                     observeBookmarks(currentItem.uri)
+                    loadChapters(currentItem.uri)
                     if (currentItem.uri != lastAppliedPreferencesUri) {
                         // Nothing applied yet means this view model has just come up and the video was already there: the
                         // task was swiped away and the player played on, and a screen now joins it (audit FUNC-05).
@@ -715,6 +716,7 @@ class PlayerViewModel(
         val freshItem = mediaRepository.getVideoByUri(currentItem.uri) ?: currentItem
         applyItemPreferences(freshItem, resume = true)
         observeBookmarks(currentItem.uri)
+        loadChapters(currentItem.uri)
         scheduleAutoHide()
     }
 
@@ -1454,6 +1456,66 @@ class PlayerViewModel(
 
     fun dismissAutoPairToast() {
         _uiState.update { it.copy(autoPairedSubtitleToast = null) }
+    }
+
+    private var chaptersJob: Job? = null
+
+    fun loadChapters(uri: String) {
+        chaptersJob?.cancel()
+        if (uri.isBlank()) {
+            _uiState.update { it.copy(chapters = emptyList()) }
+            return
+        }
+        chaptersJob = viewModelScope.launch(dispatcher + errorHandler) {
+            val chapters = mediaRepository.getChapters(uri)
+            _uiState.update { it.copy(chapters = chapters) }
+        }
+    }
+
+    fun setChaptersSheetVisible(visible: Boolean) {
+        setSheet(if (visible) PlayerSheet.Chapters else null)
+    }
+
+    fun seekTo(positionMs: Long) {
+        val targetMs = positionMs.coerceIn(0L, _uiState.value.durationMs.coerceAtLeast(0L))
+        lastKnownPositionMs = targetMs
+        _positionState.value = _positionState.value.copy(currentPositionMs = targetMs)
+        _uiState.update { it.copy(currentPositionMs = targetMs) }
+        viewModelScope.launch(dispatcher + errorHandler) {
+            playbackController.seekTo(targetMs)
+            scheduleAutoHide()
+        }
+    }
+
+    fun seekToChapter(chapter: org.aptura.player.domain.model.Chapter) {
+        seekTo(chapter.startTimeMs)
+    }
+
+    fun seekToNextChapter() {
+        val chapters = _uiState.value.chapters
+        if (chapters.isEmpty()) return
+        val currentPos = currentEffectivePositionMs()
+        val nextChapter = chapters.firstOrNull { it.startTimeMs > currentPos + 1000L }
+        if (nextChapter != null) {
+            seekTo(nextChapter.startTimeMs)
+        }
+    }
+
+    fun seekToPreviousChapter() {
+        val chapters = _uiState.value.chapters
+        if (chapters.isEmpty()) return
+        val currentPos = currentEffectivePositionMs()
+        val curIndex = chapters.indexOfLast { it.startTimeMs <= currentPos }
+        if (curIndex < 0) {
+            seekTo(0L)
+            return
+        }
+        val currentChapter = chapters[curIndex]
+        if (currentPos - currentChapter.startTimeMs > 3000L || curIndex == 0) {
+            seekTo(currentChapter.startTimeMs)
+        } else {
+            seekTo(chapters[curIndex - 1].startTimeMs)
+        }
     }
 
     private fun observeBookmarks(uri: String) {

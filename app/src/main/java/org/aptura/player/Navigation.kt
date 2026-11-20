@@ -1203,7 +1203,10 @@ private fun AppNavHost(
                             onWhyCompatibilityClick = { playerViewModel.setWhyCompatibilitySheetVisible(true) },
                             onDismissWhyCompatibilitySheet = { playerViewModel.setWhyCompatibilitySheetVisible(false) },
                             onResetVideoPreferences = playerViewModel::resetVideoPreferences,
-                            onAudioOnlyChanged = playerViewModel::setAudioOnly
+                            onAudioOnlyChanged = playerViewModel::setAudioOnly,
+                            onSeekToPreviousChapter = playerViewModel::seekToPreviousChapter,
+                            onSeekToNextChapter = playerViewModel::seekToNextChapter,
+                            onChaptersSheetVisible = playerViewModel::setChaptersSheetVisible
                         )
                     }
                 }

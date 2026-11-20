@@ -6,12 +6,14 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.doubleClick
 import androidx.compose.ui.test.longClick
+import org.aptura.player.domain.model.Chapter
 import org.aptura.player.theme.ApturaTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -467,5 +469,109 @@ class PlayerScreenUiTest {
         composeTestRule.onNodeWithText("75%").assertExists()
         composeTestRule.onNodeWithContentDescription("Brightness").assertExists()
         composeTestRule.onNodeWithText("50%").assertExists()
+    }
+
+    @Test
+    fun playerScreen_whenChaptersPresent_rendersCurrentChapterChipAndButtons() {
+        var prevChapterClicked = false
+        var nextChapterClicked = false
+        var chaptersSheetVisibleRequested = false
+
+        val testChapters = listOf(
+            Chapter("ch1", "Prologue", 0L, 30_000L),
+            Chapter("ch2", "The Climax", 30_000L, 60_000L)
+        )
+
+        composeTestRule.setContent {
+            ApturaTheme {
+                PlayerScreen(
+                    uiState = PlayerUiState(
+                        videoTitle = "Movie",
+                        durationMs = 60_000L,
+                        currentPositionMs = 35_000L,
+                        isPlaying = true,
+                        isControlsVisible = true,
+                        chapters = testChapters
+                    ),
+                    player = null,
+                    onBackClick = {},
+                    onPlayPauseClick = {},
+                    onSeekRelative = {},
+                    onScrubStart = {},
+                    onScrubMove = {},
+                    onScrubEnd = {},
+                    onControlsVisibilityToggle = {},
+                    onLockToggle = {},
+                    onSpeedSelected = {},
+                    onResizeModeToggle = {},
+                    onSpeedSheetVisible = {},
+                    onAudioSheetVisible = {},
+                    onSubtitleSheetVisible = {},
+                    onAudioTrackSelected = {},
+                    onSubtitleTrackSelected = {},
+                    onVolumePercentChanged = {},
+                    onBrightnessPercentChanged = {},
+                    onRetryPlayback = {},
+                    onSeekToPreviousChapter = { prevChapterClicked = true },
+                    onSeekToNextChapter = { nextChapterClicked = true },
+                    onChaptersSheetVisible = { chaptersSheetVisibleRequested = it }
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithTag("CurrentChapterChip").assertExists()
+        composeTestRule.onNodeWithText("The Climax").assertExists()
+
+        composeTestRule.onNodeWithTag("NextChapterButton").assertExists()
+        composeTestRule.onNodeWithTag("NextChapterButton").performClick()
+        assertTrue(nextChapterClicked)
+
+        composeTestRule.onNodeWithTag("PreviousChapterButton").assertExists()
+        composeTestRule.onNodeWithTag("PreviousChapterButton").performClick()
+        assertTrue(prevChapterClicked)
+
+        composeTestRule.onNodeWithTag("CurrentChapterChip").performClick()
+        assertTrue(chaptersSheetVisibleRequested)
+    }
+
+    @Test
+    fun playerScreen_whenChaptersEmpty_doesNotRenderChapterChip() {
+        composeTestRule.setContent {
+            ApturaTheme {
+                PlayerScreen(
+                    uiState = PlayerUiState(
+                        videoTitle = "Movie",
+                        durationMs = 60_000L,
+                        currentPositionMs = 15_000L,
+                        isPlaying = true,
+                        isControlsVisible = true,
+                        chapters = emptyList()
+                    ),
+                    player = null,
+                    onBackClick = {},
+                    onPlayPauseClick = {},
+                    onSeekRelative = {},
+                    onScrubStart = {},
+                    onScrubMove = {},
+                    onScrubEnd = {},
+                    onControlsVisibilityToggle = {},
+                    onLockToggle = {},
+                    onSpeedSelected = {},
+                    onResizeModeToggle = {},
+                    onSpeedSheetVisible = {},
+                    onAudioSheetVisible = {},
+                    onSubtitleSheetVisible = {},
+                    onAudioTrackSelected = {},
+                    onSubtitleTrackSelected = {},
+                    onVolumePercentChanged = {},
+                    onBrightnessPercentChanged = {},
+                    onRetryPlayback = {}
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithTag("CurrentChapterChip").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("NextChapterButton").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("PreviousChapterButton").assertDoesNotExist()
     }
 }

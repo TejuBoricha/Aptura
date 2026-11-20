@@ -150,6 +150,11 @@ interface MediaRepository {
      * Resets playback position, completed status, and last played timestamp across all indexed media items (audit DATA-09).
      */
     suspend fun clearAllPlaybackHistory()
+
+    /**
+     * Extracts embedded chapters from the media file at [uri] if supported (FEAT-10, FR-CTRL-011).
+     */
+    suspend fun getChapters(uri: String): List<org.aptura.player.domain.model.Chapter> = emptyList()
 }
 
 /**

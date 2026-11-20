@@ -6,6 +6,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import org.aptura.player.domain.model.AbRepeatState
+import org.aptura.player.domain.model.Chapter
 import org.aptura.player.theme.ApturaTheme
 import org.junit.Rule
 import org.junit.Test
@@ -99,5 +100,72 @@ class PlayerSeekBarTest {
 
         composeTestRule.onNodeWithTag("ScrubPreviewCard").assertDoesNotExist()
         composeTestRule.onNodeWithTag("ScrubTimecodeChip").assertDoesNotExist()
+    }
+
+    @Test
+    fun playerSeekBar_whenScrubbingWithChapters_displaysChapterTitleInChip() {
+        val testChapters = listOf(
+            Chapter("ch1", "Introduction", 0L, 20_000L),
+            Chapter("ch2", "The Climax", 20_000L, 60_000L)
+        )
+
+        composeTestRule.setContent {
+            ApturaTheme {
+                PlayerSeekBar(
+                    positionProvider = { PlayerPositionState(5_000L, 30_000L) },
+                    durationMs = 60_000L,
+                    isScrubbing = true,
+                    scrubPositionMs = 25_000L,
+                    seekStepMs = 10_000L,
+                    bookmarks = emptyList(),
+                    abRepeat = AbRepeatState(),
+                    chapters = testChapters,
+                    onScrubStart = {},
+                    onScrubMove = {},
+                    onScrubEnd = {},
+                    onSeekRelative = {},
+                    previewBitmap = null
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithTag("ScrubTimecodeChip").assertExists()
+        composeTestRule.onNodeWithTag("ScrubChapterTitle").assertExists()
+        composeTestRule.onNodeWithText("The Climax").assertExists()
+        composeTestRule.onNodeWithText("0:25").assertExists()
+    }
+
+    @Test
+    fun playerSeekBar_whenScrubbingWithChaptersAndPreview_displaysChapterTitleInPreviewCard() {
+        val bitmap = Bitmap.createBitmap(160, 90, Bitmap.Config.ARGB_8888).asImageBitmap()
+        val testChapters = listOf(
+            Chapter("ch1", "Introduction", 0L, 20_000L),
+            Chapter("ch2", "The Climax", 20_000L, 60_000L)
+        )
+
+        composeTestRule.setContent {
+            ApturaTheme {
+                PlayerSeekBar(
+                    positionProvider = { PlayerPositionState(5_000L, 30_000L) },
+                    durationMs = 60_000L,
+                    isScrubbing = true,
+                    scrubPositionMs = 25_000L,
+                    seekStepMs = 10_000L,
+                    bookmarks = emptyList(),
+                    abRepeat = AbRepeatState(),
+                    chapters = testChapters,
+                    onScrubStart = {},
+                    onScrubMove = {},
+                    onScrubEnd = {},
+                    onSeekRelative = {},
+                    previewBitmap = bitmap
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithTag("ScrubPreviewCard").assertExists()
+        composeTestRule.onNodeWithTag("ScrubPreviewChapterTitle").assertExists()
+        composeTestRule.onNodeWithText("The Climax").assertExists()
+        composeTestRule.onNodeWithText("0:25").assertExists()
     }
 }
