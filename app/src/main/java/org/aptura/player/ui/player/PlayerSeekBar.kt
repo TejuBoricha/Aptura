@@ -4,13 +4,17 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.material3.Surface
@@ -23,15 +27,19 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
@@ -89,6 +97,7 @@ internal fun PlayerSeekBar(
     onScrubMove: (Long) -> Unit,
     onScrubEnd: () -> Unit,
     onSeekRelative: (Long) -> Unit,
+    previewBitmap: ImageBitmap? = null,
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
@@ -317,38 +326,87 @@ internal fun PlayerSeekBar(
             )
         }
 
-        // 5. Floating Timecode Preview Chip while scrubbing (DESIGN.md §5.1, P2-19)
+        // 5. Floating Timecode & Thumbnail Preview Chip while scrubbing (DESIGN.md §5.1, P2-19, FEAT-09)
         if (isScrubbing && scrubberWidthPx > 0f) {
             val density = LocalDensity.current
-            val chipWidthPx = with(density) { 68.dp.toPx() }
             val scrubFrac = if (durationMs > 0L) {
                 (scrubPositionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
             } else 0f
             val rawThumbX = scrubberWidthPx * scrubFrac
-            val chipOffsetX = (rawThumbX - chipWidthPx / 2f)
-                .coerceIn(0f, (scrubberWidthPx - chipWidthPx).coerceAtLeast(0f))
-            Surface(
-                shape = RoundedCornerShape(6.dp),
-                color = ApturaColors.SurfaceElevated2,
-                border = BorderStroke(1.dp, ApturaColors.AccentPrimary),
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .offset {
-                        IntOffset(
-                            x = chipOffsetX.toInt(),
-                            y = with(density) { (-22).dp.roundToPx() }
+
+            if (previewBitmap != null) {
+                val previewWidthDp = 120.dp
+                val previewHeightDp = 68.dp
+                val previewWidthPx = with(density) { (previewWidthDp + 8.dp).toPx() }
+                val cardOffsetX = (rawThumbX - previewWidthPx / 2f)
+                    .coerceIn(0f, (scrubberWidthPx - previewWidthPx).coerceAtLeast(0f))
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = ApturaColors.SurfaceElevated2,
+                    border = BorderStroke(1.dp, ApturaColors.BorderSubtle),
+                    modifier = Modifier
+                        .testTag("ScrubPreviewCard")
+                        .align(Alignment.TopStart)
+                        .offset {
+                            IntOffset(
+                                x = cardOffsetX.toInt(),
+                                y = with(density) { (-104).dp.roundToPx() }
+                            )
+                        }
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(4.dp)
+                    ) {
+                        Image(
+                            bitmap = previewBitmap,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .testTag("ScrubPreviewThumbnail")
+                                .size(previewWidthDp, previewHeightDp)
+                                .clip(RoundedCornerShape(6.dp))
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = MediaFormatters.formatDuration(scrubPositionMs),
+                            style = ApturaTypography.labelSmall.copy(fontFeatureSettings = "tnum"),
+                            color = ApturaColors.AccentPrimary,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                         )
                     }
-            ) {
-                Text(
-                    text = MediaFormatters.formatDuration(scrubPositionMs),
-                    style = ApturaTypography.labelSmall.copy(fontFeatureSettings = "tnum"),
-                    color = ApturaColors.AccentPrimary,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    softWrap = false,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                )
+                }
+            } else {
+                val chipWidthPx = with(density) { 68.dp.toPx() }
+                val chipOffsetX = (rawThumbX - chipWidthPx / 2f)
+                    .coerceIn(0f, (scrubberWidthPx - chipWidthPx).coerceAtLeast(0f))
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = ApturaColors.SurfaceElevated2,
+                    border = BorderStroke(1.dp, ApturaColors.AccentPrimary),
+                    modifier = Modifier
+                        .testTag("ScrubTimecodeChip")
+                        .align(Alignment.TopStart)
+                        .offset {
+                            IntOffset(
+                                x = chipOffsetX.toInt(),
+                                y = with(density) { (-22).dp.roundToPx() }
+                            )
+                        }
+                ) {
+                    Text(
+                        text = MediaFormatters.formatDuration(scrubPositionMs),
+                        style = ApturaTypography.labelSmall.copy(fontFeatureSettings = "tnum"),
+                        color = ApturaColors.AccentPrimary,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
             }
         }
     }

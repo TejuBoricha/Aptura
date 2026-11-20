@@ -129,6 +129,7 @@ import org.aptura.player.core.diagnostics.ApturaDiagnostics
 import org.aptura.player.core.diagnostics.ErrorTaxonomy
 import org.aptura.player.core.media.FrameCaptureCoordinator
 import org.aptura.player.core.media.LocalSubtitleImportCoordinator
+import org.aptura.player.core.media.ScrubPreviewCoordinator
 import org.aptura.player.core.media.SubtitleFileValidator
 import org.aptura.player.core.media.SubtitleValidationResult
 import org.aptura.player.core.playback.PlaybackSpeedOptions
@@ -187,6 +188,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -336,6 +339,7 @@ fun PlayerScreen(
     var lastLongPressReleaseUptimeMs by remember { mutableLongStateOf(0L) }
     var currentOrientationMode by remember { mutableIntStateOf(0) } // 0: Auto, 1: Landscape, 2: Portrait
     var orientationToastMessage by remember { mutableStateOf<String?>(null) }
+    var scrubPreviewBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
 
     // Block system Back gesture/button while Lock Mode is active (F-15, FR-CTRL-006)
     BackHandler(enabled = uiState.isLocked) {
@@ -385,6 +389,19 @@ fun PlayerScreen(
                     Toast.makeText(context, "Could not capture frame", Toast.LENGTH_SHORT).show()
                 }
             }
+        }
+    }
+
+    LaunchedEffect(uiState.isScrubbing, uiState.scrubPositionMs / 2000L, uiState.videoUri) {
+        if (uiState.isScrubbing && uiState.videoUri.isNotBlank()) {
+            val bitmap = ScrubPreviewCoordinator.loadPreviewFrame(
+                context = context,
+                videoUri = Uri.parse(uiState.videoUri),
+                positionMs = uiState.scrubPositionMs
+            )
+            scrubPreviewBitmap = bitmap?.asImageBitmap()
+        } else if (!uiState.isScrubbing) {
+            scrubPreviewBitmap = null
         }
     }
 
@@ -1617,6 +1634,7 @@ fun PlayerScreen(
                                 onScrubMove = onScrubMove,
                                 onScrubEnd = onScrubEnd,
                                 onSeekRelative = onSeekRelative,
+                                previewBitmap = scrubPreviewBitmap,
                                 modifier = Modifier.weight(1f)
                             )
 
