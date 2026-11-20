@@ -121,7 +121,9 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.ChevronRight
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
@@ -194,6 +196,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -323,6 +326,9 @@ fun PlayerScreen(
     onDismissWhyCompatibilitySheet: () -> Unit = {},
     onResetVideoPreferences: () -> Unit = {},
     onAudioOnlyChanged: (Boolean) -> Unit = {},
+    onSeekToPreviousChapter: () -> Unit = {},
+    onSeekToNextChapter: () -> Unit = {},
+    onChaptersSheetVisible: (Boolean) -> Unit = {},
     // The system's accessibility settings as they apply to the controls: (touchExplorationOn, recommendedAutoHideMs).
     onAccessibilityPolicyChanged: (Boolean, Long) -> Unit = { _, _ -> },
     positionProvider: () -> PlayerPositionState = {
@@ -589,6 +595,8 @@ fun PlayerScreen(
         toggleSubtitles,
         onSkipNext,
         onSkipPrevious,
+        onSeekToNextChapter,
+        onSeekToPreviousChapter,
         dismissAnyActiveSheet,
         onBackClick,
         onTriggerLockHint,
@@ -605,6 +613,8 @@ fun PlayerScreen(
             onToggleSubtitles = toggleSubtitles,
             onSkipNext = onSkipNext,
             onSkipPrevious = onSkipPrevious,
+            onNextChapter = onSeekToNextChapter,
+            onPreviousChapter = onSeekToPreviousChapter,
             onDismissActiveSheet = dismissAnyActiveSheet,
             onBack = onBackClick,
             onTriggerLockHint = onTriggerLockHint
@@ -1673,6 +1683,85 @@ fun PlayerScreen(
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
                     Column(modifier = Modifier.fillMaxWidth()) {
+                        // Chapter indicator and navigation row (FEAT-10, FR-CTRL-011)
+                        if (uiState.chapters.isNotEmpty()) {
+                            val activeChapter = uiState.currentChapter
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = ApturaColors.SurfaceElevated2.copy(alpha = 0.85f),
+                                    border = BorderStroke(1.dp, ApturaColors.BorderSubtle),
+                                    modifier = Modifier
+                                        .testTag("CurrentChapterChip")
+                                        .clickable { onChaptersSheetVisible(true) }
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.List,
+                                            contentDescription = null,
+                                            tint = ApturaColors.AccentPrimary,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = activeChapter?.title ?: "Chapters",
+                                            style = ApturaTypography.labelSmall,
+                                            color = ApturaColors.TextHighEmphasis,
+                                            fontWeight = FontWeight.Medium,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, fill = false)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Icon(
+                                            imageVector = Icons.Filled.ChevronRight,
+                                            contentDescription = "Open chapters",
+                                            tint = ApturaColors.TextMediumEmphasis,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+                                }
+
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    IconButton(
+                                        onClick = onSeekToPreviousChapter,
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .testTag("PreviousChapterButton")
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.SkipPrevious,
+                                            contentDescription = "Previous chapter",
+                                            tint = ApturaColors.TextMediumEmphasis,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = onSeekToNextChapter,
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .testTag("NextChapterButton")
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.SkipNext,
+                                            contentDescription = "Next chapter",
+                                            tint = ApturaColors.TextMediumEmphasis,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
                         // Scrubber timeline row
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -1694,6 +1783,7 @@ fun PlayerScreen(
                                 seekStepMs = uiState.seekStepMs,
                                 bookmarks = uiState.bookmarks,
                                 abRepeat = uiState.abRepeat,
+                                chapters = uiState.chapters,
                                 onScrubStart = onScrubStart,
                                 onScrubMove = onScrubMove,
                                 onScrubEnd = onScrubEnd,
@@ -2188,57 +2278,80 @@ fun PlayerScreen(
                         modifier = Modifier.padding(bottom = 14.dp)
                     )
 
-                    PlayerSheetTabs(
-                        tabs = listOf(
+                    val tabs = if (uiState.chapters.isNotEmpty()) {
+                        listOf(
+                            "Playback" to Icons.Filled.Tune,
+                            "Picture" to Icons.Filled.AspectRatio,
+                            "Chapters" to Icons.AutoMirrored.Filled.List
+                        )
+                    } else {
+                        listOf(
                             "Playback" to Icons.Filled.Tune,
                             "Picture" to Icons.Filled.AspectRatio
-                        ),
-                        selectedIndex = selectedTab,
+                        )
+                    }
+
+                    PlayerSheetTabs(
+                        tabs = tabs,
+                        selectedIndex = selectedTab.coerceIn(0, tabs.size - 1),
                         onSelect = { selectedTab = it }
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    if (selectedTab == 0) {
-                        PlaybackToolsTab(
-                            uiState = uiState,
-                            onAudioOnlyChanged = onAudioOnlyChanged,
-                            onSpeedSelected = onSpeedSelected,
-                            onStartSleepTimer = onStartSleepTimer,
-                            onCancelSleepTimer = onCancelSleepTimer,
-                            onExtendSleepTimer = onExtendSleepTimer,
-                            onSleepAtEndOfVideo = onSleepAtEndOfVideo,
-                            onSetAbPointA = onSetAbPointA,
-                            onSetAbPointB = onSetAbPointB,
-                            onClearAbRepeat = onClearAbRepeat,
-                            onStepFrame = onStepFrame,
-                            onCaptureFrame = onCaptureFrame ?: defaultOnCaptureFrame,
-                            onAddBookmark = onAddBookmark,
-                            onSeekTo = { position ->
-                                onScrubStart(position)
-                                onScrubEnd()
-                            },
-                            onDeleteBookmark = onDeleteBookmark,
-                            onUpdateBookmarkNote = onUpdateBookmarkNote,
-                            onToggleStatsOverlay = onToggleStatsOverlay,
-                            onResetVideoPreferences = onResetVideoPreferences,
-                            positionProvider = positionProvider
-                        )
-                    } else {
-                        PictureTab(
-                            uiState = uiState,
-                            brightness = brightnessLevel,
-                            onBrightnessChanged = { level -> windowBrightness.setTo(level)?.let { brightnessLevel = it } },
-                            onResizeModeSelected = onResizeModeSelected,
-                            onRotationChanged = onRotationChanged,
-                            onMirrorToggle = onMirrorToggle,
-                            onNightModeToggle = onNightModeToggle,
-                            onNightModeWarmthChanged = onNightModeWarmthChanged,
-                            onContrastChanged = onContrastChanged,
-                            onSaturationChanged = onSaturationChanged,
-                            onResetPictureAdjustment = onResetPictureAdjustment,
-                            onDecoderStrategyChanged = onDecoderStrategyChanged
-                        )
+                    when (selectedTab) {
+                        0 -> {
+                            PlaybackToolsTab(
+                                uiState = uiState,
+                                onAudioOnlyChanged = onAudioOnlyChanged,
+                                onSpeedSelected = onSpeedSelected,
+                                onStartSleepTimer = onStartSleepTimer,
+                                onCancelSleepTimer = onCancelSleepTimer,
+                                onExtendSleepTimer = onExtendSleepTimer,
+                                onSleepAtEndOfVideo = onSleepAtEndOfVideo,
+                                onSetAbPointA = onSetAbPointA,
+                                onSetAbPointB = onSetAbPointB,
+                                onClearAbRepeat = onClearAbRepeat,
+                                onStepFrame = onStepFrame,
+                                onCaptureFrame = onCaptureFrame ?: defaultOnCaptureFrame,
+                                onAddBookmark = onAddBookmark,
+                                onSeekTo = { position ->
+                                    onScrubStart(position)
+                                    onScrubEnd()
+                                },
+                                onDeleteBookmark = onDeleteBookmark,
+                                onUpdateBookmarkNote = onUpdateBookmarkNote,
+                                onToggleStatsOverlay = onToggleStatsOverlay,
+                                onResetVideoPreferences = onResetVideoPreferences,
+                                positionProvider = positionProvider
+                            )
+                        }
+                        1 -> {
+                            PictureTab(
+                                uiState = uiState,
+                                brightness = brightnessLevel,
+                                onBrightnessChanged = { level -> windowBrightness.setTo(level)?.let { brightnessLevel = it } },
+                                onResizeModeSelected = onResizeModeSelected,
+                                onRotationChanged = onRotationChanged,
+                                onMirrorToggle = onMirrorToggle,
+                                onNightModeToggle = onNightModeToggle,
+                                onNightModeWarmthChanged = onNightModeWarmthChanged,
+                                onContrastChanged = onContrastChanged,
+                                onSaturationChanged = onSaturationChanged,
+                                onResetPictureAdjustment = onResetPictureAdjustment,
+                                onDecoderStrategyChanged = onDecoderStrategyChanged
+                            )
+                        }
+                        else -> {
+                            ChaptersTab(
+                                chapters = uiState.chapters,
+                                currentPositionProvider = { positionProvider().currentPositionMs },
+                                onSeekTo = { position ->
+                                    onScrubStart(position)
+                                    onScrubEnd()
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -2254,6 +2367,28 @@ fun PlayerScreen(
                 onStrategySelected = onDecoderStrategyChanged,
                 onDismissRequest = { onDismissWhyCompatibilitySheet() }
             )
+        }
+
+        // 12. Chapters Sheet (FEAT-10, FR-CTRL-011)
+        if (uiState.isChaptersSheetVisible && !isPipMode) {
+            ModalBottomSheet(
+                onDismissRequest = { onChaptersSheetVisible(false) },
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor = ApturaColors.SurfaceElevated1,
+                contentColor = ApturaColors.TextHighEmphasis,
+                dragHandle = null
+            ) {
+                ChaptersSheet(
+                    chapters = uiState.chapters,
+                    currentPositionProvider = { positionProvider().currentPositionMs },
+                    onChapterSelected = { chapter ->
+                        onScrubStart(chapter.startTimeMs)
+                        onScrubEnd()
+                        onChaptersSheetVisible(false)
+                    },
+                    onDismiss = { onChaptersSheetVisible(false) }
+                )
+            }
         }
     }
     }

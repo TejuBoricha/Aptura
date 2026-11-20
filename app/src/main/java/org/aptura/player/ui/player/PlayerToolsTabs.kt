@@ -32,11 +32,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 import org.aptura.player.core.playback.PlaybackSpeedOptions
+import org.aptura.player.domain.model.Chapter
 import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
 import org.aptura.player.ui.components.ApturaButton
@@ -476,3 +478,51 @@ private fun relativePercent(factor: Float): String {
 
 /** Whole percent steps, so "Normal" is reachable by dragging and the value never reads +0.3%. */
 private fun snapToPercent(factor: Float): Float = (factor * 100f).roundToInt() / 100f
+
+@Composable
+internal fun ChaptersTab(
+    chapters: List<Chapter>,
+    currentPositionProvider: () -> Long,
+    onSeekTo: (Long) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (chapters.isEmpty()) {
+        androidx.compose.foundation.layout.Box(
+            modifier = modifier
+                .fillMaxWidth()
+                .padding(vertical = 32.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "No chapters available for this video",
+                style = ApturaTypography.bodyMedium,
+                color = ApturaColors.TextMediumEmphasis
+            )
+        }
+    } else {
+        val currentPos = currentPositionProvider()
+        Column(
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = modifier
+                .fillMaxWidth()
+                .testTag("ChaptersTab")
+        ) {
+            chapters.forEachIndexed { index, chapter ->
+                val nextChapter = chapters.getOrNull(index + 1)
+                val chapterEndMs = chapter.endTimeMs ?: nextChapter?.startTimeMs
+                val isActive = if (chapterEndMs != null) {
+                    currentPos in chapter.startTimeMs until chapterEndMs
+                } else {
+                    currentPos >= chapter.startTimeMs && (index == chapters.lastIndex || currentPos < (nextChapter?.startTimeMs ?: Long.MAX_VALUE))
+                }
+
+                ChapterItemRow(
+                    index = index + 1,
+                    chapter = chapter,
+                    isActive = isActive,
+                    onClick = { onSeekTo(chapter.startTimeMs) }
+                )
+            }
+        }
+    }
+}

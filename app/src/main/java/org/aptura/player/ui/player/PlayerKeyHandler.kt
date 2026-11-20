@@ -20,6 +20,8 @@ data class PlayerKeyActions(
     val onToggleSubtitles: () -> Unit = {},
     val onSkipNext: () -> Unit = {},
     val onSkipPrevious: () -> Unit = {},
+    val onNextChapter: () -> Unit = {},
+    val onPreviousChapter: () -> Unit = {},
     val onDismissActiveSheet: () -> Boolean,
     val onBack: () -> Unit,
     val onTriggerLockHint: () -> Unit = {}
@@ -130,6 +132,14 @@ fun handlePlayerKeyEvent(
         }
         Key.P, Key.MediaPrevious -> {
             actions.onSkipPrevious()
+            true
+        }
+        Key.PageDown -> {
+            actions.onNextChapter()
+            true
+        }
+        Key.PageUp -> {
+            actions.onPreviousChapter()
             true
         }
         Key.MoveHome -> {

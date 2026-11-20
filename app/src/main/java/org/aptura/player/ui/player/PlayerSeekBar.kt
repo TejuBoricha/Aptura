@@ -49,10 +49,12 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import org.aptura.player.domain.model.AbRepeatState
 import org.aptura.player.domain.model.Bookmark
+import org.aptura.player.domain.model.Chapter
 import org.aptura.player.theme.ApturaColors
 import org.aptura.player.theme.ApturaTypography
 import org.aptura.player.ui.library.MediaFormatters
@@ -93,6 +95,7 @@ internal fun PlayerSeekBar(
     seekStepMs: Long,
     bookmarks: List<Bookmark>,
     abRepeat: AbRepeatState,
+    chapters: List<Chapter> = emptyList(),
     onScrubStart: (Long) -> Unit,
     onScrubMove: (Long) -> Unit,
     onScrubEnd: () -> Unit,
@@ -125,6 +128,7 @@ internal fun PlayerSeekBar(
     val scrubberTrackColor = ApturaColors.ControlTrack
     val scrubberBufferedColor = ApturaColors.TextMediumEmphasis.copy(alpha = 0.6f)
     val scrubberAccent = ApturaColors.AccentPrimary
+    val chapterDividerColor = ApturaColors.SurfaceBase
 
     Box(
         modifier = modifier
@@ -313,6 +317,25 @@ internal fun PlayerSeekBar(
                 }
             }
 
+            // 3d. Chapter Divider Markers (FEAT-10, FR-CTRL-011)
+            if (durationMs > 0 && chapters.isNotEmpty()) {
+                val tickW = 2.dp.toPx()
+                val tickH = trackH + 2.dp.toPx()
+                val tickCorner = CornerRadius(tickW / 2f, tickW / 2f)
+                chapters.forEach { chapter ->
+                    if (chapter.startTimeMs > 0L && chapter.startTimeMs < durationMs) {
+                        val tickFraction = (chapter.startTimeMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
+                        val tickX = totalW * tickFraction
+                        drawRoundRect(
+                            color = chapterDividerColor,
+                            topLeft = Offset(tickX - tickW / 2f, cy - tickH / 2f),
+                            size = Size(tickW, tickH),
+                            cornerRadius = tickCorner
+                        )
+                    }
+                }
+            }
+
             // 4. Thumb Circle (Concentric cy = size.height / 2f)
             val clampedThumbX = if (totalW > thumbR * 2) {
                 activeW.coerceIn(thumbR, totalW - thumbR)
@@ -368,6 +391,20 @@ internal fun PlayerSeekBar(
                                 .clip(RoundedCornerShape(6.dp))
                         )
                         Spacer(modifier = Modifier.height(4.dp))
+                        val currentChapter = chapters.lastOrNull { it.startTimeMs <= scrubPositionMs }
+                        if (currentChapter != null) {
+                            Text(
+                                text = currentChapter.title,
+                                style = ApturaTypography.labelSmall,
+                                color = ApturaColors.TextHighEmphasis,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier
+                                    .testTag("ScrubPreviewChapterTitle")
+                                    .padding(horizontal = 4.dp)
+                            )
+                        }
                         Text(
                             text = MediaFormatters.formatDuration(scrubPositionMs),
                             style = ApturaTypography.labelSmall.copy(fontFeatureSettings = "tnum"),
@@ -380,7 +417,10 @@ internal fun PlayerSeekBar(
                     }
                 }
             } else {
-                val chipWidthPx = with(density) { 68.dp.toPx() }
+                val currentChapter = chapters.lastOrNull { it.startTimeMs <= scrubPositionMs }
+                val chipWidthDp = if (currentChapter != null) 120.dp else 68.dp
+                val chipWidthPx = with(density) { chipWidthDp.toPx() }
+                val chipYOffsetDp = if (currentChapter != null) (-38).dp else (-22).dp
                 val chipOffsetX = (rawThumbX - chipWidthPx / 2f)
                     .coerceIn(0f, (scrubberWidthPx - chipWidthPx).coerceAtLeast(0f))
                 Surface(
@@ -393,19 +433,36 @@ internal fun PlayerSeekBar(
                         .offset {
                             IntOffset(
                                 x = chipOffsetX.toInt(),
-                                y = with(density) { (-22).dp.roundToPx() }
+                                y = with(density) { chipYOffsetDp.roundToPx() }
                             )
                         }
                 ) {
-                    Text(
-                        text = MediaFormatters.formatDuration(scrubPositionMs),
-                        style = ApturaTypography.labelSmall.copy(fontFeatureSettings = "tnum"),
-                        color = ApturaColors.AccentPrimary,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        softWrap = false,
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                    )
+                    ) {
+                        if (currentChapter != null) {
+                            Text(
+                                text = currentChapter.title,
+                                style = ApturaTypography.labelSmall,
+                                color = ApturaColors.TextHighEmphasis,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier
+                                    .testTag("ScrubChapterTitle")
+                                    .padding(bottom = 1.dp)
+                            )
+                        }
+                        Text(
+                            text = MediaFormatters.formatDuration(scrubPositionMs),
+                            style = ApturaTypography.labelSmall.copy(fontFeatureSettings = "tnum"),
+                            color = ApturaColors.AccentPrimary,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
                 }
             }
         }

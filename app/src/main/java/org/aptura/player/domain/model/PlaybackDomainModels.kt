@@ -115,6 +115,16 @@ data class DomainExternalSubtitle(
     val isDefault: Boolean = false
 )
 
+/**
+ * Represents an embedded chapter marker within a media container (MKV/MP4/MOV) (FEAT-10, FR-CTRL-011).
+ */
+data class Chapter(
+    val id: String,
+    val title: String,
+    val startTimeMs: Long,
+    val endTimeMs: Long? = null
+)
+
 data class DomainTrackSelection(
     val availableAudioTracks: List<DomainTrackInfo> = emptyList(),
     val availableSubtitleTracks: List<DomainTrackInfo> = emptyList(),
