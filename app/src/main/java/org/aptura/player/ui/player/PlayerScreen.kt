@@ -127,6 +127,7 @@ import android.net.Uri
 import android.widget.Toast
 import org.aptura.player.core.diagnostics.ApturaDiagnostics
 import org.aptura.player.core.diagnostics.ErrorTaxonomy
+import org.aptura.player.core.media.FrameCaptureCoordinator
 import org.aptura.player.core.media.LocalSubtitleImportCoordinator
 import org.aptura.player.core.media.SubtitleFileValidator
 import org.aptura.player.core.media.SubtitleValidationResult
@@ -278,6 +279,7 @@ fun PlayerScreen(
     onSetAbPointB: () -> Unit = {},
     onClearAbRepeat: () -> Unit = {},
     onStepFrame: (Boolean) -> Unit = {},
+    onCaptureFrame: (() -> Unit)? = null,
     onCancelAutoAdvance: () -> Unit = {},
     onPlayNextImmediately: () -> Unit = {},
     isPipMode: Boolean = false,
@@ -361,6 +363,27 @@ fun PlayerScreen(
                     showToast = { msg, duration -> Toast.makeText(context, msg, duration).show() },
                     performHaptic = { type -> haptic.performHapticFeedback(type) }
                 )
+            }
+        }
+    }
+
+    val defaultOnCaptureFrame: () -> Unit = {
+        if (uiState.videoUri.isNotBlank()) {
+            coroutineScope.launch {
+                val pos = positionProvider().currentPositionMs
+                val uri = FrameCaptureCoordinator.captureAndSaveFrame(
+                    context = context,
+                    videoUri = Uri.parse(uiState.videoUri),
+                    positionMs = pos,
+                    videoTitle = uiState.videoTitle,
+                    rotationDegrees = uiState.pictureAdjustment.rotationDegrees,
+                    isMirrored = uiState.pictureAdjustment.isMirrored
+                )
+                if (uri != null) {
+                    Toast.makeText(context, "Frame saved to Pictures/Aptura", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, "Could not capture frame", Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }
@@ -2107,6 +2130,7 @@ fun PlayerScreen(
                             onSetAbPointB = onSetAbPointB,
                             onClearAbRepeat = onClearAbRepeat,
                             onStepFrame = onStepFrame,
+                            onCaptureFrame = onCaptureFrame ?: defaultOnCaptureFrame,
                             onAddBookmark = onAddBookmark,
                             onSeekTo = { position ->
                                 onScrubStart(position)
