@@ -60,6 +60,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -348,7 +349,9 @@ private fun SubtitleTracksTab(
             val hasFileHint = splitAt > 0 && track.label.endsWith(")")
             val title = if (hasFileHint) track.label.substring(0, splitAt) else track.label
             val fileHint = if (hasFileHint) track.label.substring(splitAt + 2, track.label.length - 1) else null
+            val isSupported = track.isSupported
             val subtitle = when {
+                !isSupported -> "Not supported on this device"
                 fileHint != null -> fileHint
                 track.isExternal -> "Imported file"
                 language != null -> "Embedded - $language"
@@ -359,10 +362,13 @@ private fun SubtitleTracksTab(
                 icon = Icons.Default.Subtitles,
                 title = title,
                 subtitle = subtitle,
-                badge = if (track.isExternal) "External" else null,
+                badge = if (!isSupported) "Unsupported" else if (track.isExternal) "External" else null,
+                enabled = isSupported,
                 onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    onSubtitleTrackSelected(track.index)
+                    if (isSupported) {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onSubtitleTrackSelected(track.index)
+                    }
                 },
                 onRemove = if (track.isExternal) {
                     { onRemoveExternalSubtitle(track.label) }
@@ -507,7 +513,8 @@ private fun TrackOptionCard(
     subtitle: String,
     onClick: () -> Unit,
     badge: String? = null,
-    onRemove: (() -> Unit)? = null
+    onRemove: (() -> Unit)? = null,
+    enabled: Boolean = true
 ) {
     Surface(
         shape = RoundedCornerShape(14.dp),
@@ -516,12 +523,14 @@ private fun TrackOptionCard(
             1.dp,
             if (selected) ApturaColors.AccentPrimary.copy(alpha = 0.55f) else ApturaColors.BorderSubtle
         ),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .alpha(if (enabled) 1f else 0.5f)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(role = Role.RadioButton, onClick = onClick)
+                .clickable(role = Role.RadioButton, enabled = enabled, onClick = onClick)
                 .padding(start = 14.dp, end = 6.dp, top = 10.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -674,7 +683,11 @@ private fun SubtitleSyncTab(
                     val now = System.currentTimeMillis()
                     val sub = subtitleTimestamp
                     if (sub != null) {
-                        onSubtitleDelayChanged(subtitleDelayMs + (now - sub))
+                        val delta = now - sub
+                        if (delta in -10_000L..10_000L) {
+                            val newDelay = (subtitleDelayMs + delta).coerceIn(-60_000L, 60_000L)
+                            onSubtitleDelayChanged(newDelay)
+                        }
                         speechTimestamp = null
                         subtitleTimestamp = null
                     } else {
@@ -690,7 +703,11 @@ private fun SubtitleSyncTab(
                     val now = System.currentTimeMillis()
                     val voice = speechTimestamp
                     if (voice != null) {
-                        onSubtitleDelayChanged(subtitleDelayMs + (voice - now))
+                        val delta = voice - now
+                        if (delta in -10_000L..10_000L) {
+                            val newDelay = (subtitleDelayMs + delta).coerceIn(-60_000L, 60_000L)
+                            onSubtitleDelayChanged(newDelay)
+                        }
                         speechTimestamp = null
                         subtitleTimestamp = null
                     } else {
@@ -784,13 +801,30 @@ private fun SubtitleStyleTab(
             )
         }
 
-        SheetSection("Text") {
+        SheetSection("Text", modifier = Modifier.alpha(if (useSystemStyle) 0.45f else 1f)) {
+            if (useSystemStyle) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = ApturaColors.SurfaceElevated1,
+                    border = BorderStroke(1.dp, ApturaColors.BorderSubtle),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
+                ) {
+                    Text(
+                        text = "Custom font size and color are disabled while following system caption settings.",
+                        style = ApturaTypography.labelSmall,
+                        color = ApturaColors.TextMediumEmphasis,
+                        modifier = Modifier.padding(10.dp)
+                    )
+                }
+            }
             val sizes = listOf(14, 18, 22, 26)
             SheetRowText("Size", null)
             org.aptura.player.ui.settings.SegmentedPicker(
                 options = listOf("Small", "Medium", "Large", "Huge"),
                 selectedIndex = sizes.indexOf(fontSizeSp),
-                onSelect = { onFontSizeChanged(sizes[it]) },
+                onSelect = { if (!useSystemStyle) onFontSizeChanged(sizes[it]) },
                 label = "Subtitle size"
             )
             SheetRowText("Color", null)
@@ -803,9 +837,11 @@ private fun SubtitleStyleTab(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
-                            .selectable(selected = selected, role = Role.RadioButton) {
-                                if (!selected) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                onTextColorChanged(hex)
+                            .selectable(selected = selected, enabled = !useSystemStyle, role = Role.RadioButton) {
+                                if (!useSystemStyle) {
+                                    if (!selected) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onTextColorChanged(hex)
+                                }
                             }
                             .padding(6.dp)
                     ) {
@@ -833,12 +869,12 @@ private fun SubtitleStyleTab(
             }
         }
 
-        SheetSection("Readability") {
+        SheetSection("Readability", modifier = Modifier.alpha(if (useSystemStyle) 0.45f else 1f)) {
             SheetRowText("Background", "A box is easiest to read over bright scenes")
             org.aptura.player.ui.settings.SegmentedPicker(
                 options = listOf("Shadow", "Box"),
                 selectedIndex = if (backgroundEnabled) 1 else 0,
-                onSelect = { onBackgroundChanged(it == 1) },
+                onSelect = { if (!useSystemStyle) onBackgroundChanged(it == 1) },
                 label = "Subtitle background"
             )
         }

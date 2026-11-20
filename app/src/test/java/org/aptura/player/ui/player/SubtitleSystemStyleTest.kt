@@ -6,6 +6,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performSemanticsAction
 import org.aptura.player.theme.ApturaTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -130,5 +131,77 @@ class SubtitleSystemStyleTest {
         composeRule.waitForIdle()
 
         assertEquals("windows-1256", selectedEncoding)
+    }
+
+    @Test
+    fun subtitleSheet_whenSystemStyleEnabled_displaysCustomStyleDisabledNotice() {
+        composeRule.setContent {
+            ApturaTheme {
+                SubtitleSheet(
+                    uiState = PlayerUiState(
+                        activeSheet = PlayerSheet.Subtitle,
+                        subtitleUseSystemStyle = true
+                    ),
+                    onDismissRequest = {},
+                    onSubtitleTrackSelected = {},
+                    onSubtitleDelayChanged = {},
+                    onImportSubtitleClick = {},
+                    onSubtitleFontSizeChanged = {},
+                    onSubtitleTextColorChanged = {},
+                    onSubtitleBackgroundChanged = {},
+                    initialTab = 2
+                )
+            }
+        }
+
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("Custom font size and color are disabled while following system caption settings.").assertExists()
+    }
+
+    @Test
+    fun subtitleSheet_tracksTab_unsupportedTrackIsDisabledAndShowsBadge() {
+        var selectedTrackIndex: Int? = null
+
+        composeRule.setContent {
+            ApturaTheme {
+                SubtitleSheet(
+                    uiState = PlayerUiState(
+                        activeSheet = PlayerSheet.Subtitle,
+                        subtitleTracks = listOf(
+                            TrackInfo(id = "1", index = 0, label = "English (SRT)", isSupported = true),
+                            TrackInfo(id = "2", index = 1, label = "PGS Graphic Subtitles", isSupported = false)
+                        )
+                    ),
+                    onDismissRequest = {},
+                    onSubtitleTrackSelected = { selectedTrackIndex = it },
+                    onSubtitleDelayChanged = {},
+                    onImportSubtitleClick = {},
+                    onSubtitleFontSizeChanged = {},
+                    onSubtitleTextColorChanged = {},
+                    onSubtitleBackgroundChanged = {},
+                    initialTab = 0
+                )
+            }
+        }
+
+        composeRule.waitForIdle()
+
+        // Verify unsupported message and badge
+        composeRule.onNodeWithText("Not supported on this device").assertExists()
+        composeRule.onNodeWithText("UNSUPPORTED").assertExists()
+
+        // Attempt to click unsupported track
+        composeRule.onNodeWithText("PGS Graphic Subtitles").performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.waitForIdle()
+
+        // Should not select track index 1
+        assertNull(selectedTrackIndex)
+
+        // Click supported track
+        composeRule.onNodeWithText("English (SRT)").performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.waitForIdle()
+
+        assertEquals(0, selectedTrackIndex)
     }
 }

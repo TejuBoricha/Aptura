@@ -49,14 +49,18 @@ object SubtitleQuerySanitizer {
     private val TV_EPISODE_REGEX = Regex("(?i)\\b(S\\d{1,2}E\\d{1,2}|\\d{1,2}x\\d{1,2})\\b")
     private val YEAR_REGEX = Regex("\\b(19\\d{2}|20\\d{2})\\b")
     private val SEPARATORS_REGEX = Regex("[._+]|\\s+-\\s+|\\s+")
+    private val KNOWN_VIDEO_EXTENSIONS = setOf(
+        "mp4", "mkv", "avi", "mov", "webm", "flv", "ts", "wmv", "m4v", "3gp", "mpg", "mpeg", "vob", "ogv"
+    )
 
     fun sanitize(rawFilename: String): CleanedMediaInfo {
         if (rawFilename.isBlank()) {
             return CleanedMediaInfo("", "", null, null, false)
         }
 
-        // 1. Strip file extension if present (e.g. .mkv, .mp4)
-        val withoutExt = if (rawFilename.contains(".")) {
+        // 1. Strip file extension only if it is a known video format (prevents truncating "Mr. Robot")
+        val ext = rawFilename.substringAfterLast('.', "").lowercase()
+        val withoutExt = if (ext.isNotBlank() && ext in KNOWN_VIDEO_EXTENSIONS) {
             rawFilename.substringBeforeLast(".")
         } else {
             rawFilename
@@ -69,7 +73,7 @@ object SubtitleQuerySanitizer {
         // 3. Remove text inside brackets [RARBG], (2020), {YTS}
         // Exception: keep year if inside parentheses
         var working = withoutExt
-        val yearInBrackets = YEAR_REGEX.find(working)?.value
+        val yearInBrackets = YEAR_REGEX.findAll(working).lastOrNull()?.value
         working = working.replace(BRACKET_CONTENT_REGEX, " ")
 
         // 4. Strip scene tags and trailing release groups (-FLUX, -EVO)
@@ -79,8 +83,8 @@ object SubtitleQuerySanitizer {
         // 5. Replace dots, underscores, dashes with clean whitespace
         working = working.replace(SEPARATORS_REGEX, " ").trim()
 
-        // 6. Find year (either from stripped text or original)
-        val year = YEAR_REGEX.find(working)?.value ?: yearInBrackets
+        // 6. Find year (take the last matched year token so movie titles starting with years e.g. "2001", "1917" are preserved)
+        val year = YEAR_REGEX.findAll(working).lastOrNull()?.value ?: yearInBrackets
 
         val cleanTitle: String
         val searchQuery: String
@@ -102,10 +106,10 @@ object SubtitleQuerySanitizer {
                     .replace(SEPARATORS_REGEX, " ")
                     .trim()
                 cleanTitle = titlePart.ifBlank { working }
-                searchQuery = "$cleanTitle $year".trim()
+                searchQuery = if (cleanTitle.contains(year)) cleanTitle else "$cleanTitle $year".trim()
             } else {
                 cleanTitle = working
-                searchQuery = if (year != null) "$cleanTitle $year".trim() else cleanTitle
+                searchQuery = if (year != null && !cleanTitle.contains(year)) "$cleanTitle $year".trim() else cleanTitle
             }
         }
 

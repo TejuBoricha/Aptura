@@ -31,11 +31,15 @@ class ApturaTextRenderer(
 
     fun computeAdjustedPositionUs(positionUs: Long): Long {
         val delayUs = subtitleDelayMs * 1000L
-        return positionUs - delayUs
+        return (positionUs - delayUs).coerceAtLeast(0L)
     }
 
     override fun render(positionUs: Long, elapsedRealtimeUs: Long) {
         delegate.render(computeAdjustedPositionUs(positionUs), elapsedRealtimeUs)
+    }
+
+    override fun resetPosition(positionUs: Long) {
+        delegate.resetPosition(computeAdjustedPositionUs(positionUs))
     }
 
     override fun release() {

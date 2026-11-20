@@ -78,7 +78,7 @@ class BottomSheetScrollInterceptorTest {
     }
 
     @Test
-    fun onPostFling_consumesResidualVelocityAtBoundaries() = runBlocking {
+    fun onPostFling_consumesUpwardVelocityAndPassesThroughDownwardVelocityForDismiss() = runBlocking {
         composeRule.setContent {
             val interceptor = rememberBottomSheetScrollInterceptor()
 
@@ -88,7 +88,7 @@ class BottomSheetScrollInterceptorTest {
                     available = Velocity(x = 0f, y = -2500f)
                 )
             }
-            // Residual velocity is consumed completely
+            // Upward velocity is consumed completely to prevent oscillation
             assertEquals(Velocity(x = 0f, y = -2500f), consumedUpward)
 
             val consumedDownward = runBlocking {
@@ -97,7 +97,8 @@ class BottomSheetScrollInterceptorTest {
                     available = Velocity(x = 0f, y = 2500f)
                 )
             }
-            assertEquals(Velocity(x = 0f, y = 2500f), consumedDownward)
+            // Downward velocity is passed through (Velocity.Zero consumed) so ModalBottomSheet dismisses cleanly
+            assertEquals(Velocity.Zero, consumedDownward)
         }
     }
 

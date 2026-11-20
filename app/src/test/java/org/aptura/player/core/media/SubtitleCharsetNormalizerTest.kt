@@ -220,4 +220,56 @@ class SubtitleCharsetNormalizerTest {
         assertTrue(result.exists())
         assertEquals(arabicText, result.readText(StandardCharsets.UTF_8))
     }
+
+    @Test
+    fun normalizeToUtf8_microDvdSubFile_transcodesToSrt() {
+        val cacheDir = tempFolder.newFolder("cache_microdvd")
+        val file = tempFolder.newFile("sample.sub")
+        val microDvdContent = "{1}{1}25.000\n{50}{100}Hello world!|Second line\n{120}{180}Goodbye"
+        file.writeText(microDvdContent, StandardCharsets.UTF_8)
+
+        val result = SubtitleCharsetNormalizer.normalizeToUtf8(file, cacheDir)
+
+        assertTrue(result.exists())
+        assertEquals("srt", result.extension)
+        val text = result.readText(StandardCharsets.UTF_8)
+        assertTrue(text.contains("1\n00:00:02,000 --> 00:00:04,000\nHello world!\nSecond line"))
+        assertTrue(text.contains("2\n00:00:04,800 --> 00:00:07,200\nGoodbye"))
+    }
+
+    @Test
+    fun detectCharset_asciiHeaderFollowedByShiftJis_detectsShiftJis() {
+        // Simulates an SSA/ASS script header of >400 bytes followed by Shift-JIS text
+        val header = "[Script Info]\nTitle: Test\nScriptType: v4.00+\nWrapStyle: 0\n" +
+            "PlayResX: 1920\nPlayResY: 1080\nScaledBorderAndShadow: yes\n" +
+            "YCbCr Matrix: TV.709\n" +
+            "; Comment lines padding to exceed 400 bytes\n".repeat(6) +
+            "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n" +
+            "Dialogue: 0,0:00:01.00,0:00:04.00,Default,,0,0,0,,"
+        val japanese = "Shift-JIS 日本語字幕テスト"
+        val bytes = header.toByteArray(StandardCharsets.US_ASCII) + japanese.toByteArray(Charset.forName("Shift_JIS"))
+
+        val detected = SubtitleCharsetNormalizer.detectCharset(bytes)
+        assertEquals("Shift_JIS", detected.name())
+    }
+
+    @Test
+    fun detectCharset_windows1251RussianText_detectsWindows1251() {
+        // Natural Russian text in windows-1251 consists mostly of lowercase letters (0xE0..0xFF)
+        val text = "1\n00:00:01,000 --> 00:00:03,000\nПривет, как твои дела сегодня вечером? Это русский текст."
+        val bytes = text.toByteArray(Charset.forName("windows-1251"))
+
+        val detected = SubtitleCharsetNormalizer.detectCharset(bytes)
+        assertEquals("windows-1251", detected.name().lowercase())
+    }
+
+    @Test
+    fun detectCharset_windows1256ArabicText_autoDetectsWindows1256() {
+        // Natural Arabic text containing definite article \"ال\" (0xC7 0xE1) and Arabic letters
+        val text = "1\n00:00:01,000 --> 00:00:03,000\nمرحبا بك في مشغل الفيديو الجديد اليوم"
+        val bytes = text.toByteArray(Charset.forName("windows-1256"))
+
+        val detected = SubtitleCharsetNormalizer.detectCharset(bytes)
+        assertEquals("windows-1256", detected.name().lowercase())
+    }
 }

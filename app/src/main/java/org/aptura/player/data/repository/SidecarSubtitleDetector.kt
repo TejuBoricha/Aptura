@@ -6,6 +6,7 @@ import android.os.Environment
 import org.aptura.player.core.media.SubtitleFileValidator
 import org.aptura.player.core.media.SubtitleValidationResult
 import java.io.File
+import java.nio.charset.Charset
 import java.util.Locale
 
 /**
@@ -175,7 +176,8 @@ object SidecarSubtitleDetector {
     fun detectSidecars(
         context: Context,
         videoUri: Uri,
-        videoDisplayName: String? = null
+        videoDisplayName: String? = null,
+        overrideCharset: Charset? = null
     ): List<DetectedSidecarSubtitle> {
         val results = mutableListOf<DetectedSidecarSubtitle>()
 
@@ -223,7 +225,7 @@ object SidecarSubtitleDetector {
         }
 
         for (dir in distinctDirs) {
-            results.addAll(scanDirectoryForBaseName(context, dir, baseName))
+            results.addAll(scanDirectoryForBaseName(context, dir, baseName, overrideCharset))
         }
 
         val unique = results.distinctBy {
@@ -250,7 +252,8 @@ object SidecarSubtitleDetector {
     private fun scanDirectoryForBaseName(
         context: Context,
         dir: File,
-        baseName: String
+        baseName: String,
+        overrideCharset: Charset? = null
     ): List<DetectedSidecarSubtitle> {
         val candidates = mutableListOf<DetectedSidecarSubtitle>()
         // Decide on the NAME alone, before any File object exists. This runs on every video start and the shared
@@ -269,7 +272,7 @@ object SidecarSubtitleDetector {
             .sortedWith(compareBy({ (it.second as? SidecarMatch.Tagged)?.tokens?.size ?: 0 }, { it.first.name.lowercase() }))
 
         for ((f, match) in matched) {
-            val validation = SubtitleFileValidator.validate(context, Uri.fromFile(f))
+            val validation = SubtitleFileValidator.validate(context, Uri.fromFile(f), overrideCharset)
             if (validation !is SubtitleValidationResult.Valid) continue
 
             val tokens = (match as? SidecarMatch.Tagged)?.tokens.orEmpty()
@@ -304,7 +307,8 @@ object SidecarSubtitleDetector {
      */
     fun findRecentDownloads(
         context: Context,
-        searchQuery: String
+        searchQuery: String,
+        overrideCharset: Charset? = null
     ): List<DetectedSidecarSubtitle> {
         if (searchQuery.isBlank()) return emptyList()
 
@@ -336,7 +340,7 @@ object SidecarSubtitleDetector {
                 val keywordMatch = queryKeywords.any { kw -> lowerName.contains(kw) }
 
                 if (keywordMatch) {
-                    val validation = SubtitleFileValidator.validate(context, Uri.fromFile(f))
+                    val validation = SubtitleFileValidator.validate(context, Uri.fromFile(f), overrideCharset)
                     if (validation is SubtitleValidationResult.Valid) {
                         matches.add(
                             DetectedSidecarSubtitle(

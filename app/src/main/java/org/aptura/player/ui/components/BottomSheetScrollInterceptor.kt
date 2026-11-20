@@ -42,9 +42,10 @@ fun rememberBottomSheetScrollInterceptor(): NestedScrollConnection {
             }
 
             override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
-                // Consume leftover boundary fling velocity so excess momentum does
-                // not kick the sheet's AnchoredDraggable state into violent oscillation.
-                return available
+                // Consume upward boundary fling velocity so excess momentum does not kick the sheet
+                // into spring oscillation against overscroll. Allow downward fling velocity (available.y > 0)
+                // to reach ModalBottomSheet so fast swipe-down gestures dismiss the sheet cleanly (audit SHT-17).
+                return if (available.y < 0f) available else Velocity.Zero
             }
         }
     }

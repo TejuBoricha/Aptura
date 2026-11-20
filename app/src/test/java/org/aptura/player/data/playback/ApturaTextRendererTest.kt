@@ -45,4 +45,12 @@ class ApturaTextRendererTest {
         renderer.subtitleDelayMs = -50L
         assertEquals(2_050_000L, renderer.computeAdjustedPositionUs(2_000_000L))
     }
+
+    @Test
+    fun positiveDelay_exceedingCurrentPosition_clampsToZeroWithoutNegativePosition() {
+        val renderer = ApturaTextRenderer(noOpOutput, null)
+        // Subtitle delay +3000ms at video position 1000ms (1_000_000us) -> clamped to 0us
+        renderer.subtitleDelayMs = 3000L
+        assertEquals(0L, renderer.computeAdjustedPositionUs(1_000_000L))
+    }
 }

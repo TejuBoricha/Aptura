@@ -67,6 +67,20 @@ object SubtitleFileValidator {
         if (isZip) {
             return when (val zipResult = SubtitleZipExtractor.extractSubtitleFromZip(context, uri)) {
                 is ZipExtractionResult.Success -> {
+                    val extracted = zipResult.extractedFile
+                    if (!extracted.exists() || extracted.length() == 0L) {
+                        return SubtitleValidationResult.Invalid("Extracted subtitle file from zip is empty.")
+                    }
+                    val rawCheckBytes = try {
+                        val buf = ByteArray(minOf(extracted.length().toInt(), 512))
+                        java.io.FileInputStream(extracted).use { it.read(buf) }
+                        buf
+                    } catch (_: Throwable) {
+                        ByteArray(0)
+                    }
+                    if (rawCheckBytes.isNotEmpty() && isBinaryOrImage(rawCheckBytes, rawCheckBytes.size)) {
+                        return SubtitleValidationResult.Invalid("Extracted file (${zipResult.entryName}) contains binary data, not valid subtitle text.")
+                    }
                     val normalizedFile = SubtitleCharsetNormalizer.normalizeToUtf8(zipResult.extractedFile, context.cacheDir, overrideCharset)
                     SubtitleValidationResult.Valid(
                         displayName = zipResult.entryName,
