@@ -34,4 +34,7 @@ interface BookmarkDao {
     /** Keeps bookmarks attached when a file moves/renames and its URI changes (SAF documents). */
     @Query("UPDATE bookmarks SET mediaUri = :newUri WHERE mediaUri = :oldUri")
     suspend fun remapMediaUri(oldUri: String, newUri: String)
+
+    @Query("SELECT * FROM bookmarks")
+    suspend fun getAllBookmarksRaw(): List<BookmarkEntity>
 }

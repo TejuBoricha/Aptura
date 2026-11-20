@@ -271,6 +271,8 @@ fun PlayerScreen(
     onSaturationChanged: (Float) -> Unit = {},
     onNightModeToggle: (Boolean) -> Unit = {},
     onNightModeWarmthChanged: (Float) -> Unit = {},
+    onRotationChanged: (Int) -> Unit = {},
+    onMirrorToggle: (Boolean) -> Unit = {},
     onResetPictureAdjustment: () -> Unit = {},
     onSetAbPointA: () -> Unit = {},
     onSetAbPointB: () -> Unit = {},
@@ -364,19 +366,19 @@ fun PlayerScreen(
     }
 
     val activity = context as? Activity
-    DisposableEffect(activity, uiState.isControlsVisible, isPipMode) {
-        val window = activity?.window
-        if (window != null) {
-            val insetsController = WindowCompat.getInsetsController(window, window.decorView)
-            insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            if (uiState.isControlsVisible && !isPipMode) {
-                insetsController.show(WindowInsetsCompat.Type.systemBars())
-            } else {
-                insetsController.hide(WindowInsetsCompat.Type.systemBars())
-            }
+    LaunchedEffect(activity, uiState.isControlsVisible, isPipMode) {
+        val window = activity?.window ?: return@LaunchedEffect
+        val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+        insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        if (uiState.isControlsVisible && !isPipMode) {
+            insetsController.show(WindowInsetsCompat.Type.systemBars())
+        } else {
+            insetsController.hide(WindowInsetsCompat.Type.systemBars())
         }
+    }
+    DisposableEffect(activity) {
         onDispose {
-            window?.let {
+            activity?.window?.let {
                 WindowCompat.getInsetsController(it, it.decorView).show(WindowInsetsCompat.Type.systemBars())
             }
         }
@@ -390,10 +392,11 @@ fun PlayerScreen(
         }
     }
 
-    // Keep screen awake while actively playing media (P-16, spec/10:92)
-    DisposableEffect(activity, uiState.isPlaying) {
+    // Keep screen awake while actively playing video (P-16, spec/10:92, PLY-19)
+    val keepScreenOn = uiState.isPlaying && !uiState.isAudioOnly
+    DisposableEffect(activity, keepScreenOn) {
         val window = activity?.window
-        if (uiState.isPlaying) {
+        if (keepScreenOn) {
             window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         } else {
             window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -1506,7 +1509,11 @@ fun PlayerScreen(
                                 uiState.isPlaying -> Icons.Filled.Pause
                                 else -> Icons.Filled.PlayArrow
                             },
-                            contentDescription = if (uiState.isPlaying) "Pause" else "Play",
+                            contentDescription = when {
+                                uiState.isEnded -> "Replay"
+                                uiState.isPlaying -> "Pause"
+                                else -> "Play"
+                            },
                             tint = ApturaColors.TextOnAccent,
                             modifier = Modifier.size(playIconSize)
                         )
@@ -1655,7 +1662,7 @@ fun PlayerScreen(
                                             PlayMode.REPEAT_ONE -> Icons.Filled.RepeatOne
                                             PlayMode.REPEAT_ALL -> Icons.Filled.Repeat
                                             PlayMode.SHUFFLE -> Icons.Filled.Shuffle
-                                            PlayMode.NORMAL -> Icons.Filled.Repeat
+                                            PlayMode.NORMAL -> Icons.Filled.PlayArrow
                                         },
                                         contentDescription = "Play mode: " + when (uiState.playMode) {
                                             PlayMode.NORMAL -> "play in order"
@@ -2117,6 +2124,8 @@ fun PlayerScreen(
                             brightness = brightnessLevel,
                             onBrightnessChanged = { level -> windowBrightness.setTo(level)?.let { brightnessLevel = it } },
                             onResizeModeSelected = onResizeModeSelected,
+                            onRotationChanged = onRotationChanged,
+                            onMirrorToggle = onMirrorToggle,
                             onNightModeToggle = onNightModeToggle,
                             onNightModeWarmthChanged = onNightModeWarmthChanged,
                             onContrastChanged = onContrastChanged,

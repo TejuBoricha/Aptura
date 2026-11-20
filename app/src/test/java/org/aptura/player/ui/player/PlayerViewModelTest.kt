@@ -1291,10 +1291,20 @@ class PlayerViewModelTest {
         assertTrue(viewModel.uiState.value.pictureAdjustment.isNightModeEnabled)
         assertEquals(0.5f, viewModel.uiState.value.pictureAdjustment.nightModeWarmth)
 
+        viewModel.setRotationDegrees(90)
+        assertEquals(90, viewModel.uiState.value.pictureAdjustment.rotationDegrees)
+        viewModel.rotateVideo()
+        assertEquals(180, viewModel.uiState.value.pictureAdjustment.rotationDegrees)
+
+        viewModel.toggleMirrorFlip()
+        assertTrue(viewModel.uiState.value.pictureAdjustment.isMirrored)
+
         viewModel.resetPictureAdjustments()
         assertEquals(1.0f, viewModel.uiState.value.pictureAdjustment.contrast)
         assertEquals(1.0f, viewModel.uiState.value.pictureAdjustment.saturation)
         assertFalse(viewModel.uiState.value.pictureAdjustment.isNightModeEnabled)
+        assertEquals(0, viewModel.uiState.value.pictureAdjustment.rotationDegrees)
+        assertFalse(viewModel.uiState.value.pictureAdjustment.isMirrored)
 
         viewModel.clearForTesting()
     }

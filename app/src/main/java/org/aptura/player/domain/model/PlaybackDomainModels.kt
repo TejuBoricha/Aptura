@@ -205,10 +205,12 @@ data class PictureAdjustmentState(
     val contrast: Float = 1.0f,
     val saturation: Float = 1.0f,
     val isNightModeEnabled: Boolean = false,
-    val nightModeWarmth: Float = 0.4f
+    val nightModeWarmth: Float = 0.4f,
+    val rotationDegrees: Int = 0,
+    val isMirrored: Boolean = false
 ) {
     val isModified: Boolean
-        get() = contrast != 1.0f || saturation != 1.0f || isNightModeEnabled
+        get() = contrast != 1.0f || saturation != 1.0f || isNightModeEnabled || rotationDegrees != 0 || isMirrored
 }
 
 /**
