@@ -78,6 +78,8 @@ class SafTreeScanner(
 
         // Queue: Pair of (DocumentId, Relative Folder Path)
         val directoryQueue = ArrayDeque<Pair<String, String>>()
+        val visitedDocIds = HashSet<String>()
+        visitedDocIds.add(rootDocId)
         directoryQueue.add(rootDocId to rootFolderName)
 
         while (directoryQueue.isNotEmpty()) {
@@ -128,9 +130,11 @@ class SafTreeScanner(
             // Phase 2: Process child documents
             for (entry in childEntries) {
                 if (entry.mimeType == DocumentsContract.Document.MIME_TYPE_DIR) {
-                    val subFolderPath = "$currentFolderPath/${entry.displayName}"
-                    directoryQueue.add(entry.docId to subFolderPath)
-                } else if (isVideoFile(entry.displayName, entry.mimeType)) {
+                    if (visitedDocIds.add(entry.docId)) {
+                        val subFolderPath = "$currentFolderPath/${entry.displayName}"
+                        directoryQueue.add(entry.docId to subFolderPath)
+                    }
+                } else if (entry.sizeBytes > 1024L && isVideoFile(entry.displayName, entry.mimeType)) {
                     val docUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, entry.docId)
                     val docUriStr = docUri.toString()
                     val modifiedSec = entry.lastModifiedMs / 1000L

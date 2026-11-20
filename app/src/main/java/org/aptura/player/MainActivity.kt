@@ -95,7 +95,7 @@ class MainActivity : ComponentActivity() {
                 isPipMode = isPipMode.value,
                 pipSupported = supportsPictureInPicture(),
                 orientationSupported = orientationSupported,
-                onEnterPip = ::enterPictureInPicture,
+                onEnterPip = { enterPictureInPicture() },
                 onPlayerRouteActiveChanged = { active ->
                     isPlayerRouteActive = active
                     updatePictureInPictureParams()
@@ -194,7 +194,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        outState.putBoolean(STATE_LAUNCH_CONSUMED, true)
+        outState.putBoolean(STATE_LAUNCH_CONSUMED, pendingLaunchUri == null && !pendingShowPlayer)
     }
 
     override fun onDestroy() {
@@ -210,7 +210,7 @@ class MainActivity : ComponentActivity() {
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S && isPlayingVideo() && !isPipMode.value) {
-            enterPictureInPicture()
+            enterPictureInPicture(showToastOnDisabled = false)
         }
     }
 
@@ -279,9 +279,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    fun enterPictureInPicture() {
+    fun enterPictureInPicture(showToastOnDisabled: Boolean = true) {
         if (!supportsPictureInPicture()) {
-            Toast.makeText(this, "Picture-in-Picture is not supported on this device", Toast.LENGTH_SHORT).show()
+            if (showToastOnDisabled) {
+                Toast.makeText(this, "Picture-in-Picture is not supported on this device", Toast.LENGTH_SHORT).show()
+            }
             return
         }
         val appOps = getSystemService(APP_OPS_SERVICE) as? AppOpsManager
@@ -291,16 +293,20 @@ class MainActivity : ComponentActivity() {
             packageName
         )
         if (mode != null && mode != AppOpsManager.MODE_ALLOWED) {
-            Toast.makeText(this, "Picture-in-Picture is disabled in Android settings", Toast.LENGTH_LONG).show()
+            if (showToastOnDisabled) {
+                Toast.makeText(this, "Picture-in-Picture is disabled in Android settings", Toast.LENGTH_LONG).show()
+            }
             return
         }
         try {
             val entered = enterPictureInPictureMode(buildPictureInPictureParams(autoEnter = isPlayingVideo()))
-            if (!entered) {
+            if (!entered && showToastOnDisabled) {
                 Toast.makeText(this, "Could not enter Picture-in-Picture mode", Toast.LENGTH_SHORT).show()
             }
         } catch (_: IllegalStateException) {
-            Toast.makeText(this, "Picture-in-Picture is disabled in Android settings", Toast.LENGTH_LONG).show()
+            if (showToastOnDisabled) {
+                Toast.makeText(this, "Picture-in-Picture is disabled in Android settings", Toast.LENGTH_LONG).show()
+            }
         }
     }
 
@@ -334,11 +340,19 @@ class MainActivity : ComponentActivity() {
         internal fun acceptedViewUri(intent: Intent?, privateDirs: List<java.io.File>): String? {
             if (intent?.action != Intent.ACTION_VIEW) return null
             val data = intent.data ?: return null
-            return when (data.scheme?.lowercase()) {
+            return when (data.scheme?.lowercase(java.util.Locale.ROOT)) {
                 "content" -> data.toString()
                 "file" -> {
                     val path = data.path?.takeIf { it.isNotEmpty() } ?: return null
+                    val normalizedPath = path.replace('\\', '/')
+                    if (listOf("/proc", "/sys", "/dev").any { normalizedPath == it || normalizedPath.startsWith("$it/") }) {
+                        return null
+                    }
                     val resolved = runCatching { java.io.File(path).canonicalFile }.getOrNull() ?: return null
+                    val resolvedNorm = resolved.path.replace('\\', '/')
+                    if (listOf("/proc", "/sys", "/dev").any { resolvedNorm == it || resolvedNorm.startsWith("$it/") }) {
+                        return null
+                    }
                     val insidePrivateStorage = privateDirs.any { dir ->
                         val root = runCatching { dir.canonicalFile }.getOrDefault(dir.absoluteFile)
                         resolved == root || resolved.path.startsWith(root.path + java.io.File.separator)

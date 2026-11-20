@@ -105,6 +105,13 @@ class ViewIntentUriTest {
         assertNull(accepted("file://"))
     }
 
+    @Test
+    fun aFileInsideProcOrSysOrDev_isRefused() {
+        assertNull(accepted("file:///proc/self/cmdline"))
+        assertNull(accepted("file:///sys/kernel/version"))
+        assertNull(accepted("file:///dev/zero"))
+    }
+
     // ---- what does not change --------------------------------------------------------------------------------------
 
     @Test

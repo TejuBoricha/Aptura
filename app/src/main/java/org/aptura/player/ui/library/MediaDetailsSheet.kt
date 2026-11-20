@@ -145,12 +145,16 @@ fun MediaDetailsContent(
     val resolvedPath by produceState<DetailLookup<String>?>(null, item.uri) {
         value = DetailLookup(withContext(lookupContext) { MediaPathResolver.resolve(context, item.uri) })
     }
-    val inspection by produceState<MediaExtendedMetadata?>(null, item.uri) {
-        value = withContext(lookupContext) {
-            try {
-                MediaMetadataInspector.inspect(context, item.uri.toUri())
-            } catch (_: Exception) {
-                MediaExtendedMetadata(inspected = false)
+    val inspection by produceState<MediaExtendedMetadata?>(null, item.uri, item.isMissing) {
+        value = if (item.isMissing) {
+            MediaExtendedMetadata(inspected = false)
+        } else {
+            withContext(lookupContext) {
+                try {
+                    MediaMetadataInspector.inspect(context, item.uri.toUri())
+                } catch (_: Exception) {
+                    MediaExtendedMetadata(inspected = false)
+                }
             }
         }
     }
@@ -276,9 +280,11 @@ fun MediaDetailsContent(
                 Text(
                     text = when {
                         item.isCompleted -> "Watched"
-                        item.playbackPositionMs >= 1000L ->
+                        item.playbackPositionMs >= 1000L && item.durationMs > 0L ->
                             "Stopped at ${MediaFormatters.formatDuration(item.playbackPositionMs)} of " +
                                 MediaFormatters.formatDuration(item.durationMs)
+                        item.playbackPositionMs >= 1000L ->
+                            "Stopped at ${MediaFormatters.formatDuration(item.playbackPositionMs)}"
                         previousProgress != null -> "Progress reset"
                         else -> "Not started"
                     },

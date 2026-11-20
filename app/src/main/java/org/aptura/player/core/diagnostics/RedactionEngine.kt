@@ -37,7 +37,7 @@ object RedactionEngine {
     )
 
     /** A path that was percent-encoded before it was logged: `%2Fstorage%2Femulated%2F0%2FMovies%2F...`. */
-    private val ENCODED_PATH_PATTERN = Pattern.compile("""(?:%2F)(?:storage|sdcard\d*|mnt|data)(?:%2F|\b)[^\s]*""", Pattern.CASE_INSENSITIVE)
+    private val ENCODED_PATH_PATTERN = Pattern.compile("""(?:%2F)(?:storage|sdcard\d*|mnt|data)(?:%2F|\b)[^\r\n]*""", Pattern.CASE_INSENSITIVE)
 
     /** Storage Access Framework document ids: `primary:Movies/Private/a.mp4`, `1A2B-3C4D:Movies/a.mp4`, `raw:/storage/...`. */
     private val DOCUMENT_ID_PATTERN = Pattern.compile(
@@ -51,6 +51,10 @@ object RedactionEngine {
 
     private val IP_V4_PATTERN = Pattern.compile(
         """\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b"""
+    )
+
+    private val IP_V6_PATTERN = Pattern.compile(
+        """\b(?:[0-9a-fA-F]{1,4}:){2,7}[0-9a-fA-F]{1,4}\b"""
     )
 
     /**
@@ -103,6 +107,7 @@ object RedactionEngine {
 
         // 4. Scrub IP addresses
         result = IP_V4_PATTERN.matcher(result).replaceAll("[IP_REDACTED]")
+        result = IP_V6_PATTERN.matcher(result).replaceAll("[IP_REDACTED]")
 
         return result
     }

@@ -181,4 +181,27 @@ class RedactionAdversarialTest {
         val open = RedactionEngine.redactPayload(mapOf("fileName" to "birthday party.mkv"), includeFileName = true)
         assertEquals("birthday party.mkv", open["fileName"])
     }
+
+    @Test
+    fun percentEncodedPathsWithSpacesAndIpv6AreRedacted() {
+        val encodedWithSpaces = RedactionEngine.redactText("opening %2Fstorage%2Femulated%2F0%2FMovies%2FMy Secret Video.mp4")
+        assertNoneOf(encodedWithSpaces, "Secret", "Video", "Movies")
+
+        val ipv6 = RedactionEngine.redactText("Connected from 2001:0db8:85a3:0000:0000:8a2e:0370:7334")
+        assertNoneOf(ipv6, "2001", "0db8", "85a3", "7334")
+        assertTrue(ipv6.contains("[IP_REDACTED]"))
+    }
+
+    @Test
+    fun bundleExporter_redactsSettingsSnapshotAndCrashReports() {
+        val ringBuffer = DiagnosticRingBuffer()
+        val bundle = DiagnosticBundleExporter.createBundle(
+            ringBuffer = ringBuffer,
+            deviceContext = DiagnosticBundleExporter.DeviceContext("Google", "Pixel", 35, "arm64-v8a", "en-US"),
+            settings = mapOf("lastPath" to "/storage/emulated/0/Movies/PrivateClip.mp4"),
+            crashReports = listOf("Crash on thread reading /storage/emulated/0/DCIM/SecretHomeVideo.mkv by user@example.com")
+        )
+        assertNoneOf(bundle.settingsSnapshot["lastPath"].orEmpty(), "PrivateClip", "Movies", "/storage")
+        assertNoneOf(bundle.crashReports.single(), "SecretHomeVideo", "DCIM", "user@example.com")
+    }
 }

@@ -60,8 +60,8 @@ object DiagnosticBundleExporter {
             deviceContext = deviceContext,
             errorHistory = errors,
             eventLogExcerpt = recentEvents,
-            settingsSnapshot = settings,
-            crashReports = crashReports
+            settingsSnapshot = RedactionEngine.redactPayload(settings, includeFileName),
+            crashReports = crashReports.map { RedactionEngine.redactText(it, includeFileName) }
         )
     }
 
