@@ -66,7 +66,11 @@ class MainActivity : ComponentActivity() {
             pendingShowPlayer = isShowPlayerRequest(intent)
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.attributes.layoutInDisplayCutoutMode =
+                android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            @Suppress("DEPRECATION")
             window.attributes.layoutInDisplayCutoutMode =
                 android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
         }
@@ -80,6 +84,8 @@ class MainActivity : ComponentActivity() {
         // The first frame waits for the saved theme, so it is never drawn in the wrong one (see FirstFrameGate).
         val firstFrameGate = FirstFrameGate()
         setContent {
+            val smallestWidth = androidx.compose.ui.platform.LocalConfiguration.current.smallestScreenWidthDp
+            val orientationSupported = DeviceCapabilities.supportsOrientationLock(smallestWidth)
             MainNavigation(
                 onThemeApplied = firstFrameGate::themeApplied,
                 initialLaunchUri = pendingLaunchUri,
@@ -88,7 +94,7 @@ class MainActivity : ComponentActivity() {
                 onShowPlayerHandled = { pendingShowPlayer = false },
                 isPipMode = isPipMode.value,
                 pipSupported = supportsPictureInPicture(),
-                orientationSupported = supportsOrientationLock(),
+                orientationSupported = orientationSupported,
                 onEnterPip = ::enterPictureInPicture,
                 onPlayerRouteActiveChanged = { active ->
                     isPlayerRouteActive = active
