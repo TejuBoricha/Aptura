@@ -117,6 +117,11 @@ internal fun rememberMediaMoveFlow(onMoved: (uri: String) -> Unit, mover: InPlac
                         }
                         movedUris = movedUris + newlyMoved
                         failedUris = failedUris + newlyFailed
+                        if (newlyMoved.isEmpty() && newlyFailed.isNotEmpty()) {
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(context, "Could not move files to destination.", Toast.LENGTH_SHORT).show()
+                            }
+                        }
                         moveQueue = moveQueue.filterNot(batch.toSet()::contains)
                     } finally {
                         // Even if a move throws: never leave the flow saying a move is still running.

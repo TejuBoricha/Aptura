@@ -1001,4 +1001,27 @@ class MediaLibraryViewModelTest {
         runCurrent()
         assertEquals(45_000L, repo.getVideoByUri(item.uri)?.playbackPositionMs)
     }
+
+    @Test
+    fun selectFolder_whenFolderEmptiedOrDeleted_resetsSelectedFolderToNull() = runTest(testDispatcher) {
+        val repo = FakeMediaRepository()
+        val item1 = DomainMediaItem(uri = "content://1", title = "V1", folderPath = "/Movies/FolderA", durationMs = 1000L, sizeBytes = 10L, mimeType = "video/mp4")
+        val item2 = DomainMediaItem(uri = "content://2", title = "V2", folderPath = "/Movies/FolderB", durationMs = 1000L, sizeBytes = 10L, mimeType = "video/mp4")
+        repo.videosFlow.value = listOf(item1, item2)
+        repo.foldersFlow.value = listOf("/Movies/FolderA", "/Movies/FolderB")
+
+        val viewModel = MediaLibraryViewModel(repo, testDispatcher, testDispatcher, searchDebounceMs = 0L)
+        viewModel.onFolderSelected("/Movies/FolderA")
+        runCurrent()
+
+        assertEquals("/Movies/FolderA", viewModel.selectedFolder.value)
+
+        // Simulate deleting/moving all videos in FolderA so FolderA disappears from foldersFlow
+        repo.videosFlow.value = listOf(item2)
+        repo.foldersFlow.value = listOf("/Movies/FolderB")
+        runCurrent()
+
+        // selectedFolder must be reset to null so the user is not trapped on an empty screen (audit LIB-1)
+        assertEquals(null, viewModel.selectedFolder.value)
+    }
 }

@@ -1127,13 +1127,19 @@ private fun MediaLibraryContentView(
                                                 moveFlow.moveAll(clipboardUris, dest) { batch ->
                                                     forgetTransferredClipboard(batch.movedUris, fromClipboard = true)
                                                     onRefresh()
+                                                    val count = batch.movedCount
+                                                    val total = batch.movedCount + batch.failedCount
+                                                    val noun = if (count == 1) "video" else "videos"
+                                                    val title = if (batch.failedCount > 0) "Move partially complete" else "Move complete"
                                                     if (batch.movedUris.isNotEmpty()) {
-                                                        val count = batch.movedCount
-                                                        val total = batch.movedCount + batch.failedCount
-                                                        val noun = if (count == 1) "video" else "videos"
                                                         transferResult = TransferResultMessage(
-                                                            title = "Move complete",
+                                                            title = title,
                                                             message = if (total == 1) "Moved $count $noun to $destLabel." else "$count of $total $noun moved to $destLabel."
+                                                        )
+                                                    } else if (batch.failedUris.isNotEmpty()) {
+                                                        transferResult = TransferResultMessage(
+                                                            title = "Move failed",
+                                                            message = "Could not move the selected ${if (batch.failedCount == 1) "video" else "videos"} to $destLabel."
                                                         )
                                                     }
                                                 }
@@ -1611,13 +1617,19 @@ private fun MediaLibraryContentView(
                                         selectedUris = emptySet()
                                         forgetTransferredClipboard(batch.movedUris, modal.fromClipboard)
                                         onRefresh()
+                                        val count = batch.movedCount
+                                        val total = batch.movedCount + batch.failedCount
+                                        val noun = if (count == 1) "video" else "videos"
+                                        val title = if (batch.failedCount > 0) "Move partially complete" else "Move complete"
                                         if (batch.movedUris.isNotEmpty()) {
-                                            val count = batch.movedCount
-                                            val total = batch.movedCount + batch.failedCount
-                                            val noun = if (count == 1) "video" else "videos"
                                             transferResult = TransferResultMessage(
-                                                title = "Move complete",
+                                                title = title,
                                                 message = if (total == 1) "Moved $count $noun to $destLabel." else "$count of $total $noun moved to $destLabel."
+                                            )
+                                        } else if (batch.failedUris.isNotEmpty()) {
+                                            transferResult = TransferResultMessage(
+                                                title = "Move failed",
+                                                message = "Could not move the selected ${if (batch.failedCount == 1) "video" else "videos"} to $destLabel."
                                             )
                                         }
                                     }
@@ -1704,9 +1716,18 @@ private fun MediaLibraryContentView(
                     selectedUris = emptySet()
                     forgetTransferredClipboard(job.copiedUris, job.fromClipboard)
                     onRefresh()
+                    val copiedCount = job.copiedUris.size
+                    val total = job.totalFiles
+                    val message = if (job.failedUris.isEmpty()) {
+                        if (copiedCount == 1) "The video was copied to the destination folder. The original was kept in place."
+                        else "All $copiedCount videos were copied to the destination folder. The originals were kept in place."
+                    } else {
+                        val failedCount = job.failedUris.size
+                        "$copiedCount of $total videos were copied. $failedCount failed to copy. The originals were kept in place."
+                    }
                     transferResult = TransferResultMessage(
                         title = "Originals kept",
-                        message = "Every $noun was copied to the destination folder. The originals were kept in place."
+                        message = message
                     )
                     clearTransferJournal(job.id)
                 },
@@ -1734,9 +1755,18 @@ private fun MediaLibraryContentView(
                     selectedUris = emptySet()
                     forgetTransferredClipboard(job.copiedUris, job.fromClipboard)
                     onRefresh()
+                    val copiedCount = job.copiedUris.size
+                    val total = job.totalFiles
+                    val message = if (job.failedUris.isEmpty()) {
+                        if (copiedCount == 1) "The video was copied to the destination folder. The original was kept in place."
+                        else "All $copiedCount videos were copied to the destination folder. The originals were kept in place."
+                    } else {
+                        val failedCount = job.failedUris.size
+                        "$copiedCount of $total videos were copied. $failedCount failed to copy. The originals were kept in place."
+                    }
                     transferResult = TransferResultMessage(
                         title = "Originals kept",
-                        message = "Every $noun was copied to the destination folder. The originals were kept in place."
+                        message = message
                     )
                     clearTransferJournal(job.id)
                 }
