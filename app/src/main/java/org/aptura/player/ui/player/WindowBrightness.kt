@@ -59,7 +59,14 @@ class WindowBrightness(
             } catch (_: Settings.SettingNotFoundException) {
                 128
             }
-            return (raw / 255f).coerceIn(MIN, 1f)
+            val resMax = try {
+                val id = context.resources.getIdentifier("config_screenBrightnessSettingMaximum", "integer", "android")
+                if (id != 0) context.resources.getInteger(id) else 255
+            } catch (_: Throwable) {
+                255
+            }
+            val maxScale = maxOf(255, resMax, raw).toFloat()
+            return (raw / maxScale).coerceIn(MIN, 1f)
         }
     }
 }

@@ -24,30 +24,28 @@ class MediaTransferWorker(
     workerParams: WorkerParameters
 ) : CoroutineWorker(appContext, workerParams) {
 
-    override suspend fun doWork(): Result {
-        val jobId = inputData.getString(KEY_JOB_ID) ?: return Result.failure()
-        val initial = withContext(Dispatchers.IO) { MediaTransferJournal.read(applicationContext) }
+    override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
+        val jobId = inputData.getString(KEY_JOB_ID) ?: return@withContext Result.failure()
+        val initial = MediaTransferJournal.read(applicationContext)
             ?.takeIf { it.id == jobId }
-            ?: return Result.failure()
-        if (initial.cancelled) return Result.failure()
-        if (initial.copyFinished) return Result.success()
+            ?: return@withContext Result.failure()
+        if (initial.cancelled) return@withContext Result.failure()
+        if (initial.copyFinished) return@withContext Result.success()
 
-        return try {
+        try {
             removePartialFromPreviousRun(initial)
             val remaining = initial.remainingUris
             if (remaining.isEmpty()) {
                 complete(jobId) { it.copy(copyFinished = true) }
-                return Result.success()
+                return@withContext Result.success()
             }
 
             // Ask the destination before writing a byte. A provider that reports no quota is allowed to try.
-            val space = withContext(Dispatchers.IO) {
-                MediaFileTransfer.measureSpace(
-                    applicationContext,
-                    remaining,
-                    initial.destination
-                )
-            }
+            val space = MediaFileTransfer.measureSpace(
+                applicationContext,
+                remaining,
+                initial.destination
+            )
             if (!space.hasEnoughSpace) {
                 MediaTransferJournal.update(applicationContext) { current ->
                     if (current.id != jobId) current else current.copy(
@@ -59,7 +57,7 @@ class MediaTransferWorker(
                         inProgressDestination = null
                     )
                 }
-                return Result.failure()
+                return@withContext Result.failure()
             }
 
             val result = MediaFileTransfer.copy(

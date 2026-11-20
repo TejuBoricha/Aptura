@@ -267,4 +267,40 @@ class FileReconciliationEngineTest {
         assertEquals(1.5f, promoted.playbackSpeed)
         assertFalse(promoted.isMissing)
     }
+
+    @Test
+    fun idMatchWithChangedUri_recordsUriRemapForBookmarks() {
+        val oldUri = "content://media/external_primary/video/media/333"
+        val newUri = "content://media/external/video/media/333"
+        val existing = listOf(
+            MediaItemEntity(
+                id = 60L,
+                mediaStoreId = 333L,
+                uri = oldUri,
+                title = "Sample",
+                displayName = "sample.mp4",
+                durationMs = 30_000L,
+                sizeBytes = 5_000_000L,
+                mimeType = "video/mp4"
+            )
+        )
+        val scanned = listOf(
+            MediaItemEntity(
+                id = 0L,
+                mediaStoreId = 333L,
+                uri = newUri,
+                title = "Sample",
+                displayName = "sample.mp4",
+                durationMs = 30_000L,
+                sizeBytes = 5_000_000L,
+                mimeType = "video/mp4"
+            )
+        )
+
+        val result = FileReconciliationEngine.reconcile(scannedItems = scanned, existingItems = existing)
+
+        assertEquals(1, result.itemsToUpsert.size)
+        assertEquals(newUri, result.itemsToUpsert.single().uri)
+        assertEquals(mapOf(oldUri to newUri), result.uriRemaps)
+    }
 }
