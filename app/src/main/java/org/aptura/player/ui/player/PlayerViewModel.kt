@@ -644,7 +644,8 @@ class PlayerViewModel(
                                 label = track.label,
                                 language = track.language,
                                 isSelected = track.isSelected,
-                                isExternal = track.isExternal
+                                isExternal = track.isExternal,
+                                isSupported = track.isSupported
                             )
                         },
                         selectedAudioTrackIndex = selection.selectedAudioTrackIndex,

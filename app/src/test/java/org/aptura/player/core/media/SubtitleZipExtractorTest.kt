@@ -262,4 +262,19 @@ class SubtitleZipExtractorTest {
         assertFalse(File(context.cacheDir, "evil.srt").exists())
         assertFalse(File(context.cacheDir.parentFile, "evil.srt").exists())
     }
+
+    @Test
+    fun extractSubtitleFromStream_tokenDelimitedEnglishMatch_doesNotMisclassifyFrench() {
+        // "Avengers.fr.srt" contains "en" inside "Avengers" but is French, while "film.eng.srt" is English (audit SHT-10)
+        val zipStream = createZipStream(mapOf(
+            "Avengers.fr.srt" to "French content",
+            "film.eng.srt" to "English content"
+        ))
+        val result = SubtitleZipExtractor.extractSubtitleFromStream(context, zipStream)
+
+        assertTrue(result is ZipExtractionResult.Success)
+        val success = result as ZipExtractionResult.Success
+        assertEquals("film.eng.srt", success.entryName)
+        assertEquals("English content", success.extractedFile.readText())
+    }
 }

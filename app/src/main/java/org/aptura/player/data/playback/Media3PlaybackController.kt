@@ -1372,7 +1372,8 @@ class Media3PlaybackController(
                                 label = label,
                                 language = language,
                                 isSelected = isSelected,
-                                isExternal = isExternal
+                                isExternal = isExternal,
+                                isSupported = group.isTrackSupported(i, /* allowExceedsCapabilities = */ true)
                             )
                         )
                     }

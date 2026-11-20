@@ -109,8 +109,9 @@ object SubtitleZipExtractor {
 
             var destination: File? = null
             if (wanted) {
-                // Validate path against Zip Slip vulnerability
-                destination = File(importDir, fileName)
+                // Validate path against Zip Slip vulnerability, prefixing with entry index to avoid collisions
+                val safeFileName = "${entries}_$fileName"
+                destination = File(importDir, safeFileName)
                 if (!destination.canonicalPath.startsWith(canonicalImportDir)) {
                     return ZipExtractionResult.Failure("Security error: Zip entry path escapes output directory")
                 }
@@ -134,8 +135,8 @@ object SubtitleZipExtractor {
             }
 
             if (wanted && destination != null) {
-                // Prioritize English or .srt if multiple exist
-                val isEnglish = fileName.contains("eng", ignoreCase = true) || fileName.contains(".en.", ignoreCase = true)
+                // Prioritize English or .srt if multiple exist (audit SHT-10: word-delimited token match)
+                val isEnglish = Regex("""(?i)(?:^|[._ -])(en|eng)(?:[._ -]|$)""").containsMatchIn(fileName)
                 val previous = best
                 if (previous == null || isEnglish) {
                     // Only the chosen file is kept: the one it replaces is deleted as soon as it loses.

@@ -2214,20 +2214,7 @@ fun PlayerScreen(
                 onSubtitleTrackSelected = onSubtitleTrackSelected,
                 onSubtitleDelayChanged = onSubtitleDelayChanged,
                 onImportSubtitleClick = {
-                    subtitlePickerLauncher.launch(
-                        arrayOf(
-                            "application/x-subrip",
-                            "text/vtt",
-                            "text/x-ssa",
-                            "application/ttml+xml",
-                            "application/xml",
-                            "text/xml",
-                            "text/plain",
-                            "application/zip",
-                            "application/octet-stream",
-                            "*/*"
-                        )
-                    )
+                    subtitlePickerLauncher.launch(arrayOf("*/*"))
                 },
                 onRemoveExternalSubtitle = onRemoveExternalSubtitle,
                 onSubtitleFontSizeChanged = onSubtitleFontSizeChanged,

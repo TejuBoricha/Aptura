@@ -340,10 +340,13 @@ fun WebSearchDialog(
                     Spacer(modifier = Modifier.width(8.dp))
 
                     Button(
+                        enabled = searchQuery.isNotBlank(),
                         onClick = {
-                            val targetQuery = searchQuery.trim().ifBlank { initialQuery }
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onLaunchSearch(targetQuery, selectedProvider)
+                            val targetQuery = searchQuery.trim()
+                            if (targetQuery.isNotBlank()) {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onLaunchSearch(targetQuery, selectedProvider)
+                            }
                         },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = ApturaColors.AccentPrimary,

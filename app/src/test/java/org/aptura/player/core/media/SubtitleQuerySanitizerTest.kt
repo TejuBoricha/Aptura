@@ -86,4 +86,24 @@ class SubtitleQuerySanitizerTest {
         val url = SubtitleQuerySanitizer.buildGoogleSearchUrl("Oppenheimer 2023")
         assertEquals("https://www.google.com/search?q=Oppenheimer+2023+subtitles+srt", url)
     }
+
+    @Test
+    fun sanitize_dottedTitle_preservesTitlePrefix() {
+        // "Mr. Robot" contains a dot that is not a file extension (audit SHT-12)
+        val raw = "Mr. Robot.S01E01.1080p.mkv"
+        val result = SubtitleQuerySanitizer.sanitize(raw)
+        assertEquals("Mr Robot S01E01", result.searchQuery)
+        assertEquals("Mr Robot", result.displayTitle)
+        assertEquals("S01E01", result.episodeMarker)
+    }
+
+    @Test
+    fun sanitize_titleAlreadyContainingYear_doesNotDuplicateYear() {
+        // "2001 A Space Odyssey 1968"
+        val raw = "2001.A.Space.Odyssey.1968.1080p.mkv"
+        val result = SubtitleQuerySanitizer.sanitize(raw)
+        assertEquals("2001 A Space Odyssey 1968", result.searchQuery)
+        assertEquals("2001 A Space Odyssey", result.displayTitle)
+        assertEquals("1968", result.year)
+    }
 }

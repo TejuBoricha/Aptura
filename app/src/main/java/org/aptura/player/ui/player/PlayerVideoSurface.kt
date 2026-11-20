@@ -132,6 +132,7 @@ fun PlayerVideoSurface(
                     playerView.subtitleView?.apply {
                         setFixedTextSize(TypedValue.COMPLEX_UNIT_SP, effectiveSizeSp)
                         setStyle(style)
+                        setApplyEmbeddedStyles(subtitleUseSystemStyle)
                         setBottomPaddingFraction(if (isControlsVisible) 0.16f else 0.09f)
                     }
                 }
