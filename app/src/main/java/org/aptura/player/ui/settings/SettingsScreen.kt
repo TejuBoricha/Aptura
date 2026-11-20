@@ -2,6 +2,7 @@ package org.aptura.player.ui.settings
 
 import android.content.Intent
 import android.widget.Toast
+import org.aptura.player.core.platform.safeStartActivity
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -239,7 +240,11 @@ fun SettingsScreen(
                     putExtra(Intent.EXTRA_SUBJECT, "Aptura Redacted Diagnostic Report")
                     putExtra(Intent.EXTRA_TEXT, markdown)
                 }
-                context.startActivity(Intent.createChooser(shareIntent, "Export Diagnostic Report"))
+                context.safeStartActivity(
+                    intent = shareIntent,
+                    chooserTitle = "Export Diagnostic Report",
+                    errorMessage = "No app available to export diagnostic report."
+                )
             },
             alternative = DialogAlternative(
                 label = "Copy report",

@@ -92,6 +92,7 @@ import org.aptura.player.theme.AccentColor
 import org.aptura.player.theme.ApturaTheme
 import org.aptura.player.theme.ApturaWindowChrome
 import org.aptura.player.theme.ThemeMode
+import org.aptura.player.core.platform.safeStartActivity
 import org.aptura.player.theme.themeModeForRoute
 
 /**
@@ -100,11 +101,21 @@ import org.aptura.player.theme.themeModeForRoute
  * previously only the arrow did, so system Back left the video playing under the library.
  */
 internal fun handleBack(backStack: MutableList<NavKey>, onPlayerDismissed: () -> Unit) {
+    popBackStack(backStack, onPlayerDismissed)
+}
+
+internal fun popBackStack(backStack: MutableList<NavKey>, onPlayerDismissed: (() -> Unit)? = null) {
     if (backStack.size <= 1) return
     if (backStack.lastOrNull() is PlayerKey) {
-        onPlayerDismissed()
+        onPlayerDismissed?.invoke()
     }
     backStack.removeLastOrNull()
+}
+
+internal fun navigateSingleTop(backStack: MutableList<NavKey>, key: NavKey) {
+    if (backStack.lastOrNull() != key) {
+        backStack.add(key)
+    }
 }
 
 /**
@@ -310,8 +321,8 @@ private fun AppNavHost(
                     settingsRepository.setLastSeenGuideVersion(currentVersionCode)
                 }
                 if (backStack.lastOrNull() == Onboarding) {
-                    backStack.removeLastOrNull()
-                    if (backStack.isEmpty()) backStack.add(MediaLibrary)
+                    popBackStack(backStack)
+                    if (backStack.isEmpty()) navigateSingleTop(backStack, MediaLibrary)
                 }
             }
             AccessReply.DENIED -> Unit
@@ -353,7 +364,7 @@ private fun AppNavHost(
                 )
             }
             playerViewModel.loadAndPlay(uriString)
-            backStack.add(PlayerKey(uriString))
+            navigateSingleTop(backStack, PlayerKey(uriString))
         }
     }
 
@@ -402,9 +413,9 @@ private fun AppNavHost(
             isExternalLaunch = true
             playerViewModel.loadAndPlay(initialLaunchUri)
             if (backStack.lastOrNull() is PlayerKey) {
-                backStack.removeLastOrNull()
+                popBackStack(backStack)
             }
-            backStack.add(PlayerKey(initialLaunchUri))
+            navigateSingleTop(backStack, PlayerKey(initialLaunchUri))
             onLaunchUriConsumed()
         }
     }
@@ -417,7 +428,7 @@ private fun AppNavHost(
                 currentVideoUri = playbackController.playbackQueue.value.currentItem?.uri,
                 topOfStack = backStack.lastOrNull()
             )
-            if (key != null) backStack.add(key)
+            if (key != null) navigateSingleTop(backStack, key)
             onShowPlayerHandled()
         }
     }
@@ -446,8 +457,8 @@ private fun AppNavHost(
                         settingsRepository.setOnboardingCompleted(true)
                         settingsRepository.setLastSeenGuideVersion(currentVersionCode)
                     }
-                    backStack.removeLastOrNull()
-                    if (backStack.isEmpty()) backStack.add(MediaLibrary)
+                    popBackStack(backStack)
+                    if (backStack.isEmpty()) navigateSingleTop(backStack, MediaLibrary)
                 }
                 // The library page of the guide shows the person's own videos when there are enough of them (the replay
                 // from Settings), and drawn samples otherwise (the first run, before anything is scanned).
@@ -491,7 +502,7 @@ private fun AppNavHost(
                                 putExtra(Intent.EXTRA_SUBJECT, "Aptura Redacted Diagnostic Report")
                                 putExtra(Intent.EXTRA_TEXT, ApturaDiagnostics.generateDiagnosticMarkdown(context))
                             }
-                            context.startActivity(Intent.createChooser(shareIntent, "Share crash details"))
+                            context.safeStartActivity(shareIntent, "Share crash details")
                             ApturaDiagnostics.acknowledgeCrash(crash.name)
                         }
                         pendingCrash = null
@@ -509,18 +520,18 @@ private fun AppNavHost(
                     onVideoClick = { item, items ->
                         val request = buildPlayQueueRequest(item, items)
                         playerViewModel.playQueue(request.items, request.startIndex)
-                        backStack.add(PlayerKey(item.uri))
+                        navigateSingleTop(backStack, PlayerKey(item.uri))
                     },
                     onPlayAudioOnly = { item, items ->
                         val request = buildPlayQueueRequest(item, items)
                         playerViewModel.playQueue(request.items, request.startIndex, audioOnly = true)
-                        backStack.add(PlayerKey(item.uri))
+                        navigateSingleTop(backStack, PlayerKey(item.uri))
                     },
                     onShowDetails = { item ->
                         if (backStack.lastOrNull() is MediaDetailsKey) {
-                            backStack.removeLastOrNull()
+                            popBackStack(backStack)
                         }
-                        backStack.add(MediaDetailsKey(item.uri))
+                        navigateSingleTop(backStack, MediaDetailsKey(item.uri))
                     },
                     onSearchQueryChanged = libraryViewModel::onSearchQueryChanged,
                     onFolderSelected = libraryViewModel::onFolderSelected,
@@ -549,7 +560,7 @@ private fun AppNavHost(
                         }
                     },
                     onSettingsClick = {
-                        backStack.add(Settings)
+                        navigateSingleTop(backStack, Settings)
                     },
                     onOpenFilePicker = {
                         filePickerLauncher.launch(arrayOf("video/*"))
@@ -649,38 +660,34 @@ private fun AppNavHost(
                         ThumbnailRepository.deleteThumbnail(context, uri)
                     }
                     libraryViewModel.onVideoDeleted(uri)
-                    backStack.removeLastOrNull()
+                    popBackStack(backStack)
                 })
                 val trashFlow = rememberMediaTrashFlow { uris ->
                     uris.forEach { uri ->
                         libraryViewModel.onVideoDeleted(uri)
                     }
-                    backStack.removeLastOrNull()
+                    popBackStack(backStack)
                 }
 
                 MediaDetailsContent(
                     item = item,
-                    onClose = { backStack.removeLastOrNull() },
+                    onClose = { popBackStack(backStack) },
                     onPlayClick = {
                         val request = buildPlayQueueRequest(item, domainItems)
                         playerViewModel.playQueue(request.items, request.startIndex)
-                        backStack.add(PlayerKey(item.uri))
+                        navigateSingleTop(backStack, PlayerKey(item.uri))
                     },
                     onPlayAudioOnlyClick = {
                         val request = buildPlayQueueRequest(item, domainItems)
                         playerViewModel.playQueue(request.items, request.startIndex, audioOnly = true)
-                        backStack.add(PlayerKey(item.uri))
+                        navigateSingleTop(backStack, PlayerKey(item.uri))
                     },
                     onOpenWithClick = {
                         val viewIntent = Intent(Intent.ACTION_VIEW).apply {
                             setDataAndType(item.uri.toUri(), item.mimeType ?: "video/*")
                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         }
-                        try {
-                            context.startActivity(Intent.createChooser(viewIntent, "Open Video With..."))
-                        } catch (_: Exception) {
-                            Toast.makeText(context, "No app available to open this video", Toast.LENGTH_SHORT).show()
-                        }
+                        context.safeStartActivity(viewIntent, "Open Video With...", "No app available to open this video")
                     },
                     onShareClick = {
                         val shareIntent = Intent(Intent.ACTION_SEND).apply {
@@ -688,11 +695,7 @@ private fun AppNavHost(
                             putExtra(Intent.EXTRA_STREAM, item.uri.toUri())
                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         }
-                        try {
-                            context.startActivity(Intent.createChooser(shareIntent, "Share Video"))
-                        } catch (_: Exception) {
-                            Toast.makeText(context, "No app available to share this video", Toast.LENGTH_SHORT).show()
-                        }
+                        context.safeStartActivity(shareIntent, "Share Video", "No app available to share this video")
                     },
                     onResetProgressClick = {
                         libraryViewModel.resetVideoProgress(item.uri)
@@ -780,7 +783,7 @@ private fun AppNavHost(
                         onConfirm = {
                             libraryViewModel.hideVideo(target.uri)
                             itemToHide = null
-                            backStack.removeLastOrNull()
+                            popBackStack(backStack)
                         },
                         onDismiss = { itemToHide = null }
                     )
@@ -792,7 +795,7 @@ private fun AppNavHost(
                         onConfirm = {
                             libraryViewModel.removeMissingVideo(target.uri)
                             itemToRemoveMissing = null
-                            backStack.removeLastOrNull()
+                            popBackStack(backStack)
                         },
                         onDismiss = { itemToRemoveMissing = null }
                     )
@@ -918,7 +921,7 @@ private fun AppNavHost(
                     onUpdateHoldFor2xSpeedEnabled = { enabled ->
                         coroutineScope.launch { settingsRepository.updateHoldFor2xSpeedEnabled(enabled) }
                     },
-                    onBackClick = { backStack.removeLastOrNull() },
+                    onBackClick = { popBackStack(backStack) },
                     onUpdateSpeed = { speed ->
                         coroutineScope.launch { settingsRepository.updateDefaultPlaybackSpeed(speed) }
                     },
@@ -941,10 +944,10 @@ private fun AppNavHost(
                         MediaScanScheduler.scheduleImmediateScan(context)
                     },
                     onReplayOnboardingClick = {
-                        backStack.add(Onboarding)
+                        navigateSingleTop(backStack, Onboarding)
                     },
                     onOpenLicensesClick = {
-                        backStack.add(OpenSourceLicenses)
+                        navigateSingleTop(backStack, OpenSourceLicenses)
                     },
                     hasVideoAccess = hasVideoAccess,
                     isPartialVideoAccess = videoAccessLevel == MediaAccessLevel.LIMITED,
@@ -1007,7 +1010,7 @@ private fun AppNavHost(
             }
 
             entry<OpenSourceLicenses> {
-                LicensesScreen(onBackClick = { backStack.removeLastOrNull() })
+                LicensesScreen(onBackClick = { popBackStack(backStack) })
             }
 
             entry<PlayerKey>(metadata = PlayerRouteMetadata) { playerKey ->
@@ -1174,14 +1177,10 @@ private fun AppNavHost(
                                     1 -> org.aptura.player.core.media.SubtitleQuerySanitizer.buildOpenSubtitlesUrl(query)
                                     else -> org.aptura.player.core.media.SubtitleQuerySanitizer.buildGoogleSearchUrl(query)
                                 }
-                                try {
-                                    val browserIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(targetUrl)).apply {
-                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    }
-                                    context.startActivity(browserIntent)
-                                } catch (_: Throwable) {
-                                    android.widget.Toast.makeText(context, "No web browser found to open link", android.widget.Toast.LENGTH_SHORT).show()
+                                val browserIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(targetUrl)).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                 }
+                                context.safeStartActivity(browserIntent, errorMessage = "No web browser found to open link")
                             },
                             onAttachRecentSubtitle = { sidecar ->
                                 playerViewModel.addExternalSubtitle(sidecar.uri.toString(), sidecar.mimeType, sidecar.displayName)
