@@ -61,7 +61,8 @@ class ApturaPlaybackService : MediaSessionService() {
         if (player == null ||
             !player.playWhenReady ||
             player.mediaItemCount == 0 ||
-            player.playbackState == androidx.media3.common.Player.STATE_ENDED
+            player.playbackState == androidx.media3.common.Player.STATE_ENDED ||
+            player.playerError != null
         ) {
             releasePlayerOnDestroy = true
             stopSelf()

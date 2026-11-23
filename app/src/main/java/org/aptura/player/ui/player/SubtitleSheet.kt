@@ -695,7 +695,7 @@ private fun SubtitleSyncTab(
                     if (sub != null) {
                         val delta = now - sub
                         if (delta in -10_000L..10_000L) {
-                            val newDelay = (subtitleDelayMs + delta).coerceIn(-60_000L, 60_000L)
+                            val newDelay = (subtitleDelayMs + delta).coerceIn(-5_000L, 5_000L)
                             onSubtitleDelayChanged(newDelay)
                         }
                         speechTimestamp = null
@@ -715,7 +715,7 @@ private fun SubtitleSyncTab(
                     if (voice != null) {
                         val delta = voice - now
                         if (delta in -10_000L..10_000L) {
-                            val newDelay = (subtitleDelayMs + delta).coerceIn(-60_000L, 60_000L)
+                            val newDelay = (subtitleDelayMs + delta).coerceIn(-5_000L, 5_000L)
                             onSubtitleDelayChanged(newDelay)
                         }
                         speechTimestamp = null

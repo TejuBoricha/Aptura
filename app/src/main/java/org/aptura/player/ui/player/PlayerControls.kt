@@ -398,8 +398,11 @@ private fun StepButton(icon: androidx.compose.ui.graphics.vector.ImageVector, de
     var repeatedWhileHeld by remember { mutableStateOf(false) }
     LaunchedEffect(pressed) {
         if (!pressed) {
-            delay(50L)
-            repeatedWhileHeld = false
+            try {
+                delay(50L)
+            } finally {
+                repeatedWhileHeld = false
+            }
             return@LaunchedEffect
         }
         repeatedWhileHeld = false

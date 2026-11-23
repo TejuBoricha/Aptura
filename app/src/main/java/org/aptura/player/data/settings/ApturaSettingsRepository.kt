@@ -1,6 +1,7 @@
 package org.aptura.player.data.settings
 
 import android.content.Context
+import android.provider.DocumentsContract
 import androidx.compose.runtime.Immutable
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
@@ -97,7 +98,7 @@ private inline fun <reified E : Enum<E>> Preferences.enumOr(key: Preferences.Key
 internal fun recoverPersistedSafFolders(context: Context): Set<String> {
     return try {
         context.contentResolver.persistedUriPermissions
-            .filter { it.isReadPermission }
+            .filter { it.isReadPermission && DocumentsContract.isTreeUri(it.uri) }
             .map { it.uri.toString() }
             .toSet()
     } catch (_: Exception) {
