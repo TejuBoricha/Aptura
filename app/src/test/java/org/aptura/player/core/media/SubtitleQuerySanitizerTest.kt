@@ -72,13 +72,13 @@ class SubtitleQuerySanitizerTest {
     @Test
     fun buildSubdlUrl_encodesQueryProperly() {
         val url = SubtitleQuerySanitizer.buildSubdlUrl("Dune Part Two 2024")
-        assertEquals("https://subdl.com/search/Dune+Part+Two+2024", url)
+        assertEquals("https://subdl.com/search/Dune%20Part%20Two%202024", url)
     }
 
     @Test
     fun buildOpenSubtitlesUrl_encodesQueryProperly() {
         val url = SubtitleQuerySanitizer.buildOpenSubtitlesUrl("Inception 2010")
-        assertEquals("https://www.opensubtitles.org/search/sublanguageid-all/moviename-Inception+2010", url)
+        assertEquals("https://www.opensubtitles.org/search/sublanguageid-all/moviename-Inception%202010", url)
     }
 
     @Test

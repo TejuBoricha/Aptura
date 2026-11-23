@@ -1179,6 +1179,7 @@ private fun AppNavHost(
                                     else -> org.aptura.player.core.media.SubtitleQuerySanitizer.buildGoogleSearchUrl(query)
                                 }
                                 val browserIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(targetUrl)).apply {
+                                    addCategory(Intent.CATEGORY_BROWSABLE)
                                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                 }
                                 context.safeStartActivity(browserIntent, errorMessage = "No web browser found to open link")

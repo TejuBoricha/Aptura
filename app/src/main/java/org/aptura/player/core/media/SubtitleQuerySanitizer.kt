@@ -126,18 +126,18 @@ object SubtitleQuerySanitizer {
     }
 
     /**
-     * Builds URL for Subdl subtitle search.
+     * Builds URL for Subdl subtitle search. Path segment spaces must be %20 rather than + (audit SHT-27).
      */
     fun buildSubdlUrl(query: String): String {
-        val encoded = URLEncoder.encode(query, "UTF-8")
+        val encoded = URLEncoder.encode(query, "UTF-8").replace("+", "%20")
         return "https://subdl.com/search/$encoded"
     }
 
     /**
-     * Builds URL for OpenSubtitles web search.
+     * Builds URL for OpenSubtitles web search. Path segment spaces must be %20 rather than + (audit SHT-27).
      */
     fun buildOpenSubtitlesUrl(query: String): String {
-        val encoded = URLEncoder.encode(query, "UTF-8")
+        val encoded = URLEncoder.encode(query, "UTF-8").replace("+", "%20")
         return "https://www.opensubtitles.org/search/sublanguageid-all/moviename-$encoded"
     }
 

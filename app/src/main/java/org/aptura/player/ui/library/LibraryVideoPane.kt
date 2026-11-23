@@ -198,7 +198,9 @@ internal fun LibraryHeader(
             ) {
                 if (isRefreshing) {
                     CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier
+                            .size(20.dp)
+                            .semantics { contentDescription = "Rescanning library" },
                         strokeWidth = 2.dp,
                         color = ApturaColors.AccentPrimary
                     )

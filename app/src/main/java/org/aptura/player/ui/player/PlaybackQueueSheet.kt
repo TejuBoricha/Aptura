@@ -73,6 +73,8 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -181,7 +183,8 @@ fun PlaybackQueueContent(
                     Text(
                         text = "Queue",
                         color = ApturaColors.TextHighEmphasis,
-                        style = ApturaTypography.titleLarge.copy(fontSize = 18.sp)
+                        style = ApturaTypography.titleLarge.copy(fontSize = 18.sp),
+                        modifier = Modifier.semantics { heading() }
                     )
                     Surface(
                         color = ApturaColors.SurfaceElevated3,
@@ -350,9 +353,10 @@ fun PlaybackQueueContent(
                         .bottomSheetScrollInterceptor(),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
+                    val hasUniqueUris = queueItems.map { it.uri }.distinct().size == queueItems.size
                     itemsIndexed(
                         items = queueItems,
-                        key = { index, item -> "${item.uri}_$index" },
+                        key = { index, item -> if (hasUniqueUris) item.uri else "${item.uri}_$index" },
                         contentType = { _, _ -> "queue_item" }
                     ) { index, item ->
                         val isPlaying = (index == currentIndex)
@@ -360,8 +364,8 @@ fun PlaybackQueueContent(
                             index = index,
                             item = item,
                             isPlaying = isPlaying,
-                            canMoveUp = index > 0,
-                            canMoveDown = index < queueItems.size - 1,
+                            canMoveUp = index > 0 && playMode != PlayMode.SHUFFLE,
+                            canMoveDown = index < queueItems.size - 1 && playMode != PlayMode.SHUFFLE,
                             canRemove = queueItems.size > 1,
                             onClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -532,6 +536,7 @@ private fun QueueItemRow(
             }
 
             // Reorder & Remove Actions
+            val cleanTitle = MediaFormatters.cleanTitle(item.title)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(0.dp)
@@ -543,7 +548,7 @@ private fun QueueItemRow(
                     ) {
                         Icon(
                             imageVector = Icons.Default.KeyboardArrowUp,
-                            contentDescription = "Move up",
+                            contentDescription = "Move up $cleanTitle",
                             tint = ApturaColors.TextMediumEmphasis,
                             modifier = Modifier.size(20.dp)
                         )
@@ -556,7 +561,7 @@ private fun QueueItemRow(
                     ) {
                         Icon(
                             imageVector = Icons.Default.KeyboardArrowDown,
-                            contentDescription = "Move down",
+                            contentDescription = "Move down $cleanTitle",
                             tint = ApturaColors.TextMediumEmphasis,
                             modifier = Modifier.size(20.dp)
                         )
@@ -569,7 +574,7 @@ private fun QueueItemRow(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
-                            contentDescription = "Remove from queue",
+                            contentDescription = "Remove $cleanTitle from queue",
                             tint = ApturaColors.TextLowEmphasis,
                             modifier = Modifier.size(18.dp)
                         )

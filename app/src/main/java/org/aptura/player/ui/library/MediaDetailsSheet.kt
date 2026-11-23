@@ -662,6 +662,7 @@ fun RenameVideoDialog(
             value = text,
             onValueChange = { text = it },
             singleLine = true,
+            label = { Text("Video title") },
             isError = hasIllegalChars,
             textStyle = ApturaTypography.bodyLarge,
             supportingText = if (hasIllegalChars) {

@@ -40,12 +40,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -76,8 +79,8 @@ fun WebSearchDialog(
     onLaunchSearch: (query: String, providerIndex: Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var searchQuery by remember(initialQuery) { mutableStateOf(initialQuery) }
-    var selectedProvider by remember { mutableIntStateOf(0) } // 0: Subdl, 1: OpenSubtitles, 2: Google
+    var searchQuery by rememberSaveable(initialQuery) { mutableStateOf(initialQuery) }
+    var selectedProvider by rememberSaveable { mutableIntStateOf(0) } // 0: Subdl, 1: OpenSubtitles, 2: Google
     val haptic = LocalHapticFeedback.current
 
     val providers = remember {
@@ -137,7 +140,8 @@ fun WebSearchDialog(
                             Text(
                                 text = "Find subtitles online",
                                 style = ApturaTypography.headlineMedium.copy(fontSize = 17.sp),
-                                color = ApturaColors.TextHighEmphasis
+                                color = ApturaColors.TextHighEmphasis,
+                                modifier = Modifier.semantics { heading() }
                             )
                             Text(
                                 text = "Opens your browser. Your video never leaves the device.",

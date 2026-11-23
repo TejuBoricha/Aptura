@@ -40,6 +40,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -155,8 +156,8 @@ internal fun SleepTimerSection(
 ) {
     val mode = sleepMode(counting = remainingMs != null, expired = expired, atEnd = atEndOfVideo)
     val choice = sleepChoice(counting = remainingMs != null, totalMs = totalMs, atEnd = atEndOfVideo)
-    var customOpen by remember { mutableStateOf(false) }
-    var customText by remember { mutableStateOf("") }
+    var customOpen by rememberSaveable { mutableStateOf(false) }
+    var customText by rememberSaveable { mutableStateOf("") }
 
     SheetSection("Sleep timer", modifier = modifier.testTag(SLEEP_TIMER_TAG)) {
         SleepStatus(

@@ -114,7 +114,11 @@ internal fun SheetSection(
 @Composable
 internal fun SheetRowText(title: String, subtitle: String?, modifier: Modifier = Modifier) {
     Column(modifier = modifier) {
-        Text(text = title, style = ApturaTypography.titleMedium, color = ApturaColors.TextHighEmphasis)
+        Text(
+            text = title,
+            style = ApturaTypography.titleMedium.copy(fontFeatureSettings = "tnum"),
+            color = ApturaColors.TextHighEmphasis
+        )
         if (subtitle != null) {
             Spacer(Modifier.height(2.dp))
             Text(text = subtitle, style = ApturaTypography.bodySmall, color = ApturaColors.TextMediumEmphasis)
