@@ -43,7 +43,14 @@ class DiagnosticStore(
     }
 
     /** Everything still within the bounds, oldest first. Unreadable lines (a write cut off by a crash) are skipped. */
-    fun loadEvents(): List<DiagnosticEvent> = synchronized(lock) { withinBounds(readAllLocked(), clock()) }
+    fun loadEvents(): List<DiagnosticEvent> = synchronized(lock) {
+        val all = readAllLocked()
+        val bounded = withinBounds(all, clock())
+        if (all.size > bounded.size) {
+            compactLocked()
+        }
+        bounded
+    }
 
     /** Writes one crash report and drops all but the newest [maxCrashes]. @return the file name, or null if it failed. */
     fun writeCrash(timestampMs: Long, text: String): String? = synchronized(lock) {
@@ -61,12 +68,14 @@ class DiagnosticStore(
         }
     }
 
-    /** Crash reports within the retention window, newest first. */
+    /** Crash reports within the retention window, newest first. Purges expired crash files from disk. */
     fun loadCrashes(): List<StoredCrash> = synchronized(lock) {
         val oldest = clock() - retentionMs
         crashFilesLocked().mapNotNull { file ->
             val timestamp = file.name.removePrefix("crash-").removeSuffix(".txt").toLongOrNull() ?: return@mapNotNull null
             if (timestamp < oldest) {
+                file.delete()
+                File(crashDirectory, file.name + ".ack").delete()
                 null
             } else {
                 runCatching { StoredCrash(file.name, timestamp, file.readText(Charsets.UTF_8), isAcknowledged(file)) }.getOrNull()

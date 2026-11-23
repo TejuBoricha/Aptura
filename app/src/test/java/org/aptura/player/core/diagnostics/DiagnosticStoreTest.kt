@@ -128,6 +128,21 @@ class DiagnosticStoreTest {
     }
 
     @Test
+    fun crashesOlderThanThirtyDays_arePurgedFromDiskOnLoad() {
+        val s = store()
+        s.writeCrash(now - 35 * day, "ancient crash")
+        s.writeCrash(now - 10 * day, "recent crash")
+
+        val crashDir = File(folder.root, "diagnostics/${DiagnosticStore.CRASH_DIR}")
+        assertEquals(2, crashDir.listFiles()?.size)
+
+        val crashes = s.loadCrashes()
+        assertEquals(listOf("recent crash"), crashes.map { it.text })
+        // The ancient crash file should have been deleted from disk
+        assertEquals(1, crashDir.listFiles()?.size)
+    }
+
+    @Test
     fun anAcknowledgedCrashStaysInTheLog_butStopsPrompting() {
         val s = store()
         val name = s.writeCrash(now, "boom")!!

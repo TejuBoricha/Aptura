@@ -114,7 +114,7 @@ object ApturaDiagnostics {
     /** "Delete diagnostic data": memory and disk, immediately (spec/14 §2). */
     fun clearAll() {
         ringBuffer.clear()
-        store?.let { target -> persistence.execute { target.clear() } }
+        store?.clear()
     }
 
     fun generateDiagnosticMarkdown(context: Context, settingsSnapshot: Map<String, String> = emptyMap()): String {

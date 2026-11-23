@@ -73,7 +73,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import org.aptura.player.ui.player.TimingOffsetControl
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -89,6 +91,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
@@ -141,6 +144,17 @@ internal const val SETTINGS_TOP_BAR_HEIGHT_DP = 56
 internal val SettingsTopBarBackground: Brush
     @Composable get() = SolidColor(ApturaColors.SurfaceBase)
 
+enum class SettingsDialog {
+    DELETE_DIAGNOSTICS,
+    RESET_PLAYBACK,
+    CLEAR_HISTORY,
+    CLEAR_MISSING,
+    REMOVE_SAF_FOLDER,
+    CODEC_SUPPORT,
+    PRIVACY_POLICY,
+    DIAGNOSTIC_REPORT
+}
+
 /**
  * Settings Root Screen (SCR-013, SCR-014, SCR-015, SCR-016).
  * Unified configuration for playback preferences, storage statistics, diagnostics, and privacy proof.
@@ -159,6 +173,7 @@ fun SettingsScreen(
     onUpdateBackgroundAudio: (Boolean) -> Unit,
     onUpdateAutoAdvanceCountdown: (Int) -> Unit,
     onResetPlaybackDefaults: () -> Unit = {},
+    onUpdateDefaultAudioDelayMs: (Long) -> Unit = {},
     onRescanClick: () -> Unit,
     onReplayOnboardingClick: () -> Unit,
     onOpenLicensesClick: () -> Unit = {},
@@ -192,12 +207,8 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
-    var isDeleteDiagnosticsDialogOpen by remember { mutableStateOf(false) }
-    var isResetPlaybackDialogOpen by remember { mutableStateOf(false) }
-    var isClearHistoryDialogOpen by remember { mutableStateOf(false) }
-    var isCodecDialogOpen by remember { mutableStateOf(false) }
-    var isPrivacyPolicyDialogOpen by remember { mutableStateOf(false) }
-    var isDiagnosticReportDialogOpen by remember { mutableStateOf(false) }
+    var activeDialog by rememberSaveable { mutableStateOf<SettingsDialog?>(null) }
+    var pendingSafFolderToRemove by rememberSaveable { mutableStateOf<String?>(null) }
     var diagnosticMarkdown by remember { mutableStateOf<String?>(null) }
     var codecReport by remember { mutableStateOf<CodecSupportReport?>(null) }
     var cacheSizeBytes by remember { mutableStateOf(0L) }
@@ -209,31 +220,31 @@ fun SettingsScreen(
     }
 
     // Reading MediaCodecList is cheap but not free; do it off the main thread and only when the report is opened.
-    LaunchedEffect(isCodecDialogOpen) {
-        if (isCodecDialogOpen && codecReport == null) {
+    LaunchedEffect(activeDialog) {
+        if (activeDialog == SettingsDialog.CODEC_SUPPORT && codecReport == null) {
             codecReport = withContext(Dispatchers.IO) { DeviceCodecSupport.report() }
         }
     }
 
-    if (isCodecDialogOpen) {
+    if (activeDialog == SettingsDialog.CODEC_SUPPORT) {
         CodecSupportDialog(
             report = codecReport,
-            onDismiss = { isCodecDialogOpen = false }
+            onDismiss = { activeDialog = null }
         )
     }
 
-    if (isDiagnosticReportDialogOpen) {
+    if (activeDialog == SettingsDialog.DIAGNOSTIC_REPORT) {
         val markdown = diagnosticMarkdown ?: ""
         @Suppress("DEPRECATION")
         val clipboard = LocalClipboardManager.current
         ApturaDialog(
-            onDismissRequest = { isDiagnosticReportDialogOpen = false },
+            onDismissRequest = { activeDialog = null },
             icon = Icons.Default.Description,
             title = "Diagnostic report",
             message = "Review the redacted event log before sharing. File names, video titles, and personal paths are stripped.",
             confirmLabel = "Share",
             onConfirm = {
-                isDiagnosticReportDialogOpen = false
+                activeDialog = null
                 val shareIntent = Intent(Intent.ACTION_SEND).apply {
                     type = "text/plain"
                     putExtra(Intent.EXTRA_EMAIL, arrayOf("tejasboricha225@gmail.com"))
@@ -277,9 +288,9 @@ fun SettingsScreen(
         }
     }
 
-    if (isDeleteDiagnosticsDialogOpen) {
+    if (activeDialog == SettingsDialog.DELETE_DIAGNOSTICS) {
         ApturaDialog(
-            onDismissRequest = { isDeleteDiagnosticsDialogOpen = false },
+            onDismissRequest = { activeDialog = null },
             icon = Icons.Default.DeleteForever,
             title = "Delete diagnostic data?",
             message = "This erases the error log and crash reports Aptura keeps on this device. " +
@@ -287,48 +298,85 @@ fun SettingsScreen(
             confirmLabel = "Delete",
             confirmTone = ApturaTone.Destructive,
             onConfirm = {
-                isDeleteDiagnosticsDialogOpen = false
+                activeDialog = null
                 onDeleteDiagnosticData()
                 Toast.makeText(context, "Diagnostic data deleted", Toast.LENGTH_SHORT).show()
             }
         )
     }
 
-    if (isResetPlaybackDialogOpen) {
+    if (activeDialog == SettingsDialog.RESET_PLAYBACK) {
         ApturaDialog(
-            onDismissRequest = { isResetPlaybackDialogOpen = false },
+            onDismissRequest = { activeDialog = null },
             icon = Icons.Default.Refresh,
             title = "Reset playback defaults?",
-            message = "This restores the default speed, aspect ratio, double-tap skip, gestures, background audio and " +
-                "up next countdown.",
+            message = "This restores the default speed, aspect ratio, double-tap skip, gestures, background audio, " +
+                "up next countdown, audio sync and decoder strategy.",
             confirmLabel = "Reset",
             onConfirm = {
-                isResetPlaybackDialogOpen = false
+                activeDialog = null
                 onResetPlaybackDefaults()
                 Toast.makeText(context, "Playback defaults restored", Toast.LENGTH_SHORT).show()
             }
         )
     }
 
-    if (isClearHistoryDialogOpen) {
+    if (activeDialog == SettingsDialog.CLEAR_HISTORY) {
         ApturaDialog(
-            onDismissRequest = { isClearHistoryDialogOpen = false },
+            onDismissRequest = { activeDialog = null },
             icon = Icons.Default.History,
             title = "Clear watch history?",
             message = "This resets playback progress across all videos and empties Continue Watching. Your video files and bookmarks are not affected.",
             confirmLabel = "Clear",
             confirmTone = ApturaTone.Destructive,
             onConfirm = {
-                isClearHistoryDialogOpen = false
+                activeDialog = null
                 onClearPlaybackHistory()
                 Toast.makeText(context, "Watch history cleared", Toast.LENGTH_SHORT).show()
             }
         )
     }
 
-    if (isPrivacyPolicyDialogOpen) {
+    if (activeDialog == SettingsDialog.CLEAR_MISSING) {
         ApturaDialog(
-            onDismissRequest = { isPrivacyPolicyDialogOpen = false },
+            onDismissRequest = { activeDialog = null },
+            icon = Icons.Default.DeleteOutline,
+            title = "Remove missing videos?",
+            message = "This removes $missingVideoCount missing video records from your library, including their saved playback progress and bookmarks. Files on disk are never deleted.",
+            confirmLabel = "Remove",
+            confirmTone = ApturaTone.Destructive,
+            onConfirm = {
+                activeDialog = null
+                onClearMissingVideos()
+                Toast.makeText(context, "Missing videos removed", Toast.LENGTH_SHORT).show()
+            }
+        )
+    }
+
+    if (activeDialog == SettingsDialog.REMOVE_SAF_FOLDER && pendingSafFolderToRemove != null) {
+        val folder = pendingSafFolderToRemove!!
+        ApturaDialog(
+            onDismissRequest = {
+                activeDialog = null
+                pendingSafFolderToRemove = null
+            },
+            icon = Icons.Default.Folder,
+            title = "Remove folder from library?",
+            message = "Videos in '${folderDisplayName(folder)}' will be removed from your library. Your files and folders on disk will not be deleted.",
+            confirmLabel = "Remove",
+            confirmTone = ApturaTone.Destructive,
+            onConfirm = {
+                activeDialog = null
+                onRemoveSafFolder(folder)
+                pendingSafFolderToRemove = null
+                Toast.makeText(context, "Folder removed from library", Toast.LENGTH_SHORT).show()
+            }
+        )
+    }
+
+    if (activeDialog == SettingsDialog.PRIVACY_POLICY) {
+        ApturaDialog(
+            onDismissRequest = { activeDialog = null },
             icon = Icons.Default.Security,
             title = "Privacy Policy",
             message = "Aptura is an offline video player built on zero-knowledge and zero-telemetry principles:\n\n" +
@@ -503,11 +551,11 @@ fun SettingsScreen(
                         ActionRow(
                             icon = Icons.Default.Refresh,
                             title = "Reset playback defaults",
-                            subtitle = "Speed, aspect ratio, double-tap skip, gestures and countdown",
+                            subtitle = "Speed, aspect ratio, skip, gestures, audio sync and decoder",
                             trailing = {
                                 PillButton(
                                     text = "Reset",
-                                    onClick = { isResetPlaybackDialogOpen = true }
+                                    onClick = { activeDialog = SettingsDialog.RESET_PLAYBACK }
                                 )
                             }
                         )
@@ -536,6 +584,31 @@ fun SettingsScreen(
                                 }
                             }
                         )
+                        PanelDivider()
+                        // Default audio sync offset (APP-8)
+                        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
+                            RowText(
+                                title = "Default audio sync",
+                                subtitle = "Global audio delay applied when a video has no per-video override"
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            TimingOffsetControl(
+                                offsetMs = settings.defaultAudioDelayMs,
+                                onOffsetChange = onUpdateDefaultAudioDelayMs,
+                                rangeMs = 1000L,
+                                stepMs = 50L,
+                                earlierLabel = "Earlier",
+                                laterLabel = "Later",
+                                label = "Default audio sync",
+                                describe = { ms ->
+                                    when {
+                                        ms == 0L -> "Sound and picture are in sync"
+                                        ms > 0L -> "Sound plays ${ms} ms after the picture"
+                                        else -> "Sound plays ${-ms} ms before the picture"
+                                    }
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -650,7 +723,8 @@ fun SettingsScreen(
                                         name = folderDisplayName(folderUri),
                                         onRemove = {
                                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                            onRemoveSafFolder(folderUri)
+                                            pendingSafFolderToRemove = folderUri
+                                            activeDialog = SettingsDialog.REMOVE_SAF_FOLDER
                                         }
                                     )
                                 }
@@ -661,7 +735,10 @@ fun SettingsScreen(
                             icon = Icons.Default.Refresh,
                             title = "Rescan library",
                             subtitle = "Find new, renamed or moved videos",
-                            onClick = onRescanClick
+                            onClick = {
+                                onRescanClick()
+                                Toast.makeText(context, "Scanning library for changes…", Toast.LENGTH_SHORT).show()
+                            }
                         )
                         if (hiddenVideoCount > 0) {
                             PanelDivider()
@@ -678,7 +755,7 @@ fun SettingsScreen(
                                 icon = Icons.Default.DeleteOutline,
                                 title = "Missing videos",
                                 subtitle = "$missingVideoCount no longer found on this device",
-                                trailing = { PillButton("Remove all", onClearMissingVideos, tint = ApturaColors.StatusError) }
+                                trailing = { PillButton("Remove all", onClick = { activeDialog = SettingsDialog.CLEAR_MISSING }, tint = ApturaColors.StatusError) }
                             )
                         }
                         PanelDivider()
@@ -707,7 +784,7 @@ fun SettingsScreen(
                             trailing = {
                                 PillButton(
                                     text = "Clear",
-                                    onClick = { isClearHistoryDialogOpen = true },
+                                    onClick = { activeDialog = SettingsDialog.CLEAR_HISTORY },
                                     tint = ApturaColors.StatusError
                                 )
                             }
@@ -786,7 +863,7 @@ fun SettingsScreen(
                             icon = Icons.Default.Memory,
                             title = "Codec support",
                             subtitle = "Which video and audio formats this device can decode",
-                            onClick = { isCodecDialogOpen = true },
+                            onClick = { activeDialog = SettingsDialog.CODEC_SUPPORT },
                             trailing = { NavigationChevron() }
                         )
                         PanelDivider()
@@ -796,7 +873,7 @@ fun SettingsScreen(
                             subtitle = "Review and export an error log with file names and personal details removed",
                             onClick = {
                                 diagnosticMarkdown = ApturaDiagnostics.generateDiagnosticMarkdown(context)
-                                isDiagnosticReportDialogOpen = true
+                                activeDialog = SettingsDialog.DIAGNOSTIC_REPORT
                             },
                             trailing = { NavigationChevron() }
                         )
@@ -807,7 +884,7 @@ fun SettingsScreen(
                             title = "Delete diagnostic data",
                             subtitle = "Erase the error log and crash reports kept on this device",
                             tint = ApturaColors.StatusError,
-                            onClick = { isDeleteDiagnosticsDialogOpen = true }
+                            onClick = { activeDialog = SettingsDialog.DELETE_DIAGNOSTICS }
                         )
                         PanelDivider()
                         ActionRow(
@@ -823,7 +900,7 @@ fun SettingsScreen(
                             title = "Help & feedback",
                             subtitle = "Questions, suggestions or bug reports directly to the developer",
                             onClick = {
-                                val subject = "[Aptura Feedback] Query / Report - v${AppVersion.versionCode(context)}"
+                                val subject = "[Aptura Feedback] Query / Report - v${AppVersion.versionName(context)} (build ${AppVersion.versionCode(context)})"
                                 val body = """
                                     [Please describe your issue, question, or suggestion here]
 
@@ -859,7 +936,7 @@ fun SettingsScreen(
                             icon = Icons.Default.Security,
                             title = "Privacy policy",
                             subtitle = "Zero data collection, 100% offline guarantee",
-                            onClick = { isPrivacyPolicyDialogOpen = true },
+                            onClick = { activeDialog = SettingsDialog.PRIVACY_POLICY },
                             trailing = { NavigationChevron() }
                         )
                         PanelDivider()
@@ -1089,10 +1166,15 @@ private fun FolderChip(name: String, onRemove: () -> Unit) {
             textAlign = TextAlign.Start,
             modifier = Modifier.weight(1f)
         )
-        IconButton(onClick = onRemove, modifier = Modifier.size(48.dp)) {
+        IconButton(
+            onClick = onRemove,
+            modifier = Modifier
+                .size(48.dp)
+                .semantics { contentDescription = "Remove folder" }
+        ) {
             Icon(
                 imageVector = Icons.Default.DeleteOutline,
-                contentDescription = "Remove folder",
+                contentDescription = null,
                 tint = ApturaColors.StatusError,
                 modifier = Modifier.size(20.dp)
             )

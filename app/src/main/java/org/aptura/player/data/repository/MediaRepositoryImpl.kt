@@ -186,6 +186,16 @@ class MediaRepositoryImpl(
         }
     }
 
+    override fun observeLibraryStatistics(): Flow<org.aptura.player.domain.repository.LibraryStatistics> =
+        mediaItemDao.getAllVideosSortedByDate().map { raw ->
+            val libraryItems = raw.filter { !it.isHidden && it.folderPath != EXTERNAL_FOLDER_PATH }
+            org.aptura.player.domain.repository.LibraryStatistics(
+                totalVideos = libraryItems.size,
+                totalDurationMs = libraryItems.sumOf { it.durationMs },
+                totalSizeBytes = libraryItems.sumOf { it.sizeBytes }
+            )
+        }.flowOn(ioDispatcher)
+
     override fun getBookmarks(mediaUri: String): Flow<List<Bookmark>> {
         return (bookmarkDao?.getBookmarksForMedia(mediaUri) ?: kotlinx.coroutines.flow.flowOf(emptyList()))
             .map { list -> list.map { it.toDomainBookmark() } }

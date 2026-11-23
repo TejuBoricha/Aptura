@@ -7,7 +7,8 @@
     -->
     <color name="aptura_surface_base">#F5F6F8</color>
 
-    <style name="Theme.Aptura" parent="android:Theme.Material.NoActionBar">
+    <style name="Theme.Aptura" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/aptura_surface_base</item>
+        <item name="android:windowLightStatusBar">true</item>
     </style>
 </resources>

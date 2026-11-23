@@ -11,6 +11,10 @@ object AppVersion {
         return "Aptura Video Player v${info.versionName ?: "?"} (build ${versionCodeOf(info)})"
     }
 
+    fun versionName(context: Context): String {
+        return packageInfo(context)?.versionName ?: "?"
+    }
+
     /**
      * Monotonic build number, used to decide whether the welcome guide should be shown again after an update.
      * Returns 0 when the package cannot be read, which callers treat as "unknown" and never as an update.
