@@ -211,6 +211,7 @@ class Media3PlaybackController(
     /** Sidecar subtitles already resolved per media URI (they are baked into that item's MediaItem). */
     private val sidecarsByUri = mutableMapOf<String, List<DomainExternalSubtitle>>()
     private var currentMediaId: String? = null
+    private var currentQueueIndex: Int = -1
 
     /** True while an item has finished and the player is parked at its end waiting for the Up Next decision. */
     private var pausedAtItemEnd = false
@@ -287,8 +288,10 @@ class Media3PlaybackController(
             // Playing on through the change (gapless advance, a repeat) has started; otherwise the new video must start.
             currentItemStarted = player.isPlaying
             val newId = mediaItem?.mediaId
-            if (newId != currentMediaId) {
+            val newIndex = player.currentMediaItemIndex
+            if (newId != currentMediaId || newIndex != currentQueueIndex) {
                 currentMediaId = newId
+                currentQueueIndex = newIndex
                 resetPerItemState()
                 val subs = sidecarsByUri[newId].orEmpty()
                 registerExternalLabels(subs)
@@ -320,12 +323,10 @@ class Media3PlaybackController(
                 if (altTrack != null) {
                     hasAttemptedAudioTrackFallback = true
                     _compatibilityNotice.value = "Switched to alternate audio track (${altTrack.label})"
-                    scope.launch(mainDispatcher) {
-                        selectAudioTrack(altTrack.index)
-                        player.stop()
-                        player.prepare()
-                        player.play()
-                    }
+                    applyAudioTrackSelection(altTrack.index)
+                    player.stop()
+                    player.prepare()
+                    player.play()
                     return
                 }
             }
@@ -452,7 +453,13 @@ class Media3PlaybackController(
             initializationDurationMs: Long
         ) {
             currentVideoDecoderName = decoderName
-            isVideoHardware = !decoderName.startsWith("c2.android.") && !decoderName.startsWith("OMX.google.")
+            val lower = decoderName.lowercase(java.util.Locale.ROOT)
+            isVideoHardware = !lower.startsWith("c2.android.") &&
+                !lower.startsWith("omx.google.") &&
+                !lower.contains(".sw.") &&
+                !lower.endsWith(".sw") &&
+                !lower.contains("software") &&
+                !lower.contains("ffmpeg")
             updatePlaybackStats()
         }
 
@@ -724,6 +731,7 @@ class Media3PlaybackController(
             stalledReason = facts
             _isCompatibilityMode.value = false
             _compatibilityNotice.value = null
+            player.stop()
             updatePlaybackState()
             updatePlaybackStats()
         }
@@ -929,6 +937,7 @@ class Media3PlaybackController(
         sidecarsByUri.clear()
         sidecarsByUri[target.uri] = subtitles
         currentMediaId = target.uri
+        currentQueueIndex = clampedIndex
 
         resetPerItemState()
         registerExternalLabels(subtitles)
@@ -1082,6 +1091,7 @@ class Media3PlaybackController(
             player.stop()
             player.clearMediaItems()
             currentMediaId = null
+            currentQueueIndex = -1
             _playbackQueue.value = DomainPlaybackQueue()
             _playbackState.value = DomainPlaybackState.Idle
             return
@@ -1104,6 +1114,7 @@ class Media3PlaybackController(
             player.clearMediaItems()
             queueItems.clear()
             currentMediaId = null
+            currentQueueIndex = -1
             _playbackQueue.value = DomainPlaybackQueue()
             _playbackState.value = DomainPlaybackState.Idle
             return
@@ -1162,7 +1173,7 @@ class Media3PlaybackController(
         player.volume = volume.coerceIn(0f, 1f)
     }
 
-    override suspend fun selectAudioTrack(index: Int?) {
+    private fun applyAudioTrackSelection(index: Int?) {
         val params = try { player.trackSelectionParameters } catch (_: Throwable) { null }
         if (index == null) {
             params?.let {
@@ -1199,6 +1210,10 @@ class Media3PlaybackController(
         }
         // Fallback if currentTracks is empty or mock
         _trackSelection.value = _trackSelection.value.copy(selectedAudioTrackIndex = index)
+    }
+
+    override suspend fun selectAudioTrack(index: Int?) {
+        applyAudioTrackSelection(index)
     }
 
     override suspend fun selectSubtitleTrack(index: Int?) {

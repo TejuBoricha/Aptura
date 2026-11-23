@@ -8,6 +8,16 @@ import org.aptura.player.domain.model.DomainTrackSelection
 import org.aptura.player.domain.model.PlayMode
 import org.aptura.player.domain.usecase.SleepTimer
 
+object SharedEmptyFlows {
+    val BOOLEAN_FALSE: StateFlow<Boolean> = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val STRING_NULL: StateFlow<String?> = kotlinx.coroutines.flow.MutableStateFlow(null)
+    val INT_ZERO: StateFlow<Int> = kotlinx.coroutines.flow.MutableStateFlow(0)
+    val PLAYBACK_STATS: StateFlow<org.aptura.player.domain.model.PlaybackStatsInfo> =
+        kotlinx.coroutines.flow.MutableStateFlow(org.aptura.player.domain.model.PlaybackStatsInfo())
+    val STRING_SHARED: kotlinx.coroutines.flow.SharedFlow<String> =
+        kotlinx.coroutines.flow.MutableSharedFlow()
+}
+
 /**
  * Pure domain interface for playback orchestration.
  * Invariant: ZERO Android framework or Media3 types in this interface.
@@ -18,24 +28,24 @@ interface PlaybackController {
     val playbackQueue: StateFlow<DomainPlaybackQueue>
     val trackSelection: StateFlow<DomainTrackSelection>
 
-    val isCompatibilityMode: StateFlow<Boolean> get() = kotlinx.coroutines.flow.MutableStateFlow(false)
-    val compatibilityNotice: StateFlow<String?> get() = kotlinx.coroutines.flow.MutableStateFlow(null)
-    val decoderStrategy: StateFlow<Int> get() = kotlinx.coroutines.flow.MutableStateFlow(0)
+    val isCompatibilityMode: StateFlow<Boolean> get() = SharedEmptyFlows.BOOLEAN_FALSE
+    val compatibilityNotice: StateFlow<String?> get() = SharedEmptyFlows.STRING_NULL
+    val decoderStrategy: StateFlow<Int> get() = SharedEmptyFlows.INT_ZERO
     val playbackStats: StateFlow<org.aptura.player.domain.model.PlaybackStatsInfo>
-        get() = kotlinx.coroutines.flow.MutableStateFlow(org.aptura.player.domain.model.PlaybackStatsInfo())
-    val failedCodecName: StateFlow<String?> get() = kotlinx.coroutines.flow.MutableStateFlow(null)
-    val failureReason: StateFlow<String?> get() = kotlinx.coroutines.flow.MutableStateFlow(null)
+        get() = SharedEmptyFlows.PLAYBACK_STATS
+    val failedCodecName: StateFlow<String?> get() = SharedEmptyFlows.STRING_NULL
+    val failureReason: StateFlow<String?> get() = SharedEmptyFlows.STRING_NULL
 
     /** Emits a user-facing label (e.g. "English") each time a sidecar subtitle was found and enabled for the current item. */
     val autoPairedSubtitles: kotlinx.coroutines.flow.SharedFlow<String>
-        get() = kotlinx.coroutines.flow.MutableSharedFlow()
+        get() = SharedEmptyFlows.STRING_SHARED
 
     /** The player's current audio session id (0 = none). Sound effects are bound to it and must follow it. */
-    val audioSessionIds: StateFlow<Int> get() = kotlinx.coroutines.flow.MutableStateFlow(0)
+    val audioSessionIds: StateFlow<Int> get() = SharedEmptyFlows.INT_ZERO
 
     /** Emits the title of a queue item that was skipped because its file could not be opened (deleted, unmounted, no access). */
     val skippedItems: kotlinx.coroutines.flow.SharedFlow<String>
-        get() = kotlinx.coroutines.flow.MutableSharedFlow()
+        get() = SharedEmptyFlows.STRING_SHARED
 
     suspend fun playMediaItem(item: DomainMediaItem)
     suspend fun playQueue(items: List<DomainMediaItem>, startIndex: Int = 0)

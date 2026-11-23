@@ -204,6 +204,8 @@ internal sealed interface LibraryActiveModal {
         val fromClipboard: Boolean = false,
         val isMove: Boolean = true
     ) : LibraryActiveModal
+    data object ViewOptions : LibraryActiveModal
+    data object FolderBrowser : LibraryActiveModal
 }
 
 internal data class LibraryUndoPrompt(
@@ -447,8 +449,6 @@ private fun MediaLibraryContentView(
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     val coroutineScope = rememberCoroutineScope()
-    var viewSheetVisible by remember { mutableStateOf(false) }
-    var folderBrowserVisible by remember { mutableStateOf(false) }
     var swipeHint by remember { mutableStateOf<FolderSwipeHint?>(null) }
     var selectionActionsExpanded by remember { mutableStateOf(false) }
     var activeModal by remember { mutableStateOf<LibraryActiveModal?>(null) }
@@ -903,7 +903,7 @@ private fun MediaLibraryContentView(
                     pagePadding = pagePadding,
                     onQueryChange = onSearchQueryChanged,
                     onSearchDone = { focusManager.clearFocus() },
-                    onViewOptions = { viewSheetVisible = true },
+                    onViewOptions = { activeModal = LibraryActiveModal.ViewOptions },
                     onRefresh = onRefresh,
                     onSettingsClick = onSettingsClick
                 )
@@ -918,7 +918,7 @@ private fun MediaLibraryContentView(
                         totalCount = state.libraryVideoCount,
                         selectedFolder = state.selectedFolder,
                         onFolderSelected = onFolderSelected,
-                        onBrowseFolders = { folderBrowserVisible = true },
+                        onBrowseFolders = { activeModal = LibraryActiveModal.FolderBrowser },
                         onAddFolder = onAddFolderClick,
                         horizontalPadding = pagePadding
                     )
@@ -1660,32 +1660,40 @@ private fun MediaLibraryContentView(
                 }
             }
 
+            LibraryActiveModal.ViewOptions -> {
+                LibraryViewSheet(
+                    prefs = viewPrefs,
+                    sortOrder = state.sortOrder,
+                    onPrefsChange = onViewPrefsChanged,
+                    onSortChange = onSortOrderChanged,
+                    onDismiss = { activeModal = null }
+                )
+            }
+
+            LibraryActiveModal.FolderBrowser -> {
+                FolderBrowserSheet(
+                    folders = state.folders,
+                    labels = labels,
+                    summaries = state.folderSummaries,
+                    libraryVideoCount = state.libraryVideoCount,
+                    libraryDurationMs = state.libraryDurationMs,
+                    librarySizeBytes = state.librarySizeBytes,
+                    selectedFolder = state.selectedFolder,
+                    layout = viewPrefs.folderLayout,
+                    onLayoutChange = { onViewPrefsChanged(viewPrefs.copy(folderLayout = it)) },
+                    onSelect = {
+                        activeModal = null
+                        onFolderSelected(it)
+                    },
+                    onAddFolder = {
+                        activeModal = null
+                        onAddFolderClick()
+                    },
+                    onDismiss = { activeModal = null }
+                )
+            }
+
             null -> Unit
-        }
-        if (viewSheetVisible) {
-            LibraryViewSheet(
-                prefs = viewPrefs,
-                sortOrder = state.sortOrder,
-                onPrefsChange = onViewPrefsChanged,
-                onSortChange = onSortOrderChanged,
-                onDismiss = { viewSheetVisible = false }
-            )
-        }
-        if (folderBrowserVisible) {
-            FolderBrowserSheet(
-                folders = state.folders,
-                labels = labels,
-                summaries = state.folderSummaries,
-                libraryVideoCount = state.libraryVideoCount,
-                libraryDurationMs = state.libraryDurationMs,
-                librarySizeBytes = state.librarySizeBytes,
-                selectedFolder = state.selectedFolder,
-                layout = viewPrefs.folderLayout,
-                onLayoutChange = { onViewPrefsChanged(viewPrefs.copy(folderLayout = it)) },
-                onSelect = onFolderSelected,
-                onAddFolder = onAddFolderClick,
-                onDismiss = { folderBrowserVisible = false }
-            )
         }
         transferJob?.takeUnless { it.copyFinished }?.let { job ->
             val progress = transferWorkInfo?.progress?.let(MediaTransferWorker::progressFrom)
