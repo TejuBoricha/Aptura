@@ -23,6 +23,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import org.aptura.player.data.database.ApturaDatabase
 import org.aptura.player.data.repository.AndroidSidecarSubtitleResolver
 import org.aptura.player.data.repository.MediaRepositoryImpl
@@ -43,6 +45,11 @@ object PlayerManager {
 
     /** Saves how far the person got in each video. */
     private var progressRecorderJob: Job? = null
+
+    private var privateModeJob: Job? = null
+
+    @Volatile
+    private var isPrivateModeActive: Boolean = false
 
     /**
      * The equalizer, bass boost, virtualizer and loudness effects, bound to the player's audio session. They live here,
@@ -132,12 +139,19 @@ object PlayerManager {
             .setHandleAudioBecomingNoisy(true)
             .build()
 
+        val settingsRepo = org.aptura.player.data.settings.ApturaSettingsRepository(appContext)
+        privateModeJob?.cancel()
+        privateModeJob = settingsRepo.settingsFlow
+            .onEach { settings -> isPrivateModeActive = settings.isPrivateMode }
+            .launchIn(processScope)
+
         val controller = Media3PlaybackController(
             player = player,
             apturaTextRenderer = textRendererRef,
             sidecarResolver = AndroidSidecarSubtitleResolver(appContext),
             artworkProvider = { uri -> loadArtwork(appContext, uri) },
-            audioDelayProcessor = audioDelayProcessor
+            audioDelayProcessor = audioDelayProcessor,
+            isPrivateMode = { isPrivateModeActive }
         )
         controllerInstance = controller
 
@@ -189,9 +203,9 @@ object PlayerManager {
         }
     }
 
-    /** Lock-screen / notification artwork: a real video frame thumbnail (Android 10+). */
+    /** Lock-screen / notification artwork: a real video frame thumbnail (Android 10+). Omitted in private mode (SEC-9). */
     private fun loadArtwork(context: Context, mediaUri: String): ByteArray? {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
+        if (isPrivateModeActive || Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
         return try {
             val bitmap = context.contentResolver.loadThumbnail(mediaUri.toUri(), Size(512, 288), null)
             ByteArrayOutputStream().use { out ->
@@ -208,6 +222,9 @@ object PlayerManager {
         videoDisabledForBackground = false
         progressRecorderJob?.cancel()
         progressRecorderJob = null
+        privateModeJob?.cancel()
+        privateModeJob = null
+        isPrivateModeActive = false
         effectsFollowerJob?.cancel()
         effectsFollowerJob = null
         // Effects are a limited system resource and belong to the player being released.

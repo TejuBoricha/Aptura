@@ -32,6 +32,8 @@ internal object ApturaStrictMode {
         StrictMode.setThreadPolicy(
             StrictMode.ThreadPolicy.Builder()
                 .detectNetwork()
+                .detectDiskReads()
+                .detectDiskWrites()
                 .detectCustomSlowCalls()
                 .penaltyLog()
                 .build()

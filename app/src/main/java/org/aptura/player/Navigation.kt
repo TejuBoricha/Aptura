@@ -819,10 +819,9 @@ private fun AppNavHost(
             }
 
             entry<Settings> {
-                var libraryStats by remember { mutableStateOf(LibraryStatistics()) }
-                LaunchedEffect(Unit) {
-                    libraryStats = mediaRepository.getLibraryStatistics()
-                }
+                val libraryStats by remember(mediaRepository) {
+                    mediaRepository.observeLibraryStatistics()
+                }.collectAsStateWithLifecycle(initialValue = LibraryStatistics())
 
                 val exportBackupLauncher = rememberLauncherForActivityResult(
                     contract = ActivityResultContracts.CreateDocument("application/json")
@@ -867,7 +866,6 @@ private fun AppNavHost(
                                         "Restored: ${summary.videosRestored} videos, ${summary.bookmarksRestored} bookmarks",
                                         Toast.LENGTH_LONG
                                     ).show()
-                                    libraryStats = mediaRepository.getLibraryStatistics()
                                 }
                             } catch (e: Exception) {
                                 ApturaDiagnostics.logEvent(
@@ -939,6 +937,9 @@ private fun AppNavHost(
                     },
                     onResetPlaybackDefaults = {
                         coroutineScope.launch { settingsRepository.resetPlaybackDefaults() }
+                    },
+                    onUpdateDefaultAudioDelayMs = { delay ->
+                        coroutineScope.launch { settingsRepository.updateDefaultAudioDelayMs(delay) }
                     },
                     onRescanClick = {
                         MediaScanScheduler.scheduleImmediateScan(context)

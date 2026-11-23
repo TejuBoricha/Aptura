@@ -1,10 +1,12 @@
 package org.aptura.player.ui.settings
 
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
@@ -193,6 +195,110 @@ class SettingsSecurityAndHistoryTest {
         composeRule.onNodeWithText("Swipe to seek").performClick()
         composeRule.waitForIdle()
         assertEquals(false, updatedSwipeToSeek)
+    }
+
+    @Test
+    fun removeMissingVideos_showsConfirmationDialog_andConfirmCallsCallback() {
+        var clearMissingCalled = false
+
+        composeRule.setContent {
+            SettingsScreen(
+                settings = ApturaSettings(),
+                libraryStats = emptyStats,
+                onBackClick = {},
+                onUpdateSpeed = {},
+                onUpdateResizeMode = {},
+                onUpdateSeekDelta = {},
+                onUpdateBackgroundAudio = {},
+                onUpdateAutoAdvanceCountdown = {},
+                onRescanClick = {},
+                onReplayOnboardingClick = {},
+                missingVideoCount = 3,
+                onClearMissingVideos = { clearMissingCalled = true }
+            )
+        }
+
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("Missing videos"))
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Missing videos").assertExists()
+        composeRule.onNodeWithText("Remove all").performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("Remove missing videos?").assertExists()
+        composeRule.onNode(hasAnyAncestor(isDialog()) and hasText("Remove")).performClick()
+        composeRule.waitForIdle()
+
+        assertTrue("onClearMissingVideos should be called", clearMissingCalled)
+    }
+
+    @Test
+    fun removeSafFolder_showsConfirmationDialog_andConfirmCallsCallback() {
+        var removedFolder: String? = null
+        val folderUri = "content://com.android.externalstorage.documents/tree/1234-5678%3AMovies"
+
+        composeRule.setContent {
+            SettingsScreen(
+                settings = ApturaSettings(persistedSafFolders = setOf(folderUri)),
+                libraryStats = emptyStats,
+                onBackClick = {},
+                onUpdateSpeed = {},
+                onUpdateResizeMode = {},
+                onUpdateSeekDelta = {},
+                onUpdateBackgroundAudio = {},
+                onUpdateAutoAdvanceCountdown = {},
+                onRescanClick = {},
+                onReplayOnboardingClick = {},
+                onRemoveSafFolder = { removedFolder = it }
+            )
+        }
+
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("Extra folders"))
+        composeRule.waitForIdle()
+
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasContentDescription("Remove folder"))
+        composeRule.waitForIdle()
+
+        // Tap the remove icon on the folder chip
+        composeRule.onNodeWithContentDescription("Remove folder").performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("Remove folder from library?").assertExists()
+        composeRule.onNode(hasAnyAncestor(isDialog()) and hasText("Remove")).performClick()
+        composeRule.waitForIdle()
+
+        assertEquals(folderUri, removedFolder)
+    }
+
+    @Test
+    fun defaultAudioSync_rowRendersAndCallsUpdate() {
+        var updatedDelay: Long? = null
+
+        composeRule.setContent {
+            SettingsScreen(
+                settings = ApturaSettings(defaultAudioDelayMs = 150L),
+                libraryStats = emptyStats,
+                onBackClick = {},
+                onUpdateSpeed = {},
+                onUpdateResizeMode = {},
+                onUpdateSeekDelta = {},
+                onUpdateBackgroundAudio = {},
+                onUpdateAutoAdvanceCountdown = {},
+                onRescanClick = {},
+                onReplayOnboardingClick = {},
+                onUpdateDefaultAudioDelayMs = { updatedDelay = it }
+            )
+        }
+
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("+150 ms"))
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Default audio sync").assertExists()
+        composeRule.onNodeWithText("+150 ms").assertExists()
+
+        // Tap Reset button in the audio sync control
+        val resetButtons = composeRule.onAllNodes(hasText("Reset"))
+        resetButtons[resetButtons.fetchSemanticsNodes().size - 1].performClick()
+        composeRule.waitForIdle()
+        assertEquals(0L, updatedDelay)
     }
 
     private fun assertEquals(expected: Any?, actual: Any?) {

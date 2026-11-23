@@ -88,6 +88,7 @@ class Media3PlaybackController(
     private val sidecarResolver: SidecarSubtitleResolver? = null,
     private val artworkProvider: (suspend (mediaUri: String) -> ByteArray?)? = null,
     var audioDelayProcessor: AudioDelayProcessor? = null,
+    private val isPrivateMode: () -> Boolean = { false },
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     /** Monotonic clock for the sleep timer's deadline. */
     elapsedRealtime: () -> Long = { android.os.SystemClock.elapsedRealtime() }
@@ -653,7 +654,7 @@ class Media3PlaybackController(
         val metadata = MediaMetadata.Builder()
             .setTitle(cleanDisplayTitle(item.title))
             .setDisplayTitle(cleanDisplayTitle(item.title))
-            .apply { if (artwork != null) setArtworkData(artwork, MediaMetadata.PICTURE_TYPE_FRONT_COVER) }
+            .apply { if (artwork != null && !isPrivateMode()) setArtworkData(artwork, MediaMetadata.PICTURE_TYPE_FRONT_COVER) }
             .build()
         return MediaItem.Builder()
             .setUri(item.uri)

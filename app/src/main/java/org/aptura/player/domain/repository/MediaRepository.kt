@@ -87,6 +87,11 @@ interface MediaRepository {
     suspend fun getLibraryStatistics(): LibraryStatistics
 
     /**
+     * Observes high-level library statistics reactively for Settings (APP-12).
+     */
+    fun observeLibraryStatistics(): Flow<LibraryStatistics> = kotlinx.coroutines.flow.flowOf(LibraryStatistics())
+
+    /**
      * Emits the saved bookmarks for a media item, ordered chronologically by timestamp (FR-CTRL-011).
      */
     fun getBookmarks(mediaUri: String): Flow<List<org.aptura.player.domain.model.Bookmark>>

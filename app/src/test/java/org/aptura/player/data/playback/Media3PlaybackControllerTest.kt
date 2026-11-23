@@ -609,4 +609,25 @@ class Media3PlaybackControllerTest {
         assertEquals(0, controller.trackSelection.value.selectedAudioTrackIndex)
         assertTrue(controller.playbackState.value is DomainPlaybackState.Error)
     }
+
+    @Test
+    fun privateMode_omitsArtworkDataFromMediaItem() = runTest(testDispatcher) {
+        val (player, state) = createMockPlayer()
+        val dummyArtwork = ByteArray(10) { 1 }
+        val controller = Media3PlaybackController(
+            player = player,
+            scope = testScope,
+            mainDispatcher = testDispatcher,
+            enablePositionTicker = false,
+            artworkProvider = { dummyArtwork },
+            isPrivateMode = { true }
+        )
+
+        controller.playMediaItem(sampleItem1)
+        runCurrent()
+
+        val item = state.currentMediaItem
+        assertTrue(item != null)
+        assertNull(item?.mediaMetadata?.artworkData)
+    }
 }
