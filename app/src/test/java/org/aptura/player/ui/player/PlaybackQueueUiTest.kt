@@ -92,7 +92,7 @@ class PlaybackQueueUiTest {
         }
 
         // Move item up (Episode 2 is index 1, can move up)
-        val moveUpButtons = composeTestRule.onAllNodes(androidx.compose.ui.test.hasContentDescription("Move up"))
+        val moveUpButtons = composeTestRule.onAllNodes(androidx.compose.ui.test.hasContentDescription("Move up", substring = true))
         moveUpButtons[0].performClick()
         assertEquals(1, movedFrom)
         assertEquals(0, movedTo)
@@ -119,9 +119,9 @@ class PlaybackQueueUiTest {
             }
         }
 
-        val moveUpButtons = composeTestRule.onAllNodes(androidx.compose.ui.test.hasContentDescription("Move up"))
-        val moveDownButtons = composeTestRule.onAllNodes(androidx.compose.ui.test.hasContentDescription("Move down"))
-        val removeButtons = composeTestRule.onAllNodes(androidx.compose.ui.test.hasContentDescription("Remove from queue"))
+        val moveUpButtons = composeTestRule.onAllNodes(androidx.compose.ui.test.hasContentDescription("Move up", substring = true))
+        val moveDownButtons = composeTestRule.onAllNodes(androidx.compose.ui.test.hasContentDescription("Move down", substring = true))
+        val removeButtons = composeTestRule.onAllNodes(androidx.compose.ui.test.hasContentDescription("Remove ", substring = true))
 
         moveUpButtons[0].assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp)
         moveDownButtons[0].assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp)
@@ -217,5 +217,55 @@ class PlaybackQueueUiTest {
         // Test Cancel Auto-Advance button
         composeTestRule.onNodeWithText("Stop countdown").performClick()
         assertTrue(cancelClicked)
+    }
+
+    @Test
+    fun playbackQueueSheet_reorderAndRemoveButtons_containItemTitle() {
+        composeTestRule.setContent {
+            ApturaTheme {
+                PlaybackQueueContent(
+                    queueItems = sampleItems,
+                    currentIndex = 1,
+                    playMode = PlayMode.NORMAL,
+                    onJumpToItem = {},
+                    onMoveItem = { _, _ -> },
+                    onRemoveItem = {},
+                    onClearQueue = {},
+                    onTogglePlayMode = {}
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithContentDescription("Move up Episode 2: The Return").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("Move down Episode 2: The Return").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("Remove Episode 2: The Return from queue").assertIsDisplayed()
+    }
+
+    @Test
+    fun playbackQueueSheet_shuffleModeDisablesReorderButtons() {
+        composeTestRule.setContent {
+            ApturaTheme {
+                PlaybackQueueContent(
+                    queueItems = sampleItems,
+                    currentIndex = 1,
+                    playMode = PlayMode.SHUFFLE,
+                    onJumpToItem = {},
+                    onMoveItem = { _, _ -> },
+                    onRemoveItem = {},
+                    onClearQueue = {},
+                    onTogglePlayMode = {}
+                )
+            }
+        }
+
+        // Under shuffle, reorder handles should not be displayed (audit SHT-20)
+        val moveUpButtons = composeTestRule.onAllNodes(androidx.compose.ui.test.hasContentDescription("Move up", substring = true))
+        val moveDownButtons = composeTestRule.onAllNodes(androidx.compose.ui.test.hasContentDescription("Move down", substring = true))
+        assertEquals(0, moveUpButtons.fetchSemanticsNodes().size)
+        assertEquals(0, moveDownButtons.fetchSemanticsNodes().size)
+
+        // But remove buttons should still be available
+        val removeButtons = composeTestRule.onAllNodes(androidx.compose.ui.test.hasContentDescription("Remove ", substring = true))
+        assertEquals(3, removeButtons.fetchSemanticsNodes().size)
     }
 }

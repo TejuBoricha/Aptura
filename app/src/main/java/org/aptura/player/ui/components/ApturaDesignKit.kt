@@ -508,13 +508,19 @@ fun NoticeBanner(
 /** A placeholder block that breathes while content loads: calmer than a spinner and shaped like what is coming. */
 @Composable
 fun SkeletonBlock(modifier: Modifier = Modifier, shape: RoundedCornerShape = RoundedCornerShape(8.dp)) {
-    val transition = rememberInfiniteTransition(label = "skeleton")
-    val alpha by transition.animateFloat(
-        initialValue = 0.55f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(900, easing = LinearEasing), RepeatMode.Reverse),
-        label = "skeleton-alpha"
-    )
+    val animatorsEnabled = android.animation.ValueAnimator.areAnimatorsEnabled()
+    val alpha = if (animatorsEnabled) {
+        val transition = rememberInfiniteTransition(label = "skeleton")
+        val animatedAlpha by transition.animateFloat(
+            initialValue = 0.55f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(900, easing = LinearEasing), RepeatMode.Reverse),
+            label = "skeleton-alpha"
+        )
+        animatedAlpha
+    } else {
+        0.8f
+    }
     Box(
         modifier = modifier
             .clip(shape)

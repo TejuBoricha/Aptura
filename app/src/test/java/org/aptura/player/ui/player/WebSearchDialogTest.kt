@@ -6,7 +6,9 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import org.aptura.player.theme.ApturaTheme
+import androidx.compose.ui.semantics.SemanticsProperties
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -59,5 +61,13 @@ class WebSearchDialogTest {
 
         assertEquals("Some Movie 2020", query)
         assertEquals(1, provider)
+    }
+
+    @Test
+    fun dialogHeader_hasHeadingSemantics() {
+        show()
+        val headingNode = composeRule.onNodeWithText("Find subtitles online")
+        headingNode.assertIsDisplayed()
+        assertTrue(SemanticsProperties.Heading in headingNode.fetchSemanticsNode().config)
     }
 }

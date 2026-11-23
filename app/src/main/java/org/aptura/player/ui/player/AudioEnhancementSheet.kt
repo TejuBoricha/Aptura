@@ -63,6 +63,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -125,7 +126,7 @@ fun AudioEnhancementSheet(
     onLoudnessBoostChanged: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var selectedTab by remember(initialTab) { mutableIntStateOf(initialTab) }
+    var selectedTab by rememberSaveable(initialTab) { mutableIntStateOf(initialTab) }
     val haptic = LocalHapticFeedback.current
 
     ModalBottomSheet(

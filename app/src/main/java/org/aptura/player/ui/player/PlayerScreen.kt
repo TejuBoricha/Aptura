@@ -16,6 +16,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerId
 import androidx.core.net.toUri
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -182,6 +183,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -576,11 +578,12 @@ fun PlayerScreen(
         }
     }
 
-    val seekToFraction = remember(player, uiState.durationMs) {
+    val seekToFraction = remember(onScrubStart, onScrubEnd, uiState.durationMs) {
         { fraction: Float ->
-            if (player != null && uiState.durationMs > 0) {
+            if (uiState.durationMs > 0) {
                 val targetMs = (uiState.durationMs * fraction).toLong().coerceIn(0L, uiState.durationMs)
-                player.seekTo(targetMs)
+                onScrubStart(targetMs)
+                onScrubEnd()
             }
         }
     }
@@ -600,13 +603,18 @@ fun PlayerScreen(
         dismissAnyActiveSheet,
         onBackClick,
         onTriggerLockHint,
-        seekToFraction
+        seekToFraction,
+        onScrubStart,
+        onScrubEnd
     ) {
         PlayerKeyActions(
             onPlayPause = onPlayPauseClick,
             onSeekRelative = onSeekRelative,
             onSeekToFraction = seekToFraction,
-            onSeekToStart = { player?.seekTo(0L) },
+            onSeekToStart = {
+                onScrubStart(0L)
+                onScrubEnd()
+            },
             onStepVolume = stepVolume,
             onToggleMute = toggleMute,
             onToggleResizeMode = onResizeModeToggle,
@@ -624,6 +632,11 @@ fun PlayerScreen(
     val playerFocusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) {
         playerFocusRequester.requestFocus()
+    }
+    LaunchedEffect(uiState.isAnySheetVisible) {
+        if (!uiState.isAnySheetVisible) {
+            playerFocusRequester.requestFocus()
+        }
     }
 
     androidx.compose.runtime.DisposableEffect(player) {
@@ -1330,8 +1343,8 @@ fun PlayerScreen(
         // 5. Main Controls Overlay (Top Bar, Transport, Bottom Bar)
         AnimatedVisibility(
             visible = uiState.isControlsVisible && !uiState.isLocked && !isPipMode && !uiState.isAnySheetVisible,
-            enter = fadeIn(),
-            exit = fadeOut(),
+            enter = fadeIn(animationSpec = tween(150)),
+            exit = fadeOut(animationSpec = tween(250)),
             modifier = Modifier.fillMaxSize()
         ) {
             Box(
@@ -2162,7 +2175,7 @@ fun PlayerScreen(
         if (uiState.isSpeedSheetVisible && !isPipMode) {
             ModalBottomSheet(
                 onDismissRequest = { onSpeedSheetVisible(false) },
-                sheetState = rememberModalBottomSheetState(),
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
                 containerColor = ApturaColors.SurfaceElevated2
             ) {
                 Column(
@@ -2254,11 +2267,11 @@ fun PlayerScreen(
 
         // 10. Playback & Display Settings Sheet (SCR-010e)
         if (uiState.isAdvancedSheetVisible && !isPipMode) {
-            var selectedTab by remember { mutableIntStateOf(0) }
+            var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
             ModalBottomSheet(
                 onDismissRequest = { onAdvancedSheetVisible(false) },
-                sheetState = rememberModalBottomSheetState(),
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
                 containerColor = ApturaColors.SurfaceElevated2
             ) {
                 Column(
@@ -2474,7 +2487,7 @@ private fun PlaybackStatusLabel(icon: androidx.compose.ui.graphics.vector.ImageV
         Spacer(Modifier.width(4.dp))
         Text(
             text = text,
-            style = ApturaTypography.labelMedium,
+            style = ApturaTypography.labelMedium.copy(fontFeatureSettings = "tnum"),
             color = ApturaColors.TextOnScrim
         )
     }
