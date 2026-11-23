@@ -16,6 +16,8 @@ import org.robolectric.annotation.Config
 class PlayerKeyHandlerTest {
 
     private var playPauseCalls = 0
+    private var playCalls = 0
+    private var pauseCalls = 0
     private var seekRelativeDelta: Long? = null
     private var seekToFractionValue: Float? = null
     private var seekToStartCalls = 0
@@ -32,6 +34,8 @@ class PlayerKeyHandlerTest {
 
     private val actions = PlayerKeyActions(
         onPlayPause = { playPauseCalls++ },
+        onPlay = { playCalls++ },
+        onPause = { pauseCalls++ },
         onSeekRelative = { seekRelativeDelta = it },
         onSeekToFraction = { seekToFractionValue = it },
         onSeekToStart = { seekToStartCalls++ },
@@ -89,6 +93,39 @@ class PlayerKeyHandlerTest {
             assertTrue("Expected keyCode $keyCode to be consumed", consumed)
             assertEquals(prevCalls + 1, playPauseCalls)
         }
+    }
+
+    @Test
+    fun dedicatedMediaPlayAndPause_triggerSpecificActions() {
+        val consumedPlay = handlePlayerKeyEvent(
+            event = downEvent(AndroidKeyEvent.KEYCODE_MEDIA_PLAY),
+            isLocked = false,
+            isAnySheetVisible = false,
+            actions = actions
+        )
+        assertTrue(consumedPlay)
+        assertEquals(1, playCalls)
+        assertEquals(0, pauseCalls)
+        assertEquals(0, playPauseCalls)
+
+        val consumedPause = handlePlayerKeyEvent(
+            event = downEvent(AndroidKeyEvent.KEYCODE_MEDIA_PAUSE),
+            isLocked = false,
+            isAnySheetVisible = false,
+            actions = actions
+        )
+        assertTrue(consumedPause)
+        assertEquals(1, pauseCalls)
+
+        val consumedStop = handlePlayerKeyEvent(
+            event = downEvent(AndroidKeyEvent.KEYCODE_MEDIA_STOP),
+            isLocked = false,
+            isAnySheetVisible = false,
+            actions = actions
+        )
+        assertTrue(consumedStop)
+        assertEquals(2, pauseCalls)
+        assertEquals(0, playPauseCalls)
     }
 
     @Test

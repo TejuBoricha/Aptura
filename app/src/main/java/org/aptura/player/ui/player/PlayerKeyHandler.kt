@@ -11,6 +11,8 @@ import androidx.compose.ui.input.key.type
  */
 data class PlayerKeyActions(
     val onPlayPause: () -> Unit,
+    val onPlay: () -> Unit = onPlayPause,
+    val onPause: () -> Unit = onPlayPause,
     val onSeekRelative: (Long) -> Unit,
     val onSeekToFraction: (Float) -> Unit = {},
     val onSeekToStart: () -> Unit = {},
@@ -96,11 +98,11 @@ fun handlePlayerKeyEvent(
             true
         }
         Key.MediaPlay -> {
-            actions.onPlayPause()
+            actions.onPlay()
             true
         }
         Key.MediaPause, Key.MediaStop -> {
-            actions.onPlayPause()
+            actions.onPause()
             true
         }
         Key.DirectionLeft, Key.MediaRewind, Key.J -> {

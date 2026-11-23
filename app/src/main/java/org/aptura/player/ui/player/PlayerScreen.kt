@@ -617,6 +617,8 @@ fun PlayerScreen(
     ) {
         PlayerKeyActions(
             onPlayPause = onPlayPauseClick,
+            onPlay = { if (!uiState.isPlaying) onPlayPauseClick() },
+            onPause = { if (uiState.isPlaying) onPlayPauseClick() },
             onSeekRelative = onSeekRelative,
             onSeekToFraction = seekToFraction,
             onSeekToStart = {
