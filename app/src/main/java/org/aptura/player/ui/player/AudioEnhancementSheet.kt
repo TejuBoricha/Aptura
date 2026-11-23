@@ -373,7 +373,7 @@ private fun EqualizerTab(
         SheetSection("Tone") {
             SheetSwitchRow(
                 title = "Equalizer",
-                subtitle = if (audioEnhancement.enabled) "Shaping the sound with the bands below" else "Off: you hear the original mix",
+                subtitle = if (audioEnhancement.enabled) "Shaping the sound with the bands below" else "Off: equalizer and sound effects bypassed",
                 checked = audioEnhancement.enabled,
                 onCheckedChange = onEqualizerEnabledChanged
             )
@@ -563,18 +563,21 @@ private fun SoundEffectsTab(
                 title = "Bass boost",
                 subtitle = "More low end, best on headphones",
                 valuePercent = audioEnhancement.bassBoostPercent,
+                enabled = audioEnhancement.enabled,
                 onValueChanged = onBassBoostChanged
             )
             SoundEffectRow(
                 title = "Surround",
                 subtitle = "Widens stereo so it feels less inside your head",
                 valuePercent = audioEnhancement.virtualizerPercent,
+                enabled = audioEnhancement.enabled,
                 onValueChanged = onVirtualizerChanged
             )
             SoundEffectRow(
                 title = "Dialogue boost",
                 subtitle = "Lifts quiet voices and evens out loud scenes",
                 valuePercent = audioEnhancement.loudnessBoostPercent,
+                enabled = audioEnhancement.enabled,
                 onValueChanged = onLoudnessBoostChanged
             )
         }
@@ -586,12 +589,13 @@ private fun SoundEffectRow(
     title: String,
     subtitle: String,
     valuePercent: Int,
+    enabled: Boolean = true,
     onValueChanged: (Int) -> Unit
 ) {
     SheetSliderRow(
         title = title,
         subtitle = subtitle,
-        valueText = if (valuePercent > 0) "$valuePercent%" else "Off",
+        valueText = if (enabled && valuePercent > 0) "$valuePercent%" else "Off",
         value = valuePercent.toFloat(),
         onValueChange = { onValueChanged((it / 5f).roundToInt() * 5) },
         valueRange = 0f..100f

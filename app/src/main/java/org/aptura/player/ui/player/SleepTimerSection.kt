@@ -25,7 +25,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bedtime
@@ -281,7 +283,15 @@ internal fun SleepTimerSection(
                     singleLine = true,
                     label = { Text("Minutes") },
                     supportingText = { Text("1 to 720 minutes") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            customMinutes?.let {
+                                onStart(it)
+                                customOpen = false
+                            }
+                        }
+                    ),
                     textStyle = ApturaTypography.bodyMedium.copy(
                         color = ApturaColors.TextHighEmphasis,
                         fontWeight = FontWeight.Medium

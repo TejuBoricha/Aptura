@@ -373,20 +373,32 @@ private fun AppNavHost(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { treeUri ->
         if (treeUri != null) {
+            var permissionGranted = false
             try {
                 context.contentResolver.takePersistableUriPermission(
                     treeUri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                 )
-            } catch (e: Exception) {
-                ApturaDiagnostics.logEvent(
-                    code = EventCode.EV_006,
-                    payload = mapOf("action" to "takePersistableUriPermission_tree", "error" to e.javaClass.simpleName)
-                )
+                permissionGranted = true
+            } catch (_: Exception) {
+                try {
+                    context.contentResolver.takePersistableUriPermission(
+                        treeUri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                    permissionGranted = true
+                } catch (e: Exception) {
+                    ApturaDiagnostics.logEvent(
+                        code = EventCode.EV_006,
+                        payload = mapOf("action" to "takePersistableUriPermission_tree", "error" to e.javaClass.simpleName)
+                    )
+                }
             }
-            coroutineScope.launch {
-                settingsRepository.addSafFolder(treeUri.toString())
-                MediaScanScheduler.scheduleImmediateScan(context)
+            if (permissionGranted) {
+                coroutineScope.launch {
+                    settingsRepository.addSafFolder(treeUri.toString())
+                    MediaScanScheduler.scheduleImmediateScan(context)
+                }
             }
         }
     }
@@ -664,6 +676,9 @@ private fun AppNavHost(
                 })
                 val trashFlow = rememberMediaTrashFlow { uris ->
                     uris.forEach { uri ->
+                        coroutineScope.launch(Dispatchers.IO) {
+                            ThumbnailRepository.deleteThumbnail(context, uri)
+                        }
                         libraryViewModel.onVideoDeleted(uri)
                     }
                     popBackStack(backStack)
@@ -993,13 +1008,20 @@ private fun AppNavHost(
                         try {
                             context.contentResolver.releasePersistableUriPermission(
                                 folderUriStr.toUri(),
-                                Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                             )
-                        } catch (e: Exception) {
-                            ApturaDiagnostics.logEvent(
-                                code = EventCode.EV_006,
-                                payload = mapOf("action" to "releasePersistableUriPermission", "error" to e.javaClass.simpleName)
-                            )
+                        } catch (_: Exception) {
+                            try {
+                                context.contentResolver.releasePersistableUriPermission(
+                                    folderUriStr.toUri(),
+                                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                )
+                            } catch (e: Exception) {
+                                ApturaDiagnostics.logEvent(
+                                    code = EventCode.EV_006,
+                                    payload = mapOf("action" to "releasePersistableUriPermission", "error" to e.javaClass.simpleName)
+                                )
+                            }
                         }
                         coroutineScope.launch {
                             settingsRepository.removeSafFolder(folderUriStr)

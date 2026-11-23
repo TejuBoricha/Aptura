@@ -495,8 +495,13 @@ private fun MediaLibraryContentView(
     })
     val trashFlow = rememberMediaTrashFlow { uris ->
         uris.forEach { uri ->
+            coroutineScope.launch(Dispatchers.IO) {
+                ThumbnailRepository.deleteThumbnail(context, uri)
+            }
+            clipboardUris = clipboardUris - uri
             onVideoDeleted(uri)
         }
+        if (clipboardUris.isEmpty()) clipboardIsCut = false
         activeModal = null
         selectedUris = emptySet()
     }
