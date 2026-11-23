@@ -3,6 +3,7 @@ package org.aptura.player.ui.player
 import androidx.compose.runtime.Immutable
 import org.aptura.player.domain.model.AbRepeatState
 import org.aptura.player.domain.model.AudioEnhancementState
+import org.aptura.player.domain.model.DetectedSidecarSubtitle
 import org.aptura.player.domain.model.PictureAdjustmentState
 import org.aptura.player.domain.model.PlayMode
 
@@ -152,7 +153,7 @@ data class PlayerUiState(
     val decoderOverridden: Boolean = false,
     val cleanSearchQuery: String = "",
     val sanitizedTitle: String = "",
-    val recentDownloadedSubtitle: org.aptura.player.data.repository.DetectedSidecarSubtitle? = null,
+    val recentDownloadedSubtitle: DetectedSidecarSubtitle? = null,
     val autoPairedSubtitleToast: String? = null,
     val queueItems: List<org.aptura.player.domain.model.DomainMediaItem> = emptyList(),
     val currentQueueIndex: Int = -1,

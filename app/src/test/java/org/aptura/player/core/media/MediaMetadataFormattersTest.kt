@@ -101,6 +101,12 @@ class MediaMetadataFormattersTest {
     // --- Channels ---
 
     @Test
+    fun unknownChannelCount_isShownAsUnknown() {
+        assertEquals("Unknown", MediaMetadataInspector.formatChannels(0))
+        assertEquals("Unknown", MediaMetadataInspector.formatChannels(-1))
+    }
+
+    @Test
     fun commonChannelCounts_haveTheirUsualNames() {
         assertEquals("Mono (1.0 ch)", MediaMetadataInspector.formatChannels(1))
         assertEquals("Stereo (2.0 ch)", MediaMetadataInspector.formatChannels(2))

@@ -38,6 +38,7 @@ import org.aptura.player.ui.library.MediaFormatters
 import org.aptura.player.data.settings.ApturaSettings
 import org.aptura.player.data.settings.ApturaSettingsRepository
 import org.aptura.player.domain.model.DomainExternalSubtitle
+import org.aptura.player.domain.model.DetectedSidecarSubtitle
 import org.aptura.player.domain.usecase.ResumeRules
 import java.io.File
 
@@ -1445,7 +1446,7 @@ class PlayerViewModel(
         _uiState.update { it.copy(cleanSearchQuery = query) }
     }
 
-    fun setRecentDownloadedSubtitle(subtitle: org.aptura.player.data.repository.DetectedSidecarSubtitle?) {
+    fun setRecentDownloadedSubtitle(subtitle: DetectedSidecarSubtitle?) {
         _uiState.update { it.copy(recentDownloadedSubtitle = subtitle) }
     }
 

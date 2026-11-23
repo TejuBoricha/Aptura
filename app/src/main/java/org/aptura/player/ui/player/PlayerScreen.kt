@@ -46,6 +46,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import org.aptura.player.domain.model.EqualizerPreset
+import org.aptura.player.domain.model.DetectedSidecarSubtitle
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -313,7 +314,7 @@ fun PlayerScreen(
     onSearchWebClick: () -> Unit = {},
     onLaunchWebSearch: (query: String, provider: Int) -> Unit = { _, _ -> },
     onDismissWebSearchDialog: () -> Unit = {},
-    onAttachRecentSubtitle: (org.aptura.player.data.repository.DetectedSidecarSubtitle) -> Unit = {},
+    onAttachRecentSubtitle: (DetectedSidecarSubtitle) -> Unit = {},
     onDismissRecentSubtitle: () -> Unit = {},
     onDismissAutoPairToast: () -> Unit = {},
     onQueueSheetVisible: (Boolean) -> Unit = {},
