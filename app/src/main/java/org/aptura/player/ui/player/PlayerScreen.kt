@@ -342,12 +342,20 @@ fun PlayerScreen(
     ScreenReaderControlsPolicy(onAccessibilityPolicyChanged)
     val haptic = LocalHapticFeedback.current
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
+    val configurationOrientation = androidx.compose.ui.platform.LocalConfiguration.current.orientation
 
     var is2xSpeedActive by remember { mutableStateOf(false) }
     var lastLongPressReleaseUptimeMs by remember { mutableLongStateOf(0L) }
     var currentOrientationMode by androidx.compose.runtime.saveable.rememberSaveable { mutableIntStateOf(0) } // 0: Auto, 1: Landscape, 2: Portrait
-    var orientationToastMessage by remember { mutableStateOf<String?>(null) }
+    var orientationToastMessage by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
     var scrubPreviewBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
+
+    LaunchedEffect(orientationToastMessage) {
+        if (orientationToastMessage != null) {
+            kotlinx.coroutines.delay(1800L)
+            orientationToastMessage = null
+        }
+    }
 
     // Block system Back gesture/button while Lock Mode is active (F-15, FR-CTRL-006)
     BackHandler(enabled = uiState.isLocked) {
@@ -1364,6 +1372,15 @@ fun PlayerScreen(
                         .windowInsetsPadding(WindowInsets.statusBars)
                         .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
                         .padding(horizontal = 16.dp, vertical = 12.dp)
+                        .pointerInput(Unit) {
+                            awaitEachGesture {
+                                awaitFirstDown()
+                                do {
+                                    val event = awaitPointerEvent()
+                                    event.changes.forEach { it.consume() }
+                                } while (event.changes.any { it.pressed })
+                            }
+                        }
                 ) {
                     Column {
                     Row(
@@ -1409,7 +1426,12 @@ fun PlayerScreen(
                         // Orientation toggle (SCR-010e)
                         val onOrientationClick: () -> Unit = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            currentOrientationMode = (currentOrientationMode + 1) % 3
+                            val isCurrentlyLandscape = configurationOrientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+                            currentOrientationMode = when (currentOrientationMode) {
+                                0 -> if (isCurrentlyLandscape) 2 else 1
+                                1 -> if (isCurrentlyLandscape) 0 else 2
+                                else -> if (isCurrentlyLandscape) 1 else 0
+                            }
                             when (currentOrientationMode) {
                                 1 -> {
                                     activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
@@ -1433,10 +1455,6 @@ fun PlayerScreen(
                                         orientationToastMessage = "Auto-rotate"
                                     }
                                 }
-                            }
-                            coroutineScope.launch {
-                                kotlinx.coroutines.delay(1800L)
-                                orientationToastMessage = null
                             }
                         }
                         val orientationTint = if (currentOrientationMode != 0) ApturaColors.AccentPrimary else ApturaColors.TextMediumEmphasis
@@ -1695,6 +1713,15 @@ fun PlayerScreen(
                         .windowInsetsPadding(WindowInsets.navigationBars)
                         .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
                         .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .pointerInput(Unit) {
+                            awaitEachGesture {
+                                awaitFirstDown()
+                                do {
+                                    val event = awaitPointerEvent()
+                                    event.changes.forEach { it.consume() }
+                                } while (event.changes.any { it.pressed })
+                            }
+                        }
                 ) {
                     Column(modifier = Modifier.fillMaxWidth()) {
                         // Chapter indicator and navigation row (FEAT-10, FR-CTRL-011)
@@ -2269,6 +2296,14 @@ fun PlayerScreen(
         // 10. Playback & Display Settings Sheet (SCR-010e)
         if (uiState.isAdvancedSheetVisible && !isPipMode) {
             var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+            val playbackTabScrollState = rememberScrollState()
+            val pictureTabScrollState = rememberScrollState()
+            val chaptersTabScrollState = rememberScrollState()
+            val activeTabScrollState = when (selectedTab) {
+                0 -> playbackTabScrollState
+                1 -> pictureTabScrollState
+                else -> chaptersTabScrollState
+            }
 
             ModalBottomSheet(
                 onDismissRequest = { onAdvancedSheetVisible(false) },
@@ -2281,7 +2316,7 @@ fun PlayerScreen(
                         .bottomSheetScrollInterceptor()
                         .windowInsetsPadding(WindowInsets.navigationBars)
                         .imePadding()
-                        .verticalScroll(rememberScrollState())
+                        .verticalScroll(activeTabScrollState)
                         .padding(bottom = 24.dp)
                         .padding(horizontal = 24.dp)
                 ) {
