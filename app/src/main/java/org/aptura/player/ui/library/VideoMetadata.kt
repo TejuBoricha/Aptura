@@ -47,7 +47,21 @@ internal fun formatAddedDate(
     return when {
         then.dayKey() == now.dayKey() -> "today"
         then.dayKey() == yesterday.dayKey() -> "yesterday"
-        then.get(Calendar.YEAR) == now.get(Calendar.YEAR) -> SimpleDateFormat("MMM d", locale).format(Date(seconds * 1000L))
-        else -> SimpleDateFormat("MMM d, yyyy", locale).format(Date(seconds * 1000L))
+        then.get(Calendar.YEAR) == now.get(Calendar.YEAR) -> {
+            val pattern = try {
+                android.text.format.DateFormat.getBestDateTimePattern(locale, "MMMd")
+            } catch (_: Throwable) {
+                null
+            }?.takeIf { it.isNotBlank() } ?: "MMM d"
+            SimpleDateFormat(pattern, locale).format(Date(seconds * 1000L))
+        }
+        else -> {
+            val pattern = try {
+                android.text.format.DateFormat.getBestDateTimePattern(locale, "yMMMd")
+            } catch (_: Throwable) {
+                null
+            }?.takeIf { it.isNotBlank() } ?: "MMM d, yyyy"
+            SimpleDateFormat(pattern, locale).format(Date(seconds * 1000L))
+        }
     }
 }

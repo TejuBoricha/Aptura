@@ -719,6 +719,7 @@ fun PlayerScreen(
         val currentOnStartHoldSpeed by rememberUpdatedState(onStartHoldSpeed)
         val currentOnEndHoldSpeed by rememberUpdatedState(onEndHoldSpeed)
         val currentOnBrightnessPercentChanged by rememberUpdatedState(onBrightnessPercentChanged)
+        val currentPlaybackSpeed by rememberUpdatedState(uiState.playbackSpeed)
 
         Box(
             modifier = Modifier
@@ -877,7 +878,7 @@ fun PlayerScreen(
                                     var longPressActive = false
                                     val job = coroutineScope.launch {
                                         kotlinx.coroutines.delay(400L)
-                                        if (!currentIsLocked && currentIsPlaying && currentHoldFor2xSpeedEnabled) {
+                                        if (!currentIsLocked && currentIsPlaying && currentHoldFor2xSpeedEnabled && currentPlaybackSpeed < 2.0f) {
                                             longPressActive = true
                                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                             is2xSpeedActive = true
@@ -960,7 +961,7 @@ fun PlayerScreen(
                                     var longPressActive = false
                                     val job = coroutineScope.launch {
                                         kotlinx.coroutines.delay(400L)
-                                        if (!currentIsLocked && currentIsPlaying && currentHoldFor2xSpeedEnabled) {
+                                        if (!currentIsLocked && currentIsPlaying && currentHoldFor2xSpeedEnabled && currentPlaybackSpeed < 2.0f) {
                                             longPressActive = true
                                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                             is2xSpeedActive = true

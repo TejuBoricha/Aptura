@@ -142,7 +142,7 @@ object ApturaMediaFileManager {
     internal fun resolveFileName(requestedName: String, currentName: String?, mimeType: String?): String {
         val currentExtension = currentName?.let(::extensionOf) ?: extensionForMime(mimeType)
         val typed = extensionOf(requestedName)
-        if (typed != null && (typed.equals(currentExtension, ignoreCase = true) || typed.lowercase() in VIDEO_EXTENSIONS)) {
+        if (typed != null && (typed.equals(currentExtension, ignoreCase = true) || typed.lowercase(java.util.Locale.ROOT) in VIDEO_EXTENSIONS)) {
             return requestedName
         }
         return if (currentExtension != null) "$requestedName.$currentExtension" else requestedName
@@ -181,7 +181,7 @@ object ApturaMediaFileManager {
         }
     }
 
-    private fun extensionForMime(mimeType: String?): String? = when (mimeType?.lowercase()) {
+    private fun extensionForMime(mimeType: String?): String? = when (mimeType?.lowercase(java.util.Locale.ROOT)) {
         "video/mp4", "video/m4v" -> "mp4"
         "video/x-matroska" -> "mkv"
         "video/webm" -> "webm"

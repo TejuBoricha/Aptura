@@ -215,11 +215,11 @@ object MediaFormatters {
     }
 
     fun formatContainer(mimeType: String?, title: String): String {
-        val ext = title.substringAfterLast('.', "").uppercase()
+        val ext = title.substringAfterLast('.', "").uppercase(Locale.ROOT)
         if (ext in KNOWN_VIDEO_EXTENSIONS) {
             return if (ext == "MKV") "MKV (Matroska)" else ext
         }
-        return when (mimeType?.lowercase()) {
+        return when (mimeType?.lowercase(Locale.ROOT)) {
             "video/mp4" -> "MP4"
             "video/x-matroska" -> "MKV (Matroska)"
             "video/webm" -> "WebM"
@@ -227,7 +227,7 @@ object MediaFormatters {
             "video/quicktime" -> "MOV"
             "video/mp2ts" -> "MPEG-TS"
             "video/x-msvideo" -> "AVI"
-            else -> mimeType?.substringAfter('/')?.uppercase() ?: "Unknown"
+            else -> mimeType?.substringAfter('/')?.uppercase(Locale.ROOT) ?: "Unknown"
         }
     }
 

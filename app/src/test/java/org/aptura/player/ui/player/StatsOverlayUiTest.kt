@@ -83,6 +83,29 @@ class StatsOverlayUiTest {
     }
 
     @Test
+    fun statsOverlay_zeroDelay_rendersAsZeroMsWithoutPlus() {
+        val sampleStats = PlaybackStatsInfo(
+            audioDelayMs = 0L,
+            subtitleDelayMs = 0L
+        )
+
+        composeTestRule.setContent {
+            ApturaTheme {
+                StatsOverlay(
+                    stats = sampleStats,
+                    onCloseClick = {}
+                )
+            }
+        }
+
+        // Must display "0 ms", never "+0 ms" (audit PLY-25)
+        val zeroNodes = composeTestRule.onAllNodes(androidx.compose.ui.test.hasText("0 ms"))
+        assertTrue(zeroNodes.fetchSemanticsNodes().isNotEmpty())
+        val plusZeroNodes = composeTestRule.onAllNodes(androidx.compose.ui.test.hasText("+0 ms"))
+        assertTrue(plusZeroNodes.fetchSemanticsNodes().isEmpty())
+    }
+
+    @Test
     fun statsOverlay_atStandardFontScale_placesLabelsLeftOfValuesWithoutCollision() {
         val sampleStats = PlaybackStatsInfo(
             decoderPath = "Auto (Hardware)",
