@@ -731,7 +731,6 @@ class Media3PlaybackController(
             stalledReason = facts
             _isCompatibilityMode.value = false
             _compatibilityNotice.value = null
-            player.stop()
             updatePlaybackState()
             updatePlaybackStats()
         }
