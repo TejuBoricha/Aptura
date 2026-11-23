@@ -1207,7 +1207,7 @@ private fun AppNavHost(
                                 context.safeStartActivity(browserIntent, errorMessage = "No web browser found to open link")
                             },
                             onAttachRecentSubtitle = { sidecar ->
-                                playerViewModel.addExternalSubtitle(sidecar.uri.toString(), sidecar.mimeType, sidecar.displayName)
+                                playerViewModel.addExternalSubtitle(sidecar.uri, sidecar.mimeType, sidecar.displayName)
                                 playerViewModel.setRecentDownloadedSubtitle(null)
                                 android.widget.Toast.makeText(context, "Attached: ${sidecar.displayName}", android.widget.Toast.LENGTH_SHORT).show()
                             },

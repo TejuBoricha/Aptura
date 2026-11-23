@@ -2229,8 +2229,8 @@ class PlayerViewModelTest {
         viewModel.dismissAutoPairToast()
         assertNull(viewModel.uiState.value.autoPairedSubtitleToast)
 
-        val sidecar = org.aptura.player.data.repository.DetectedSidecarSubtitle(
-            uri = android.net.Uri.parse("content://subtitles/1"),
+        val sidecar = org.aptura.player.domain.model.DetectedSidecarSubtitle(
+            uri = "content://subtitles/1",
             displayName = "movie.srt",
             mimeType = "application/x-subrip",
             languageCode = "en",

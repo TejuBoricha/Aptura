@@ -8,20 +8,7 @@ import org.aptura.player.core.media.SubtitleValidationResult
 import java.io.File
 import java.nio.charset.Charset
 import java.util.Locale
-
-/**
- * Data representation of a discovered sidecar subtitle file.
- */
-data class DetectedSidecarSubtitle(
-    val uri: Uri,
-    val displayName: String,
-    val mimeType: String,
-    val languageCode: String?,
-    val languageLabel: String,
-    val isDefault: Boolean = false,
-    /** True when the subtitle file name equals the video name (no language/role tags). */
-    val isExactMatch: Boolean = false
-)
+import org.aptura.player.domain.model.DetectedSidecarSubtitle
 
 /**
  * Probes the local storage context for sidecar subtitle files (.srt, .vtt, .ass, .ssa, .sub, .ttml, .dfxp)
@@ -230,10 +217,10 @@ object SidecarSubtitleDetector {
 
         val unique = results.distinctBy {
             try {
-                val p = it.uri.path
-                if (p != null) File(p).canonicalPath else it.uri.toString().lowercase()
+                val p = Uri.parse(it.uri).path
+                if (p != null) File(p).canonicalPath else it.uri.lowercase()
             } catch (_: Throwable) {
-                it.uri.toString().lowercase()
+                it.uri.lowercase()
             }
         }
         return markSingleDefault(unique)
@@ -287,7 +274,7 @@ object SidecarSubtitleDetector {
 
             candidates.add(
                 DetectedSidecarSubtitle(
-                    uri = validation.validatedUri ?: Uri.fromFile(f),
+                    uri = (validation.validatedUri ?: Uri.fromFile(f)).toString(),
                     displayName = f.name,
                     mimeType = validation.mimeType,
                     languageCode = langCode,
@@ -344,7 +331,7 @@ object SidecarSubtitleDetector {
                     if (validation is SubtitleValidationResult.Valid) {
                         matches.add(
                             DetectedSidecarSubtitle(
-                                uri = validation.validatedUri ?: Uri.fromFile(f),
+                                uri = (validation.validatedUri ?: Uri.fromFile(f)).toString(),
                                 displayName = validation.displayName,
                                 mimeType = validation.mimeType,
                                 languageCode = null,

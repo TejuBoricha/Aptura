@@ -89,7 +89,7 @@ import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import org.aptura.player.data.repository.DetectedSidecarSubtitle
+import org.aptura.player.domain.model.DetectedSidecarSubtitle
 
 /**
  * Studio-Grade Subtitle Control & Calibration Sheet.

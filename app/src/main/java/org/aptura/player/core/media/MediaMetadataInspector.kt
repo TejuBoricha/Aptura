@@ -130,7 +130,7 @@ object MediaMetadataInspector {
                 } else if (mime.startsWith("audio/")) {
                     val channels = if (format.containsKey(MediaFormat.KEY_CHANNEL_COUNT)) {
                         format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
-                    } else 2
+                    } else 0
                     val sampleRate = if (format.containsKey(MediaFormat.KEY_SAMPLE_RATE)) {
                         format.getInteger(MediaFormat.KEY_SAMPLE_RATE)
                     } else 0
@@ -216,7 +216,7 @@ object MediaMetadataInspector {
                             AudioTrackMetadata(
                                 index = i,
                                 codec = formatMimeToAudioCodecName(mime),
-                                channelCount = format.channelCount.takeIf { it > 0 } ?: 2,
+                                channelCount = format.channelCount.takeIf { it > 0 } ?: 0,
                                 sampleRate = format.sampleRate.takeIf { it > 0 } ?: 0,
                                 bitrate = format.bitrate.takeIf { it > 0 }?.toLong(),
                                 language = format.language,
