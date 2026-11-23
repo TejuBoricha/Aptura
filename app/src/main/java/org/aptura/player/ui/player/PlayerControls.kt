@@ -232,15 +232,19 @@ internal fun ApturaSlider(
                 }
             }
             .pointerInput(valueRange) {
-                val pad = thumbRadius.toPx()
-                val usableWidth = (size.width - 2 * pad).coerceAtLeast(1f)
-                fun at(x: Float) = valueRange.start + ((x - pad) / usableWidth).coerceIn(0f, 1f) * span
+                fun at(x: Float): Float {
+                    val pad = thumbRadius.toPx()
+                    val usableWidth = (size.width - 2 * pad).coerceAtLeast(1f)
+                    return valueRange.start + ((x - pad) / usableWidth).coerceIn(0f, 1f) * span
+                }
                 detectTapGestures { currentOnChange(at(it.x)) }
             }
             .pointerInput(valueRange) {
-                val pad = thumbRadius.toPx()
-                val usableWidth = (size.width - 2 * pad).coerceAtLeast(1f)
-                fun at(x: Float) = valueRange.start + ((x - pad) / usableWidth).coerceIn(0f, 1f) * span
+                fun at(x: Float): Float {
+                    val pad = thumbRadius.toPx()
+                    val usableWidth = (size.width - 2 * pad).coerceAtLeast(1f)
+                    return valueRange.start + ((x - pad) / usableWidth).coerceIn(0f, 1f) * span
+                }
                 detectHorizontalDragGestures { change, _ ->
                     change.consume()
                     currentOnChange(at(change.position.x))

@@ -10,6 +10,10 @@ import org.aptura.player.domain.model.PictureAdjustmentState
 object PictureFilter {
     fun apply(view: TextureView?, adjustment: PictureAdjustmentState) {
         val target = view ?: return
+        if (target.tag == adjustment) {
+            return
+        }
+        target.tag = adjustment
         val matrix = PictureColorMatrix.build(adjustment)
         if (matrix == null) {
             target.setLayerPaint(null)

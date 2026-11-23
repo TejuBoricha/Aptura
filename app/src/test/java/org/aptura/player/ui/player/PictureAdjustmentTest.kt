@@ -9,6 +9,7 @@ import org.aptura.player.domain.model.PictureAdjustmentState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -89,6 +90,20 @@ class PictureAdjustmentTest {
 
         PictureFilter.apply(view, PictureAdjustmentState())
         assertNull("reset must remove the filter", view.lastLayerPaint)
+    }
+
+    @Test
+    fun repeatedIdenticalAdjustment_cachesOnTag_andDoesNotReallocate() {
+        val view = RecordingTextureView(ApplicationProvider.getApplicationContext())
+        val adjustment = PictureAdjustmentState(contrast = 1.3f)
+        PictureFilter.apply(view, adjustment)
+        val initialPaint = view.lastLayerPaint
+        assertNotNull(initialPaint)
+        assertEquals(adjustment, view.tag)
+
+        // Applying the identical adjustment state must be a cached no-op
+        PictureFilter.apply(view, adjustment)
+        assertSame(initialPaint, view.lastLayerPaint)
     }
 
     @Test

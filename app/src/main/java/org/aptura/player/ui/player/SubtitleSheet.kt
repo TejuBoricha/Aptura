@@ -161,12 +161,21 @@ fun SubtitleSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            val tracksScrollState = rememberScrollState()
+            val timingScrollState = rememberScrollState()
+            val styleScrollState = rememberScrollState()
+            val activeTabScrollState = when (selectedTab) {
+                0 -> tracksScrollState
+                1 -> timingScrollState
+                else -> styleScrollState
+            }
+
             // Tab Content
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .bottomSheetScrollInterceptor()
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(activeTabScrollState)
             ) {
                 when (selectedTab) {
                     0 -> SubtitleTracksTab(
