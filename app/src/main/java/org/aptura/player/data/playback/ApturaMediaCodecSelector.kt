@@ -75,7 +75,7 @@ class ApturaMediaCodecSelector(
         }
     }
 
-    private fun fallbackMimeTypesFor(mimeType: String): List<String> = when (mimeType.lowercase()) {
+    private fun fallbackMimeTypesFor(mimeType: String): List<String> = when (mimeType.lowercase(java.util.Locale.ROOT)) {
         MimeTypes.VIDEO_DOLBY_VISION -> listOf(MimeTypes.VIDEO_H265, MimeTypes.VIDEO_H264)
         "video/divx", "video/xvid", "video/x-msvideo" -> listOf(MimeTypes.VIDEO_MP4V)
         MimeTypes.VIDEO_MPEG -> listOf(MimeTypes.VIDEO_MPEG2)

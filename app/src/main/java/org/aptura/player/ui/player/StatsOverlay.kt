@@ -86,6 +86,7 @@ fun StatsOverlay(
     @Suppress("DEPRECATION")
     val clipboardManager = LocalClipboardManager.current
     val context = androidx.compose.ui.platform.LocalContext.current
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     val largeFont = LocalDensity.current.fontScale >= 1.4f
     val scroll = rememberScrollState()
 
@@ -128,6 +129,7 @@ fun StatsOverlay(
                     // Copy Diagnostics Text Button
                     IconButton(
                         onClick = {
+                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                             val bundle = buildDiagnosticsString(stats)
                             clipboardManager.setText(AnnotatedString(bundle))
                             android.widget.Toast.makeText(context, "Copied stats to clipboard", android.widget.Toast.LENGTH_SHORT).show()
@@ -293,8 +295,8 @@ fun StatsOverlay(
                             }
 
                             // A/V Sync Section
-                            val avSign = if (stats.audioDelayMs >= 0) "+" else ""
-                            val subSign = if (stats.subtitleDelayMs >= 0) "+" else ""
+                            val avSign = if (stats.audioDelayMs > 0) "+" else ""
+                            val subSign = if (stats.subtitleDelayMs > 0) "+" else ""
                             StatsRow(
                                 label = "A/V Sync Offset",
                                 value = "$avSign${stats.audioDelayMs} ms",
