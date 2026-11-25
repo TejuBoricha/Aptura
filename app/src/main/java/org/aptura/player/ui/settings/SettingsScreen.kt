@@ -386,12 +386,8 @@ fun SettingsScreen(
                 "• Scoped Storage: Access is strictly confined to standard MediaStore video reads and user-selected SAF folders.",
             confirmLabel = "View on GitHub",
             onConfirm = {
-                try {
-                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/TejuBoricha/Aptura/blob/main/docs/PRIVACY.md"))
-                    context.startActivity(intent)
-                } catch (_: Throwable) {
-                    Toast.makeText(context, "No web browser found to open link", Toast.LENGTH_SHORT).show()
-                }
+                val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/TejuBoricha/Aptura/blob/main/docs/PRIVACY.md"))
+                context.safeStartActivity(intent, errorMessage = "No web browser found to open link")
             },
             dismissLabel = "Close"
         )
@@ -923,11 +919,11 @@ fun SettingsScreen(
                                     putExtra(Intent.EXTRA_SUBJECT, subject)
                                     putExtra(Intent.EXTRA_TEXT, body)
                                 }
-                                try {
-                                    context.startActivity(Intent.createChooser(mailIntent, "Contact Developer"))
-                                } catch (_: Exception) {
-                                    Toast.makeText(context, "Contact: tejasboricha225@gmail.com", Toast.LENGTH_LONG).show()
-                                }
+                                context.safeStartActivity(
+                                    mailIntent,
+                                    chooserTitle = "Contact Developer",
+                                    errorMessage = "Contact: tejasboricha225@gmail.com"
+                                )
                             },
                             trailing = { NavigationChevron() }
                         )
@@ -954,12 +950,8 @@ fun SettingsScreen(
                             title = "Source code",
                             subtitle = "Public Apache-2.0 repository on GitHub",
                             onClick = {
-                                try {
-                                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/TejuBoricha/Aptura"))
-                                    context.startActivity(intent)
-                                } catch (_: Throwable) {
-                                    Toast.makeText(context, "No web browser found to open link", Toast.LENGTH_SHORT).show()
-                                }
+                                val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/TejuBoricha/Aptura"))
+                                context.safeStartActivity(intent, errorMessage = "No web browser found to open link")
                             },
                             trailing = {
                                 Icon(
@@ -990,7 +982,7 @@ fun SettingsScreen(
                                 Icon(
                                     imageVector = Icons.Default.Favorite,
                                     contentDescription = null,
-                                    tint = Color(0xFFFF6E9C),
+                                    tint = ApturaColors.StatusError,
                                     modifier = Modifier.size(24.dp)
                                 )
                                 Spacer(Modifier.width(12.dp))
@@ -1015,18 +1007,14 @@ fun SettingsScreen(
                                 PillButton(
                                     text = "Star on GitHub",
                                     onClick = {
-                                        try {
-                                            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/TejuBoricha/Aptura"))
-                                            context.startActivity(intent)
-                                        } catch (_: Throwable) {
-                                            Toast.makeText(context, "No web browser found to open link", Toast.LENGTH_SHORT).show()
-                                        }
+                                        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/TejuBoricha/Aptura"))
+                                        context.safeStartActivity(intent, errorMessage = "No web browser found to open link")
                                     },
                                     leading = {
                                         Icon(
                                             imageVector = Icons.Default.Star,
                                             contentDescription = null,
-                                            tint = Color(0xFFF5D77F),
+                                            tint = ApturaColors.AccentPrimary,
                                             modifier = Modifier.size(16.dp)
                                         )
                                     }
@@ -1034,16 +1022,16 @@ fun SettingsScreen(
                                 PillButton(
                                     text = "Share app",
                                     onClick = {
-                                        try {
-                                            val sendIntent = Intent().apply {
-                                                action = Intent.ACTION_SEND
-                                                putExtra(Intent.EXTRA_TEXT, "Check out Aptura - a 100% offline, privacy-first Android video player with no internet permission: https://github.com/TejuBoricha/Aptura")
-                                                type = "text/plain"
-                                            }
-                                            context.startActivity(Intent.createChooser(sendIntent, "Share Aptura"))
-                                        } catch (_: Throwable) {
-                                            Toast.makeText(context, "No app found to share link", Toast.LENGTH_SHORT).show()
+                                        val sendIntent = Intent().apply {
+                                            action = Intent.ACTION_SEND
+                                            putExtra(Intent.EXTRA_TEXT, "Check out Aptura - a 100% offline, privacy-first Android video player with no internet permission: https://github.com/TejuBoricha/Aptura")
+                                            type = "text/plain"
                                         }
+                                        context.safeStartActivity(
+                                            sendIntent,
+                                            chooserTitle = "Share Aptura",
+                                            errorMessage = "No app found to share link"
+                                        )
                                     },
                                     leading = {
                                         Icon(

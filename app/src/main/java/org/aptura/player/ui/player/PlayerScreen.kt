@@ -15,6 +15,7 @@ import android.view.ViewGroup
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerId
 import androidx.core.net.toUri
+import org.aptura.player.core.platform.safeStartActivity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -2066,14 +2067,15 @@ fun PlayerScreen(
                         if (isSoftwareAlreadyAttempted && uiState.videoUri.isNotBlank()) {
                             Button(
                                 onClick = {
-                                    try {
+                                    val uri = uiState.videoUri.toUri()
+                                    if (uri.scheme.equals("file", ignoreCase = true)) {
+                                        Toast.makeText(context, "Direct file paths cannot be opened by external apps", Toast.LENGTH_SHORT).show()
+                                    } else {
                                         val intent = Intent(Intent.ACTION_VIEW).apply {
-                                            setDataAndType(uiState.videoUri.toUri(), "video/*")
+                                            setDataAndType(uri, "video/*")
                                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                         }
-                                        context.startActivity(Intent.createChooser(intent, "Open Video With"))
-                                    } catch (_: Exception) {
-                                        Toast.makeText(context, "No external video player found", Toast.LENGTH_SHORT).show()
+                                        context.safeStartActivity(intent, chooserTitle = "Open Video With", errorMessage = "No external video player found")
                                     }
                                 },
                                 colors = ButtonDefaults.buttonColors(
@@ -2105,14 +2107,15 @@ fun PlayerScreen(
                         if (!isSoftwareAlreadyAttempted && uiState.videoUri.isNotBlank()) {
                             OutlinedButton(
                                 onClick = {
-                                    try {
+                                    val uri = uiState.videoUri.toUri()
+                                    if (uri.scheme.equals("file", ignoreCase = true)) {
+                                        Toast.makeText(context, "Direct file paths cannot be opened by external apps", Toast.LENGTH_SHORT).show()
+                                    } else {
                                         val intent = Intent(Intent.ACTION_VIEW).apply {
-                                            setDataAndType(uiState.videoUri.toUri(), "video/*")
+                                            setDataAndType(uri, "video/*")
                                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                         }
-                                        context.startActivity(Intent.createChooser(intent, "Open Video With"))
-                                    } catch (_: Exception) {
-                                        Toast.makeText(context, "No external video player found", Toast.LENGTH_SHORT).show()
+                                        context.safeStartActivity(intent, chooserTitle = "Open Video With", errorMessage = "No external video player found")
                                     }
                                 },
                                 colors = ButtonDefaults.outlinedButtonColors(

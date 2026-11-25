@@ -356,7 +356,7 @@ internal fun AccessHero(hasAccess: Boolean, modifier: Modifier = Modifier) {
                     .background(ApturaColors.StatusSuccess),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.Check, contentDescription = null, tint = Color(0xFF101418), modifier = Modifier.size(18.dp))
             }
         }
     }
