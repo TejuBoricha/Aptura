@@ -3,6 +3,7 @@ package org.aptura.player.ui.settings
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.widget.Toast
+import org.aptura.player.core.platform.safeStartActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -270,9 +271,8 @@ private fun DocumentHeader(document: LicenseDocument, expanded: Boolean, onClick
 }
 
 private fun openUrl(context: android.content.Context, url: String) {
-    try {
-        context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
-    } catch (_: ActivityNotFoundException) {
-        Toast.makeText(context, "No app can open this link", Toast.LENGTH_SHORT).show()
-    }
+    context.safeStartActivity(
+        Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)),
+        errorMessage = "No app can open this link"
+    )
 }

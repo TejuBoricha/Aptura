@@ -329,10 +329,7 @@ private fun AppNavHost(
             AccessReply.OPEN_SETTINGS -> {
                 // The system no longer shows its dialog; its settings page is the only place left to allow it.
                 Toast.makeText(context, "Allow video access in the app's permissions", Toast.LENGTH_LONG).show()
-                try {
-                    context.startActivity(appDetailsSettingsIntent(context))
-                } catch (_: Throwable) {
-                }
+                context.safeStartActivity(appDetailsSettingsIntent(context), errorMessage = "Unable to open system settings")
             }
         }
     }
@@ -581,10 +578,7 @@ private fun AppNavHost(
                         permissionLauncher.launch(PermissionHelper.getRequiredPermissions())
                     },
                     onOpenAppSettings = {
-                        try {
-                            context.startActivity(appDetailsSettingsIntent(context))
-                        } catch (_: Throwable) {
-                        }
+                        context.safeStartActivity(appDetailsSettingsIntent(context), errorMessage = "Unable to open system settings")
                     },
                     onRemoveVideo = libraryViewModel::hideVideo,
                     onUnhideVideo = libraryViewModel::unhideVideo,
@@ -970,10 +964,7 @@ private fun AppNavHost(
                     onVideoAccessClick = {
                         if (hasVideoAccess) {
                             // Allowed: the page where it can be taken back or changed.
-                            try {
-                                context.startActivity(appDetailsSettingsIntent(context))
-                            } catch (_: Throwable) {
-                            }
+                            context.safeStartActivity(appDetailsSettingsIntent(context), errorMessage = "Unable to open system settings")
                         } else {
                             permissionLauncher.launch(PermissionHelper.getRequiredPermissions())
                         }

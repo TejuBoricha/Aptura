@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Movie
+import org.aptura.player.core.platform.safeStartActivity
 import org.aptura.player.ui.components.ApturaMenuItem
 import org.aptura.player.ui.components.ApturaTone
 import org.aptura.player.ui.components.ApturaDialog
@@ -1364,11 +1365,11 @@ private fun MediaLibraryContentView(
                             setDataAndType(item.uri.toUri(), item.mimeType ?: "video/*")
                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         }
-                        try {
-                            context.startActivity(Intent.createChooser(viewIntent, "Open Video With..."))
-                        } catch (_: Exception) {
-                            Toast.makeText(context, "No app available to open this video", Toast.LENGTH_SHORT).show()
-                        }
+                        context.safeStartActivity(
+                            viewIntent,
+                            chooserTitle = "Open Video With...",
+                            errorMessage = "No app available to open this video"
+                        )
                     },
                     onShareClick = {
                         val shareIntent = Intent(Intent.ACTION_SEND).apply {
@@ -1376,11 +1377,11 @@ private fun MediaLibraryContentView(
                             putExtra(Intent.EXTRA_STREAM, item.uri.toUri())
                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         }
-                        try {
-                            context.startActivity(Intent.createChooser(shareIntent, "Share Video"))
-                        } catch (_: Exception) {
-                            Toast.makeText(context, "No app available to share this video", Toast.LENGTH_SHORT).show()
-                        }
+                        context.safeStartActivity(
+                            shareIntent,
+                            chooserTitle = "Share Video",
+                            errorMessage = "No app available to share this video"
+                        )
                     },
                     onResetProgressClick = {
                         val prevPos = item.playbackPositionMs
@@ -1991,11 +1992,11 @@ private fun shareVideos(context: android.content.Context, uris: List<String>) {
             streams.drop(1).forEach { addItem(android.content.ClipData.Item(it)) }
         }
     }
-    try {
-        context.startActivity(Intent.createChooser(shareIntent, "Share video${if (streams.size == 1) "" else "s"}"))
-    } catch (_: Exception) {
-        Toast.makeText(context, "No app can share these videos.", Toast.LENGTH_LONG).show()
-    }
+    context.safeStartActivity(
+        shareIntent,
+        chooserTitle = "Share video${if (streams.size == 1) "" else "s"}",
+        errorMessage = "No app can share these videos."
+    )
 }
 
 /** The library's bar when there is no grid yet (loading or empty): the mark, the name, and a way to Settings. */
